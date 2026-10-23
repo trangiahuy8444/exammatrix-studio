@@ -91,6 +91,66 @@ class BankService:
     def _read_data(self, path, default=None):
         return self.storage.read(path, default) if self.storage is not None else read_json(path, default)
 
+    def _source_key(self, key, directory=False):
+        from pathlib import PurePosixPath
+        if not isinstance(key, str) or '\\' in key or len(key) > 250:
+            raise ServiceError('Đường dẫn tệp nguồn không hợp lệ.', status=403)
+        path = PurePosixPath(key)
+        if path.is_absolute() or '..' in path.parts or any(p.startswith('.') for p in path.parts):
+            raise ServiceError('Không được truy cập ngoài vùng tệp nguồn.', status=403)
+        if path.parts[:2] != ('matrices', 'sources') or (not directory and (len(path.parts) < 3 or path.suffix.lower() not in ('.docx', '.png'))):
+            raise ServiceError('Chỉ lưu Word và ảnh trang trong vùng tệp nguồn.', status=403)
+        target = (self.data_dir/str(path)).resolve()
+        if not target.is_relative_to(self.data_dir):
+            raise ServiceError('Không được truy cập ngoài vùng tệp nguồn.', status=403)
+        return str(path)
+
+    def write_source(self, key, raw):
+        key = self._source_key(key)
+        if not isinstance(raw, bytes):
+            raise ServiceError('Nội dung tệp nguồn phải là dữ liệu nhị phân.')
+        if self.storage is not None:
+            return self.storage.write_source(key, raw)
+        target = self.data_dir/key
+        if target.is_file():
+            if target.read_bytes() != raw:
+                raise ServiceError('Tệp nguồn đã tồn tại với nội dung khác.', status=409)
+            return
+        target.parent.mkdir(parents=True, exist_ok=True)
+        fd, temporary = tempfile.mkstemp(dir=target.parent, suffix='.tmp')
+        try:
+            with os.fdopen(fd, 'wb') as handle:
+                handle.write(raw); handle.flush(); os.fsync(handle.fileno())
+            os.replace(temporary, target)
+        finally:
+            if os.path.exists(temporary): os.unlink(temporary)
+
+    def read_source(self, key):
+        key = self._source_key(key)
+        if self.storage is not None:
+            raw = self.storage.read_source(key)
+            if raw is not None: return raw
+        target = self.data_dir/key
+        if not target.is_file():
+            raise ServiceError('Không tìm thấy tệp nguồn.', status=404)
+        return target.read_bytes()
+
+    def source_exists(self, key):
+        try:
+            self.read_source(key)
+            return True
+        except ServiceError as exc:
+            if exc.status == 404: return False
+            raise
+
+    def list_sources(self, prefix):
+        prefix = self._source_key(prefix, directory=True).rstrip('/')+'/'
+        keys = set(self.storage.list_sources(prefix) if self.storage is not None else [])
+        directory = self.data_dir/prefix
+        if directory.is_dir():
+            keys.update(str(p.relative_to(self.data_dir)) for p in directory.glob('*') if p.is_file() and p.suffix.lower() in ('.png', '.docx'))
+        return sorted(keys)
+
     def _records(self, name):
         data = self._read_data(self.data_dir/f'{name}.json', [])
         if not isinstance(data, list):

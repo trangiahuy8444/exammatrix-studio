@@ -5,7 +5,9 @@ from pathlib import Path
 from django.conf import settings
 from bank_service import BankService, ServiceError
 from workspace.access import workspace_for
-from .models import LegacyState, LegacyStateVersion
+from .models import LegacyState, LegacyStateVersion, StoredSource
+from django.db.models import Sum
+import hashlib
 from .models import empty_legacy_documents
 from .context import course_context
 
@@ -48,6 +50,29 @@ class DatabaseStorage:
         self.state.documents = documents
         self.state.revision += 1
         self.state.save(update_fields=['documents', 'revision', 'updated_at'])
+
+
+    def write_source(self, key, raw):
+        if len(raw) > getattr(settings, 'PRIVATE_SOURCE_MAX_BYTES', 8*1024*1024):
+            raise ServiceError('Tệp nguồn vượt giới hạn 8 MB.')
+        existing = StoredSource.objects.filter(state=self.state, key=key).first()
+        digest = hashlib.sha256(raw).hexdigest()
+        if existing:
+            if existing.digest != digest:
+                raise ServiceError('Tệp nguồn đã tồn tại với nội dung khác.', status=409)
+            return
+        total = StoredSource.objects.filter(workspace=self.state.workspace).aggregate(total=Sum('size'))['total'] or 0
+        if total + len(raw) > getattr(settings, 'PRIVATE_SOURCE_WORKSPACE_BYTES', 128*1024*1024):
+            raise ServiceError('Không gian tệp nguồn của tài khoản đã đạt giới hạn thử nghiệm 128 MB.')
+        StoredSource.objects.create(workspace=self.state.workspace, state=self.state, key=key,
+            digest=digest, size=len(raw), content=raw)
+
+    def read_source(self, key):
+        row = StoredSource.objects.filter(state=self.state, key=key).only('content').first()
+        return bytes(row.content) if row is not None else None
+
+    def list_sources(self, prefix):
+        return list(StoredSource.objects.filter(state=self.state, key__startswith=prefix).values_list('key', flat=True))
 
 
 def bank_for_user(user, curriculum=None):

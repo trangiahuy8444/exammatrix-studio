@@ -87,31 +87,29 @@ class MatrixService:
     def review(self,ident):
         return validate_matrix(self.get(ident),self.bank.catalog,True)
 
-    def _source_pages_dir(self,m):
-        digest=(m.get('source') or {}).get('sha256')
-        if not digest or not isinstance(digest,str):return None
-        d=self.path.parent/'sources'/f'{digest}_pages'
-        return d if d.is_dir() else None
+    def _source_pages_prefix(self, m):
+        import re
+        digest = (m.get('source') or {}).get('sha256')
+        if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest): return None
+        return f'matrices/sources/{digest}_pages/'
 
-    def source_pages(self,ident):
-        m=self.get(ident);d=self._source_pages_dir(m)
-        if not d:return []
-        pages=[]
-        for p in sorted(d.glob('page-*.png'),key=lambda x:int(x.stem.split('-')[1]) if x.stem.split('-')[1].isdigit() else 999):
-            n=p.stem.split('-')[1]
-            if n.isdigit():
-                num=int(n)
-                pages.append(dict(page=num,url=f'/api/matrices/{ident}/source-page/{num}'))
-        return pages
+    def source_pages(self, ident):
+        import re
+        m = self.get(ident); prefix = self._source_pages_prefix(m)
+        if not prefix: return []
+        pages = []
+        for key in self.bank.list_sources(prefix):
+            match = re.fullmatch(r'page-([1-9][0-9]*)\.png', key[len(prefix):])
+            if match:
+                number = int(match.group(1))
+                pages.append(dict(page=number, url=f'/api/matrices/{ident}/source-page/{number}'))
+        return sorted(pages, key=lambda p:p['page'])
 
-    def source_page_bytes(self,ident,page_number):
-        m=self.get(ident);d=self._source_pages_dir(m)
-        if not d or type(page_number) is not int or page_number<1:
-            raise ServiceError('Không tìm thấy trang ảnh bản gốc.',status=404)
-        target=(d/f'page-{page_number}.png').resolve()
-        if not target.is_relative_to(d.resolve()) or not target.is_file():
-            raise ServiceError('Không tìm thấy trang ảnh bản gốc.',status=404)
-        return target.read_bytes()
+    def source_page_bytes(self, ident, page_number):
+        prefix = self._source_pages_prefix(self.get(ident))
+        if not prefix or type(page_number) is not int or page_number < 1:
+            raise ServiceError('Không tìm thấy trang ảnh bản gốc.', status=404)
+        return self.bank.read_source(prefix+f'page-{page_number}.png')
 
     def compare(self,ident):
         m=self.get(ident);src=m.get('source') or {}
@@ -224,14 +222,5 @@ class MatrixService:
         from .import_docx import inspect_docx
         with self.bank.lock:
             parsed=inspect_docx(raw,filename,grade,ppct or self.bank.catalog)['candidate']
-            source_dir=self.path.parent/'sources';source_dir.mkdir(parents=True,exist_ok=True)
-            target=source_dir/(parsed['source']['sha256']+'.docx')
-            if not target.exists():
-                import os,tempfile
-                fd,tmp=tempfile.mkstemp(dir=source_dir,suffix='.tmp')
-                try:
-                    with os.fdopen(fd,'wb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
-                    os.replace(tmp,target)
-                finally:
-                    if os.path.exists(tmp):os.unlink(tmp)
+            self.bank.write_source('matrices/sources/'+parsed['source']['sha256']+'.docx', raw)
             return self.insert_received(parsed)

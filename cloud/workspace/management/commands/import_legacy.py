@@ -90,16 +90,9 @@ class Command(BaseCommand):
                 elif state.documents != empty_legacy_documents():
                     raise CommandError('Tài khoản đã có dữ liệu; không ghi đè công việc hiện có.')
                 else:
-                    # Copy only into this workspace's private source folder.
-                    destination = service.data_dir/'matrices/sources'
+                    # Store source files durably with the same teacher-owned bank.
                     for path, relative in source_files:
-                        target = destination/relative
-                        target.parent.mkdir(parents=True, exist_ok=True)
-                        raw = path.read_bytes()
-                        if target.exists() and target.read_bytes() != raw:
-                            raise CommandError('Tệp đích đã có nội dung khác; không ghi đè.')
-                        if not target.exists():
-                            target.write_bytes(raw)
+                        service.write_source('matrices/sources/'+relative.as_posix(), path.read_bytes())
                     LegacyStateVersion.objects.create(workspace=workspace, state=state,
                         revision=state.revision, document='all', payload=copy.deepcopy(state.documents))
                     state.documents = copy.deepcopy(documents)

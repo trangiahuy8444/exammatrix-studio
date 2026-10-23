@@ -121,3 +121,18 @@ class Exam(CurriculumRecord):
             if getattr(self, field + '_id', None) and self.curriculum_id:
                 if getattr(self, field).curriculum_id != self.curriculum_id:
                     raise ValidationError({field: 'Căn cứ không thuộc chương trình của đề thi.'})
+
+
+class StoredSource(OwnedRecord):
+    """Small private source files survive web-host restarts in the same database."""
+    state = models.ForeignKey(LegacyState, on_delete=models.PROTECT, related_name='source_files')
+    key = models.CharField(max_length=250)
+    digest = models.CharField(max_length=64)
+    size = models.PositiveBigIntegerField()
+    content = models.BinaryField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['state', 'key'], name='unique_source_key_in_bank')]
+
+    def clean(self):
+        self.check_related_workspace('state')

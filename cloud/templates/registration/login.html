@@ -1,0 +1,4 @@
+{% extends 'base.html' %}{% block title %}Đăng nhập · Ngân hàng đề{% endblock %}{% block content %}
+<section class="auth"><h1>Đăng nhập</h1><p>Tiếp tục với các môn và chương trình của bạn.</p>
+<form method="post">{% csrf_token %}{{ form.as_p }}<input type="hidden" name="next" value="{{ next }}"><button type="submit">Đăng nhập</button></form>
+<p>Chưa có tài khoản? <a href="{% url 'signup' %}">Tạo tài khoản giáo viên</a></p></section>{% endblock %}

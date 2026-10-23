@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="vi">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>Ngân hàng đề · Tin học Asian School</title><link rel="stylesheet" href="/styles.css"><script src="/core.js" defer></script><link rel="stylesheet" href="/matrices.css"><script src="/matrices.js" defer></script><script src="/app.js" defer></script></head>
+<body>
+<a class="skip" href="#main">Đến nội dung chính</a>
+<aside class="sidebar">
+  <a class="brand" href="#overview"><span class="brand-mark">AS</span><span>ASIAN SCHOOL<small>Tin học · 2026–2027</small></span></a>
+  <p class="nav-caption">KHÔNG GIAN CHUYÊN MÔN</p>
+  <nav aria-label="Điều hướng chính"><a href="#overview" data-tab="overview">Tổng quan</a><a href="#bank" data-tab="bank">Ngân hàng câu hỏi</a><a href="#ppct" data-tab="ppct">Phân phối chương trình</a><a href="#revisions" data-tab="revisions">Đề cương ôn tập</a><a href="#matrices" data-tab="matrices">Ma trận & đặc tả</a><a href="#exams" data-tab="exams">Tạo đề kiểm tra</a></nav>
+  <div class="sidebar-foot"><span class="local-dot"></span> Làm việc trên máy này<p>Nội dung được lưu tại thư mục ứng dụng. Chỉ truy cập cục bộ.</p></div>
+</aside>
+<div class="workspace">
+<header class="topbar"><span>Hồ sơ kiểm tra & đánh giá</span><div><span class="teacher">Không gian giáo viên</span><button id="refresh" class="quiet" type="button">Tải lại dữ liệu</button></div></header>
+<main id="main" tabindex="-1">
+  <div id="notice" role="status" aria-live="polite" hidden></div>
+  <div id="loading" class="empty" role="status">Đang mở ngân hàng câu hỏi…</div>
+  <section id="overview" class="view" hidden></section>
+  <section id="bank" class="view" hidden></section>
+  <section id="ppct" class="view" hidden></section>
+  <section id="revisions" class="view" hidden></section>
+  <section id="matrices" class="view" hidden></section>
+  <section id="exams" class="view" hidden></section>
+</main>
+<footer>Ngân hàng Tin học 8 · 9 · 10 <span>Asian School · Năm học 2026–2027</span></footer>
+</div>
+<dialog id="detail-dialog" aria-labelledby="detail-title"><div id="detail-content"></div></dialog>
+<dialog id="edit-dialog" aria-labelledby="edit-title"><div class="dialog-heading"><h2 id="edit-title">Câu hỏi</h2><button type="button" data-close="edit-dialog" class="quiet">Đóng</button></div><form id="question-form"></form></dialog>
+<noscript><p class="empty">Cần bật JavaScript để mở ngân hàng câu hỏi.</p></noscript>
+</body></html>

@@ -1,0 +1,40 @@
+const assert=require('node:assert/strict');
+const core=require('../public/core.js');
+const qs=[{id:'a',grade:9,lesson_code:'B1',type:'MC',level:'Biết',review_status:'approved',question:'Thế giới kĩ thuật số'},{id:'b',grade:9,lesson_code:'B2',type:'ES',level:'Vận dụng',review_status:'draft',question:'Đánh giá thông tin'},{id:'c',grade:8,lesson_code:'B1',type:'MC',level:'Biết',review_status:'archived',question:'Lược sử'}];
+assert.deepEqual(core.filterQuestions(qs,{search:'the gioi',status:'active'}).map(q=>q.id),['a']);
+assert.deepEqual(core.filterQuestions(qs,{grade:'9',type:'ES',status:'all'}).map(q=>q.id),['b']);
+assert.equal(core.blueprintSummary([{count:28,points_per_question:.25},{count:3,points_per_question:1}]).points,10);
+assert.equal(core.blueprintSummary([{count:3,points_per_question:.1}]).points,.3);
+assert.equal(core.templateBlocked({unsupported:true}),true);
+assert.equal(core.templateBlocked({unsupported:false}),false);
+assert.deepEqual(core.revisionIds(qs,['a','b','c'],9),['a','b']);
+assert.equal(core.escapeHtml('<img onerror="x">'),'&lt;img onerror=&quot;x&quot;&gt;');
+console.log('PASS frontend: accents, filters, points, unsupported templates, revision grade, HTML safety');
+
+for (const grade of [8, 10]) for (const period of ['GK1', 'CK1', 'GK2', 'CK2']) assert.equal(core.sourceTemplateRequired(grade, period), true);
+assert.equal(core.sourceTemplateRequired(9, 'GK1'), false);
+assert.equal(core.sourceTemplateRequired(8, 'TX'), false);
+assert.ok(core.DocFormatter.toolbarHtml('test-key', true).includes('data-fmt-align="center"'));
+assert.ok(core.DocFormatter.toolbarHtml('test-key', false).includes('data-fmt-cmd="export-word"'));
+
+assert.deepEqual(core.jsonHeaders(''), {'Content-Type':'application/json'});
+assert.deepEqual(core.jsonHeaders('test-csrf-token'), {'Content-Type':'application/json','X-CSRFToken':'test-csrf-token'});
+assert.notEqual(core.formatStoragePrefix('teacher-a'), core.formatStoragePrefix('teacher-b'));
+assert.equal(core.formatStoragePrefix(''), 'tin_doc_fmt_v1:');
+assert.equal(core.scopedUrl('/api/state','course-a'), '/api/state?curriculum=course-a');
+assert.equal(core.scopedUrl('/api/exams/a/export?format=docx','course-a'), '/api/exams/a/export?format=docx&curriculum=course-a');
+assert.equal(core.scopedUrl('/api/state',''), '/api/state');
+assert.equal(core.scopedUrl('https://example.test/path','course-a'), 'https://example.test/path');
+assert.deepEqual(core.contextGrades({allowed_grades:[12]}), [12]);
+assert.deepEqual(core.contextGrades({}), [8,9,10]);
+// Saved-document edits affect its snapshot, including shuffled choices, not the bank.
+const originalQuestion={id:'q1',type:'MC',question:'Câu gốc',options:['A gốc','B gốc','C gốc','D gốc'],correct:0};
+const snapshot={questions:[structuredClone(originalQuestion)]};
+snapshot.questions[0].options.reverse();snapshot.questions[0].correct=3;
+const article={dataset:{editQid:'q1'},querySelector:()=>({textContent:'Câu trong bản đề'}),querySelectorAll:selector=>selector==='[data-edit-opt]'?[{dataset:{editOpt:'0'},textContent:'Phương án trong đề'}]:[]};
+const sheet={querySelectorAll:()=>[article]};
+core.syncEditedQuestionsFromSheet(sheet,snapshot);
+assert.equal(snapshot.questions[0].question,'Câu trong bản đề');
+assert.equal(snapshot.questions[0].options[0],'Phương án trong đề');
+assert.equal(originalQuestion.question,'Câu gốc');
+assert.deepEqual(originalQuestion.options,['A gốc','B gốc','C gốc','D gốc']);

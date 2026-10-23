@@ -1,0 +1,21 @@
+{% extends 'base.html' %}{% block title %}{% if is_course %}{{ record.title }}{% else %}{{ record.name }}{% endif %} · Ngân hàng đề{% endblock %}{% block content %}
+<a href="/workspace/">← Môn học &amp; chương trình</a>
+<div class="page-heading"><h1>{% if action == 'edit' %}Sửa {{ label }}{% elif action == 'delete' %}Xác nhận xóa{% elif action == 'restore' %}Khôi phục {{ label }}{% else %}{% if is_course %}{{ record.title }}{% else %}{{ record.name }}{% endif %}{% endif %}</h1>
+{% if record.archived %}<p class="warning">Mục này đang trong thùng rác.</p>{% endif %}</div>
+{% if error %}<div role="alert" class="notice error">{{ error }}</div>{% endif %}
+{% if action == 'edit' %}
+<section class="setup"><h2>Thông tin {{ label }}</h2>{% if locked %}<p class="notice">Chương trình đã có nội dung. Bạn có thể sửa tên và bộ sách; môn, khối và năm học được giữ để bảo toàn hồ sơ. Tạo chương trình mới khi cần đổi các mục này.</p>{% endif %}
+<form method="post">{% csrf_token %}<input type="hidden" name="expected_revision" value="{{ record.revision }}">{{ form.as_p }}<div class="actions"><button type="submit">Lưu thay đổi</button><a class="button quiet" href="{{ base }}">Hủy</a></div></form></section>
+{% elif action == 'delete' %}
+<section class="setup"><h2>{% if is_course %}{{ record.title }}{% else %}{{ record.name }}{% endif %}</h2><p>Bạn muốn chuyển {{ label }} này vào thùng rác? {% if is_course %}Các bài học, câu hỏi, đề cương, ma trận và đề thi bên trong được giữ lại để khôi phục.{% else %}Các chương trình đang dùng môn này phải được xóa trước.{% endif %}</p>
+<form method="post">{% csrf_token %}<input type="hidden" name="expected_revision" value="{{ record.revision }}"><div class="actions"><button class="danger" type="submit">Xác nhận xóa</button><a class="button quiet" href="{{ base }}">Hủy</a></div></form></section>
+{% elif action == 'restore' %}
+<section class="setup"><h2>{% if is_course %}{{ record.title }}{% else %}{{ record.name }}{% endif %}</h2><p>Khôi phục {{ label }} để tiếp tục sử dụng.</p><form method="post">{% csrf_token %}<input type="hidden" name="expected_revision" value="{{ record.revision }}"><button type="submit">Khôi phục</button></form></section>
+{% else %}
+<section class="setup"><h2>Thông tin {{ label }}</h2><dl>
+{% if is_course %}<dt>Môn học</dt><dd>{{ record.subject.name }}</dd><dt>Tên chương trình</dt><dd>{{ record.title }}</dd><dt>Khối</dt><dd>{{ record.grade }}</dd><dt>Năm học</dt><dd>{{ record.school_year }}</dd><dt>Bộ sách</dt><dd>{{ record.book|default:'Chưa chọn' }}</dd>
+{% else %}<dt>Tên môn</dt><dd>{{ record.name }}</dd><dt>Mã môn</dt><dd>{{ record.code }}</dd>{% endif %}</dl>
+{% if stats %}<div class="record-stats">{% for title,count in stats.items %}<div><strong>{{ count }}</strong><span>{{ title }}</span></div>{% endfor %}</div>{% endif %}
+<div class="actions">{% if record.archived %}<a class="button" href="{{ base }}restore/">Khôi phục</a>{% else %}{% if is_course %}<a class="button" href="/app/?curriculum={{ record.pk }}">Mở ngân hàng</a>{% endif %}<a class="button quiet" href="{{ base }}edit/">Sửa {{ label }}</a><a class="button danger" href="{{ base }}delete/">Xóa {{ label }}</a>{% endif %}</div></section>
+{% if not is_course %}<section class="setup"><h2>Chương trình của môn học</h2>{% for c in related_courses %}<p><a href="/workspace/curricula/{{ c.pk }}/">{{ c.title }}</a> · Khối {{ c.grade }} · {{ c.school_year }}{% if c.archived %} · Trong thùng rác{% endif %}</p>{% empty %}<p>Chưa có chương trình.</p>{% endfor %}</section>{% endif %}
+{% endif %}{% endblock %}

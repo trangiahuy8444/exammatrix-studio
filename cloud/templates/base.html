@@ -1,0 +1,11 @@
+{% load static %}<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Ngân hàng đề{% endblock %}</title><link rel="stylesheet" href="{% static 'workspace.css' %}"></head>
+<body><a class="skip" href="#main">Đến nội dung chính</a>
+<header class="site-header"><a class="brand" href="{% url 'home' %}">Ngân hàng đề</a><nav aria-label="Tài khoản">
+{% if user.is_authenticated %}<a href="{% url 'assessment_app' %}">Về ngân hàng đề</a><a href="{% url 'workspace' %}">Môn học &amp; tài khoản</a><a href="{% url 'password_change' %}">Đổi mật khẩu</a>
+<form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="quiet" type="submit">Đăng xuất</button></form>
+{% else %}<a href="{% url 'login' %}">Đăng nhập</a><a class="button" href="{% url 'signup' %}">Tạo tài khoản</a>{% endif %}</nav></header>
+<main id="main">{% for message in messages %}<div class="notice" role="status">{{ message }}</div>{% endfor %}{% block content %}{% endblock %}</main>
+<footer>Không gian soạn hồ sơ kiểm tra dành cho giáo viên. Dữ liệu của mỗi tài khoản được lưu riêng.</footer>
+</body></html>

@@ -55,3 +55,29 @@ assert.equal(core.shortAnswerOf({correct_answer:'2'}),'2');
 assert.equal(core.shortAnswerOf({answer:'2'}),'2');
 assert.equal(core.shortAnswerOf({}),'');
 console.log('PASS frontend: giải thích 4 phương án, đáp án trả lời ngắn');
+
+// B1: hàng đợi duyệt câu hỏi
+{
+  const rq=[
+    {id:'p2',grade:9,lesson_code:'B2',type:'MC',level:'Hiểu',review_status:'pending_review',origin:'ai_gemini'},
+    {id:'p1',grade:9,lesson_code:'B1',type:'ES',level:'Vận dụng',review_status:'pending_review',origin:'teacher'},
+    {id:'p0',grade:9,lesson_code:'B1',type:'MC',level:'Biết',review_status:'content_checked',origin:'teacher'},
+    {id:'n1',grade:9,lesson_code:'B1',type:'MC',level:'Biết',review_status:'needs_review'},
+    {id:'a1',grade:9,lesson_code:'B1',type:'MC',level:'Biết',review_status:'approved'},
+    {id:'x1',grade:8,lesson_code:'B1',type:'MC',level:'Biết',review_status:'archived'}];
+  assert.deepEqual(core.reviewQueue(rq,{}).map(q=>q.id),['p0','p1','p2']);  // mặc định: chờ duyệt, theo bài rồi mức độ
+  assert.deepEqual(core.reviewQueue(rq,{origin:'ai_gemini'}).map(q=>q.id),['p2']);
+  assert.deepEqual(core.reviewQueue(rq,{status:'needs_review'}).map(q=>q.id),['n1']);
+  assert.deepEqual(core.reviewQueue(rq,{status:'pending_review',type:'ES'}).map(q=>q.id),['p1']);
+  assert.deepEqual(core.reviewQueue(rq,{grade:'8',status:'all'}).map(q=>q.id),[]);  // "tất cả" vẫn bỏ câu lưu trữ
+  assert.equal(core.reviewKeyAction('a'),'approve');assert.equal(core.reviewKeyAction('R'),'return');
+  assert.equal(core.reviewKeyAction('j'),'next');assert.equal(core.reviewKeyAction('k'),'prev');
+  assert.equal(core.reviewKeyAction('e'),'edit');assert.equal(core.reviewKeyAction('x'),null);
+  assert.equal(core.stepIndex(0,-1,3),0);assert.equal(core.stepIndex(2,1,3),2);assert.equal(core.stepIndex(1,1,3),2);assert.equal(core.stepIndex(0,1,0),0);
+  const items=[{key:'accurate'},{key:'answer'}];
+  assert.deepEqual(core.checklistMissing({accurate:true},items),['answer']);
+  assert.deepEqual(core.checklistMissing({accurate:true,answer:true},items),[]);
+  assert.deepEqual(core.checklistMissing({accurate:'true',answer:1},items),['accurate','answer']);  // chỉ nhận đúng true
+  assert.deepEqual(core.reviewProgress(rq),{draft:0,pending_review:3,needs_review:1,approved:1,total:5});
+  console.log('PASS frontend: hàng đợi duyệt, phím tắt, phiếu kiểm định, tiến độ');
+}

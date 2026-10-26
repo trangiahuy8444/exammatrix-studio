@@ -418,6 +418,32 @@ function syncEditedQuestionsFromSheet(sheet,record){
     for(const k of ['short_answer','correct_answer','answer']){const v=q&&q[k];if(v!==undefined&&v!==null&&String(v).trim())return String(v).trim();}
     return '';
   }
-  const api={mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  // B1: hàng đợi duyệt câu hỏi. "content_checked" là tên cũ của "chờ duyệt".
+  const LEVEL_ORDER={'Biết':0,'Hiểu':1,'Vận dụng':2};
+  function reviewStatusOf(q){const s=(q&&q.review_status)||'draft';return s==='content_checked'?'pending_review':s;}
+  function reviewQueue(questions,f){
+    f=f||{};const status=f.status||'pending_review';
+    return (questions||[]).filter(q=>{
+      const s=reviewStatusOf(q);
+      if(s==='archived')return false;
+      if(status!=='all'&&s!==status)return false;
+      if(f.grade&&String(q.grade)!==String(f.grade))return false;
+      if(f.lesson&&q.lesson_code!==f.lesson)return false;
+      if(f.level&&q.level!==f.level)return false;
+      if(f.type&&q.type!==f.type)return false;
+      if(f.origin&&(q.origin||'teacher')!==f.origin)return false;
+      return true;
+    }).sort((a,b)=>(a.grade-b.grade)||String(a.lesson_code).localeCompare(String(b.lesson_code),'vi',{numeric:true})||
+      ((LEVEL_ORDER[a.level]??9)-(LEVEL_ORDER[b.level]??9))||String(a.id).localeCompare(String(b.id)));
+  }
+  function reviewKeyAction(key){return {a:'approve',r:'return',j:'next',k:'prev',e:'edit'}[String(key||'').toLowerCase()]||null;}
+  function stepIndex(i,delta,length){if(!length)return 0;return Math.min(length-1,Math.max(0,i+delta));}
+  function checklistMissing(checklist,items){return (items||[]).map(x=>x.key).filter(k=>!(checklist&&checklist[k]===true));}
+  function reviewProgress(questions){
+    const out={draft:0,pending_review:0,needs_review:0,approved:0,total:0};
+    (questions||[]).forEach(q=>{const s=reviewStatusOf(q);if(s==='archived')return;if(s in out)out[s]++;out.total++;});
+    return out;
+  }
+  const api={reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

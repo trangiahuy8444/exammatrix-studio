@@ -114,6 +114,8 @@ class Handler(BaseHTTPRequestHandler):
             service, self.matrix_service = self._get_services()
             if path == '/api/state':
                 state=service.state();state['matrices']=self.matrix_service.list()
+                from domain.review import CHECKLIST
+                state['review_checklist']=[dict(item) for item in CHECKLIST]
                 state['is_test_mode'] = (service == getattr(self.server, 'test_service', None))
                 return self._json(state)
             if path == '/api/ai/status':

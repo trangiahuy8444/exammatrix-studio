@@ -92,10 +92,9 @@ def review(record):
     from exports import _goals
     out=[preamble(record),header(record,'ĐỀ CƯƠNG ÔN TẬP KIỂM TRA'),heading('A. GIỚI HẠN KIẾN THỨC ÔN TẬP')]
     rows=[]
-    for i,lesson in enumerate(_goals(record),1):
-        for goal in lesson['goals'] or ['']:
-            rows.append([str(i),esc(lesson['topic']),esc(lesson['name']),esc(goal)])
-    out.append(table([1,2.5,3.8,9.2],['STT','Tên chủ đề','Tên bài','Mục tiêu bài học'],rows))
+    for i,lesson in enumerate(_goals(record),1):  # 3 cột, không có "Mục tiêu bài học" (góp ý 26/10/2026)
+        rows.append([str(i),esc(lesson['topic']),esc(lesson['name'])])
+    out.append(table([1,6.5,9],['STT','Tên chủ đề','Tên bài'],rows))
     out.append(heading('B. HỆ THỐNG CÂU HỎI ÔN TẬP'))
     kinds=[('MC','I. TRẮC NGHIỆM'),('YN','II. ĐÚNG / SAI'),('SHORT','III. TRẢ LỜI NGẮN'),('ES','IV. TỰ LUẬN')]
     for kind,title in kinds:

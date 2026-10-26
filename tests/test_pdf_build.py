@@ -1,6 +1,7 @@
 """Mốc A6: xuất PDF an toàn trong ứng dụng."""
 import shutil
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from unittest import mock
 
@@ -41,30 +42,34 @@ class PdfBuildPolicyTests(unittest.TestCase):
         self.assertNotIn('/tmp', str(ctx.exception.details))
 
 
-@unittest.skipUnless(HAS_XELATEX, 'máy không có XeLaTeX')
+def fake_word(raw):
+    assert raw[:2] == b'PK', 'PDF phải được chuyển từ tệp Word'
+    return b'%PDF-from-word'
+
+
+@patch('pdf_build.docx_to_pdf', side_effect=fake_word)
 class PdfExportTests(unittest.TestCase):
-    def test_exam_pdf_student_and_teacher(self):
+    """PDF đề, đáp án, đề cương và ma trận đều chuyển từ chính tệp Word."""
+
+    def test_exam_pdf_student_and_teacher(self, conv):
         for answers in (False, True):
             raw, mime, name = export_document(exam(), 'pdf', answers=answers)
             self.assertEqual(mime, 'application/pdf')
-            self.assertTrue(raw.startswith(b'%PDF'))
+            self.assertEqual(raw, b'%PDF-from-word')
             self.assertTrue(name.endswith('.pdf'))
 
-    def test_review_guide_pdf(self):
+    def test_review_guide_pdf(self, conv):
         raw, mime, _ = export_document(exam(), 'pdf', revision=True)
-        self.assertTrue(raw.startswith(b'%PDF'))
+        self.assertEqual(raw, b'%PDF-from-word')
 
-
-if __name__ == '__main__':
-    unittest.main()
-
-
-@unittest.skipUnless(HAS_XELATEX, 'máy không có XeLaTeX')
-class MatrixPdfTests(unittest.TestCase):
-    def test_matrix_pdf(self):
+    def test_matrix_pdf(self, conv):
         from matrices.exports import export_matrix
         from matrix_fixtures import minimal_matrix, bank_fixture
         raw, mime, name = export_matrix(minimal_matrix(), bank_fixture()['ppct'], 'pdf')
         self.assertEqual(mime, 'application/pdf')
-        self.assertTrue(raw.startswith(b'%PDF'))
+        self.assertEqual(raw, b'%PDF-from-word')
         self.assertTrue(name.endswith('.pdf'))
+
+
+if __name__ == '__main__':
+    unittest.main()

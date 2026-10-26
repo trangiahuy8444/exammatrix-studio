@@ -379,12 +379,12 @@ def export_matrix(matrix,ppct,fmt,section='all',mode='auto'):
     report=validate_matrix(matrix,ppct,True)
     state='THONG_NHAT' if matrix.get('status')=='locked' and report['valid'] else 'NHAP'
     name=f'TIN_{matrix["grade"]}_{matrix["exam_type"]}_MA_TRAN_V{matrix.get("version",1)}_{state}.{fmt}'
-    if fmt in ('tex','pdf'):
+    if fmt=='pdf':
+        import pdf_build  # PDF chuyển từ chính tệp Word để hai bản giống hệt nhau
+        return pdf_build.docx_to_pdf(matrix_docx(matrix,ppct,section,mode)),'application/pdf',name
+    if fmt=='tex':
         from latex_generator import generate_matrix_latex
         tex=generate_matrix_latex(matrix)
-        if fmt=='pdf':
-            from pdf_build import compile_latex
-            return compile_latex(tex),'application/pdf',name
         return tex.encode('utf-8'),'application/x-tex; charset=utf-8',name
     if fmt=='json':
         import json

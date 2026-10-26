@@ -152,6 +152,117 @@ def _clean_question_text(text):
     return '\n'.join(lines).strip()
 
 
+# Góp ý nghiệm thu 26/10/2026: ý a), b) của câu tự luận và gạch đầu dòng hướng dẫn chấm phải thụt hàng.
+SUBPART_RE = re.compile(r'^\s*(?:[a-zđ]\)|[-–•+])\s+')
+_LEVEL1_SPLIT = re.compile(r'(?<=[:.)…;])\s*[-–]\s+(?=\S)')
+_LEVEL2_SPLIT = re.compile(r'(?<=[:.)…;])\s+\+\s+(?=\S)')
+_LEADING_MARK = re.compile(r'^[-–•]\s+')
+
+
+def rubric_lines(text):
+    """Tách tiêu chí chấm thành [(cấp, dòng)].
+
+    Nhiều tiêu chí nhập từ Word bị dồn thành một dòng ("Ý chính:- ý 1 (0,5 đ)- ý 2 + ý con"). Chỉ tách ở
+    dấu "-"/"+" đứng ngay sau dấu câu (":", ".", ")", ";"), nên biểu thức như "1 + 2" hay "C++" không bị tách.
+    Cấp 0 là dòng tiêu đề, cấp 1 là gạch đầu dòng "–", cấp 2 là ý con "+". Không sửa dữ liệu gốc.
+    """
+    lines = []
+    for raw in str(text or '').splitlines():
+        raw = raw.strip()
+        if not raw:
+            continue
+        level = 0
+        if _LEADING_MARK.match(raw):
+            raw, level = _LEADING_MARK.sub('', raw), 1
+        for i, part in enumerate(_LEVEL1_SPLIT.split(raw)):
+            part_level = level if i == 0 else 1
+            for j, item in enumerate(_LEVEL2_SPLIT.split(part)):
+                if item.strip():
+                    lines.append((part_level if j == 0 else part_level + 1, item.strip()))
+    return lines
+
+
+def _hanging(paragraph, left_cm, hang_cm=0.5):
+    from docx.shared import Cm
+    paragraph.paragraph_format.left_indent = Cm(left_cm)
+    paragraph.paragraph_format.first_line_indent = Cm(-hang_cm)
+
+
+def _add_text_lines(doc, first_paragraph, text, size=11, keep_with_next=True):
+    """Dòng đầu nối vào đoạn "Câu n."; dòng sau là đoạn riêng; ý a), b) và gạch đầu dòng thụt treo."""
+    from docx.shared import Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    lines = [line for line in str(text).split('\n')]
+    first_paragraph.add_run(lines[0].strip()).font.size = Pt(size)
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(2)
+        p.paragraph_format.keep_with_next = keep_with_next
+        if SUBPART_RE.match(line):
+            _hanging(p, 1.0)
+        p.add_run(line.strip()).font.size = Pt(size)
+
+
+def _add_rubric(new_paragraph, criterion, suffix='', marker='– ', base_cm=0.0, size=10.5):
+    """Ghi một tiêu chí chấm: một dòng thì "– nội dung (điểm)", nhiều dòng thì tiêu đề in đậm + các ý thụt treo."""
+    from docx.shared import Pt
+    lines = rubric_lines(criterion) or [(0, '')]
+    if len(lines) == 1:
+        p = new_paragraph()
+        _hanging(p, base_cm + 0.5, 0.5)
+        p.add_run(f'{marker}{lines[0][1]}{suffix}').font.size = Pt(size)
+        return
+    for i, (level, line) in enumerate(lines):
+        p = new_paragraph()
+        p.paragraph_format.space_after = Pt(1)
+        if level == 0:
+            _hanging(p, base_cm, 0)
+            run = p.add_run(line + (suffix if i == 0 else ''))
+            run.bold = True
+        else:
+            _hanging(p, base_cm + 0.5 * level, 0.4)
+            run = p.add_run(('– ' if level == 1 else '+ ') + line)
+        run.font.size = Pt(size)
+
+
+def _cell_paragraphs(cell):
+    """Hàm tạo đoạn lần lượt trong một ô bảng: dùng đoạn trống sẵn có trước, rồi thêm đoạn mới."""
+    state = {'first': True}
+
+    def new():
+        if state['first']:
+            state['first'] = False
+            return cell.paragraphs[0]
+        return cell.add_paragraph()
+    return new
+
+
+def _rubric_html(esc, criterion, suffix='', marker='– ', base_em=0.0):
+    lines = rubric_lines(criterion) or [(0, '')]
+    if len(lines) == 1:
+        return f'<p style="margin-left:{base_em+1.2}em;text-indent:-1.2em">{marker}{esc(lines[0][1])}{esc(suffix)}</p>'
+    out = []
+    for i, (level, line) in enumerate(lines):
+        if level == 0:
+            out.append(f'<p style="margin-left:{base_em}em"><strong>{esc(line)}{esc(suffix) if i == 0 else ""}</strong></p>')
+        else:
+            mark = '– ' if level == 1 else '+ '
+            out.append(f'<p style="margin-left:{base_em+1.2*level}em;text-indent:-1em">{mark}{esc(line)}</p>')
+    return ''.join(out)
+
+
+def _question_html(esc, text):
+    lines = [line for line in str(text).split('\n') if line.strip()]
+    head = esc(lines[0].strip()) if lines else ''
+    rest = ''.join(f'<p style="margin-left:2em;text-indent:-1.3em">{esc(l.strip())}</p>' if SUBPART_RE.match(l)
+                   else f'<p>{esc(l.strip())}</p>' for l in lines[1:])
+    return head, rest
+
+
 def _format_mc_docx(doc, options, keep_with_next=True):
     from docx.shared import Cm, Pt
     from docx.enum.text import WD_TAB_ALIGNMENT
@@ -256,9 +367,9 @@ def _html(record, answers, revision):
             body.append(f'<p align="center">Thời gian: {esc(record.get("duration",45))} phút — Tổng điểm: 10</p>')
             body.append('<p align="center">Họ và tên: ................................................ Lớp: ................</p></header>')
     else:
-        body.append('</header><h2>A. GIỚI HẠN KIẾN THỨC ÔN TẬP</h2><table><thead><tr><th align="center">STT</th><th align="center">Tên chủ đề</th><th align="center">Tên bài</th><th align="center">Mục tiêu bài học</th></tr></thead><tbody>')
+        body.append('</header><h2>A. GIỚI HẠN KIẾN THỨC ÔN TẬP</h2><table><thead><tr><th align="center">STT</th><th align="center">Tên chủ đề</th><th align="center">Tên bài</th></tr></thead><tbody>')
         for n, row in enumerate(_goals(record), 1):
-            body.append(f'<tr><td align="center">{n}</td><td>{esc(row["topic"])}</td><td>{esc(row["name"])}</td><td>{esc("; ".join(row["goals"]))}</td></tr>')
+            body.append(f'<tr><td align="center">{n}</td><td>{esc(row["topic"])}</td><td>{esc(row["name"])}</td></tr>')
         body.append('</tbody></table><h2>B. CÂU HỎI ÔN TẬP</h2>')
 
     for kind, label in _section_defs(record):
@@ -269,7 +380,8 @@ def _html(record, answers, revision):
         for n, q in enumerate(questions, 1):
             n = q.get('slot_number', n)
             points = f' ({point_label(q["points"])} điểm)' if 'points' in q else ''
-            body.append(f'<section class="question"><p><strong>Câu {n}{esc(points)}.</strong> {esc(q["question"])}</p>')
+            head, rest = _question_html(esc, q["question"])
+            body.append(f'<section class="question"><p><strong>Câu {n}{esc(points)}.</strong> {head}</p>{rest}')
             if kind == 'MC':
                 body.append(_format_mc_html(q.get('options', [])))
             elif kind == 'YN':
@@ -287,7 +399,7 @@ def _html(record, answers, revision):
                 else:
                     max_score = q.get('max_score', 1) or 1
                     scale = q.get('points', max_score) / max_score
-                    body.extend(f'<p>– {esc(c["criterion"])} ({point_label(c["points"]*scale)} điểm)</p>' for c in q.get('rubric', []))
+                    body.extend(_rubric_html(esc, c["criterion"], f' ({point_label(c["points"]*scale)} điểm)') for c in q.get('rubric', []))
                     if q.get('equivalent_answer_policy'):
                         body.append(f'<p>{esc(_scaled_policy(q))}</p>')
             body.append('</section>')
@@ -320,7 +432,7 @@ def _html(record, answers, revision):
                 pts = f' ({point_label(q["points"])} điểm)' if 'points' in q else ''
                 body.append(f'<p><strong>Câu {slot}{pts}</strong></p>')
                 for c in q.get('rubric', []):
-                    body.append(f'<p style="margin-left:1.5em">• {esc(c.get("criterion", ""))} ({point_label(c.get("points", 0.25))} điểm)</p>')
+                    body.append(_rubric_html(esc, c.get("criterion", ""), f' ({point_label(c.get("points", 0.25))} điểm)', '• ', 1.5))
                 if q.get('equivalent_answer_policy'):
                     body.append(f'<p style="margin-left:1.5em"><em>Quy tắc chấm tương đương: {esc(_scaled_policy(q))}</em></p>')
         body.append('</div>')
@@ -364,9 +476,9 @@ def _docx(record, answers, revision):
         header.text = ''
         header.alignment = WD_ALIGN_PARAGRAPH.CENTER
         banner_file = BANNER_PATH if BANNER_PATH.exists() else LOGO_PATH
-        img_w = Cm(16.5) if BANNER_PATH.exists() else Cm(4.5)
+        img_w = Cm(13.5) if BANNER_PATH.exists() else Cm(4.0)  # góp ý 26/10/2026: logo nhỏ hơn
         header.add_run().add_picture(str(banner_file), width=img_w)
-        section.top_margin = Cm(2.8) if BANNER_PATH.exists() else Cm(2.0)
+        section.top_margin = Cm(2.6) if BANNER_PATH.exists() else Cm(2.0)
     else:
         for p in section.header.paragraphs:
             p.text = ''
@@ -383,13 +495,13 @@ def _docx(record, answers, revision):
                 doc.add_paragraph('Họ và tên: ........................................ Lớp: ................')
         else:
             doc.add_heading('A. GIỚI HẠN KIẾN THỨC ÔN TẬP', level=2)
-            table = doc.add_table(rows=1, cols=4)
+            table = doc.add_table(rows=1, cols=3)
             table.style = 'Table Grid'
-            for cell, text in zip(table.rows[0].cells, ['STT', 'Tên chủ đề', 'Tên bài', 'Mục tiêu bài học']):
+            for cell, text in zip(table.rows[0].cells, ['STT', 'Tên chủ đề', 'Tên bài']):
                 cell.text = text
             repeat = OxmlElement('w:tblHeader'); table.rows[0]._tr.get_or_add_trPr().append(repeat)
             for n, row in enumerate(_goals(record), 1):
-                for cell, text in zip(table.add_row().cells, [str(n), row['topic'], row['name'], '; '.join(row['goals'])]):
+                for cell, text in zip(table.add_row().cells, [str(n), row['topic'], row['name']]):
                     cell.text = text
             doc.add_heading('B. HỆ THỐNG CÂU HỎI ÔN TẬP', level=2)
     elif not revision:
@@ -471,8 +583,9 @@ def _docx(record, answers, revision):
 
         p_sch = doc.add_paragraph(); p_sch.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p_sch.paragraph_format.space_before = Pt(4); p_sch.paragraph_format.space_after = Pt(2)
-        r1 = p_sch.add_run("TRƯỜNG TH, THCS VÀ THPT QUỐC TẾ Á CHÂU\n")
-        r1.bold = True; r1.font.size = Pt(12)
+        if not BANNER_PATH.exists():  # banner logo đã có tên trường, không lặp lại
+            r1 = p_sch.add_run("TRƯỜNG TH, THCS VÀ THPT QUỐC TẾ Á CHÂU\n")
+            r1.bold = True; r1.font.size = Pt(12)
         r2 = p_sch.add_run(f"ĐỀ CƯƠNG ÔN TẬP KIỂM TRA {term_name} — NĂM HỌC {s_year}\n")
         r2.bold = True; r2.font.size = Pt(13); r2.font.color.rgb = RGBColor(180, 20, 20)
         r3 = p_sch.add_run(f"MÔN: {subj_name} — KHỐI {grd}")
@@ -496,10 +609,11 @@ def _docx(record, answers, revision):
         r_hdA = p_hdA.add_run('A. GIỚI HẠN KIẾN THỨC ÔN TẬP')
         r_hdA.bold = True; r_hdA.font.size = Pt(12); r_hdA.font.color.rgb = RGBColor(180, 20, 20)
 
-        table = doc.add_table(rows=1, cols=4); table.alignment = WD_TABLE_ALIGNMENT.CENTER; table.autofit = False
+        # Góp ý 26/10/2026: bỏ cột "Mục tiêu bài học"; bảng còn 3 cột.
+        table = doc.add_table(rows=1, cols=3); table.alignment = WD_TABLE_ALIGNMENT.CENTER; table.autofit = False
         _set_table_borders(table, val='single', sz='4', color='B0C0D0')
-        widths = [1.2, 4.3, 4.3, 6.7]
-        for cell, w, text in zip(table.rows[0].cells, widths, ['STT', 'Tên chủ đề', 'Tên bài', 'Mục tiêu bài học']):
+        widths = [1.2, 7.0, 8.3]
+        for cell, w, text in zip(table.rows[0].cells, widths, ['STT', 'Tên chủ đề', 'Tên bài']):
             cell.width = Cm(w); cell.text = text
             _set_cell_bg(cell, 'EBF0FA')
             _set_cell_margins(cell, top=60, bottom=60, left=60, right=60)
@@ -510,7 +624,7 @@ def _docx(record, answers, revision):
 
         for n, row in enumerate(_goals(record), 1):
             r_cells = table.add_row().cells
-            for c_idx, (cell, w, text) in enumerate(zip(r_cells, widths, [str(n), row['topic'], row['name'], '; '.join(row['goals'])])):
+            for c_idx, (cell, w, text) in enumerate(zip(r_cells, widths, [str(n), row['topic'], row['name']])):
                 cell.width = Cm(w); cell.text = text
                 _set_cell_margins(cell, top=40, bottom=40, left=60, right=60)
                 if c_idx == 0:
@@ -525,12 +639,13 @@ def _docx(record, answers, revision):
         r_hdB.bold = True; r_hdB.font.size = Pt(12); r_hdB.font.color.rgb = RGBColor(180, 20, 20)
 
     if not revision and answers:
+        part_numbers = iter(ROMAN)  # đánh số PHẦN theo các dạng câu có trong đề
         mc_questions = [q for q in record.get('questions', []) if q.get('type') == 'MC']
         if mc_questions:
             p_sec = doc.add_paragraph()
             p_sec.paragraph_format.space_before = Pt(8); p_sec.paragraph_format.space_after = Pt(4)
             p_sec.paragraph_format.keep_with_next = True
-            r_sec = p_sec.add_run("PHẦN I. ĐÁP ÁN TRẮC NGHIỆM KHÁCH QUAN")
+            r_sec = p_sec.add_run(f"PHẦN {next(part_numbers)}. ĐÁP ÁN TRẮC NGHIỆM KHÁCH QUAN")
             r_sec.bold = True; r_sec.font.size = Pt(12)
 
             for start_idx in range(0, len(mc_questions), 10):
@@ -565,7 +680,7 @@ def _docx(record, answers, revision):
             p_sec = doc.add_paragraph()
             p_sec.paragraph_format.space_before = Pt(8); p_sec.paragraph_format.space_after = Pt(4)
             p_sec.paragraph_format.keep_with_next = True
-            r_sec = p_sec.add_run("PHẦN II. ĐÁP ÁN TRẮC NGHIỆM ĐÚNG / SAI")
+            r_sec = p_sec.add_run(f"PHẦN {next(part_numbers)}. ĐÁP ÁN TRẮC NGHIỆM ĐÚNG / SAI")
             r_sec.bold = True; r_sec.font.size = Pt(12)
 
             t_yn = doc.add_table(rows=1 + len(yn_questions), cols=6)
@@ -600,7 +715,7 @@ def _docx(record, answers, revision):
             p_sec = doc.add_paragraph()
             p_sec.paragraph_format.space_before = Pt(8); p_sec.paragraph_format.space_after = Pt(4)
             p_sec.paragraph_format.keep_with_next = True
-            r_sec = p_sec.add_run("PHẦN III. ĐÁP ÁN TRẢ LỜI NGẮN")
+            r_sec = p_sec.add_run(f"PHẦN {next(part_numbers)}. ĐÁP ÁN TRẢ LỜI NGẮN")
             r_sec.bold = True; r_sec.font.size = Pt(12)
 
             t_sh = doc.add_table(rows=1 + len(short_questions), cols=3)
@@ -628,7 +743,7 @@ def _docx(record, answers, revision):
             p_sec = doc.add_paragraph()
             p_sec.paragraph_format.space_before = Pt(10); p_sec.paragraph_format.space_after = Pt(4)
             p_sec.paragraph_format.keep_with_next = True
-            r_sec = p_sec.add_run("PHẦN IV. HƯỚNG DẪN CHẤM VÀ THANG ĐIỂM TỰ LUẬN")
+            r_sec = p_sec.add_run(f"PHẦN {next(part_numbers)}. HƯỚNG DẪN CHẤM VÀ THANG ĐIỂM TỰ LUẬN")
             r_sec.bold = True; r_sec.font.size = Pt(12)
 
             t_es = doc.add_table(rows=1, cols=3)
@@ -659,8 +774,7 @@ def _docx(record, answers, revision):
                             if r_cells[0].paragraphs[0].runs: r_cells[0].paragraphs[0].runs[0].bold = True
                         else:
                             r_cells[0].text = ""
-                        crit = rub.get('criterion', '')
-                        r_cells[1].text = f"– {crit}"
+                        _add_rubric(_cell_paragraphs(r_cells[1]), rub.get('criterion', ''), size=11)
                         r_cells[2].text = f"{point_label(rub.get('points', 0.25) * scale)} điểm"
                         r_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
                 else:
@@ -724,8 +838,7 @@ def _docx(record, answers, revision):
             r_q = p.add_run(f'Câu {slot}{points}. ')
             r_q.bold = True
             r_q.font.size = Pt(11)
-            clean_q = _clean_question_text(q['question'])
-            p.add_run(clean_q).font.size = Pt(11)
+            _add_text_lines(doc, p, _clean_question_text(q['question']), size=11)
 
             if kind == 'MC':
                 _format_mc_docx(doc, q.get('options', []), keep_with_next=True)
@@ -783,11 +896,7 @@ def _docx(record, answers, revision):
                     max_score = q.get('max_score', 1) or 1
                     scale = q.get('points', max_score) / max_score
                     for c in q.get('rubric', []):
-                        p_rub = doc.add_paragraph()
-                        p_rub.paragraph_format.left_indent = Cm(0.5)
-                        p_rub.paragraph_format.space_before = Pt(0)
-                        p_rub.paragraph_format.space_after = Pt(1.5)
-                        p_rub.add_run(f'– {c["criterion"]} ({point_label(c["points"]*scale)} điểm)').font.size = Pt(10.5)
+                        _add_rubric(doc.add_paragraph, c['criterion'], f' ({point_label(c["points"]*scale)} điểm)', base_cm=0.5)
                     if q.get('equivalent_answer_policy'):
                         p_pol = doc.add_paragraph()
                         p_pol.paragraph_format.left_indent = Cm(0.5)
@@ -942,15 +1051,10 @@ def _docx(record, answers, revision):
                 r_q = p.add_run(f'Câu {slot}{pts}: ')
                 r_q.bold = True
                 r_q.font.size = Pt(11)
-                p.add_run(q.get('question', '')).font.size = Pt(11)
+                _add_text_lines(doc, p, _clean_question_text(q.get('question', '')), size=11, keep_with_next=False)
 
                 for c in q.get('rubric', []):
-                    p_rub = doc.add_paragraph()
-                    p_rub.paragraph_format.left_indent = Cm(0.6)
-                    p_rub.paragraph_format.space_before = Pt(0)
-                    p_rub.paragraph_format.space_after = Pt(1.5)
-                    r_c = p_rub.add_run(f'• {c.get("criterion", "")} ({point_label(c.get("points", 0.25))} điểm)')
-                    r_c.font.size = Pt(10.5)
+                    _add_rubric(doc.add_paragraph, c.get('criterion', ''), f' ({point_label(c.get("points", 0.25))} điểm)', '• ', base_cm=0.6)
                 if q.get('equivalent_answer_policy'):
                     p_pol = doc.add_paragraph()
                     p_pol.paragraph_format.left_indent = Cm(0.6)
@@ -1198,12 +1302,13 @@ def export_document(record, fmt='docx', answers=False, revision=False, target=''
     if fmt not in ('docx','html','json','tex','pdf') or (revision and fmt=='json'):
         raise ServiceError('Định dạng xuất chưa được hỗ trợ.')
     stem=('de_cuong' if revision else 'de_kiem_tra')+('_giao_vien' if answers else '_hoc_sinh')
-    if fmt in ('tex','pdf'):
+    if fmt=='pdf':
+        # PDF chuyển từ chính tệp Word để hai bản giống hệt nhau (giáo viên chọn 26/10/2026).
+        import pdf_build
+        return pdf_build.docx_to_pdf(_docx(record,answers,revision)), 'application/pdf', stem+'.pdf'
+    if fmt=='tex':
         from latex_generator import generate_exam_latex, generate_review_latex
         tex_content = generate_review_latex(record) if revision else generate_exam_latex(record, answers=answers)
-        if fmt=='pdf':
-            from pdf_build import compile_latex
-            return compile_latex(tex_content), 'application/pdf', stem+'.pdf'
         return tex_content.encode('utf-8'), 'application/x-tex; charset=utf-8', stem+'.tex'
     if fmt=='json':
         value=record if answers else public_record(record)

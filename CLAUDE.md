@@ -40,7 +40,7 @@ Some engine tests (`test_exam_verification`, `test_matrix_import`, `test_matrix_
 **One engine, two hosts.** The business logic lives in the top-level modules:
 - `bank_service.py` (`BankService`: questions, PPCT, revisions, exam generation, permutation/verification)
 - `matrices/` (`MatrixService`: model, Word import, exchange, generation, exports, HTTP routes)
-- `exports.py` (DOCX/HTML/LMS)
+- `exports.py` (DOCX/HTML/LMS). PDF is converted from the same DOCX by Microsoft Word (`pdf_build.docx_to_pdf`, AppleScript, temp files in Word's sandbox container), so PDF and Word are identical; with no Word installed (e.g. Render) PDF export returns 400. Fix layout in the DOCX code only. `fmt='tex'` still uses the LaTeX generators. Set `WORD_PDF_TESTS=1` to run the real Word conversion test.
 - `latex_generator.py` + `latex_layout.py`
 - `docx_exam_importer.py`
 - `input_schema.py`

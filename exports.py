@@ -1124,7 +1124,7 @@ def _docx_lms(record):
             r_num = p_q.add_run(f'Câu {slot}. ')
             r_num.bold = True
             p_q.add_run(q_text)
-            # Rule 06 chưa quy định dạng TLN; tạm dùng cách đánh dấu đáp án trong ngoặc vuông như MC.
+            # Rule 06: đáp án TLN dạng [Đáp án: …], in đậm, dòng riêng (giáo viên xác nhận 26/10/2026).
             p_ans = doc.add_paragraph()
             p_ans.paragraph_format.space_after = Pt(6)
             p_ans.add_run(f'[Đáp án: {canonical_short_answer(q)}]').bold = True

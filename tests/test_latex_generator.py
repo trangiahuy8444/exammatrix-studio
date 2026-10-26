@@ -83,7 +83,7 @@ class LatexGeneratorTests(unittest.TestCase):
         self.assertIn(r"\documentclass[11pt,a4paper]{article}", tex)
         self.assertIn("Times New Roman", tex)
         self.assertIn("MÔN: TOÁN -- KHỐI 10", tex)
-        self.assertIn("Mã đề thi: \\textbf{101}", tex)
+        self.assertIn("(MÃ ĐỀ: 101)", tex)  # theo mẫu GK1 đã nộp
         self.assertIn(r"PHẦN I. TRẮC NGHIỆM KHÁCH QUAN", tex)
         self.assertIn(r"\choices", tex)
         self.assertIn(r"PHẦN II. TRẮC NGHIỆM ĐÚNG / SAI", tex)

@@ -9,6 +9,7 @@ from pathlib import Path
 from html import escape
 from bank_service import ServiceError
 from input_schema import canonical_short_answer
+from latex_generator import _format_exam_term, exam_heading
 
 
 def public_record(record):
@@ -26,15 +27,20 @@ def point_label(value):
     return f'{value:g}'.replace('.', ',') if isinstance(value, (int, float)) else str(value)
 
 
-def _format_exam_term(exam_type: str) -> str:
-    m = {
-        'GK1': 'GIỮA HỌC KỲ I',
-        'CK1': 'CUỐI HỌC KỲ I',
-        'GK2': 'GIỮA HỌC KỲ II',
-        'CK2': 'CUỐI HỌC KỲ II',
-    }
-    val = str(exam_type or 'GK1').strip().upper()
-    return m.get(val, val)
+def _add_numpages_field(paragraph, font_size):
+    """Trường NUMPAGES của Word, hiển thị 2 chữ số như mẫu "(Đề thi có 04 trang)"."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt
+    def run_with(child):
+        run = paragraph.add_run(); run.italic = True; run.font.size = Pt(font_size)
+        run._r.append(child); return run
+    begin = OxmlElement('w:fldChar'); begin.set(qn('w:fldCharType'), 'begin'); run_with(begin)
+    instr = OxmlElement('w:instrText'); instr.set(qn('xml:space'), 'preserve')
+    instr.text = ' NUMPAGES \\# "00" '; run_with(instr)
+    sep = OxmlElement('w:fldChar'); sep.set(qn('w:fldCharType'), 'separate'); run_with(sep)
+    shown = paragraph.add_run('01'); shown.italic = True; shown.font.size = Pt(font_size)
+    end = OxmlElement('w:fldChar'); end.set(qn('w:fldCharType'), 'end'); run_with(end)
 
 
 def _scaled_policy(question):
@@ -431,7 +437,7 @@ def _docx(record, answers, revision):
             p_r.paragraph_format.line_spacing = 1.05
             r_ans = p_r.add_run("ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM\n")
             r_ans.bold = True; r_ans.font.size = Pt(11); r_ans.font.color.rgb = RGBColor(180, 20, 20)
-            r_sub = p_r.add_run(f"ĐỀ KIỂM TRA {term_name} — {subj_name} {grd}\nNĂM HỌC {s_year}")
+            r_sub = p_r.add_run(f"{exam_heading(record.get('exam_type', 'GK1'))} — {subj_name} {grd}\nNĂM HỌC {s_year}")
             r_sub.bold = True; r_sub.font.size = Pt(10)
 
             p_meta = doc.add_paragraph(); p_meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -451,14 +457,16 @@ def _docx(record, answers, revision):
             p_l.paragraph_format.line_spacing = 1.05
             r_l = p_l.add_run("SỞ GIÁO DỤC VÀ ĐÀO TẠO\nTHÀNH PHỐ HỒ CHÍ MINH\nTRƯỜNG TH, THCS VÀ THPT\nQUỐC TẾ Á CHÂU\nĐỀ CHÍNH THỨC")
             r_l.bold = True; r_l.font.size = Pt(10)
+            if ex_code:
+                r_code = p_l.add_run(f"\n(MÃ ĐỀ: {ex_code})"); r_code.bold = True; r_code.font.size = Pt(10)
 
             p_r = c_right.paragraphs[0]; p_r.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p_r.paragraph_format.line_spacing = 1.05
-            r_r = p_r.add_run(f"ĐỀ KIỂM TRA {term_name}\nNĂM HỌC {s_year}\n")
+            r_r = p_r.add_run(f"{exam_heading(record.get('exam_type', 'GK1'))}\nNĂM HỌC {s_year}\n")
             r_r.bold = True; r_r.font.size = Pt(11)
-            exam_code_line = f"Mã đề: {ex_code}\n" if ex_code else ""
-            r_r_sub = p_r.add_run(f"{exam_code_line}(Đề thi gồm các câu hỏi trắc nghiệm & tự luận)")
-            r_r_sub.italic = True; r_r_sub.font.size = Pt(9.5)
+            r_r_sub = p_r.add_run("(Đề thi có "); r_r_sub.italic = True; r_r_sub.font.size = Pt(9.5)
+            _add_numpages_field(p_r, 9.5)
+            r_r_end = p_r.add_run(" trang)"); r_r_end.italic = True; r_r_end.font.size = Pt(9.5)
 
             p_sub = doc.add_paragraph(); p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p_sub.paragraph_format.space_before = Pt(4); p_sub.paragraph_format.space_after = Pt(2)

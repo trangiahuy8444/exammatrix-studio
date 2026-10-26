@@ -55,14 +55,24 @@ def tex_escape(text: str) -> str:
 
 
 def _format_exam_term(exam_type: str) -> str:
+    """Kỳ kiểm tra theo cách ghi của mẫu đề đã duyệt: "GIỮA HỌC KÌ 1"."""
     mapping = {
-        'TX': 'THƯỜNG XUYÊN',
         'GK1': 'GIỮA HỌC KÌ 1',
         'CK1': 'CUỐI HỌC KÌ 1',
         'GK2': 'GIỮA HỌC KÌ 2',
         'CK2': 'CUỐI HỌC KÌ 2'
     }
-    return mapping.get(str(exam_type).upper(), str(exam_type).upper() if exam_type else 'GIỮA HỌC KÌ 1')
+    value = str(exam_type or 'GK1').strip().upper()
+    if value.startswith('TX'):
+        return 'THƯỜNG XUYÊN'
+    return mapping.get(value, value)
+
+
+def exam_heading(exam_type: str) -> str:
+    """Dòng tiêu đề đề thi, ví dụ "ĐỀ KIỂM TRA ĐỊNH KÌ GIỮA HỌC KÌ 1" (mẫu GK1 2026–2027)."""
+    if str(exam_type or '').strip().upper().startswith('TX'):
+        return 'ĐỀ KIỂM TRA THƯỜNG XUYÊN'
+    return f'ĐỀ KIỂM TRA ĐỊNH KÌ {_format_exam_term(exam_type)}'
 
 
 def _clean_q_text(text: str) -> str:
@@ -183,17 +193,17 @@ def generate_exam_latex(record: dict, answers: bool = False, exam_code: str | No
         return answer_layout(record, code)
 
     # STUDENT EXAM
-    code_str = r"Mã đề thi: \textbf{" + tex_escape(code) + "}" if code else ""
+    code_str = r"\\\textbf{(MÃ ĐỀ: " + tex_escape(code) + ")}" if code else ""
     header_tex = r"""
 \noindent
 \begin{minipage}[t]{0.48\textwidth}
 \centering
-{\fontsize{10pt}{12pt}\selectfont \textbf{SỞ GIÁO DỤC VÀ ĐÀO TẠO}\\\textbf{THÀNH PHỐ HỒ CHÍ MINH}\\\textbf{TRƯỜNG TH, THCS VÀ THPT}\\\textbf{QUỐC TẾ Á CHÂU}\\\textbf{ĐỀ CHÍNH THỨC}}
+{\fontsize{10pt}{12pt}\selectfont \textbf{SỞ GIÁO DỤC VÀ ĐÀO TẠO}\\\textbf{THÀNH PHỐ HỒ CHÍ MINH}\\\textbf{TRƯỜNG TH, THCS VÀ THPT}\\\textbf{QUỐC TẾ Á CHÂU}\\\textbf{ĐỀ CHÍNH THỨC}__CODE__}
 \end{minipage}
 \hfill
 \begin{minipage}[t]{0.48\textwidth}
 \centering
-{\fontsize{10.5pt}{12.5pt}\selectfont \textbf{ĐỀ KIỂM TRA __TERM__}\\\textbf{NĂM HỌC __YEAR__}\\__CODE__\\\textit{(Đề kiểm tra gồm có \pageref{LastPage} trang)}}
+{\fontsize{10.5pt}{12.5pt}\selectfont \textbf{__HEADING__}\\\textbf{NĂM HỌC __YEAR__}\\\textit{(Đề thi có \pageref{LastPage} trang)}}
 \end{minipage}
 
 \vspace{0.2cm}
@@ -215,7 +225,8 @@ Họ và tên học sinh: \dotfill Lớp: \dots\dots\dots\dots\dots   SBD: \dots
   \textit{(Học sinh lưu ý làm bài trên giấy kiểm tra, không làm trực tiếp vào đề)}
 \end{center}
 \vspace{0.2cm}
-""".replace('__TERM__', tex_escape(term)) \
+""".replace('__HEADING__', tex_escape(exam_heading(record.get('exam_type', 'GK1')))) \
+   .replace('__TERM__', tex_escape(term)) \
    .replace('__YEAR__', tex_escape(school_year)) \
    .replace('__CODE__', code_str) \
    .replace('__SUBJECT__', tex_escape(subject)) \

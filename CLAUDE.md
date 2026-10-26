@@ -28,6 +28,9 @@ node tests/frontend.test.cjs && node tests/matrices_frontend.test.cjs     # fron
 
 cd cloud && ../.venv/bin/python manage.py seed_subject_samples --owner USER --dry-run   # then --apply (Toán10/Vật lí10)
 cd cloud && ../.venv/bin/python manage.py import_legacy --owner USER --dry-run          # copy local JSON bank into an account
+cd cloud && ../.venv/bin/python manage.py backup_local [--out DIR]                    # SQLite snapshot + LegacyState JSON + source files (DB and disk), then verify
+cd cloud && ../.venv/bin/python manage.py verify_backup DIR
+cd cloud && ../.venv/bin/python manage.py restore_local DIR --dry-run                # then --apply (current docs saved to version history first)
 ```
 
 Some engine tests (`test_exam_verification`, `test_matrix_import`, `test_matrix_exports`) call `skipTest` when the teacher's private source files under `../06_Kiem_tra_va_Danh_gia/` are missing. That happens on CI, so a skip is not a pass. `scripts/export_and_verify_samples.py` and `verify_step2_1.py` produce real DOCX/PDF exports (through `/Library/TeX/texbin/xelatex`) so you can inspect the layout by eye.

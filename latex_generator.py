@@ -13,44 +13,60 @@ def point_label(value):
     return str(value)
 
 
+TEX_SPECIALS = {'\\': r'\textbackslash{}', '{': r'\{', '}': r'\}', '&': r'\&', '%': r'\%', '_': r'\_',
+                '#': r'\#', '$': r'\$', '~': r'\textasciitilde{}', '^': r'\textasciicircum{}'}
+# Chỉ các thẻ định dạng đã biết được hiểu là HTML; "a < b > c" hay "vector<int>" giữ nguyên.
+HTML_TAG = re.compile(r'<(/?)(b|strong|i|em|u|br)\s*/?>'
+                      r'|<(/?)(p|span|div)(?:\s+[a-zA-Z-]+="[^"]*")*\s*>', re.IGNORECASE)
+_BOLD, _ITALIC, _CLOSE, _NEWLINE = '\x01', '\x02', '\x03', '\x04'
+
+
+def _html_to_markers(s: str) -> str:
+    """Thẻ định dạng → ký hiệu tạm; thẻ đóng không có thẻ mở tương ứng bị bỏ, thẻ mở thiếu đóng được đóng ở cuối."""
+    out, stack, pos = [], [], 0
+    for m in HTML_TAG.finditer(s):
+        out.append(s[pos:m.start()]); pos = m.end()
+        closing = (m.group(1) or m.group(3)) == '/'
+        tag = (m.group(2) or m.group(4)).lower()
+        if tag in ('br', 'p', 'div'):
+            if tag == 'br' or closing:
+                out.append(_NEWLINE)
+            continue
+        kind = {'b': _BOLD, 'strong': _BOLD, 'i': _ITALIC, 'em': _ITALIC}.get(tag)
+        if kind is None:
+            continue  # u, span: bỏ thẻ, giữ chữ
+        if not closing:
+            out.append(kind); stack.append(kind)
+        elif kind in stack:
+            while stack:
+                top = stack.pop(); out.append(_CLOSE)
+                if top == kind:
+                    break
+    out.append(s[pos:])
+    out.extend(_CLOSE for _ in stack)
+    return ''.join(out)
+
+
 def tex_escape(text: str) -> str:
-    """Escapes text for XeLaTeX while safely preserving math blocks ($...$ or $$...$$)."""
+    """Escape văn bản cho XeLaTeX, giữ nguyên công thức $...$ / $$...$$ và không làm mất nội dung."""
     if not text:
         return ""
-    s = str(text)
-
-    # Clean HTML formatting tags
-    s = s.replace('&nbsp;', ' ').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
-    s = re.sub(r'<(br|BR)\s*/?>', '\n', s)
-    s = re.sub(r'</?(b|B|strong|STRONG)>', r'\\textbf{', s)
-    s = re.sub(r'</?(i|I|em|EM)>', r'\\textit{', s)
-    s = re.sub(r'<[^>]+>', '', s)
-
-    # Split into math and non-math segments
-    pattern = r'(\$\$[^\$]+\$\$|\$[^\$]+\$)'
-    tokens = re.split(pattern, s)
+    s = str(text).replace('&nbsp;', ' ').replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+    s = _html_to_markers(s)
+    tokens = re.split(r'(\$\$[^\$]+\$\$|\$[^\$]+\$)', s)
     out = []
     for token in tokens:
-        if token.startswith('$') and token.endswith('$'):
-            out.append(token)
-        else:
-            t = token
-            t = re.sub(r"\\textit\{\([^)]+\)\}\s*", "", t)
-            t = re.sub(r"\([BHV],\s*[^)]+\)\s*", "", t)
-            t = t.replace('\\', r'\textbackslash{}')
-            t = t.replace('&', r'\&')
-            t = t.replace('%', r'\%')
-            t = t.replace('_', r'\_')
-            t = t.replace('#', r'\#')
-            t = t.replace('~', r'\textasciitilde{}')
-            t = t.replace('^', r'\textasciicircum{}')
-            t = t.replace(r'\textbackslash{}textbf{', r'\textbf{')
-            t = t.replace(r'\textbackslash{}textit{', r'\textit{')
-            subs = str.maketrans('₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎', '0123456789+-=()')
-            supers = str.maketrans('⁰¹²³⁴⁵⁶⁷⁸⁹', '0123456789')
-            t = re.sub('[₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎]+', lambda m: '$_{'+m[0].translate(subs)+'}$', t)
-            t = re.sub('[⁰¹²³⁴⁵⁶⁷⁸⁹]+', lambda m: '$^{'+m[0].translate(supers)+'}$', t)
-            out.append(t)
+        if len(token) > 1 and token.startswith('$') and token.endswith('$'):
+            out.append(token.replace(_BOLD, '').replace(_ITALIC, '').replace(_CLOSE, '').replace(_NEWLINE, ' '))
+            continue
+        t = re.sub(r"\([BHV],\s*[^)]+\)\s*", "", token)
+        t = re.sub(r'[\\{}&%_#$~^]', lambda m: TEX_SPECIALS[m.group()], t)
+        t = t.replace(_BOLD, r'\textbf{').replace(_ITALIC, r'\textit{').replace(_CLOSE, '}').replace(_NEWLINE, '\n')
+        subs = str.maketrans('₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎', '0123456789+-=()')
+        supers = str.maketrans('⁰¹²³⁴⁵⁶⁷⁸⁹', '0123456789')
+        t = re.sub('[₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎]+', lambda m: '$_{'+m[0].translate(subs)+'}$', t)
+        t = re.sub('[⁰¹²³⁴⁵⁶⁷⁸⁹]+', lambda m: '$^{'+m[0].translate(supers)+'}$', t)
+        out.append(t)
     return "".join(out)
 
 

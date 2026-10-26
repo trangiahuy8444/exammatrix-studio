@@ -78,3 +78,19 @@ def technical_problems(q):
         if not q.get('rubric'):
             problems.append('Câu tự luận chưa có hướng dẫn chấm.')
     return problems
+
+
+def version_hash(q):
+    """Hash phiên bản không phụ thuộc thứ tự phương án/ý: dùng để so câu trong đề (kể cả đề hoán vị) với câu đã duyệt.
+
+    Đổi đáp án, nội dung phương án, giải thích hay ý Đúng/Sai đều làm hash đổi; chỉ đổi thứ tự thì không.
+    """
+    c = dict(q)
+    if c.get('type') == 'MC' and isinstance(c.get('options'), list):
+        exps = c.get('option_explanations') or [''] * len(c['options'])
+        c['options'] = sorted([str(o), i == c.get('correct'), str(exps[i]) if i < len(exps) else '']
+                              for i, o in enumerate(c['options']))
+        c.pop('correct', None); c.pop('option_explanations', None)
+    if c.get('type') == 'YN' and isinstance(c.get('statements'), list):
+        c['statements'] = sorted([str(s.get('text', '')), bool(s.get('correct'))] for s in c['statements'])
+    return review_hash(c)

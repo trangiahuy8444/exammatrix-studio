@@ -14,7 +14,8 @@ from bank_service import ServiceError
 from server import Handler
 from matrices.service import MatrixService
 from workspace.access import workspace_for
-from workspace.models import Workspace
+from workspace.models import AuditEvent, Workspace
+from .answer_access import can_view_answers
 from workspace.views import api_view, payload
 from .legacy_storage import APP_DIR, bank_for_user, reset_test_bank
 from .context import selected_course, course_context
@@ -104,6 +105,15 @@ class DjangoHandler(Handler):
     def _actor(self):
         return self.request.user.get_username()
 
+    def _can_view_answers(self):
+        if not hasattr(self, '_answers_allowed'):
+            self._answers_allowed = can_view_answers(self.request.user)
+        return self._answers_allowed
+
+    def _audit(self, action, object_id, details=None):
+        # Lượt bị từ chối trả về 403 nên transaction bị hoàn tác; ghi lại sau transaction (xem original_api).
+        self.audit_events.append(dict(action=action, object_id=str(object_id)[:100], details=details or {}))
+
     def _ai_scope(self):
         return getattr(self, 'ai_scope', 'local')
 
@@ -140,6 +150,8 @@ def _run_handler(request, workspace):
     service = bank_for_user(request.user, course, test_mode=test_mode)
     handler = DjangoHandler(request, service, test_mode=test_mode, course=course)
     handler.ai_scope = f'ws{workspace.pk}'
+    handler.audit_events = []
+    request._audit_events = handler.audit_events
     if request.method == 'POST':
         handler.do_POST()
     else:
@@ -162,4 +174,7 @@ def original_api(request, route):
         response = _run_handler(request, workspace)
         if response.status_code >= 400:
             transaction.set_rollback(True)
-        return response
+    # Nhật ký xem/tải đáp án ghi ngoài transaction để lượt bị từ chối (403) không bị hoàn tác.
+    for event in getattr(request, '_audit_events', []):
+        AuditEvent.objects.create(workspace=workspace, actor=request.user, **event)
+    return response

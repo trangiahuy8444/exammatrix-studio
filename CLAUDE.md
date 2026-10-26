@@ -70,6 +70,9 @@ Some engine tests (`test_exam_verification`, `test_matrix_import`, `test_matrix_
 - Shortfalls return HTTP 400 with `details`. The engine never relaxes level or lesson to fill a gap. True/False and short-answer types are not supported yet: report them as unsupported and never convert them to MC.
 - The student export never includes answers, rubrics, `correct` values or hidden feedback. Saved exams and revisions are snapshots and do not follow later bank edits. PPCT and source matrices are read-only inputs.
 - Errors have the shape `{error, details?}` and use the right 400/403/404/409 status.
+- Question review (B1, `domain/review.py`): `draft → pending_review → approved` plus `needs_review`/`archived`; legacy `content_checked` reads as `pending_review`. Only `BankService.review_question(..., 'approve', checklist=...)` reaches `approved`; saving never does, and editing a `REVIEW_FIELDS` field of an approved question moves it to `needs_review`. Official exams use only `EXAM_ELIGIBLE = ('approved',)`.
+- Exam lifecycle (B2, `domain/exam_lifecycle.py`): `drafting → pending_approval → locked → published` via `exam_transition`. Approve requires every exam question to be approved and equal to its approved version (`version_hash`, order-independent); it stores `approved_hash = exam_hash(exam)`. Publish is refused (409, logged as `publish_blocked`) if the hash changed. Locked/published exams cannot be updated, re-scored or deleted; `new_revision` makes an unapproved copy. Copies and permuted codes never inherit approval.
+- Answers (B2): every answer-bearing download goes through `Handler._require_answers` (403 + audit when denied; audit when allowed), and `_json` strips answer fields (`domain/answer_access.redact_answers`) for accounts without permission. Django denies accounts in group `khong_xem_dap_an`; denied-access audit events are written after the rolled-back transaction.
 
 ## Config and data hygiene
 

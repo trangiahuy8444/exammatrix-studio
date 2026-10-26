@@ -61,7 +61,7 @@ async function mutate(path,body,onSuccess){
 }
 async function load(initial=false){
  $('#refresh').disabled=true;if(initial)$('#loading').hidden=false;
- try{const data=await request('/api/state');store.context=data.context||{};store.bank=data.bank;store.reviewChecklist=data.review_checklist||[];
+ try{const data=await request('/api/state');store.context=data.context||{};store.bank=data.bank;store.reviewChecklist=data.review_checklist||[];store.canViewAnswers=data.can_view_answers!==false;
  store.isTestMode=Boolean(data.is_test_mode);sessionStorage.setItem('exammatrix_test_mode',store.isTestMode?'1':'0');
  if(store.context.curriculum_id){store.selectedSubject=store.context.subject_name;store.ppctSubject=store.context.subject_name;}
  const picker=$('#global-subject-select');if(picker){picker.value=subject();picker.disabled=Boolean(store.context.curriculum_id);}
@@ -287,7 +287,7 @@ function mountExamViewerContent(hostEl,record,mode='student',isInline=false){
  const fmt=window.DocFormatter||C.DocFormatter;
  const body=buildExamSheetHtml(record,mode);
  hostEl.innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">XEM TOÀN BỘ ĐỀ KIỂM TRA & ĐỐI CHIẾU MA TRẬN</p><h2 id="${isInline?'inline-exam-title':'detail-title'}">${esc(record.title||'Đề kiểm tra')}</h2><p class="small muted">${meta}</p></div><div class="actions">${isInline?`<button type="button" class="export-link" data-modal-exam="${esc(record.id)}" data-mode="${esc(mode)}">⤢ Mở rộng toàn màn hình</button><button type="button" class="quiet" id="close-inline-exam">Đóng khung xem</button>`:`<button data-close="detail-dialog" class="quiet">Đóng</button>`}</div></div>`+
- `<div class="viewer-toolbar"><div class="viewer-tabs"><button type="button" class="${mode==='student'?'primary':''}" data-switch-exam-mode="student">📄 Xem đề học sinh</button><button type="button" class="${mode==='answers'?'primary':''}" data-switch-exam-mode="answers">🔑 Xem đáp án & HDC</button><button type="button" class="${mode==='verify'?'primary':''}" data-switch-exam-mode="verify">🛡️ Báo cáo Kiểm định Ma trận</button></div><div class="actions">${record.id?`<button type="button" class="export-link" data-reverify-exam="${esc(record.id)}">🔄 Kiểm định lại với Ma trận</button>`:''}${base?`<a class="button export-link" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button export-link" href="${base}?format=docx&answers=1">Word đáp án</a><a class="button export-link" href="${base}?format=tex&answers=0" title="Xuất mã nguồn XeLaTeX chuẩn">LaTeX đề thi</a><a class="button export-link" href="${base}?format=tex&answers=1" title="Xuất mã nguồn XeLaTeX Đáp án & HDC">LaTeX đáp án</a><a class="button export-link" href="${base}?format=docx&target=lms">📤 Tải tệp LMS</a><a class="button export-link" href="${base}?format=html&answers=${mode==='answers'?1:0}" target="_blank" rel="noopener">Mở trang in</a>`:''}</div></div>`+
+ `<div class="viewer-toolbar"><div class="viewer-tabs"><button type="button" class="${mode==='student'?'primary':''}" data-switch-exam-mode="student">📄 Xem đề học sinh</button>${store.canViewAnswers!==false?`<button type="button" class="${mode==='answers'?'primary':''}" data-switch-exam-mode="answers">🔑 Xem đáp án & HDC</button>`:''}<button type="button" class="${mode==='verify'?'primary':''}" data-switch-exam-mode="verify">🛡️ Báo cáo Kiểm định Ma trận</button></div><div class="actions">${record.id?`<button type="button" class="export-link" data-reverify-exam="${esc(record.id)}">🔄 Kiểm định lại với Ma trận</button>`:''}${base?`<a class="button export-link" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button export-link" href="${base}?format=tex&answers=0" title="Xuất mã nguồn XeLaTeX chuẩn">LaTeX đề thi</a>${store.canViewAnswers!==false?`<a class="button export-link" href="${base}?format=docx&answers=1">Word đáp án</a><a class="button export-link" href="${base}?format=tex&answers=1" title="Xuất mã nguồn XeLaTeX Đáp án & HDC">LaTeX đáp án</a><a class="button export-link" href="${base}?format=docx&target=lms">📤 Tải tệp LMS</a>`:''}<a class="button export-link" href="${base}?format=html&answers=${mode==='answers'?1:0}" target="_blank" rel="noopener">Mở trang in</a>`:''}</div></div>`+
  (fmt?fmt.toolbarHtml(fmtKey,false):'')+body;
  hostEl.querySelectorAll('[data-switch-exam-mode]').forEach(btn=>{
   btn.onclick=()=>mountExamViewerContent(hostEl,record,btn.dataset.switchExamMode,isInline);
@@ -718,34 +718,48 @@ function matchingTemplates(){const d=store.examDraft;return store.templates.filt
 function chooseExamTemplate(){const d=store.examDraft;d.template_id=matchingTemplates()[0]?.id||'';d.blueprint=d.template_id?[]:[{lesson_code:lessons(d.grade)[0]?.lesson_code||'',type:'MC',level:'Biết',count:10,points_per_question:1}];}
 function selectedTemplate(){return store.templates.find(t=>t.id===store.examDraft.template_id);}
 function examRows(){return selectedTemplate()?.rows||store.examDraft.blueprint;}
+const examStatusNames={drafting:'Đang soạn',pending_approval:'Chờ duyệt',locked:'Đã duyệt & khóa',published:'Đã phát hành'};
+const examActionNames={submit:'Gửi duyệt đề',approve:'Duyệt & khóa đề',return:'Trả lại đề',publish:'Phát hành đề',new_revision:'Tạo bản chỉnh sửa mới'};
+function examLifecycle(r){
+ const s=C.examStatusOf(r),last=(r.lifecycle||[]).slice(-1)[0];
+ return `<div class="exam-lifecycle"><span class="badge exam-${s}">${esc(examStatusNames[s])}</span>`+
+  (last?`<span class="small muted">${esc(last.at?.slice(0,16).replace('T',' ')||'')} · ${esc(last.by||'')}${last.reason?' — '+esc(last.reason):''}</span>`:'')+
+  C.examActions(r).map(a=>`<button type="button" class="export-link${a==='approve'||a==='publish'?' primary':''}" data-exam-act="${a}" data-exam-id="${esc(r.id)}">${esc(examActionNames[a])}</button>`).join('')+`</div>`;
+}
+async function examAct(id,action){
+ const payload={id,action};
+ if(action==='return'){const reason=prompt('Lý do trả lại đề (bắt buộc):');if(!reason||!reason.trim())return notify('Khi trả lại đề phải ghi lý do.',true);payload.reason=reason.trim();}
+ if(action==='publish'&&!confirm('Phát hành đề? Sau khi phát hành, đề được giữ nguyên và ghi nhận lịch sử sử dụng câu hỏi.'))return;
+ const done=await mutate('/api/exams/transition',payload,result=>{store.exams=result.exams||store.exams;});
+ if(done){notify({submit:'Đã gửi duyệt đề.',approve:'Đã duyệt và khóa đề.',return:'Đã trả lại đề.',publish:'Đã phát hành đề.',new_revision:'Đã tạo bản chỉnh sửa mới (đang soạn).'}[action]);renderExams();}
+}
 function examLinks(r){
- const base='/api/exams/'+encodeURIComponent(r.id)+'/export';
- return `<div class="card-actions">`+
+ const base='/api/exams/'+encodeURIComponent(r.id)+'/export',ans=store.canViewAnswers!==false,editable=C.examEditable(r);
+ return examLifecycle(r)+`<div class="card-actions">`+
   `<button type="button" class="export-link primary" data-view-exam="${esc(r.id)}" data-mode="student">👁 Xem toàn bộ đề</button>`+
   `<details class="dropdown-menu"><summary>📥 Tải về ▾</summary><div class="dropdown-content">`+
-   `<a href="/api/exams/${esc(r.id)}/bundle.zip?format=docx" style="font-weight:bold;color:var(--brand,#0a58ca)">📦 Tải trọn bộ Hồ sơ Word (.zip)</a>`+
-   `<a href="/api/exams/${esc(r.id)}/bundle.zip?format=tex">📦 Tải trọn bộ Hồ sơ LaTeX (.zip)</a>`+
-   `<hr>`+
+   (ans?`<a href="/api/exams/${esc(r.id)}/bundle.zip?format=docx" style="font-weight:bold;color:var(--brand,#0a58ca)">📦 Tải trọn bộ Hồ sơ Word (.zip)</a>`+
+   `<a href="/api/exams/${esc(r.id)}/bundle.zip?format=pdf">📦 Tải trọn bộ Hồ sơ PDF (.zip)</a>`+
+   `<hr>`:'')+
    `<a href="${base}?format=docx&answers=0">Word học sinh</a>`+
-   `<a href="${base}?format=docx&answers=1">Word đáp án & HDC</a>`+
    `<a href="${base}?format=pdf&answers=0">PDF học sinh</a>`+
-   `<a href="${base}?format=pdf&answers=1">PDF đáp án & HDC</a>`+
    `<a href="${base}?format=tex&answers=0">LaTeX đề thi (.tex)</a>`+
+   `<a href="${base}?format=html&answers=0" target="_blank" rel="noopener">Trang in đề thi</a>`+
+   (ans?`<hr><a href="${base}?format=docx&answers=1">Word đáp án & HDC</a>`+
+   `<a href="${base}?format=pdf&answers=1">PDF đáp án & HDC</a>`+
    `<a href="${base}?format=tex&answers=1">LaTeX đáp án (.tex)</a>`+
    `<a href="${base}?format=docx&target=lms">📤 Tệp upload LMS (.docx)</a>`+
-   `<a href="${base}?format=html&answers=0" target="_blank" rel="noopener">Trang in đề thi</a>`+
    `<a href="${base}?format=html&answers=1" target="_blank" rel="noopener">Trang in đáp án</a>`+
-   `<a href="${base}?format=json&answers=1">Tải tệp JSON</a>`+
+   `<a href="${base}?format=json&answers=1">Tải tệp JSON</a>`:'<p class="small muted">Tài khoản này không có quyền tải đáp án.</p>')+
   `</div></details>`+
   `<details class="dropdown-menu"><summary>⚙️ Thao tác ▾</summary><div class="dropdown-content">`+
    `<button type="button" data-view-exam="${esc(r.id)}" data-mode="verify">🛡️ Đối chiếu Ma trận</button>`+
-   `<button type="button" data-view-exam="${esc(r.id)}" data-mode="answers">🔑 Xem đáp án & HDC</button>`+
-   `<button type="button" data-edit-exam="${esc(r.id)}">Sửa thông tin đề</button>`+
+   (ans?`<button type="button" data-view-exam="${esc(r.id)}" data-mode="answers">🔑 Xem đáp án & HDC</button>`:'')+
+   (editable?`<button type="button" data-edit-exam="${esc(r.id)}">Sửa thông tin đề</button>`:'')+
    `<button type="button" data-dup-exam="${esc(r.id)}">Nhân bản đề</button>`+
    `<button type="button" data-permute-exam="${esc(r.id)}">🔀 Trộn mã đề (2 hoặc 4 mã)</button>`+
    `<button type="button" data-load-exam="${esc(r.id)}">Nạp cấu hình tạo đề</button>`+
-   `<hr>`+
-   `<button type="button" class="danger" data-del-exam="${esc(r.id)}">Xóa đề kiểm tra</button>`+
+   (editable?`<hr><button type="button" class="danger" data-del-exam="${esc(r.id)}">Xóa đề kiểm tra</button>`:'<p class="small muted">Đề đã khóa: không sửa, không xóa. Muốn sửa hãy tạo bản chỉnh sửa mới.</p>')+
   `</div></details>`+
  `</div>`;
 }
@@ -880,6 +894,7 @@ document.addEventListener('click',event=>{
  const dupExam=event.target.closest('[data-dup-exam]');if(dupExam){duplicateExam(dupExam.dataset.dupExam);return;}
  const permExam=event.target.closest('[data-permute-exam]');if(permExam){promptPermuteExam(permExam.dataset.permuteExam);return;}
  const loadExam=event.target.closest('[data-load-exam]');if(loadExam){loadExamConfig(loadExam.dataset.loadExam);return;}
+ const examActBtn=event.target.closest('[data-exam-act]');if(examActBtn){examAct(examActBtn.dataset.examId,examActBtn.dataset.examAct);return;}
  const delExam=event.target.closest('[data-del-exam]');if(delExam){deleteExam(delExam.dataset.delExam);return;}
  const viewRev=event.target.closest('[data-view-revision]');if(viewRev){const rev=store.revisions.find(r=>r.id===viewRev.dataset.viewRevision);if(rev)openRevisionViewer(rev,viewRev.dataset.answers==='1');return;}
  const editRev=event.target.closest('[data-edit-revision]');if(editRev){startEditRevision(editRev.dataset.editRevision);return;}

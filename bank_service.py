@@ -19,10 +19,20 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from domain.review import (CHECKLIST, EXAM_ELIGIBLE, STATUSES, normalize_status, review_hash,
-                           technical_problems)
+                           technical_problems, version_hash)
+from domain.exam_lifecycle import FROZEN, exam_hash, exam_status
 from input_schema import canonical_short_answer
 from pathlib import Path
 from domain.policies import resolve_similarity, require_revision
+
+
+def _without_approval(exam):
+    """Bản sao/mã đề mới của một đề: bắt đầu lại ở trạng thái đang soạn, không kế thừa phê duyệt (B2)."""
+    out = copy.deepcopy(exam)
+    for key in ('status', 'lifecycle', 'approved_hash', 'approved_by', 'approved_at', 'locked_at', 'published_at', 'usage'):
+        out.pop(key, None)
+    out['status'] = 'drafting'
+    return out
 
 
 class ServiceError(Exception):
@@ -894,6 +904,11 @@ class BankService:
             if idx is None:
                 raise ServiceError('Không tìm thấy đề kiểm tra để cập nhật.', {'id': ident}, 404)
             old = records[idx]
+            self._assert_exam_editable(old)
+            if exam_status(old) == 'pending_approval':
+                old['status'] = 'drafting'  # sửa đề đang chờ duyệt thì phải gửi duyệt lại
+                old.setdefault('lifecycle', []).append(dict(action='edit_while_pending', at=now(),
+                                                            by=getattr(self, 'actor', 'local')))
             if 'title' in payload:
                 old['title'] = self._text(payload.get('title'), 'Tên đề kiểm tra')
             if 'duration' in payload and payload.get('duration') is not None:
@@ -920,6 +935,9 @@ class BankService:
         with self.lock:
             ident = self._text(ident, 'Mã đề kiểm tra')
             records = self._records('exams')
+            for x in records:
+                if x.get('id') == ident:
+                    self._assert_exam_editable(x, 'Đề đã duyệt hoặc đã phát hành không được xóa.')
             before = len(records)
             records = [x for x in records if x.get('id') != ident]
             if len(records) == before:
@@ -927,10 +945,101 @@ class BankService:
             self._atomic_save(self.data_dir/'exams.json', records)
             return copy.deepcopy(records)
 
+    @staticmethod
+    def _assert_exam_editable(exam, message='Đề đã duyệt & khóa hoặc đã phát hành; hãy tạo bản chỉnh sửa mới để sửa.'):
+        if exam_status(exam) in FROZEN:
+            raise ServiceError(message, {'id': exam.get('id'), 'status': exam_status(exam)}, 409)
+
+    def _exam_question_problems(self, exam):
+        """Mọi câu trong đề phải đang approved và trùng đúng phiên bản đã duyệt (cho phép đổi thứ tự phương án)."""
+        bank = {q.get('id'): q for q in self._load_bank()['questions']}
+        problems = []
+        for eq in exam.get('questions', []):
+            label = f"Câu {eq.get('slot_number', '?')} ({eq.get('id')})"
+            bq = bank.get(eq.get('id'))
+            if bq is None:
+                problems.append(f'{label}: không còn trong ngân hàng.')
+            elif bq.get('review_status') != 'approved':
+                problems.append(f'{label}: câu trong ngân hàng chưa ở trạng thái đã duyệt.')
+            elif version_hash(eq) != version_hash(bq):
+                problems.append(f'{label}: nội dung trong đề khác phiên bản đã duyệt.')
+        return problems
+
+    def exam_transition(self, ident, action, actor='local', reason='', matrix_service=None):
+        """submit | approve | return | publish | new_revision. Ghi người thực hiện cho mọi lần chuyển (B2)."""
+        with self.lock:
+            records = self._records('exams')
+            idx = next((i for i, x in enumerate(records) if x.get('id') == ident), None)
+            if idx is None:
+                raise ServiceError('Không tìm thấy đề kiểm tra.', {'id': ident}, 404)
+            exam = records[idx]
+            status = exam_status(exam)
+            reason = str(reason or '').strip()
+            entry = dict(action=action, at=now(), by=str(actor or 'local'), from_status=status)
+            if reason:
+                entry['reason'] = reason[:1000]
+            if action == 'new_revision':
+                if status not in FROZEN:
+                    raise ServiceError('Chỉ tạo bản chỉnh sửa mới từ đề đã duyệt hoặc đã phát hành.', status=409)
+                rev = {k: copy.deepcopy(v) for k, v in exam.items()
+                       if k not in ('status', 'lifecycle', 'approved_hash', 'approved_by', 'approved_at', 'locked_at',
+                                    'published_at', 'usage')}
+                rev.update(id=f'EXAM-{uuid.uuid4().hex[:12]}', status='drafting', previous_exam_id=exam['id'],
+                           created_at=now(), lifecycle=[dict(entry, action='new_revision_from', source=exam['id'])])
+                records.append(rev)
+                exam.setdefault('lifecycle', []).append(dict(entry, new_exam_id=rev['id']))
+                self._atomic_save(self.data_dir/'exams.json', records)
+                return copy.deepcopy(rev)
+            if action == 'submit':
+                if status != 'drafting':
+                    raise ServiceError('Chỉ gửi duyệt được đề đang soạn.', {'status': status}, 409)
+                new_status = 'pending_approval'
+            elif action == 'return':
+                if status != 'pending_approval':
+                    raise ServiceError('Chỉ trả lại được đề đang chờ duyệt.', {'status': status}, 409)
+                if not reason:
+                    raise ServiceError('Khi trả lại đề phải ghi lý do.')
+                new_status = 'drafting'
+            elif action == 'approve':
+                if status != 'pending_approval':
+                    raise ServiceError('Chỉ duyệt được đề đang chờ duyệt.', {'status': status}, 409)
+                problems = self._exam_question_problems(exam)
+                if problems:
+                    raise ServiceError('Đề có câu chưa duyệt hoặc khác phiên bản đã duyệt.', {'problems': problems})
+                if matrix_service is not None and not exam.get('matrix_snapshot'):
+                    matrix = self._exam_matrix(exam, matrix_service)
+                    if matrix:
+                        exam['matrix_snapshot'] = copy.deepcopy(matrix)  # chụp ma trận cùng đề, không tham chiếu
+                exam['approved_hash'] = exam_hash(exam)
+                exam['approved_by'], exam['approved_at'] = entry['by'], entry['at']
+                entry['content_hash'] = exam['approved_hash']
+                new_status = 'locked'
+            elif action == 'publish':
+                if status != 'locked':
+                    raise ServiceError('Chỉ phát hành được đề đã duyệt & khóa.', {'status': status}, 409)
+                current = exam_hash(exam)
+                if current != exam.get('approved_hash'):
+                    exam.setdefault('lifecycle', []).append(dict(entry, action='publish_blocked', content_hash=current))
+                    self._atomic_save(self.data_dir/'exams.json', records)
+                    raise ServiceError('Nội dung đề đã thay đổi sau khi duyệt; không được phát hành. '
+                                       'Hãy tạo bản chỉnh sửa mới và duyệt lại.', {'id': ident}, 409)
+                exam['published_at'] = entry['at']
+                exam['usage'] = dict(published_at=entry['at'], by=entry['by'], exam_type=exam.get('exam_type'),
+                                     grade=exam.get('grade'), exam_code=exam.get('exam_code'),
+                                     questions=[dict(id=q.get('id'), version=version_hash(q)) for q in exam.get('questions', [])])
+                entry['content_hash'] = current
+                new_status = 'published'
+            else:
+                raise ServiceError('Thao tác với đề không hợp lệ.', {'action': action})
+            exam['status'] = new_status
+            exam.setdefault('lifecycle', []).append(entry)
+            self._atomic_save(self.data_dir/'exams.json', records)
+            return copy.deepcopy(exam)
+
     def duplicate_exam(self, ident):
         with self.lock:
             old = self.get_record('exams', ident)
-            copy_ex = copy.deepcopy(old)
+            copy_ex = _without_approval(old)
             copy_ex['id'] = f'EXAM-{uuid.uuid4().hex[:12]}'
             copy_ex['title'] = f'{old.get("title", "Đề kiểm tra")} (Bản sao)'
             copy_ex['created_at'] = now()
@@ -999,7 +1108,7 @@ class BankService:
                 sub_seed = f"{seed or old['id']}_{code}_{idx}"
                 rng = random.Random(sub_seed)
 
-                new_ex = copy.deepcopy(old)
+                new_ex = _without_approval(old)  # mã đề mới phải được duyệt riêng
                 new_ex['id'] = f'EXAM-{uuid.uuid4().hex[:12]}'
                 new_ex['exam_code'] = code
                 new_ex['parent_exam_id'] = ident
@@ -1333,6 +1442,7 @@ class BankService:
             if idx is None:
                 raise ServiceError('Không tìm thấy đề kiểm tra.', {'id': ident}, 404)
             exam = records[idx]
+            self._assert_exam_editable(exam)
             grade = exam.get('grade', 9)
             exam_type = exam.get('exam_type', 'GK1')
             matrix = self._find_matrix_for_exam(grade, exam_type, matrix_service, exam.get('matrix_id'))

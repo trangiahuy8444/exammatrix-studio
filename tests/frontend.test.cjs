@@ -81,3 +81,14 @@ console.log('PASS frontend: giải thích 4 phương án, đáp án trả lời 
   assert.deepEqual(core.reviewProgress(rq),{draft:0,pending_review:3,needs_review:1,approved:1,total:5});
   console.log('PASS frontend: hàng đợi duyệt, phím tắt, phiếu kiểm định, tiến độ');
 }
+
+// B2: vòng đời đề — nút được phép theo trạng thái
+{
+  assert.equal(core.examStatusOf({}),'drafting');
+  assert.deepEqual(core.examActions({status:'drafting'}),['submit']);
+  assert.deepEqual(core.examActions({status:'pending_approval'}),['approve','return']);
+  assert.deepEqual(core.examActions({status:'locked'}),['publish','new_revision']);
+  assert.deepEqual(core.examActions({status:'published'}),['new_revision']);
+  assert.equal(core.examEditable({status:'locked'}),false);assert.equal(core.examEditable({status:'pending_approval'}),true);
+  console.log('PASS frontend: vòng đời đề');
+}

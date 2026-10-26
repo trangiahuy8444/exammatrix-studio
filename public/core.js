@@ -444,6 +444,10 @@ function syncEditedQuestionsFromSheet(sheet,record){
     (questions||[]).forEach(q=>{const s=reviewStatusOf(q);if(s==='archived')return;if(s in out)out[s]++;out.total++;});
     return out;
   }
-  const api={reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  // B2: vòng đời đề kiểm tra
+  function examStatusOf(e){const s=(e&&e.status)||'drafting';return ['drafting','pending_approval','locked','published'].includes(s)?s:'drafting';}
+  function examActions(e){return {drafting:['submit'],pending_approval:['approve','return'],locked:['publish','new_revision'],published:['new_revision']}[examStatusOf(e)];}
+  function examEditable(e){return !['locked','published'].includes(examStatusOf(e));}
+  const api={examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

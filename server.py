@@ -7,10 +7,12 @@ import mimetypes
 import re
 import shutil
 import sys
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 from bank_service import BankService, ServiceError
+from domain.answer_access import redact_answers
 from exports import export_document
 from matrices.service import MatrixService
 from matrices.http import handle_matrix_get,handle_matrix_post
@@ -35,6 +37,29 @@ class Handler(BaseHTTPRequestHandler):
     def _actor(self):
         # Người thực hiện ghi vào lịch sử duyệt; Django ghi đè bằng tên tài khoản.
         return 'local'
+
+    def _can_view_answers(self):
+        # Máy cục bộ chỉ có một giáo viên; Django ghi đè theo tài khoản (B2).
+        return True
+
+    def _audit(self, action, object_id, details=None):
+        # Nhật ký xem/tải đáp án của máy cục bộ: một dòng JSON mỗi lần, trong thư mục dữ liệu (không vào git).
+        try:
+            service = self.server.service
+            path = Path(service.data_dir)/'nhat_ky_dap_an.jsonl'
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open('a', encoding='utf-8') as handle:
+                handle.write(json.dumps(dict(at=datetime.now(timezone.utc).isoformat(), by=self._actor(), action=action,
+                                             object_id=object_id, details=details or {}), ensure_ascii=False) + '\n')
+        except OSError:
+            pass
+
+    def _require_answers(self, object_id, kind):
+        """Mọi đường lấy đáp án đều đi qua đây: không có quyền thì 403; được phép hay bị từ chối đều ghi nhật ký."""
+        if not self._can_view_answers():
+            self._audit('answers_denied', object_id, {'kind': kind})
+            raise ServiceError('Tài khoản này không có quyền xem đáp án và hướng dẫn chấm.', status=403)
+        self._audit('answers_access', object_id, {'kind': kind})
 
     def _ai_scope(self):
         # Phạm vi đếm lượt AI; Django ghi đè theo tài khoản.
@@ -71,6 +96,8 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(raw)
 
     def _json(self, value, status=200):
+        if not self._can_view_answers():
+            value = redact_answers(value)
         self._send(json.dumps(value, ensure_ascii=False, allow_nan=False).encode(), status=status)
 
     def _error(self, exc):
@@ -117,6 +144,7 @@ class Handler(BaseHTTPRequestHandler):
                 from domain.review import CHECKLIST
                 state['review_checklist']=[dict(item) for item in CHECKLIST]
                 state['is_test_mode'] = (service == getattr(self.server, 'test_service', None))
+                state['can_view_answers'] = self._can_view_answers()
                 return self._json(state)
             if path == '/api/ai/status':
                 from ai_assistant import ai_status
@@ -130,9 +158,11 @@ class Handler(BaseHTTPRequestHandler):
             if handle_matrix_get(self,path,parse_qs(url.query)):
                 return
             if path == '/api/bank/export':
+                self._require_answers('bank', 'bank_json')
                 raw = json.dumps(service.state()['bank'], ensure_ascii=False, indent=2, allow_nan=False).encode()
                 return self._send(raw, filename='ngan_hang_cau_hoi.json')
             if path == '/api/bank/export-lms':
+                self._require_answers('bank', 'bank_lms')
                 query = parse_qs(url.query)
                 grade = query.get('grade', [None])[0]
                 raw_ids = query.get('ids', [None])[0]
@@ -162,11 +192,15 @@ class Handler(BaseHTTPRequestHandler):
                 if answer_value not in ('0', '1'):
                     raise ServiceError('Tham số answers chỉ nhận 0 hoặc 1.')
                 record = service.get_record(name, ident)
+                # Bản giáo viên, tệp LMS (đánh dấu đáp án) và đề cương (có bảng đáp án) đều chứa đáp án.
+                if name == 'revisions' or answer_value == '1' or target == 'lms' or fmt == 'lms':
+                    self._require_answers(ident, f'{name}:{fmt}:{"lms" if target == "lms" else "answers"}')
                 raw, mime, filename = export_document(record, fmt, answer_value == '1', revision=name == 'revisions', target=target)
                 return self._send(raw, mime, filename=filename)
             match_bundle = re.fullmatch(r'/api/exams/([A-Za-z0-9_-]+)/bundle\.zip', path)
             if match_bundle:
                 ident = match_bundle.group(1)
+                self._require_answers(ident, 'bundle')
                 query = parse_qs(url.query)
                 fmt = query.get('format', ['docx'])[0]
                 raw, mime, filename = service.export_exam_bundle(ident, self.matrix_service, fmt=fmt)
@@ -259,6 +293,10 @@ class Handler(BaseHTTPRequestHandler):
                     seed=payload.get('seed')
                 )
                 return self._json({'result': result, 'exams': service.state()['exams']})
+            if path == '/api/exams/transition':
+                exam = service.exam_transition(payload.get('id'), payload.get('action'), actor=self._actor(),
+                                               reason=payload.get('reason', ''), matrix_service=self.matrix_service)
+                return self._json({'exam': exam, 'exams': service.state()['exams']})
             if path == '/api/exams/verify':
                 return self._json({'exam': service.verify_exam(payload.get('id'), self.matrix_service, payload.get('similarity_percent'), payload.get('similarity_mode')), 'exams': service.state()['exams']})
             if path == '/api/exams/adjust-similarity':

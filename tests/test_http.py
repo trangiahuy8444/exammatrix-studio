@@ -70,3 +70,27 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(status,400);self.assertIn('error',json.loads(body))
 
 if __name__=='__main__':unittest.main()
+
+
+class AnswerAuditHttpTests(unittest.TestCase):
+    """B2 trên máy cục bộ: tải đáp án được phép nhưng luôn ghi nhật ký; tài khoản không có quyền thì bị xóa đáp án."""
+
+    def setUp(self):
+        self.http = HttpTests('test_state_and_static_available_without_exposing_bank_file')
+        self.http.setUp(); self.addCleanup(self.http.doCleanups)
+
+    def test_bank_export_is_logged(self):
+        status, _, _ = self.http.call('/api/bank/export')
+        self.assertEqual(status, 200)
+        log = (self.http.root/'data'/'nhat_ky_dap_an.jsonl').read_text(encoding='utf-8').strip().splitlines()
+        self.assertEqual(json.loads(log[-1])['action'], 'answers_access')
+
+    def test_redaction_removes_all_answer_fields(self):
+        from domain.answer_access import redact_answers
+        value = {'exams': [{'questions': [{'id': 'Q', 'options': ['a'], 'correct': 1, 'option_explanations': ['x'],
+                                           'statements': [{'text': 't', 'correct': True}], 'rubric': [1], 'short_answer': '2'}]}],
+                 'result': {'answer_grid': {'mc': {}}}}
+        out = redact_answers(value)
+        q = out['exams'][0]['questions'][0]
+        self.assertEqual(q, {'id': 'Q', 'options': ['a'], 'statements': [{'text': 't'}]})
+        self.assertEqual(out['result'], {})

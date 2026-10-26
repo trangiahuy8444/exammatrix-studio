@@ -73,23 +73,16 @@
     <button type="button" data-close="ai-dialog" class="quiet" style="font-size:1.2rem;cursor:pointer">✕</button>
   </div>
   <div class="ai-tabs" style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--line,#eee);padding-bottom:8px">
-    <button type="button" class="tab-pill active" data-ai-tab="key" style="padding:6px 14px;border-radius:6px;border:1px solid var(--line,#ccc);background:var(--brand,#0a58ca);color:#fff;cursor:pointer">🔑 Cấu hình API Key</button>
+    <button type="button" class="tab-pill active" data-ai-tab="key" style="padding:6px 14px;border-radius:6px;border:1px solid var(--line,#ccc);background:var(--brand,#0a58ca);color:#fff;cursor:pointer">🔑 Trạng thái AI</button>
     <button type="button" class="tab-pill" data-ai-tab="mode1" style="padding:6px 14px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer">🎯 1. Sinh theo YCCĐ</button>
     <button type="button" class="tab-pill" data-ai-tab="mode2" style="padding:6px 14px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer">📄 2. Bóc tách đề thô</button>
     <button type="button" class="tab-pill" data-ai-tab="mode3" style="padding:6px 14px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer">🔀 3. Sinh biến thể</button>
   </div>
   <div id="ai-tab-content">
     <div id="ai-pane-key" class="ai-pane">
-      <p>Nhập Google Gemini API Key của bạn để sử dụng các tính năng trợ lý AI. Khóa được lưu an toàn trong trình duyệt của bạn (Local Storage) theo hồ sơ giáo viên và không bị chia sẻ ra ngoài.</p>
-      <div style="margin:16px 0">
-        <label for="gemini-teacher-account" style="display:block;font-weight:bold;margin-bottom:6px">Hồ sơ giáo viên / Mã tài khoản:</label>
-        <input type="text" id="gemini-teacher-account" placeholder="Ví dụ: gv_tin_hoc, thay_huy..." value="default" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;margin-bottom:12px">
-        <label for="gemini-key-input" style="display:block;font-weight:bold;margin-bottom:6px">Gemini API Key:</label>
-        <input type="password" id="gemini-key-input" placeholder="AIzaSy..." style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;font-family:monospace;box-sizing:border-box">
-      </div>
-      <button type="button" class="primary" id="save-gemini-key-btn" style="padding:8px 18px;border-radius:6px;background:var(--brand,#0a58ca);color:#fff;border:none;cursor:pointer">💾 Lưu API Key</button>
-      <span id="gemini-key-status" style="margin-left:12px;color:green"></span>
-      <p style="font-size:0.85rem;color:var(--muted,#666);margin-top:14px"><em>Lưu ý: Hệ thống chạy cục bộ. Chưa kiểm chứng kết nối Gemini thực tế do cần người dùng cung cấp API Key thật. Không lưu key vào mã nguồn hay log.</em></p>
+      <p>Trợ lý AI dùng Google Gemini qua khóa đặt <strong>trên máy chủ</strong> (biến môi trường <code>GEMINI_API_KEY</code>). Trình duyệt không nhập, không lưu và không gửi khóa.</p>
+      <p><strong>Trạng thái:</strong> <span id="gemini-key-status">Đang kiểm tra…</span></p>
+      <p style="font-size:0.85rem;color:var(--muted,#666);margin-top:14px"><em>Câu do AI tạo luôn được lưu ở trạng thái nháp và phải được giáo viên duyệt trước khi dùng trong đề. Số lượt gọi AI mỗi ngày có giới hạn (biến <code>AI_DAILY_LIMIT</code>, mặc định 50).</em></p>
     </div>
     <div id="ai-pane-mode1" class="ai-pane" hidden>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">

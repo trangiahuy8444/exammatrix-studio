@@ -32,6 +32,10 @@ class Handler(BaseHTTPRequestHandler):
         # Request paths and user question text do not enter access logs.
         pass
 
+    def _ai_scope(self):
+        # Phạm vi đếm lượt AI; Django ghi đè theo tài khoản.
+        return 'local'
+
     def _local_request(self, mutation=False):
         port = self.server.server_address[1]
         hosts = {f'127.0.0.1:{port}', f'localhost:{port}'}
@@ -108,6 +112,9 @@ class Handler(BaseHTTPRequestHandler):
                 state=service.state();state['matrices']=self.matrix_service.list()
                 state['is_test_mode'] = (service == getattr(self.server, 'test_service', None))
                 return self._json(state)
+            if path == '/api/ai/status':
+                from ai_assistant import ai_status
+                return self._json(ai_status(self._ai_scope()))
             if path == '/api/test/status':
                 return self._json({
                     'test_mode_available': True,
@@ -249,8 +256,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(service.inspect_exam_import(payload, self.matrix_service))
             if path == '/api/exams/import-verified':
                 return self._json(service.import_verified_exams(payload, self.matrix_service))
+            if path == '/api/ai/save-drafts':
+                # Câu AI luôn vào ngân hàng ở trạng thái nháp, không bao giờ tự lên approved.
+                items = payload.get('questions')
+                if not isinstance(items, list) or not items:
+                    raise ServiceError('Chưa có câu hỏi nào để lưu.', status=400)
+                if any(not isinstance(q, dict) or q.get('id') for q in items):
+                    raise ServiceError('Chỉ lưu câu AI mới; không sửa câu đã có qua đường này.', status=400)
+                saved = [service.save_question(dict(q, review_status='draft'), origin='ai_gemini') for q in items]
+                return self._json({'saved': saved, 'bank': service.state()['bank']})
             if path == '/api/ai/generate-by-outcome':
-                from ai_assistant import generate_questions_by_outcome, AiValidationError
+                from ai_assistant import generate_questions_by_outcome, AiValidationError, AiQuotaError
                 try:
                     questions = generate_questions_by_outcome(
                         grade=payload.get('grade', 10),
@@ -260,32 +276,38 @@ class Handler(BaseHTTPRequestHandler):
                         level=payload.get('level', 'Biết'),
                         count=payload.get('count', 3),
                         question_type=payload.get('question_type', 'MC'),
-                        api_key=payload.get('api_key')
+                        scope=self._ai_scope()
                     )
                     return self._json({'questions': questions})
+                except AiQuotaError as exc:
+                    raise ServiceError(str(exc), status=429)
                 except (AiValidationError, ValueError, RuntimeError) as exc:
                     raise ServiceError(str(exc), status=400)
             if path == '/api/ai/parse-raw':
-                from ai_assistant import parse_raw_exam_text, AiValidationError
+                from ai_assistant import parse_raw_exam_text, AiValidationError, AiQuotaError
                 try:
                     questions = parse_raw_exam_text(
                         raw_text=payload.get('raw_text', ''),
                         grade=payload.get('grade', 10),
                         subject=payload.get('subject', 'Tin học'),
-                        api_key=payload.get('api_key')
+                        scope=self._ai_scope()
                     )
                     return self._json({'questions': questions})
+                except AiQuotaError as exc:
+                    raise ServiceError(str(exc), status=429)
                 except (AiValidationError, ValueError, RuntimeError) as exc:
                     raise ServiceError(str(exc), status=400)
             if path == '/api/ai/generate-variants':
-                from ai_assistant import generate_question_variants, AiValidationError
+                from ai_assistant import generate_question_variants, AiValidationError, AiQuotaError
                 try:
                     variants = generate_question_variants(
                         question_obj=payload.get('question', {}),
                         count=payload.get('count', 2),
-                        api_key=payload.get('api_key')
+                        scope=self._ai_scope()
                     )
                     return self._json({'variants': variants})
+                except AiQuotaError as exc:
+                    raise ServiceError(str(exc), status=429)
                 except (AiValidationError, ValueError, RuntimeError) as exc:
                     raise ServiceError(str(exc), status=400)
             raise ServiceError('Không có API này.', status=404)

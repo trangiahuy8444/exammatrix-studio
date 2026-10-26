@@ -42,7 +42,7 @@ Some engine tests (`test_exam_verification`, `test_matrix_import`, `test_matrix_
 - `docx_exam_importer.py`
 - `input_schema.py`
 - `domain/policies.py`
-- `ai_assistant.py` (Gemini via `GEMINI_API_KEY` or a key the teacher supplies)
+- `ai_assistant.py` (Gemini; key only from server env `GEMINI_API_KEY`, sent in the `x-goog-api-key` header; daily per-account quota `AI_DAILY_LIMIT`; AI routes run outside the Django workspace lock; AI questions are saved only as drafts via `/api/ai/save-drafts`)
 
 `server.py` `Handler` is the single place where `/api/*` routes are handled. It is a stdlib `BaseHTTPRequestHandler` with a long chain of `if path == '/api/...'`.
 - **Legacy host:** `start.py` / `MO_NGAN_HANG_DE.command` runs `create_server()` on 127.0.0.1:8765–8775 against JSON files in `data/`, plus the real bank at `DEFAULT_BANK`.

@@ -101,6 +101,9 @@ class DjangoHandler(Handler):
             value['context'] = self.server.service.context or course_context(None)
         return super()._json(value, status)
 
+    def _ai_scope(self):
+        return getattr(self, 'ai_scope', 'local')
+
     def _local_request(self, mutation=False):
         # Host validation and sessions are Django's; CSRF middleware checks all
         # mutation routes. Do not use the old localhost-only transport checks.
@@ -122,25 +125,38 @@ class DjangoHandler(Handler):
             self.response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
 
+# Lời gọi Gemini có thể mất tới 45 giây và không ghi dữ liệu: chạy ngoài transaction và
+# ngoài khóa tài khoản để không chặn các thao tác khác của giáo viên (mốc A7).
+UNLOCKED_ROUTES = {'ai/status', 'ai/generate-by-outcome', 'ai/parse-raw', 'ai/generate-variants'}
+
+
+def _run_handler(request, workspace):
+    course = selected_course(request)
+    test_mode = request.headers.get('X-Test-Mode') == '1' or any(
+        request.GET.get(key) == '1' for key in ('test_mode', 'test'))
+    service = bank_for_user(request.user, course, test_mode=test_mode)
+    handler = DjangoHandler(request, service, test_mode=test_mode, course=course)
+    handler.ai_scope = f'ws{workspace.pk}'
+    if request.method == 'POST':
+        handler.do_POST()
+    else:
+        handler.do_GET()
+    if handler.response is None:
+        raise Http404()
+    return handler.response
+
+
 @api_view
 @require_http_methods(['GET', 'POST', 'HEAD'])
 def original_api(request, route):
+    if route in UNLOCKED_ROUTES:
+        return _run_handler(request, workspace_for(request.user))
     # Serialize by teacher, not by one global in-process lock. A failed request
     # rolls back both documents and their recovery history.
     with transaction.atomic():
         workspace = workspace_for(request.user)
         Workspace.objects.select_for_update().get(pk=workspace.pk)
-        course = selected_course(request)
-        test_mode = request.headers.get('X-Test-Mode') == '1' or any(
-            request.GET.get(key) == '1' for key in ('test_mode', 'test'))
-        service = bank_for_user(request.user, course, test_mode=test_mode)
-        handler = DjangoHandler(request, service, test_mode=test_mode, course=course)
-        if request.method == 'POST':
-            handler.do_POST()
-        else:
-            handler.do_GET()
-        if handler.response is None:
-            raise Http404()
-        if handler.response.status_code >= 400:
+        response = _run_handler(request, workspace)
+        if response.status_code >= 400:
             transaction.set_rollback(True)
-        return handler.response
+        return response

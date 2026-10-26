@@ -41,6 +41,12 @@ def _make_mock_response(content_dict_or_list):
 
 
 class TestAiAssistant(unittest.TestCase):
+    def setUp(self):
+        import os, ai_assistant
+        patcher = patch.dict(os.environ, {"GEMINI_API_KEY": "dummy_key_for_mock_test"})
+        patcher.start(); self.addCleanup(patcher.stop)
+        ai_assistant.reset_usage()
+
     def test_json_cleaner(self):
         raw = "```json\n{\"key\": \"val\"}\n```"
         self.assertEqual(_clean_json_text(raw), '{"key": "val"}')
@@ -55,8 +61,8 @@ class TestAiAssistant(unittest.TestCase):
             del os.environ["GEMINI_API_KEY"]
         try:
             with self.assertRaises(ValueError) as ctx:
-                generate_questions_by_outcome(10, "Tin học", "Bài 1", "YCCĐ 1", api_key="")
-            self.assertIn("Chưa cấu hình Gemini API Key", str(ctx.exception))
+                generate_questions_by_outcome(10, "Tin học", "Bài 1", "YCCĐ 1")
+            self.assertIn("chưa được cấu hình", str(ctx.exception))
         finally:
             if old is not None:
                 os.environ["GEMINI_API_KEY"] = old
@@ -88,8 +94,7 @@ class TestAiAssistant(unittest.TestCase):
             lesson_name="Lược sử công cụ tính toán",
             learning_outcome="Nhận biết thiết bị vào",
             level="Biết",
-            count=1,
-            api_key="dummy_key_for_mock_test"
+            count=1
         )
         self.assertIsInstance(res, list)
         self.assertEqual(len(res), 1)
@@ -112,7 +117,7 @@ class TestAiAssistant(unittest.TestCase):
         mock_urlopen.return_value = _make_mock_response(mock_data)
 
         raw_text = "Câu 1: Câu hỏi bóc tách từ văn bản thô?\nA. Phương án A\nB. Phương án B\nC. Phương án C\nD. Phương án D\nĐáp án: B"
-        res = parse_raw_exam_text(raw_text, grade=10, subject="Tin học", api_key="dummy_key")
+        res = parse_raw_exam_text(raw_text, grade=10, subject="Tin học")
         self.assertEqual(len(res), 1)
         self.assertEqual(res[0]["correct"], 1)
 
@@ -136,7 +141,7 @@ class TestAiAssistant(unittest.TestCase):
             "correct": 2,
             "level": "Biết"
         }
-        res = generate_question_variants(orig_q, count=1, api_key="dummy_key")
+        res = generate_question_variants(orig_q, count=1)
         self.assertEqual(len(res), 1)
         self.assertEqual(res[0]["correct"], 2)
 
@@ -216,7 +221,7 @@ class TestAiAssistant(unittest.TestCase):
     def test_raw_text_length_limit(self):
         huge_text = "A" * (MAX_RAW_TEXT_LENGTH + 10)
         with self.assertRaises(ValueError) as ctx:
-            parse_raw_exam_text(huge_text, api_key="dummy")
+            parse_raw_exam_text(huge_text)
         self.assertIn("vượt quá giới hạn tối đa", str(ctx.exception))
 
 

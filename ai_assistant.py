@@ -1,6 +1,6 @@
 """
 ExamMatrix Studio - AI Assistant Module
-Powered by Google Gemini API (via teacher API Key)
+Powered by Google Gemini API (server-side key: env GEMINI_API_KEY)
 Supports 3 intelligent modes:
 1. Generate questions by Learning Outcome (YCCĐ) and cognitive level
 2. Parse and structure raw exam text
@@ -8,10 +8,13 @@ Supports 3 intelligent modes:
 """
 from __future__ import annotations
 import json
+import logging
 import os
 import re
+import threading
 import urllib.request
 import urllib.error
+from datetime import date
 from typing import Any, Dict, List, Optional
 from input_schema import canonical_short_answer
 
@@ -38,18 +41,58 @@ def _sanitize_error_message(msg: str) -> str:
     return msg
 
 
+class AiQuotaError(RuntimeError):
+    """Raised when an account has used up its daily Gemini quota."""
+    pass
+
+
+# Mốc A7: khóa chỉ nằm ở máy chủ (biến môi trường), không nhận từ trình duyệt.
+# Đếm lượt theo (phạm vi, ngày) trong bộ nhớ tiến trình; đủ cho chạy cục bộ và 1 worker Render.
+usage_log = logging.getLogger("ai_assistant.usage")
+_usage: Dict[tuple, int] = {}
+_usage_lock = threading.Lock()
+DEFAULT_DAILY_LIMIT = 50
+TIMEOUT_SECONDS = 45
+
+
+def reset_usage() -> None:
+    with _usage_lock:
+        _usage.clear()
+
+
+def daily_limit() -> int:
+    try:
+        return max(0, int(os.environ.get("AI_DAILY_LIMIT", DEFAULT_DAILY_LIMIT)))
+    except ValueError:
+        return DEFAULT_DAILY_LIMIT
+
+
+def ai_status(scope: str = "local") -> Dict[str, Any]:
+    with _usage_lock:
+        used = _usage.get((scope, date.today().isoformat()), 0)
+    return {"configured": get_effective_api_key() is not None, "daily_limit": daily_limit(), "used_today": used}
+
+
+def _take_quota(scope: str) -> None:
+    key = (scope, date.today().isoformat())
+    with _usage_lock:
+        if _usage.get(key, 0) >= daily_limit():
+            raise AiQuotaError(f"Đã dùng hết {daily_limit()} lượt gọi AI trong ngày. Vui lòng thử lại vào ngày mai.")
+        _usage[key] = _usage.get(key, 0) + 1
+
+
 def get_effective_api_key(provided_key: Optional[str] = None) -> Optional[str]:
-    if provided_key and str(provided_key).strip():
-        return str(provided_key).strip()
+    # provided_key bị bỏ qua có chủ đích: khóa từ trình duyệt không bao giờ được dùng.
     return os.environ.get("GEMINI_API_KEY", "").strip() or None
 
 
-def call_gemini(prompt: str, api_key: Optional[str] = None, model: str = DEFAULT_GEMINI_MODEL) -> str:
-    key = get_effective_api_key(api_key)
+def call_gemini(prompt: str, model: str = DEFAULT_GEMINI_MODEL, scope: str = "local") -> str:
+    key = get_effective_api_key()
     if not key:
-        raise ValueError("Chưa cấu hình Gemini API Key. Vui lòng nhập API Key của bạn để sử dụng AI.")
+        raise ValueError("AI chưa được cấu hình trên máy chủ (thiếu biến môi trường GEMINI_API_KEY).")
+    _take_quota(scope)
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     payload = {
         "contents": [
             {
@@ -68,24 +111,27 @@ def call_gemini(prompt: str, api_key: Optional[str] = None, model: str = DEFAULT
     req = urllib.request.Request(
         url,
         data=req_data,
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "x-goog-api-key": key},
         method="POST"
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=45) as resp:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            candidates = data.get("candidates", [])
-            if not candidates:
-                raise ValueError("Gemini không trả về kết quả.")
-            text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-            return text
     except urllib.error.HTTPError as exc:
         err_msg = _sanitize_error_message(exc.read().decode("utf-8", "ignore"))
         raise RuntimeError(f"Lỗi kết nối Gemini API (HTTP {exc.code}): {err_msg}") from None
     except Exception as exc:
         clean_err = _sanitize_error_message(str(exc))
         raise RuntimeError(f"Không thể kết nối đến Gemini API: {clean_err}") from None
+    usage = data.get("usageMetadata") or {}
+    # Chỉ ghi phạm vi, mô hình và số token; không ghi prompt hay khóa.
+    usage_log.info("scope=%s model=%s prompt_tokens=%s output_tokens=%s", scope, model,
+                   usage.get("promptTokenCount", 0), usage.get("candidatesTokenCount", 0))
+    candidates = data.get("candidates", [])
+    if not candidates:
+        raise RuntimeError("Gemini không trả về kết quả.")
+    return candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
 
 
 def _clean_json_text(text: str) -> str:
@@ -214,7 +260,7 @@ def generate_questions_by_outcome(
     level: str = "Biết",
     count: int = 3,
     question_type: str = "MC",
-    api_key: Optional[str] = None
+    scope: str = "local"
 ) -> List[Dict[str, Any]]:
     prompt = f"""[CHẾ ĐỘ 1: SINH CÂU HỎI THEO YÊU CẦU CẦN ĐẠT]
 Môn học: {subject} - Khối {grade}
@@ -249,7 +295,7 @@ Với dạng YN:
   "learning_outcome": "{learning_outcome}"
 }}
 """
-    raw_res = call_gemini(prompt, api_key=api_key)
+    raw_res = call_gemini(prompt, scope=scope)
     parsed = json.loads(_clean_json_text(raw_res))
     raw_list = parsed if isinstance(parsed, list) else [parsed]
     validated = []
@@ -263,7 +309,7 @@ def parse_raw_exam_text(
     raw_text: str,
     grade: int = 10,
     subject: str = "Tin học",
-    api_key: Optional[str] = None
+    scope: str = "local"
 ) -> List[Dict[str, Any]]:
     cleaned_raw = (raw_text or "").strip()
     if not cleaned_raw:
@@ -286,7 +332,7 @@ Yêu cầu nghiêm ngặt:
 3. Tuyệt đối không tự bịa đáp án nếu trong đề thô không có hoặc không suy luận được.
 4. Trả về JSON là danh sách (Array) các Object câu hỏi.
 """
-    raw_res = call_gemini(prompt, api_key=api_key)
+    raw_res = call_gemini(prompt, scope=scope)
     parsed = json.loads(_clean_json_text(raw_res))
     raw_list = parsed if isinstance(parsed, list) else [parsed]
     validated = []
@@ -299,7 +345,7 @@ Yêu cầu nghiêm ngặt:
 def generate_question_variants(
     question_obj: Dict[str, Any],
     count: int = 2,
-    api_key: Optional[str] = None
+    scope: str = "local"
 ) -> List[Dict[str, Any]]:
     if not isinstance(question_obj, dict) or not question_obj.get("question"):
         raise ValueError("Câu hỏi gốc không hợp lệ.")
@@ -313,7 +359,7 @@ Câu hỏi gốc:
 {json.dumps(question_obj, ensure_ascii=False, indent=2)}
 
 Trả về JSON danh sách {count} câu hỏi biến thể tương đương."""
-    raw_res = call_gemini(prompt, api_key=api_key)
+    raw_res = call_gemini(prompt, scope=scope)
     parsed = json.loads(_clean_json_text(raw_res))
     raw_list = parsed if isinstance(parsed, list) else [parsed]
     validated = []

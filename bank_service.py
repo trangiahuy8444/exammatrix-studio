@@ -367,7 +367,7 @@ class BankService:
         result['questions'] = checked
         return result
 
-    def save_question(self, raw):
+    def save_question(self, raw, origin='teacher'):
         with self.lock:
             q = self._validate_question(raw)
             bank = self._load_bank()
@@ -377,7 +377,7 @@ class BankService:
                     raise ServiceError('Không tìm thấy mã câu để sửa.', {'id': ident}, 404)
             else:
                 q['id'] = f'K{q["grade"]}-GV-{uuid.uuid4().hex[:12]}'
-            q['origin'] = 'teacher'
+            q['origin'] = origin
             q['updated_at'] = now()
             replaced = False
             for i, old in enumerate(bank['questions']):

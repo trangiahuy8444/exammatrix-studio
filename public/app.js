@@ -860,26 +860,29 @@ function initAiAssistant() {
   const dialog = $('#ai-dialog');
   if (!btn || !dialog) return;
 
-  const accountInput = $('#gemini-teacher-account');
-  const keyInput = $('#gemini-key-input');
+  // Mốc A7: khóa Gemini chỉ nằm ở máy chủ (GEMINI_API_KEY); trình duyệt chỉ hỏi trạng thái.
   const keyStatus = $('#gemini-key-status');
+  let aiConfigured = false;
 
-  function getStorageKey() {
-    const acc = (accountInput?.value || 'default').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-    return `gemini_api_key_${acc || 'default'}`;
+  async function refreshAiStatus() {
+    try {
+      const st = await request('/api/ai/status');
+      aiConfigured = Boolean(st.configured);
+      if (keyStatus) keyStatus.textContent = aiConfigured
+        ? `✓ AI đã được cấu hình. Hôm nay đã dùng ${st.used_today}/${st.daily_limit} lượt.`
+        : 'AI chưa được cấu hình trên máy chủ.';
+    } catch (e) {
+      aiConfigured = false;
+      if (keyStatus) keyStatus.textContent = 'Không kiểm tra được trạng thái AI.';
+    }
+    return aiConfigured;
   }
 
-  function getSavedApiKey() {
-    return localStorage.getItem(getStorageKey()) || localStorage.getItem('gemini_api_key') || '';
+  async function ensureAiConfigured() {
+    if (aiConfigured || await refreshAiStatus()) return true;
+    notify('AI chưa được cấu hình. Người quản trị cần đặt biến môi trường GEMINI_API_KEY trên máy chủ.', true);
+    return false;
   }
-
-  function syncKeyDisplay() {
-    const k = getSavedApiKey();
-    if (keyInput) keyInput.value = k;
-    if (keyStatus) keyStatus.textContent = k ? '✓ Đã cấu hình cho hồ sơ này' : 'Chưa có key';
-  }
-
-  accountInput?.addEventListener('input', syncKeyDisplay);
 
   function syncAiLessons(grade, target='m1') {
     const subj = target === 'm1' ? ($('#ai-m1-subject')?.value || 'Tin học') : ($('#ai-m2-subject')?.value || 'Tin học');
@@ -923,7 +926,7 @@ function initAiAssistant() {
   }
 
   btn.onclick = () => {
-    syncKeyDisplay();
+    refreshAiStatus();
     const curSubj = store.selectedSubject || 'Tin học';
     if ($('#ai-m1-subject')) $('#ai-m1-subject').value = curSubj;
     if ($('#ai-m2-subject')) $('#ai-m2-subject').value = curSubj;
@@ -959,24 +962,6 @@ function initAiAssistant() {
     }
   });
 
-  const saveBtn = $('#save-gemini-key-btn');
-  if (saveBtn) {
-    saveBtn.onclick = () => {
-      const val = (keyInput.value || '').trim();
-      const sk = getStorageKey();
-      if (!val) {
-        localStorage.removeItem(sk);
-        localStorage.removeItem('gemini_api_key');
-        if (keyStatus) keyStatus.textContent = 'Đã xóa API Key.';
-        notify('Đã xóa Gemini API Key cho hồ sơ này.');
-      } else {
-        localStorage.setItem(sk, val);
-        localStorage.setItem('gemini_api_key', val);
-        if (keyStatus) keyStatus.textContent = '✓ Đã lưu thành công!';
-        notify('Đã lưu Gemini API Key vào Local Storage.');
-      }
-    };
-  }
 
   // Switch tabs in AI modal
   dialog.querySelectorAll('[data-ai-tab]').forEach(tabBtn => {
@@ -1173,7 +1158,7 @@ function initAiAssistant() {
             ...qData
           };
 
-          await mutate('/api/bank/save', bankPayload, () => {
+          await mutate('/api/ai/save-drafts', { questions: [bankPayload] }, () => {
             btn.textContent = '✅ Đã thêm vào Ngân hàng (Chờ duyệt)';
             btn.disabled = true;
             const msg = $(`#${cid}-save-msg`);
@@ -1191,11 +1176,7 @@ function initAiAssistant() {
   const m1Btn = $('#ai-m1-submit-btn');
   if (m1Btn) {
     m1Btn.onclick = async () => {
-      const key = getSavedApiKey();
-      if (!key) {
-        notify('Vui lòng nhập Gemini API Key ở tab "Cấu hình API Key" trước.', true);
-        return;
-      }
+      if (!(await ensureAiConfigured())) return;
       const selectedLessonCode = $('#ai-m1-lesson-select')?.value;
       if (!selectedLessonCode) {
         notify('Vui lòng chọn bài học từ danh mục PPCT trước khi sinh câu hỏi.', true);
@@ -1218,8 +1199,7 @@ function initAiAssistant() {
         question_type: $('#ai-m1-type').value,
         count: Number($('#ai-m1-count').value || 3),
         lesson_name: lessonName,
-        learning_outcome: outcome,
-        api_key: key
+        learning_outcome: outcome
       };
 
       const resBox = $('#ai-m1-results');
@@ -1247,11 +1227,7 @@ function initAiAssistant() {
   const m2Btn = $('#ai-m2-submit-btn');
   if (m2Btn) {
     m2Btn.onclick = async () => {
-      const key = getSavedApiKey();
-      if (!key) {
-        notify('Vui lòng cấu hình Gemini API Key trước.', true);
-        return;
-      }
+      if (!(await ensureAiConfigured())) return;
       const raw = ($('#ai-m2-raw-text').value || '').trim();
       if (!raw) {
         notify('Vui lòng dán đề thô vào khung.', true);
@@ -1269,7 +1245,7 @@ function initAiAssistant() {
       resBox.innerHTML = '<p class="empty">⏳ Đang phân tích và bóc tách đề thô...</p>';
 
       try {
-        const res = await request('/api/ai/parse-raw', { raw_text: raw, grade: grade, api_key: key });
+        const res = await request('/api/ai/parse-raw', { raw_text: raw, grade: grade });
         const qs = res.questions || [];
         if (!qs.length) {
           resBox.innerHTML = '<p class="empty">Không bóc tách được câu hỏi nào từ nội dung thô.</p>';
@@ -1311,37 +1287,36 @@ function initAiAssistant() {
               notify('Chưa chọn câu hỏi nào để lưu.', true);
               return;
             }
-            let savedCount = 0;
-            bulkSaveBtn.disabled = true;
-            bulkSaveBtn.textContent = '⏳ Đang lưu...';
-
+            const batch = [];
             for (const chk of selectedChks) {
               const idx = Number(chk.dataset.idx);
-              const cid = `m2-${idx}`;
-              const origQ = qs[idx];
               try {
-                const qData = getQuestionFromCard(cid, origQ);
-                const bankPayload = {
-                  id: '',
-                  grade: grade,
-                  subject_name: subject,
-                  lesson_code: targetLesson,
-                  review_status: 'draft',
-                  ...qData
-                };
-                await mutate('/api/bank/save', bankPayload, () => {});
-                savedCount++;
-                const saveBtn = resBox.querySelector(`[data-save-q="${cid}"]`);
-                if (saveBtn) {
-                  saveBtn.textContent = '✅ Đã thêm (Chờ duyệt)';
-                  saveBtn.disabled = true;
-                }
+                const qData = getQuestionFromCard(`m2-${idx}`, qs[idx]);
+                batch.push({ idx, q: { id: '', grade: grade, subject_name: subject, lesson_code: targetLesson,
+                  review_status: 'draft', ...qData } });
               } catch (e) {
                 notify(`Lỗi ở Câu ${idx + 1}: ${e.message}`, true);
+                return;
               }
             }
-            bulkSaveBtn.textContent = `✅ Đã lưu ${savedCount}/${selectedChks.length} câu (Chờ duyệt)`;
-            notify(`Đã lưu thành công ${savedCount} câu hỏi vào bài [${targetLesson}].`);
+            bulkSaveBtn.disabled = true;
+            bulkSaveBtn.textContent = '⏳ Đang lưu...';
+            // Một yêu cầu cho cả lô: hoặc lưu hết, hoặc không lưu câu nào.
+            const result = await mutate('/api/ai/save-drafts', { questions: batch.map(b => b.q) });
+            if (!result) {
+              bulkSaveBtn.disabled = false;
+              bulkSaveBtn.textContent = '💾 Lưu các câu đã chọn (Chờ duyệt)';
+              return;
+            }
+            batch.forEach(({ idx }) => {
+              const saveBtn = resBox.querySelector(`[data-save-q="m2-${idx}"]`);
+              if (saveBtn) {
+                saveBtn.textContent = '✅ Đã thêm (Chờ duyệt)';
+                saveBtn.disabled = true;
+              }
+            });
+            bulkSaveBtn.textContent = `✅ Đã lưu ${result.saved.length}/${selectedChks.length} câu (Chờ duyệt)`;
+            notify(`Đã lưu ${result.saved.length} câu hỏi nháp vào bài [${targetLesson}]; cần duyệt trước khi dùng trong đề.`);
           };
         }
       } catch (err) {
@@ -1354,11 +1329,7 @@ function initAiAssistant() {
   const m3Btn = $('#ai-m3-submit-btn');
   if (m3Btn) {
     m3Btn.onclick = async () => {
-      const key = getSavedApiKey();
-      if (!key) {
-        notify('Vui lòng cấu hình Gemini API Key trước.', true);
-        return;
-      }
+      if (!(await ensureAiConfigured())) return;
       const qText = ($('#ai-m3-question-json').value || '').trim();
       if (!qText) {
         notify('Vui lòng chọn hoặc nhập câu hỏi gốc.', true);
@@ -1374,7 +1345,7 @@ function initAiAssistant() {
       const resBox = $('#ai-m3-results');
       resBox.innerHTML = '<p class="empty">⏳ Đang sinh các biến thể tương đương...</p>';
       try {
-        const res = await request('/api/ai/generate-variants', { question: origObj, count: 2, api_key: key });
+        const res = await request('/api/ai/generate-variants', { question: origObj, count: 2 });
         const vars = res.variants || [];
         if (!vars.length) {
           resBox.innerHTML = '<p class="empty">Không sinh được biến thể nào.</p>';

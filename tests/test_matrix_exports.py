@@ -60,7 +60,7 @@ class MatrixExportsTests(unittest.TestCase):
 
     def test_section_and_format_validation(self):
         from bank_service import ServiceError
-        for fmt,section in [('pdf','all'),('docx','bad'),('docx','competencies')]:
+        for fmt,section in [('xlsx','all'),('docx','bad'),('docx','competencies')]:
             with self.assertRaises(ServiceError):export_matrix(minimal_matrix(),bank_fixture()['ppct'],fmt,section)
 
     def test_short_allocation_is_visible_in_matrix_columns(self):

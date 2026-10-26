@@ -13,6 +13,7 @@ import re
 import urllib.request
 import urllib.error
 from typing import Any, Dict, List, Optional
+from input_schema import canonical_short_answer
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 MAX_RAW_TEXT_LENGTH = 100000
@@ -190,10 +191,10 @@ def validate_and_sanitize_question(raw_q: Any, expected_type: Optional[str] = No
         sanitized["statements"] = cleaned_stmts
 
     elif q_type == "SHORT":
-        ans = raw_q.get("correct_answer") or raw_q.get("answer")
-        if ans is None or not str(ans).strip():
-            raise AiValidationError("Câu hỏi trả lời ngắn SHORT thiếu trường đáp án đúng ('correct_answer').")
-        sanitized["correct_answer"] = str(ans).strip()
+        ans = canonical_short_answer(raw_q)
+        if not ans:
+            raise AiValidationError("Câu hỏi trả lời ngắn SHORT thiếu đáp án đúng ('short_answer').")
+        sanitized["short_answer"] = ans
 
     elif q_type == "ES":
         if raw_q.get("rubric"):

@@ -18,6 +18,7 @@ import unicodedata
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+from input_schema import canonical_short_answer
 from pathlib import Path
 from domain.policies import resolve_similarity, require_revision
 
@@ -287,9 +288,11 @@ class BankService:
                 cleaned_stmts.append({'label': lbl, 'text': txt, 'correct': bool(st.get('correct', False))})
             q['statements'] = cleaned_stmts
         elif q['type'] == 'SHORT':
+            answer = canonical_short_answer(q)
+            q.pop('correct_answer', None); q.pop('answer', None)
             if status != 'draft':
-                self._text(q.get('short_answer'), 'Đáp án câu trả lời ngắn')
-            q['short_answer'] = str(q.get('short_answer') or '').strip()
+                self._text(answer, 'Đáp án câu trả lời ngắn')
+            q['short_answer'] = answer
         else:
             rubric = q.get('rubric')
             if not isinstance(rubric, list) or len(rubric) != 4:
@@ -954,7 +957,7 @@ class BankService:
                 # Process Short answer questions
                 for slot, q in enumerate(short_qs, 1):
                     q['slot_number'] = slot
-                    answer_grid['short'].setdefault(slot, {})[code] = str(q.get('correct_answer') or q.get('answer', ''))
+                    answer_grid['short'].setdefault(slot, {})[code] = canonical_short_answer(q)
 
                 # Process Essay questions
                 for slot, q in enumerate(es_qs, 1):

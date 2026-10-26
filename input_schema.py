@@ -18,6 +18,18 @@ ALLOWED_LEVELS = ['Biết', 'Hiểu', 'Vận dụng']
 ALLOWED_REVIEW_STATUSES = ['draft', 'content_checked', 'approved', 'archived']
 
 
+SHORT_ANSWER_ALIASES = ('short_answer', 'correct_answer', 'answer')
+
+
+def canonical_short_answer(q: dict) -> str:
+    """Đáp án câu SHORT theo tên trường chuẩn `short_answer`; đọc được tên cũ."""
+    for key in SHORT_ANSWER_ALIASES:
+        value = q.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return ''
+
+
 class ValidationError(ValueError):
     """Raised when an input payload violates the data specifications."""
     def __init__(self, message, field=None, details=None):
@@ -117,7 +129,8 @@ def validate_question_input(q: dict) -> dict:
         res['statements'] = cleaned_stmts
 
     elif qtype == 'SHORT':
-        short_ans = str(res.get('short_answer') or '').strip()
+        short_ans = canonical_short_answer(res)
+        res.pop('correct_answer', None); res.pop('answer', None)
         if not short_ans and status != 'draft':
             raise ValidationError('Câu hỏi trả lời ngắn (SHORT) phải có đáp án ngắn.', field='short_answer')
         res['short_answer'] = short_ans

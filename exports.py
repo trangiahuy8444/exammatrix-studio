@@ -8,6 +8,7 @@ import base64
 from pathlib import Path
 from html import escape
 from bank_service import ServiceError
+from input_schema import canonical_short_answer
 
 
 def public_record(record):
@@ -73,15 +74,22 @@ def _goals(record):
     return list(lessons.values())
 
 
+SECTION_TITLES = (
+    ('MC', 'TRẮC NGHIỆM NHIỀU LỰA CHỌN'),
+    ('YN', 'TRẮC NGHIỆM ĐÚNG / SAI'),
+    ('SHORT', 'TRẮC NGHIỆM TRẢ LỜI NGẮN'),
+    ('ES', 'TỰ LUẬN'),
+)
+ROMAN = ('I', 'II', 'III', 'IV')
+
+
 def _section_defs(record):
-    has_yn = any(q.get('type') == 'YN' for q in record.get('questions', []))
-    if has_yn:
-        return [
-            ('MC', 'I. TRẮC NGHIỆM NHIỀU LỰA CHỌN'),
-            ('YN', 'II. TRẮC NGHIỆM ĐÚNG / SAI'),
-            ('ES', 'III. TỰ LUẬN'),
-        ]
-    return [('MC', 'I. TRẮC NGHIỆM'), ('ES', 'II. TỰ LUẬN')]
+    present = {q.get('type') for q in record.get('questions', [])}
+    if present <= {'MC', 'ES'}:
+        # Giữ đúng tiêu đề của mẫu đề THCS đã duyệt (chỉ có trắc nghiệm và tự luận).
+        return [('MC', 'I. TRẮC NGHIỆM'), ('ES', 'II. TỰ LUẬN')]
+    kinds = [(kind, title) for kind, title in SECTION_TITLES if kind in present]
+    return [(kind, f'{ROMAN[i]}. {title}') for i, (kind, title) in enumerate(kinds)]
 
 
 LOGO_PATH = Path(__file__).resolve().parent / 'assets' / 'logo_asian_school.png'
@@ -268,6 +276,8 @@ def _html(record, answers, revision):
                 elif kind == 'YN':
                     ans_parts = [f'{st.get("label", "")}: {"Đúng" if st.get("correct") else "Sai"}' for st in q.get('statements', [])]
                     body.append(f'<p><strong>Đáp án: {", ".join(ans_parts)}</strong></p>')
+                elif kind == 'SHORT':
+                    body.append(f'<p><strong>Đáp án: {esc(canonical_short_answer(q))}</strong></p>')
                 else:
                     max_score = q.get('max_score', 1) or 1
                     scale = q.get('points', max_score) / max_score
@@ -619,7 +629,7 @@ def _docx(record, answers, revision):
                 row_cells[0].text = f"Câu {q.get('slot_number', ri)}"
                 row_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
                 if row_cells[0].paragraphs[0].runs: row_cells[0].paragraphs[0].runs[0].bold = True
-                row_cells[1].text = str(q.get('correct_answer') or q.get('answer', ''))
+                row_cells[1].text = canonical_short_answer(q)
                 row_cells[2].text = f"{point_label(q.get('points', 0.5))} đ"
                 row_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
             p_sp = doc.add_paragraph()
@@ -775,6 +785,12 @@ def _docx(record, answers, revision):
                     p.paragraph_format.space_before = Pt(2)
                     p.paragraph_format.space_after = Pt(2)
                     p.add_run(f'Đáp án: {", ".join(ans_parts)}').bold = True
+                elif kind == 'SHORT':
+                    p = doc.add_paragraph()
+                    p.paragraph_format.left_indent = Cm(0.5)
+                    p.paragraph_format.space_before = Pt(2)
+                    p.paragraph_format.space_after = Pt(2)
+                    p.add_run(f'Đáp án: {canonical_short_answer(q)}').bold = True
                 else:
                     max_score = q.get('max_score', 1) or 1
                     scale = q.get('points', max_score) / max_score

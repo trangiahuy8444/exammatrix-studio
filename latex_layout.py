@@ -1,6 +1,7 @@
 """Pageable tables fed by the same canonical records as the Word exporter."""
 from collections import Counter
 from latex_generator import tex_escape as esc, point_label as label
+from input_schema import canonical_short_answer
 
 
 def table(weights, headers, rows, *, size=10):
@@ -55,7 +56,7 @@ def answer_sections(record):
     if short:
         out.append(heading('PHẦN III. ĐÁP ÁN TRẢ LỜI NGẮN'))
         out.append(table([1,5,1],['Câu','Đáp án chấp nhận','Điểm'],[[str(q.get('slot_number',i+1)),
-            esc(q.get('short_answer') or q.get('correct_answer') or q.get('answer','')),label(q.get('points',1))] for i,q in enumerate(short)]))
+            esc(canonical_short_answer(q)),label(q.get('points',1))] for i,q in enumerate(short)]))
     es=[q for q in record.get('questions',[]) if q['type']=='ES']
     if es:
         from exports import _scaled_policy

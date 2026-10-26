@@ -101,6 +101,9 @@ class DjangoHandler(Handler):
             value['context'] = self.server.service.context or course_context(None)
         return super()._json(value, status)
 
+    def _actor(self):
+        return self.request.user.get_username()
+
     def _ai_scope(self):
         return getattr(self, 'ai_scope', 'local')
 

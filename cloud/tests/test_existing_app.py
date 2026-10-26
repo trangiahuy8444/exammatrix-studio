@@ -19,7 +19,7 @@ def legacy_fixture():
                topic_source='Chủ đề gốc', level='Biết', learning_outcome='Nhận biết dữ liệu.',
                question=f'Câu hỏi riêng {i}?', options=['Một', 'Hai', 'Ba', 'Bốn'], correct=0,
                option_explanations=['Đúng', 'Sai', 'Sai', 'Sai'], max_score=1,
-               review_status='content_checked', origin='teacher', response_mode='Trắc nghiệm')
+               review_status='approved', origin='teacher', response_mode='Trắc nghiệm')
           for i in range(12)]
     return dict(schema_version='1.0.0', metadata={}, ppct=dict(sources=[], lessons=[lesson]), questions=qs)
 

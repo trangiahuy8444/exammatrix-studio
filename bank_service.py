@@ -18,6 +18,8 @@ import unicodedata
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+from domain.review import (CHECKLIST, EXAM_ELIGIBLE, STATUSES, normalize_status, review_hash,
+                           technical_problems)
 from input_schema import canonical_short_answer
 from pathlib import Path
 from domain.policies import resolve_similarity, require_revision
@@ -115,7 +117,11 @@ class BankService:
             self.subject_curricula = load_default_curricula()
 
     def _load_bank(self):
-        return self._read_data(self.bank_path)
+        bank = self._read_data(self.bank_path)
+        for q in (bank or {}).get('questions') or []:
+            if isinstance(q, dict) and 'review_status' in q:
+                q['review_status'] = normalize_status(q['review_status'])
+        return bank
 
     def _read_data(self, path, default=None):
         return self.storage.read(path, default) if self.storage is not None else read_json(path, default)
@@ -257,6 +263,7 @@ class BankService:
             subj_list = subj_dict.get(str(grade), []) or subj_dict.get(grade, [])
             lesson = next((l for l in subj_list if l.get('lesson_code') == lesson_code), None)
 
+        q['review_status'] = normalize_status(q.get('review_status'))
         if not lesson and q.get('review_status') == 'draft':
             lesson = {'lesson_code': lesson_code, 'outcomes': [q.get('learning_outcome')] if q.get('learning_outcome') else []}
 
@@ -268,10 +275,9 @@ class BankService:
         if q.get('level') not in ('Biết', 'Hiểu', 'Vận dụng'):
             raise ServiceError('Mức độ câu hỏi không hợp lệ.')
         q['question'] = self._text(q.get('question'), 'Nội dung câu hỏi')
-        status = q.get('review_status', 'draft')
-        if status not in ('draft', 'content_checked', 'approved', 'archived'):
+        if q['review_status'] not in STATUSES:
             raise ServiceError('Trạng thái câu hỏi không hợp lệ.')
-        q['review_status'] = status
+        status = q['review_status']
         if number(q.get('max_score', 1), 'Điểm tối đa') != 1:
             raise ServiceError('Ngân hàng dùng thang điểm chuẩn 1 cho mỗi câu; điểm đề do ma trận quy định.')
         q['max_score'] = 1
@@ -372,16 +378,19 @@ class BankService:
             q = self._validate_question(raw)
             bank = self._load_bank()
             ident = q.get('id')
+            old = None
             if ident:
-                if not any(x['id'] == ident for x in bank['questions']):
+                old = next((x for x in bank['questions'] if x['id'] == ident), None)
+                if old is None:
                     raise ServiceError('Không tìm thấy mã câu để sửa.', {'id': ident}, 404)
             else:
                 q['id'] = f'K{q["grade"]}-GV-{uuid.uuid4().hex[:12]}'
-            q['origin'] = origin
+            q['origin'] = old.get('origin', origin) if old else origin
+            self._apply_review_rules(q, old)
             q['updated_at'] = now()
             replaced = False
-            for i, old in enumerate(bank['questions']):
-                if old['id'] == q['id']:
+            for i, existing in enumerate(bank['questions']):
+                if existing['id'] == q['id']:
                     bank['questions'][i] = q; replaced = True; break
             if not replaced:
                 bank['questions'].append(q)
@@ -389,24 +398,96 @@ class BankService:
             self._atomic_save(self.bank_path, checked)
             return copy.deepcopy(next(x for x in checked['questions'] if x['id'] == q['id']))
 
+    def _apply_review_rules(self, q, old):
+        """Lưu câu không bao giờ đưa câu lên approved; sửa nội dung câu đã duyệt thì về needs_review (B1)."""
+        q['review_history'] = copy.deepcopy(old.get('review_history', [])) if old else []
+        q['review_hash'] = review_hash(q)
+        requested = q['review_status']
+        if str(q.get('origin', '')).startswith('ai'):
+            if old is None or requested == 'approved':
+                q['review_status'] = 'draft' if old is None else normalize_status(old.get('review_status'))
+            if old is None:
+                return
+        old_status = normalize_status(old.get('review_status')) if old else None
+        if old_status == 'approved' and q['review_hash'] != old.get('review_hash', review_hash(old)):
+            q['review_status'] = 'needs_review'
+            q['review_history'].append(dict(action='edit_after_approval', at=now(), by=getattr(self, 'actor', 'local'),
+                                            content_hash=q['review_hash']))
+        elif requested == 'approved' and old_status != 'approved':
+            q['review_status'] = old_status if old_status in ('draft', 'needs_review') else 'pending_review'
+
+    def review_question(self, ident, action, actor='local', checklist=None, reason=''):
+        """Chuyển trạng thái duyệt: submit | approve | return | reopen. Ghi lịch sử mỗi lần chuyển."""
+        with self.lock:
+            bank = self._load_bank()
+            q = next((x for x in bank['questions'] if x.get('id') == ident), None)
+            if q is None:
+                raise ServiceError('Không tìm thấy câu hỏi.', {'id': ident}, 404)
+            status = normalize_status(q.get('review_status'))
+            reason = str(reason or '').strip()
+            entry = dict(action=action, at=now(), by=str(actor or 'local'), from_status=status)
+            if action == 'submit':
+                if status not in ('draft', 'needs_review'):
+                    raise ServiceError('Chỉ gửi duyệt được câu nháp hoặc câu cần sửa lại.', {'status': status}, 409)
+                problems = technical_problems(q)
+                if problems:
+                    raise ServiceError('Câu hỏi chưa qua kiểm tra kỹ thuật.', {'problems': problems})
+                new_status = 'pending_review'
+            elif action == 'approve':
+                if status != 'pending_review':
+                    raise ServiceError('Chỉ duyệt được câu đang chờ duyệt.', {'status': status}, 409)
+                checklist = checklist if isinstance(checklist, dict) else {}
+                missing = [item['key'] for item in CHECKLIST if checklist.get(item['key']) is not True]
+                if missing:
+                    raise ServiceError('Phiếu kiểm định chưa được xác nhận đủ.', {'missing': missing})
+                problems = technical_problems(q)
+                if problems:
+                    raise ServiceError('Câu hỏi chưa qua kiểm tra kỹ thuật.', {'problems': problems})
+                entry['checklist'] = {item['key']: True for item in CHECKLIST}
+                new_status = 'approved'
+            elif action == 'return':
+                if status not in ('pending_review', 'approved'):
+                    raise ServiceError('Chỉ trả lại được câu đang chờ duyệt hoặc đã duyệt.', {'status': status}, 409)
+                if not reason:
+                    raise ServiceError('Khi trả lại phải ghi lý do cần sửa.')
+                new_status = 'needs_review'
+            else:
+                raise ServiceError('Thao tác duyệt không hợp lệ.', {'action': action})
+            if reason:
+                entry['reason'] = reason[:1000]
+            q['review_hash'] = review_hash(q)
+            entry['content_hash'] = q['review_hash']
+            q['review_status'] = new_status
+            q.setdefault('review_history', []).append(entry)
+            q['updated_at'] = now()
+            self._atomic_save(self.bank_path, bank)
+            return copy.deepcopy(q)
+
     def archive_question(self, ident):
         with self.lock:
             bank = self._load_bank()
             q = next((x for x in bank['questions'] if x['id'] == ident), None)
             if q is None:
                 raise ServiceError('Không tìm thấy câu hỏi.', {'id': ident}, 404)
+            if q.get('review_status') != 'archived':
+                q['status_before_archive'] = q.get('review_status', 'draft')
             q['review_status'] = 'archived'; q['archived_at'] = now()
             self._atomic_save(self.bank_path, bank)
             return copy.deepcopy(bank)
 
-    def restore_question(self, ident, status='approved'):
+    def restore_question(self, ident, status=None):
         with self.lock:
-            if status not in ('draft', 'content_checked', 'approved'):
-                status = 'approved'
             bank = self._load_bank()
             q = next((x for x in bank['questions'] if x['id'] == ident), None)
             if q is None:
                 raise ServiceError('Không tìm thấy câu hỏi.', {'id': ident}, 404)
+            # Khôi phục về đúng trạng thái trước khi lưu trữ; không dùng khôi phục để nâng lên approved.
+            previous = normalize_status(q.pop('status_before_archive', None) or 'draft')
+            status = normalize_status(status) if status else previous
+            if status == 'approved' and previous != 'approved':
+                status = 'pending_review'
+            if status not in STATUSES or status == 'archived':
+                status = previous
             q['review_status'] = status
             q.pop('archived_at', None)
             q['updated_at'] = now()
@@ -432,8 +513,15 @@ class BankService:
             if action == 'delete':
                 bank['questions'] = [x for x in bank['questions'] if x.get('id') not in target_ids]
             elif action == 'status':
-                if status not in ('draft', 'content_checked', 'approved', 'archived'):
-                    raise ServiceError('Trạng thái hàng loạt không hợp lệ.')
+                status = normalize_status(status)
+                if status not in ('draft', 'archived', 'pending_review'):
+                    raise ServiceError('Thao tác hàng loạt chỉ chuyển về nháp, gửi duyệt hoặc lưu trữ; '
+                                       'duyệt câu phải làm từng câu với phiếu kiểm định.')
+                if status == 'pending_review':
+                    failing = {q['id']: technical_problems(q) for q in bank['questions']
+                               if q.get('id') in target_ids and technical_problems(q)}
+                    if failing:
+                        raise ServiceError('Có câu chưa qua kiểm tra kỹ thuật.', {'problems': failing})
                 for q in bank['questions']:
                     if q.get('id') in target_ids:
                         q['review_status'] = status
@@ -735,7 +823,7 @@ class BankService:
                 lesson, kind, level = key
                 after_exam = self.school_profile and exam_type in limits and self._first_period(grade, lesson) >= limits[exam_type]
                 eligible = [q for q in bank if q['grade'] == grade and q['lesson_code'] == lesson and
-                            q['type'] == kind and q['level'] == level and q.get('review_status') in ('approved', 'content_checked') and
+                            q['type'] == kind and q['level'] == level and q.get('review_status') in EXAM_ELIGIBLE and
                             (template is not None or not after_exam)]
                 # Never choose duplicate IDs or duplicate prompt text, even from a manually edited file.
                 seen_ids, seen_text, unique = set(), set(), []

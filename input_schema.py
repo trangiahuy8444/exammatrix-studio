@@ -15,7 +15,7 @@ ALLOWED_SUBJECTS = [
 ALLOWED_GRADES = [8, 9, 10, 11, 12]
 ALLOWED_QUESTION_TYPES = ['MC', 'YN', 'SHORT', 'ES']
 ALLOWED_LEVELS = ['Biết', 'Hiểu', 'Vận dụng']
-ALLOWED_REVIEW_STATUSES = ['draft', 'content_checked', 'approved', 'archived']
+ALLOWED_REVIEW_STATUSES = ['draft', 'pending_review', 'needs_review', 'approved', 'archived', 'content_checked']
 
 
 SHORT_ANSWER_ALIASES = ('short_answer', 'correct_answer', 'answer')
@@ -89,6 +89,7 @@ def validate_question_input(q: dict) -> dict:
 
     # 5. Review Status
     status = str(res.get('review_status') or 'draft').strip()
+    status = 'pending_review' if status == 'content_checked' else status  # tên cũ của "chờ duyệt"
     if status not in ALLOWED_REVIEW_STATUSES:
         raise ValidationError(f'Trạng thái kiểm duyệt "{status}" không hợp lệ.', field='review_status')
     res['review_status'] = status

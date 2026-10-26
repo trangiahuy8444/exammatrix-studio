@@ -1,5 +1,7 @@
 """Install sample packs through the existing services, without replacing user work."""
 import copy
+
+from domain.review import CHECKLIST
 from django.db import transaction
 from workspace.access import workspace_for
 from workspace.models import Workspace, Subject, Curriculum, AuditEvent
@@ -8,6 +10,8 @@ from matrices.service import MatrixService
 from matrices.model import validate_matrix
 from bank_service import ServiceError
 from .content import PACKS
+
+SAMPLE_REVIEWER = 'Dữ liệu mẫu (tự động)'
 
 LEVELS = ['Biết', 'Hiểu', 'Vận dụng']
 
@@ -71,8 +75,13 @@ def seed_samples(user):
                 question = copy.deepcopy(raw)
                 question.update(grade=10, lesson_code=lesson['code'], max_score=1,
                     learning_outcome=lesson['outcomes'][LEVELS.index(raw['level'])],
-                    review_status='content_checked', source_file='Dữ liệu mẫu tự biên soạn — dùng thử chức năng')
-                bank.save_question(question)
+                    review_status='draft', source_file='Dữ liệu mẫu tự biên soạn — dùng thử chức năng')
+                saved = bank.save_question(question)
+                # Bộ mẫu chỉ để thử chức năng tạo đề: đi qua đúng quy trình duyệt (B1), lịch sử ghi rõ là tự động.
+                bank.review_question(saved['id'], 'submit', actor=SAMPLE_REVIEWER)
+                bank.review_question(saved['id'], 'approve', actor=SAMPLE_REVIEWER,
+                                     checklist={item['key']: True for item in CHECKLIST},
+                                     reason='Dữ liệu mẫu tự biên soạn; không dùng cho kiểm tra chính thức.')
         doc = bank._load_bank()
         doc['metadata'].update(sample_pack=pack['marker'], sample_notice='Dữ liệu minh họa; giáo viên rà soát trước khi dùng kiểm tra chính thức.')
         bank._atomic_save(bank.bank_path, doc)

@@ -30,11 +30,18 @@ class MathWorkflowTests(TestCase):
         self.post('/api/ppct/save-lesson', dict(grade=12, lesson_code='B1',
             lesson_name_source='Tính đơn điệu của hàm số', topic_source='Ứng dụng đạo hàm',
             outcomes=['Xét tính đồng biến của hàm số.'], week_raw='1', periods_raw='1'))
-        return self.post('/api/questions/save', {'question': dict(grade=12, type='MC', lesson_code='B1',
+        q = self.post('/api/questions/save', {'question': dict(grade=12, type='MC', lesson_code='B1',
             learning_outcome='Xét tính đồng biến của hàm số.', level='Biết',
             question='Đạo hàm của hàm số y = x² là gì?', options=['2x', 'x', 'x²', '2'], correct=0,
             option_explanations=['Theo quy tắc đạo hàm lũy thừa.', 'Sai bậc.', 'Chưa lấy đạo hàm.', 'Thiếu biến.'],
-            review_status='content_checked', max_score=1)})['question']
+            review_status='draft', max_score=1)})['question']
+        # Đề chính thức chỉ dùng câu đã duyệt (B1): gửi duyệt rồi duyệt kèm đủ phiếu kiểm định.
+        from domain.review import CHECKLIST
+        self.post('/api/questions/review', dict(id=q['id'], action='submit'))
+        approved = self.post('/api/questions/review', dict(id=q['id'], action='approve',
+                             checklist={item['key']: True for item in CHECKLIST}))['question']
+        self.assertEqual(approved['review_history'][-1]['by'], self.user.get_username())
+        return approved
 
     def test_course_context_changes_actual_app_not_only_settings(self):
         response = self.client.get(self.url('/app/'))

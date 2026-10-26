@@ -32,6 +32,10 @@ class Handler(BaseHTTPRequestHandler):
         # Request paths and user question text do not enter access logs.
         pass
 
+    def _actor(self):
+        # Người thực hiện ghi vào lịch sử duyệt; Django ghi đè bằng tên tài khoản.
+        return 'local'
+
     def _ai_scope(self):
         # Phạm vi đếm lượt AI; Django ghi đè theo tài khoản.
         return 'local'
@@ -191,6 +195,7 @@ class Handler(BaseHTTPRequestHandler):
             payload = self._body()
             path = urlsplit(self.path).path
             service, self.matrix_service = self._get_services()
+            service.actor = self._actor()
             if path == '/api/test/reset':
                 if service is not getattr(self.server, 'test_service', None):
                     raise ServiceError('Chỉ được làm sạch dữ liệu khi đang ở chế độ Test.', status=400)
@@ -205,10 +210,14 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/questions/save':
                 question = service.save_question(payload.get('question'))
                 return self._json({'question': question, 'bank': service.state()['bank']})
+            if path == '/api/questions/review':
+                question = service.review_question(payload.get('id'), payload.get('action'), actor=self._actor(),
+                                                   checklist=payload.get('checklist'), reason=payload.get('reason', ''))
+                return self._json({'question': question, 'bank': service.state()['bank']})
             if path == '/api/questions/archive':
                 return self._json({'bank': service.archive_question(payload.get('id'))})
             if path == '/api/questions/restore':
-                return self._json({'bank': service.restore_question(payload.get('id'), payload.get('status', 'approved'))})
+                return self._json({'bank': service.restore_question(payload.get('id'), payload.get('status'))})
             if path == '/api/questions/delete':
                 return self._json({'bank': service.delete_question(payload.get('id'))})
             if path == '/api/questions/bulk':

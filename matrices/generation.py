@@ -1,4 +1,5 @@
 from __future__ import annotations
+from domain.review import EXAM_ELIGIBLE
 import copy
 import math
 import random
@@ -27,7 +28,7 @@ def _eligible(bank,m,slot):
     outcomes={catalog['outcomes'][r['ppct_outcome_index']] for r in reqs}
     return [q for q in bank._load_bank()['questions'] if q['grade']==m['grade'] and
             q['type']==slot['kind'] and q['lesson_code']==lesson and q['level']==level and
-            q.get('review_status') in ('approved','content_checked') and q.get('learning_outcome') in outcomes]
+            q.get('review_status') in EXAM_ELIGIBLE and q.get('learning_outcome') in outcomes]
 
 
 def matrix_candidates(bank_service,matrix_service,matrix_id):

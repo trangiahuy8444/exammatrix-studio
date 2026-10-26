@@ -24,7 +24,7 @@ def fixture():
             topic_source='Chủ đề 1', level='Biết', learning_outcome=outcomes[0], question=f'Câu độc lập {i}?',
             options=[f'Phương án {j}' for j in range(4)], correct=i%4,
             option_explanations=[f'Giải thích riêng {j}' for j in range(4)], max_score=1,
-            review_status='content_checked', origin='expansion', semester=1, source_file='source.docx',
+            review_status='approved', origin='expansion', semester=1, source_file='source.docx',
             source_rows=[], response_mode='Trắc nghiệm'))
     return dict(schema_version='1.0.0', metadata={}, ppct=dict(sources=[], lessons=lessons), questions=questions)
 

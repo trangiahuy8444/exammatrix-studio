@@ -27,3 +27,11 @@ node_modules/
 /docs/superpowers/
 
 /cloud/staticfiles/
+
+# Bản xuất sinh từ ngân hàng thật và hồ sơ nghiệm thu có nội dung đề/đáp án:
+# chỉ giữ script và biên bản .md, không đưa nội dung đề vào git.
+/sample_exports/
+/acceptance/**
+!/acceptance/**/
+!/acceptance/**/*.md
+!/acceptance/**/*.py

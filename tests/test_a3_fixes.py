@@ -106,3 +106,16 @@ class LmsShortAnswerTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class LmsFontTests(unittest.TestCase):
+    def test_lms_docx_uses_times_new_roman_for_all_scripts(self):
+        import io, re, zipfile
+        from exports import export_document
+        raw, _, _ = export_document(dict(grade=8, questions=[dict(type='MC', question='Câu?', options=['a', 'b', 'c', 'd'], correct=0)]), 'docx', target='lms')
+        with zipfile.ZipFile(io.BytesIO(raw)) as z:
+            styles = z.read('word/styles.xml').decode('utf-8')
+        normal = re.search(r'<w:style [^>]*w:styleId="Normal".*?</w:style>', styles, re.S).group(0)
+        for attr in ('w:ascii', 'w:hAnsi', 'w:eastAsia', 'w:cs'):
+            self.assertIn(f'{attr}="Times New Roman"', normal)
+        self.assertNotIn('Theme', normal)

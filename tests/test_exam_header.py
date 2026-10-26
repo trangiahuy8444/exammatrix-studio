@@ -52,5 +52,16 @@ class LatexHeaderTests(unittest.TestCase):
         self.assertIn(r'Đề thi có \pageref{LastPage} trang', tex)
 
 
+    def test_each_question_reserves_space_for_its_options(self):
+        import re
+        tex = generate_exam_latex(record(questions=[
+            dict(id=f'Q{i}', type='MC', question=f'Câu số {i}?', options=['A', 'B', 'C', 'D'], correct=0,
+                 option_explanations=['', '', '', ''], points=0.25, slot_number=i) for i in range(1, 4)]))
+        self.assertIn(r'\usepackage{needspace}', tex)
+        blocks = re.findall(r'(\\needspace\{\d+\\baselineskip\}\s*)?\\noindent\\textbf\{Câu \d', tex)
+        self.assertEqual(len(blocks), 3)
+        self.assertTrue(all(blocks), 'mỗi câu phải có \\needspace ngay trước')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -351,27 +351,7 @@ def _docx(record, answers, revision):
     section.header_distance = Cm(0.8)
     section.footer_distance = Cm(1.0)
 
-    for style in doc.styles:
-        if style.type == 1:
-            style.font.name = 'Times New Roman'
-            style.font.size = Pt(12)
-            rpr = style.element.get_or_add_rPr()
-            fonts = rpr.find(qn('w:rFonts'))
-            if fonts is None:
-                fonts = OxmlElement('w:rFonts'); rpr.insert(0, fonts)
-            for attr in list(fonts.attrib):
-                if 'theme' in attr.lower():
-                    del fonts.attrib[attr]
-            color = rpr.find(qn('w:color'))
-            if color is None:
-                color = OxmlElement('w:color'); rpr.append(color)
-            color.attrib.clear(); color.set(qn('w:val'), '000000')
-            ppr = style.element.find(qn('w:pPr'))
-            if ppr is not None:
-                for border in list(ppr.findall(qn('w:pBdr'))):
-                    ppr.remove(border)
-            for attr in ('ascii', 'hAnsi', 'eastAsia', 'cs'):
-                fonts.set(qn('w:'+attr), 'Times New Roman')
+    _times_new_roman_styles(doc, 12)
     normal = doc.styles['Normal']
     normal.paragraph_format.space_after = Pt(2.5)
     normal.paragraph_format.line_spacing = 1.12
@@ -1015,6 +995,34 @@ def _docx(record, answers, revision):
     stream = io.BytesIO(); doc.save(stream); return stream.getvalue()
 
 
+def _times_new_roman_styles(doc, size):
+    """Mọi kiểu chữ đoạn văn dùng Times New Roman cho cả chữ Latinh, Đông Á và phức hợp; bỏ font theo theme."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt
+    for style in doc.styles:
+        if style.type == 1:
+            style.font.name = 'Times New Roman'
+            style.font.size = Pt(size)
+            rpr = style.element.get_or_add_rPr()
+            fonts = rpr.find(qn('w:rFonts'))
+            if fonts is None:
+                fonts = OxmlElement('w:rFonts'); rpr.insert(0, fonts)
+            for attr in list(fonts.attrib):
+                if 'theme' in attr.lower():
+                    del fonts.attrib[attr]
+            color = rpr.find(qn('w:color'))
+            if color is None:
+                color = OxmlElement('w:color'); rpr.append(color)
+            color.attrib.clear(); color.set(qn('w:val'), '000000')
+            ppr = style.element.find(qn('w:pPr'))
+            if ppr is not None:
+                for border in list(ppr.findall(qn('w:pBdr'))):
+                    ppr.remove(border)
+            for attr in ('ascii', 'hAnsi', 'eastAsia', 'cs'):
+                fonts.set(qn('w:'+attr), 'Times New Roman')
+
+
 def _docx_lms(record):
     try:
         from docx import Document
@@ -1024,10 +1032,7 @@ def _docx_lms(record):
         raise ServiceError('Không có thư viện python-docx.')
 
     doc = Document()
-    normal = doc.styles['Normal']
-    normal.font.name = 'Times New Roman'
-    normal.font.size = Pt(12)
-    normal.font.color.rgb = RGBColor(0, 0, 0)
+    _times_new_roman_styles(doc, 12)
 
     section = doc.sections[0]
     section.orientation = WD_ORIENT.PORTRAIT

@@ -50,3 +50,23 @@ class LatexMatrixLikeTemplateTests(unittest.TestCase):
         tex = self.tex()
         for name in ('Tổng', r'Tỉ lệ \%', 'Tỉ lệ chung'):
             self.assertIn(name, tex.split('BẢNG ĐẶC TẢ', 1)[1])
+
+
+class SpecPageBreakTests(unittest.TestCase):
+    def four_topic_matrix(self):
+        from matrix_fixtures import minimal_matrix
+        m = minimal_matrix()
+        m['lessons'] = [dict(lesson_code=f'B{i}', title=f'Bài {i}', topic=f'Chủ đề {i}') for i in range(1, 5)]
+        m['requirements'] = [dict(id=f'R{i}', lesson_code=f'B{i}', level='Biết', text=f'Nhận biết {i}.',
+                                  ppct_outcome_index=0, competency='NLa', choice_group=None) for i in range(1, 5)]
+        m['slots'] = [dict(id=f'S{i}', kind='MC', number=i, scoring=dict(mode='sum_parts'),
+                           parts=[dict(id=f'P{i}', label='', requirement_id=f'R{i}', points=2.5, indicator='')])
+                      for i in range(1, 5)]
+        return m
+
+    def test_spec_breaks_after_every_two_topics_rule03(self):
+        import latex_layout
+        spec = latex_layout.matrix(self.four_topic_matrix()).split('BẢNG ĐẶC TẢ', 1)[1]
+        self.assertEqual(spec.count(r'\pagebreak'), 1)
+        self.assertLess(spec.index('Chủ đề 2'), spec.index(r'\pagebreak'))
+        self.assertLess(spec.index(r'\pagebreak'), spec.index('Chủ đề 3'))

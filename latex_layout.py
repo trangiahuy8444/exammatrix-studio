@@ -4,7 +4,7 @@ from latex_generator import tex_escape as esc, point_label as label
 from input_schema import canonical_short_answer
 
 
-def table(weights, headers, rows, *, size=10):
+def table(weights, headers, rows, *, size=10, breaks_after=()):
     """Fixed total width, repeatable headings and ordinary breakable table rows."""
     total=sum(weights)
     spec='|'+'|'.join(r'>{\raggedright\arraybackslash}p{\dimexpr'+f'{w/total:.6f}'+
@@ -13,7 +13,7 @@ def table(weights, headers, rows, *, size=10):
     return (r'\par\begingroup'+f'\\fontsize{{{size}}}{{{size+2}}}\\selectfont\n'+
         r'\setlength{\tabcolsep}{3pt}\renewcommand{\arraystretch}{1.12}'+'\n'+
         r'\begin{longtable}{'+spec+r'}\hline'+'\n'+head+r'\endfirsthead'+'\n'+head+r'\endhead'+'\n'+
-        ''.join(' & '.join(row)+r' \\ \hline'+'\n' for row in rows)+
+        ''.join(' & '.join(row)+r' \\ \hline'+'\n'+(r'\pagebreak'+'\n' if i in breaks_after else '') for i,row in enumerate(rows))+
         r'\end{longtable}\endgroup\par'+'\n')
 
 
@@ -103,7 +103,7 @@ def review(record):
         if not qs:continue
         out.append(heading(title))
         for i,q in enumerate(qs,1):
-            out.append(r'\par\noindent\textbf{Câu '+str(q.get('slot_number',i))+'.} '+esc(q['question'])+r'\par')
+            out.append(r'\par\needspace{6\baselineskip}\noindent\textbf{Câu '+str(q.get('slot_number',i))+'.} '+esc(q['question'])+r'\par')
             if kind=='MC':out.append(r'\choices' + ''.join('{'+esc(o)+'}' for o in q['options']))
             if kind=='YN':
                 out.append(r'\begin{enumerate}[label=\alph*)]')
@@ -149,7 +149,8 @@ def matrix(record):
     rows=[]
     for i,req in enumerate(v['requirements'],1):
         lesson=lesson_map[req['lesson_code']]
-        text=esc(req['level']+': '+req['text'])
+        # Nhãn mức độ như bản đặc tả Word đã duyệt.
+        text=esc({'Biết':'Nhận biết','Hiểu':'Thông hiểu'}.get(req['level'],req['level'])+': '+req['text'])
         if req['refs']: text+=' ('+', '.join('Câu '+r for r in req['refs'])+').'
         cells=[str(i),esc(lesson['topic']),esc(lesson['title']),text]
         for kind in ('MC','YN','SHORT','ES'):
@@ -157,6 +158,10 @@ def matrix(record):
             comp=esc(req.get('competency','')).replace(r'\_',r'\_\allowbreak ')
             cells.append(f'{count} {kind}'+r'\newline ('+{'Biết':'B','Hiểu':'H','Vận dụng':'V'}[req['level']]+') ('+comp+')' if count else '0')
         rows.append(cells)
+    # Rule 03: bảng đặc tả ngắt trang theo chủ đề, mỗi trang 2 chủ đề; nhóm cuối liền với dòng tổng kết.
+    topic_of=[lesson_map[req['lesson_code']]['topic'] for req in v['requirements']]
+    ends=[i for i in range(len(topic_of)) if i+1==len(topic_of) or topic_of[i+1]!=topic_of[i]]
+    breaks={end for n,end in enumerate(ends,1) if n%2==0 and end!=ends[-1]}
     from matrices.exports import spec_totals, spec_ratio_lines
     tnkq_total,tl_total=spec_totals(v)
     ratio,tnkq_share,tl_share=spec_ratio_lines(v,record.get('total_points',10))
@@ -164,6 +169,6 @@ def matrix(record):
     rows.append([span(3,'Tổng'),'',span(3,tnkq_total),r'\textbf{'+esc(tl_total)+'}'])
     rows.append([span(3,'Tỉ lệ %'),'',span(4,ratio)])
     rows.append([span(3,'Tỉ lệ chung'),'',span(3,tnkq_share),r'\textbf{'+esc(tl_share)+'}'])
-    out.append(table([.6,2,3,10,1.7,1.7,1.7,1.7],['TT','Chủ đề','Nội dung / bài','Yêu cầu cần đạt','MC','YN','Short','Tự luận'],rows,size=9))
+    out.append(table([.6,2,3,10,1.7,1.7,1.7,1.7],['TT','Chủ đề','Nội dung / bài','Yêu cầu cần đạt','MC','YN','Short','Tự luận'],rows,size=9,breaks_after=breaks))
     out.append(r'\end{document}')
     return '\n'.join(out)

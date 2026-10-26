@@ -86,6 +86,7 @@ LATEX_PORTRAIT_PREAMBLE = r"""\documentclass[11pt,a4paper]{article}
 \usepackage[top=1.0cm, bottom=1.0cm, left=2.5cm, right=2.0cm, headheight=0.4cm, headsep=0.2cm,footskip=0.5cm]{geometry}
 \usepackage{amsmath,amssymb}
 \usepackage{tabularx,array,longtable,multirow,colortbl,booktabs,enumitem,fancyhdr,lastpage,xcolor,graphicx}
+\usepackage{needspace}
 \setlength{\parindent}{0pt}
 
 \definecolor{headerred}{RGB}{180, 20, 20}
@@ -246,7 +247,7 @@ Họ và tên học sinh: \dotfill Lớp: \dots\dots\dots\dots\dots   SBD: \dots
             while len(opts) < 4:
                 opts.append('')
             o1, o2, o3, o4 = [tex_escape(str(o)) for o in opts[:4]]
-            parts.append(f"""\\noindent\\textbf{{Câu {slot}.}} {q_text}
+            parts.append(f"""\\needspace{{6\\baselineskip}}\\noindent\\textbf{{Câu {slot}.}} {q_text}
 \\choices{{{o1}}}{{{o2}}}{{{o3}}}{{{o4}}}
 """)
 
@@ -263,7 +264,7 @@ Họ và tên học sinh: \dotfill Lớp: \dots\dots\dots\dots\dots   SBD: \dots
             slot = q.get('slot_number', '')
             q_text = tex_escape(_clean_q_text(q.get('question', '')))
             stmts = q.get('statements', [])
-            parts.append(f"\\noindent\\textbf{{Câu {slot}.}} {q_text}\n\\begin{{enumerate}}[label=\\alph*), itemsep=1pt, topsep=2pt, leftmargin=0.8cm]\n")
+            parts.append(f"\\needspace{{8\\baselineskip}}\\noindent\\textbf{{Câu {slot}.}} {q_text}\n\\begin{{enumerate}}[label=\\alph*), itemsep=1pt, topsep=2pt, leftmargin=0.8cm]\n")
             for st in stmts:
                 parts.append(f"  \\item {tex_escape(st.get('text', ''))}\n")
             parts.append("\\end{enumerate}\n\\vspace{0.15cm}\n")
@@ -278,7 +279,7 @@ Họ và tên học sinh: \dotfill Lớp: \dots\dots\dots\dots\dots   SBD: \dots
         for q in short_questions:
             slot = q.get('slot_number', '')
             q_text = tex_escape(_clean_q_text(q.get('question', '')))
-            parts.append(f"\\noindent\\textbf{{Câu {slot}.}} {q_text}\n\\vspace{{0.2cm}}\n")
+            parts.append(f"\\needspace{{4\\baselineskip}}\\noindent\\textbf{{Câu {slot}.}} {q_text}\n\\vspace{{0.2cm}}\n")
 
     # PART IV: TỰ LUẬN
     if es_questions:
@@ -291,7 +292,7 @@ Họ và tên học sinh: \dotfill Lớp: \dots\dots\dots\dots\dots   SBD: \dots
             slot = q.get('slot_number', '')
             pts = point_label(q.get('points', 1.0))
             q_text = tex_escape(_clean_q_text(q.get('question', '')))
-            parts.append(f"\\noindent\\textbf{{Câu {slot} ({pts} điểm):}} {q_text}\n\\vspace{{0.25cm}}\n")
+            parts.append(f"\\needspace{{4\\baselineskip}}\\noindent\\textbf{{Câu {slot} ({pts} điểm):}} {q_text}\n\\vspace{{0.25cm}}\n")
 
     parts.append(r"""\vspace{0.4cm}
 \begin{center}

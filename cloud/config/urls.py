@@ -21,5 +21,5 @@ urlpatterns = [
     path('api/<str:kind>/<uuid:pk>/restore/', views.restore_record),
     path('app/', legacy_views.application, name='assessment_app'),
     path('api/<path:route>', legacy_views.original_api),
-    re_path(r'^(?P<asset>(?:app\.js|core\.js|matrices\.js|styles\.css|matrices\.css|assets/.+))$', legacy_views.source_asset),
+    re_path(r'^(?P<asset>(?:app\.js|core\.js|matrices\.js|curricula\.js|styles\.css|matrices\.css|assets/.+))$', legacy_views.source_asset),
 ]

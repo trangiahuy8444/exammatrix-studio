@@ -75,7 +75,7 @@ class DatabaseStorage:
         return list(StoredSource.objects.filter(state=self.state, key__startswith=prefix).values_list('key', flat=True))
 
 
-def bank_for_user(user, curriculum=None):
+def bank_for_user(user, curriculum=None, *, test_mode=False):
     """Call inside an atomic transaction with the workspace row locked for writes."""
     workspace = workspace_for(user)
     if curriculum is not None and curriculum.workspace_id != workspace.pk:
@@ -86,10 +86,23 @@ def bank_for_user(user, curriculum=None):
     if curriculum is not None:
         documents['bank']['metadata'].update(subject_name=curriculum.subject.name, school_year=curriculum.school_year)
         documents['bank']['ppct']['_context'] = context
-    state, _ = LegacyState.objects.get_or_create(workspace=workspace, curriculum=curriculum,
+    state, _ = LegacyState.objects.get_or_create(workspace=workspace, curriculum=curriculum, is_test_mode=test_mode,
                                                 defaults={'documents': documents})
     directory = Path(settings.MEDIA_ROOT)/str(workspace.pk)/('curriculum-'+str(curriculum.pk) if curriculum else 'legacy')
+    if test_mode:
+        directory = directory/'sandbox'
     service = BankService(directory/'bank.json', directory,
                           storage=DatabaseStorage(state, directory, context if curriculum else None), context=context if curriculum else None)
     service.app_dir = APP_DIR
     return service
+
+
+def reset_test_bank(user, curriculum=None):
+    """Reset only the isolated state, keeping its version history for recovery."""
+    service = bank_for_user(user, curriculum, test_mode=True)
+    state = service.storage.state
+    for key, value in empty_legacy_documents().items():
+        path = next(p for p, name in service.storage.paths.items() if name == key)
+        service.storage.save(path, value)
+    StoredSource.objects.filter(state=state).delete()
+    return bank_for_user(user, curriculum, test_mode=True)

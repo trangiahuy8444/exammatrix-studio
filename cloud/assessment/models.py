@@ -17,12 +17,13 @@ class LegacyState(OwnedRecord):
     """
     documents = models.JSONField(default=empty_legacy_documents)
     curriculum = models.ForeignKey(Curriculum, null=True, blank=True, on_delete=models.PROTECT)
+    is_test_mode = models.BooleanField(default=False)
     revision = models.PositiveIntegerField(default=0)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=['workspace'], condition=models.Q(curriculum__isnull=True), name='one_original_bank_per_workspace'),
-            models.UniqueConstraint(fields=['workspace', 'curriculum'], name='one_bank_per_curriculum'),
+            models.UniqueConstraint(fields=['workspace', 'is_test_mode'], condition=models.Q(curriculum__isnull=True), name='one_original_bank_per_workspace'),
+            models.UniqueConstraint(fields=['workspace', 'curriculum', 'is_test_mode'], name='one_bank_per_curriculum'),
         ]
 
     def clean(self):

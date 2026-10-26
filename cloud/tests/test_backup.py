@@ -147,3 +147,26 @@ class DiskSourceTests(TransactionTestCase):
         plan = restore_backup(self.dir, apply=False)['plan'][0]
         self.assertEqual(plan['disk_sources'], [f'matrices/sources/{DIGEST}_pages/page-2.png'])
         self.assertFalse(self.png.exists())
+
+
+class PublishedExamRestoreTests(TransactionTestCase):
+    """Tiêu chí nghiệm thu: khôi phục một đề đã phát hành kèm ảnh trang, khớp hash lúc duyệt."""
+
+    def test_published_exam_and_page_image_restore_to_approved_hash(self):
+        from domain.exam_lifecycle import exam_hash
+        user = get_user_model().objects.create_user('gv_ph', password='Teacher-Test-5829!')
+        Workspace.objects.create(owner=user)
+        state = seed(user)
+        svc = bank_for_user(user); st = svc.storage
+        exam = dict(id='E-PH', title='Đề đã phát hành', grade=9, exam_type='CK1', status='published',
+                    questions=[dict(id='Q0', type='MC', question='Câu mẫu 0?', options=['a', 'b', 'c', 'd'], correct=2, points=10)])
+        exam['approved_hash'] = exam_hash(exam)
+        st.save(svc.data_dir/'exams.json', [exam])
+        with tempfile.TemporaryDirectory() as tmp:
+            create_backup(Path(tmp)/'bk')
+            st.save(svc.data_dir/'exams.json', [dict(exam, questions=[dict(exam['questions'][0], correct=0)])])
+            StoredSource.objects.filter(key__endswith='.png').delete()
+            restore_backup(Path(tmp)/'bk', apply=True)
+        restored = LegacyState.objects.get(pk=state.pk).documents['exams'][0]
+        self.assertEqual(exam_hash(restored), restored['approved_hash'])
+        self.assertEqual(bytes(StoredSource.objects.get(key__endswith='page-1.png').content), PNG)

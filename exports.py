@@ -1195,12 +1195,15 @@ def export_document(record, fmt='docx', answers=False, revision=False, target=''
             return _html_lms(record), 'text/html; charset=utf-8', stem + '.html'
         return _docx_lms(record), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', stem + '.docx'
 
-    if fmt not in ('docx','html','json','tex') or (revision and fmt=='json'):
+    if fmt not in ('docx','html','json','tex','pdf') or (revision and fmt=='json'):
         raise ServiceError('Định dạng xuất chưa được hỗ trợ.')
     stem=('de_cuong' if revision else 'de_kiem_tra')+('_giao_vien' if answers else '_hoc_sinh')
-    if fmt=='tex':
+    if fmt in ('tex','pdf'):
         from latex_generator import generate_exam_latex, generate_review_latex
         tex_content = generate_review_latex(record) if revision else generate_exam_latex(record, answers=answers)
+        if fmt=='pdf':
+            from pdf_build import compile_latex
+            return compile_latex(tex_content), 'application/pdf', stem+'.pdf'
         return tex_content.encode('utf-8'), 'application/x-tex; charset=utf-8', stem+'.tex'
     if fmt=='json':
         value=record if answers else public_record(record)

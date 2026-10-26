@@ -563,6 +563,7 @@ function revisionLinks(r){
   `<details class="dropdown-menu"><summary>📥 Tải về ▾</summary><div class="dropdown-content">`+
    `<a href="${base}?format=docx">Word đề cương</a>`+
    `<a href="${base}?format=docx&answers=1">Word kèm đáp án</a>`+
+   `<a href="${base}?format=pdf&answers=0">PDF đề cương</a>`+
    `<a href="${base}?format=tex&answers=0">LaTeX đề cương (.tex)</a>`+
    `<a href="${base}?format=docx&target=lms">📤 Tệp upload LMS (.docx)</a>`+
    `<a href="${base}?format=html" target="_blank" rel="noopener">Mở bản in</a>`+
@@ -670,6 +671,8 @@ function examLinks(r){
    `<hr>`+
    `<a href="${base}?format=docx&answers=0">Word học sinh</a>`+
    `<a href="${base}?format=docx&answers=1">Word đáp án & HDC</a>`+
+   `<a href="${base}?format=pdf&answers=0">PDF học sinh</a>`+
+   `<a href="${base}?format=pdf&answers=1">PDF đáp án & HDC</a>`+
    `<a href="${base}?format=tex&answers=0">LaTeX đề thi (.tex)</a>`+
    `<a href="${base}?format=tex&answers=1">LaTeX đáp án (.tex)</a>`+
    `<a href="${base}?format=docx&target=lms">📤 Tệp upload LMS (.docx)</a>`+

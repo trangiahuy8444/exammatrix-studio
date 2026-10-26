@@ -375,13 +375,17 @@ def matrix_html(matrix,ppct,section='all',mode='auto'):
 
 
 def export_matrix(matrix,ppct,fmt,section='all',mode='auto'):
-    if fmt not in ('docx','html','json','tex'):raise ServiceError('Chỉ hỗ trợ Word, LaTeX, bản xem trước và gói JSON.')
+    if fmt not in ('docx','html','json','tex','pdf'):raise ServiceError('Chỉ hỗ trợ Word, PDF, LaTeX, bản xem trước và gói JSON.')
     report=validate_matrix(matrix,ppct,True)
     state='THONG_NHAT' if matrix.get('status')=='locked' and report['valid'] else 'NHAP'
     name=f'TIN_{matrix["grade"]}_{matrix["exam_type"]}_MA_TRAN_V{matrix.get("version",1)}_{state}.{fmt}'
-    if fmt=='tex':
+    if fmt in ('tex','pdf'):
         from latex_generator import generate_matrix_latex
-        return generate_matrix_latex(matrix).encode('utf-8'),'application/x-tex; charset=utf-8',name
+        tex=generate_matrix_latex(matrix)
+        if fmt=='pdf':
+            from pdf_build import compile_latex
+            return compile_latex(tex),'application/pdf',name
+        return tex.encode('utf-8'),'application/x-tex; charset=utf-8',name
     if fmt=='json':
         import json
         return json.dumps(export_package(matrix),ensure_ascii=False,indent=2).encode(),'application/json; charset=utf-8',name

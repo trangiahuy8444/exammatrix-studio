@@ -25,6 +25,17 @@ def point_label(value):
     return f'{value:g}'.replace('.', ',') if isinstance(value, (int, float)) else str(value)
 
 
+def _format_exam_term(exam_type: str) -> str:
+    m = {
+        'GK1': 'GIỮA HỌC KỲ I',
+        'CK1': 'CUỐI HỌC KỲ I',
+        'GK2': 'GIỮA HỌC KỲ II',
+        'CK2': 'CUỐI HỌC KỲ II',
+    }
+    val = str(exam_type or 'GK1').strip().upper()
+    return m.get(val, val)
+
+
 def _scaled_policy(question):
     policy = question.get('equivalent_answer_policy', '')
     scale = question.get('points', question.get('max_score', 1)) / question.get('max_score', 1)
@@ -194,6 +205,9 @@ def _format_mc_docx(doc, options, keep_with_next=True):
             r_lbl.bold = True
             p.add_run(text)
             created.append(p)
+    if created:
+        # Keep a stem with its own choices, never chain it to the next question.
+        created[-1].paragraph_format.keep_with_next = False
     return created
 
 
@@ -383,6 +397,13 @@ def _docx(record, answers, revision):
                     cell.text = text
             doc.add_heading('B. HỆ THỐNG CÂU HỎI ÔN TẬP', level=2)
     elif not revision:
+        subj_name = str(record.get('subject_name') or 'Tin học').upper()
+        term_name = _format_exam_term(record.get('exam_type', 'GK1'))
+        s_year = str(record.get('school_year') or '2026 - 2027')
+        dur = record.get('duration', 45)
+        grd = record.get('grade', 10)
+        ex_code = record.get('exam_code', '')
+
         if answers:
             t_hdr = doc.add_table(rows=1, cols=2)
             t_hdr.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -393,19 +414,19 @@ def _docx(record, answers, revision):
 
             p_l = c_left.paragraphs[0]; p_l.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p_l.paragraph_format.line_spacing = 1.05
-            r_l = p_l.add_run("TRƯỜNG TH, THCS VÀ THPT\nQUỐC TẾ Á CHÂU\nTỔ BỘ MÔN: TIN HỌC")
+            r_l = p_l.add_run(f"TRƯỜNG TH, THCS VÀ THPT\nQUỐC TẾ Á CHÂU\nTỔ BỘ MÔN: {subj_name}")
             r_l.bold = True; r_l.font.size = Pt(10)
 
             p_r = c_right.paragraphs[0]; p_r.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p_r.paragraph_format.line_spacing = 1.05
             r_ans = p_r.add_run("ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM\n")
             r_ans.bold = True; r_ans.font.size = Pt(11); r_ans.font.color.rgb = RGBColor(180, 20, 20)
-            r_sub = p_r.add_run(f"ĐỀ KIỂM TRA ĐỊNH KÌ — TIN HỌC {record['grade']}\nNĂM HỌC 2026 - 2027")
+            r_sub = p_r.add_run(f"ĐỀ KIỂM TRA {term_name} — {subj_name} {grd}\nNĂM HỌC {s_year}")
             r_sub.bold = True; r_sub.font.size = Pt(10)
 
             p_meta = doc.add_paragraph(); p_meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p_meta.paragraph_format.space_before = Pt(4); p_meta.paragraph_format.space_after = Pt(8)
-            exam_code_str = f" — Mã đề: {record['exam_code']}" if record.get('exam_code') else ""
+            exam_code_str = f" — Mã đề: {ex_code}" if ex_code else ""
             r_m = p_meta.add_run(f"Kèm theo đề kiểm tra: {record.get('title', 'ĐỀ CHÍNH THỨC')}{exam_code_str} — Tổng điểm: 10,0 điểm")
             r_m.italic = True; r_m.font.size = Pt(10.5)
         else:
@@ -423,17 +444,17 @@ def _docx(record, answers, revision):
 
             p_r = c_right.paragraphs[0]; p_r.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p_r.paragraph_format.line_spacing = 1.05
-            r_r = p_r.add_run("ĐỀ KIỂM TRA ĐỊNH KÌ GIỮA HỌC KÌ 1\nNĂM HỌC 2026 - 2027\n")
+            r_r = p_r.add_run(f"ĐỀ KIỂM TRA {term_name}\nNĂM HỌC {s_year}\n")
             r_r.bold = True; r_r.font.size = Pt(11)
-            exam_code_line = f"Mã đề: {record['exam_code']}\n" if record.get('exam_code') else ""
+            exam_code_line = f"Mã đề: {ex_code}\n" if ex_code else ""
             r_r_sub = p_r.add_run(f"{exam_code_line}(Đề thi gồm các câu hỏi trắc nghiệm & tự luận)")
             r_r_sub.italic = True; r_r_sub.font.size = Pt(9.5)
 
             p_sub = doc.add_paragraph(); p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p_sub.paragraph_format.space_before = Pt(4); p_sub.paragraph_format.space_after = Pt(2)
-            r_m = p_sub.add_run(f"MÔN: TIN HỌC - KHỐI {record['grade']}\n")
+            r_m = p_sub.add_run(f"MÔN: {subj_name} - KHỐI {grd}\n")
             r_m.bold = True; r_m.font.size = Pt(12)
-            r_t = p_sub.add_run(f"(Thời gian làm bài: {record.get('duration', 45)} phút, không tính thời gian giao đề)")
+            r_t = p_sub.add_run(f"(Thời gian làm bài: {dur} phút, không tính thời gian giao đề)")
             r_t.italic = True; r_t.font.size = Pt(10.5)
 
             p_stu = doc.add_paragraph(); p_stu.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -445,13 +466,18 @@ def _docx(record, answers, revision):
             r_not = p_not.add_run("(Học sinh lưu ý làm bài trên giấy thi, không làm trên đề)")
             r_not.italic = True; r_not.font.size = Pt(10)
     else:
+        subj_name = str(record.get('subject_name') or 'Tin học').upper()
+        term_name = _format_exam_term(record.get('exam_type', 'GK1'))
+        s_year = str(record.get('school_year') or '2026 - 2027')
+        grd = record.get('grade', 10)
+
         p_sch = doc.add_paragraph(); p_sch.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p_sch.paragraph_format.space_before = Pt(4); p_sch.paragraph_format.space_after = Pt(2)
         r1 = p_sch.add_run("TRƯỜNG TH, THCS VÀ THPT QUỐC TẾ Á CHÂU\n")
         r1.bold = True; r1.font.size = Pt(12)
-        r2 = p_sch.add_run("ĐỀ CƯƠNG ÔN TẬP KIỂM TRA GIỮA HỌC KÌ 1 — NĂM HỌC 2026 - 2027\n")
+        r2 = p_sch.add_run(f"ĐỀ CƯƠNG ÔN TẬP KIỂM TRA {term_name} — NĂM HỌC {s_year}\n")
         r2.bold = True; r2.font.size = Pt(13); r2.font.color.rgb = RGBColor(180, 20, 20)
-        r3 = p_sch.add_run(f"MÔN: TIN HỌC — KHỐI {record['grade']}")
+        r3 = p_sch.add_run(f"MÔN: {subj_name} — KHỐI {grd}")
         r3.bold = True; r3.font.size = Pt(12)
 
         t_box = doc.add_table(rows=1, cols=1)
@@ -499,6 +525,179 @@ def _docx(record, answers, revision):
         p_hdB.paragraph_format.space_before = Pt(8); p_hdB.paragraph_format.space_after = Pt(4)
         r_hdB = p_hdB.add_run('B. HỆ THỐNG CÂU HỎI ÔN TẬP')
         r_hdB.bold = True; r_hdB.font.size = Pt(12); r_hdB.font.color.rgb = RGBColor(180, 20, 20)
+
+    if not revision and answers:
+        mc_questions = [q for q in record.get('questions', []) if q.get('type') == 'MC']
+        if mc_questions:
+            p_sec = doc.add_paragraph()
+            p_sec.paragraph_format.space_before = Pt(8); p_sec.paragraph_format.space_after = Pt(4)
+            p_sec.paragraph_format.keep_with_next = True
+            r_sec = p_sec.add_run("PHẦN I. ĐÁP ÁN TRẮC NGHIỆM KHÁCH QUAN")
+            r_sec.bold = True; r_sec.font.size = Pt(12)
+
+            for start_idx in range(0, len(mc_questions), 10):
+                chunk = mc_questions[start_idx:start_idx + 10]
+                t_mc = doc.add_table(rows=2, cols=len(chunk) + 1)
+                t_mc.alignment = WD_TABLE_ALIGNMENT.CENTER; t_mc.autofit = False
+                _set_table_borders(t_mc, val='single', sz='4', color='B0C0D0')
+                t_mc.rows[0].cells[0].width = Cm(1.6); t_mc.rows[1].cells[0].width = Cm(1.6)
+                t_mc.rows[0].cells[0].text = "Câu"; t_mc.rows[1].cells[0].text = "Đ/A"
+                _set_cell_bg(t_mc.rows[0].cells[0], 'EBF0FA')
+                _set_cell_bg(t_mc.rows[1].cells[0], 'F5F7FA')
+                for r_idx in (0, 1):
+                    t_mc.rows[r_idx].cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    if t_mc.rows[r_idx].cells[0].paragraphs[0].runs:
+                        t_mc.rows[r_idx].cells[0].paragraphs[0].runs[0].bold = True
+                for ci, q in enumerate(chunk, 1):
+                    c0 = t_mc.rows[0].cells[ci]; c1 = t_mc.rows[1].cells[ci]
+                    c0.width = Cm(1.4); c1.width = Cm(1.4)
+                    c0.text = str(q.get('slot_number', start_idx + ci))
+                    corr = chr(65 + q['correct']) if 'correct' in q and isinstance(q['correct'], int) and 0 <= q['correct'] <= 25 else 'A'
+                    c1.text = corr
+                    _set_cell_bg(c0, 'EBF0FA')
+                    c0.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    c1.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    if c0.paragraphs[0].runs: c0.paragraphs[0].runs[0].bold = True
+                    if c1.paragraphs[0].runs: c1.paragraphs[0].runs[0].bold = True
+                p_sp = doc.add_paragraph()
+                p_sp.paragraph_format.space_before = Pt(0); p_sp.paragraph_format.space_after = Pt(2)
+
+        yn_questions = [q for q in record.get('questions', []) if q.get('type') == 'YN']
+        if yn_questions:
+            p_sec = doc.add_paragraph()
+            p_sec.paragraph_format.space_before = Pt(8); p_sec.paragraph_format.space_after = Pt(4)
+            p_sec.paragraph_format.keep_with_next = True
+            r_sec = p_sec.add_run("PHẦN II. ĐÁP ÁN TRẮC NGHIỆM ĐÚNG / SAI")
+            r_sec.bold = True; r_sec.font.size = Pt(12)
+
+            t_yn = doc.add_table(rows=1 + len(yn_questions), cols=6)
+            t_yn.alignment = WD_TABLE_ALIGNMENT.CENTER; t_yn.autofit = False
+            _set_table_borders(t_yn, val='single', sz='4', color='B0C0D0')
+            widths_yn = [2.0, 2.8, 2.8, 2.8, 2.8, 2.5]
+            for c, text, w in zip(t_yn.rows[0].cells, ['Câu', 'Ý a)', 'Ý b)', 'Ý c)', 'Ý d)', 'Điểm'], widths_yn):
+                c.width = Cm(w); c.text = text; _set_cell_bg(c, 'EBF0FA')
+                c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                if c.paragraphs[0].runs: c.paragraphs[0].runs[0].bold = True
+            repeat_yn = OxmlElement('w:tblHeader'); t_yn.rows[0]._tr.get_or_add_trPr().append(repeat_yn)
+
+            for ri, q in enumerate(yn_questions, 1):
+                row_cells = t_yn.rows[ri].cells
+                for c, w in zip(row_cells, widths_yn): c.width = Cm(w)
+                row_cells[0].text = f"Câu {q.get('slot_number', ri)}"
+                row_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                if row_cells[0].paragraphs[0].runs: row_cells[0].paragraphs[0].runs[0].bold = True
+                stmts = q.get('statements', [])
+                for si in range(4):
+                    st = stmts[si] if si < len(stmts) else {}
+                    val = "Đúng" if st.get('correct') else "Sai"
+                    row_cells[si + 1].text = val
+                    row_cells[si + 1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                row_cells[5].text = f"{point_label(q.get('points', 1.0))} đ"
+                row_cells[5].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_sp = doc.add_paragraph()
+            p_sp.paragraph_format.space_before = Pt(0); p_sp.paragraph_format.space_after = Pt(2)
+
+        short_questions = [q for q in record.get('questions', []) if q.get('type') == 'SHORT']
+        if short_questions:
+            p_sec = doc.add_paragraph()
+            p_sec.paragraph_format.space_before = Pt(8); p_sec.paragraph_format.space_after = Pt(4)
+            p_sec.paragraph_format.keep_with_next = True
+            r_sec = p_sec.add_run("PHẦN III. ĐÁP ÁN TRẢ LỜI NGẮN")
+            r_sec.bold = True; r_sec.font.size = Pt(12)
+
+            t_sh = doc.add_table(rows=1 + len(short_questions), cols=3)
+            t_sh.alignment = WD_TABLE_ALIGNMENT.CENTER; t_sh.autofit = False
+            _set_table_borders(t_sh, val='single', sz='4', color='B0C0D0')
+            widths_sh = [2.5, 11.5, 2.0]
+            for c, text, w in zip(t_sh.rows[0].cells, ['Câu', 'Đáp án chấp nhận', 'Điểm'], widths_sh):
+                c.width = Cm(w); c.text = text; _set_cell_bg(c, 'EBF0FA')
+                c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                if c.paragraphs[0].runs: c.paragraphs[0].runs[0].bold = True
+            for ri, q in enumerate(short_questions, 1):
+                row_cells = t_sh.rows[ri].cells
+                for c, w in zip(row_cells, widths_sh): c.width = Cm(w)
+                row_cells[0].text = f"Câu {q.get('slot_number', ri)}"
+                row_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                if row_cells[0].paragraphs[0].runs: row_cells[0].paragraphs[0].runs[0].bold = True
+                row_cells[1].text = str(q.get('correct_answer') or q.get('answer', ''))
+                row_cells[2].text = f"{point_label(q.get('points', 0.5))} đ"
+                row_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_sp = doc.add_paragraph()
+            p_sp.paragraph_format.space_before = Pt(0); p_sp.paragraph_format.space_after = Pt(2)
+
+        es_questions = [q for q in record.get('questions', []) if q.get('type') == 'ES']
+        if es_questions:
+            p_sec = doc.add_paragraph()
+            p_sec.paragraph_format.space_before = Pt(10); p_sec.paragraph_format.space_after = Pt(4)
+            p_sec.paragraph_format.keep_with_next = True
+            r_sec = p_sec.add_run("PHẦN IV. HƯỚNG DẪN CHẤM VÀ THANG ĐIỂM TỰ LUẬN")
+            r_sec.bold = True; r_sec.font.size = Pt(12)
+
+            t_es = doc.add_table(rows=1, cols=3)
+            t_es.alignment = WD_TABLE_ALIGNMENT.CENTER; t_es.autofit = False
+            _set_table_borders(t_es, val='single', sz='4', color='B0C0D0')
+            widths_es = [2.5, 11.5, 2.0]
+            for c, text, w in zip(t_es.rows[0].cells, ['Câu / Ý', 'Nội dung yêu cầu / Tiêu chí chấm', 'Điểm'], widths_es):
+                c.width = Cm(w); c.text = text; _set_cell_bg(c, 'EBF0FA')
+                c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                if c.paragraphs[0].runs: c.paragraphs[0].runs[0].bold = True
+            repeat_es = OxmlElement('w:tblHeader'); t_es.rows[0]._tr.get_or_add_trPr().append(repeat_es)
+
+            for q in es_questions:
+                group_start = len(t_es.rows)
+                slot = q.get('slot_number', '')
+                q_pts = q.get('points', 1.0)
+                max_score = q.get('max_score', 1.0) or 1.0
+                scale = q_pts / max_score
+                rubrics = q.get('rubric', [])
+
+                if rubrics:
+                    for idx, rub in enumerate(rubrics):
+                        r_cells = t_es.add_row().cells
+                        for c, w in zip(r_cells, widths_es): c.width = Cm(w)
+                        if idx == 0:
+                            r_cells[0].text = f"Câu {slot}\n({point_label(q_pts)} đ)"
+                            r_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            if r_cells[0].paragraphs[0].runs: r_cells[0].paragraphs[0].runs[0].bold = True
+                        else:
+                            r_cells[0].text = ""
+                        crit = rub.get('criterion', '')
+                        r_cells[1].text = f"– {crit}"
+                        r_cells[2].text = f"{point_label(rub.get('points', 0.25) * scale)} điểm"
+                        r_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                else:
+                    r_cells = t_es.add_row().cells
+                    for c, w in zip(r_cells, widths_es): c.width = Cm(w)
+                    r_cells[0].text = f"Câu {slot}\n({point_label(q_pts)} đ)"
+                    r_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    if r_cells[0].paragraphs[0].runs: r_cells[0].paragraphs[0].runs[0].bold = True
+                    ans_text = q.get('sample_answer') or q.get('answer') or 'Học sinh trình bày đúng nội dung bài học.'
+                    r_cells[1].text = ans_text
+                    r_cells[2].text = f"{point_label(q_pts)} điểm"
+                    r_cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                if q.get('equivalent_answer_policy'):
+                    r_cells = t_es.add_row().cells
+                    r_cells[0].merge(r_cells[2])
+                    r_cells[0].width = Cm(16.0)
+                    r_cells[0].text = f"Lưu ý: {_scaled_policy(q)}"
+                    r_cells[0].paragraphs[0].runs[0].italic = True
+                    _set_cell_bg(r_cells[0], 'F9FAFC')
+                for ri in range(group_start, len(t_es.rows)):
+                    row = t_es.rows[ri]
+                    row._tr.get_or_add_trPr().append(OxmlElement('w:cantSplit'))
+                    for cell in row.cells:
+                        for paragraph in cell.paragraphs:
+                            paragraph.paragraph_format.keep_with_next = ri < len(t_es.rows)-1
+            p_sp = doc.add_paragraph()
+            p_sp.paragraph_format.space_before = Pt(0); p_sp.paragraph_format.space_after = Pt(2)
+
+        p_det = doc.add_paragraph()
+        p_det.paragraph_format.space_before = Pt(14); p_det.paragraph_format.space_after = Pt(4)
+        p_det.paragraph_format.keep_with_next = True
+        r_det = p_det.add_run("BẢN ĐỀ THI VÀ ĐÁP ÁN CHI TIẾT TỪNG CÂU")
+        r_det.bold = True; r_det.font.size = Pt(12)
+        r_det.font.color.rgb = RGBColor(180, 20, 20)
 
     for kind, label in _section_defs(record):
         questions = [q for q in record['questions'] if q['type'] == kind]
@@ -953,11 +1152,155 @@ def export_document(record, fmt='docx', answers=False, revision=False, target=''
             return _html_lms(record), 'text/html; charset=utf-8', stem + '.html'
         return _docx_lms(record), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', stem + '.docx'
 
-    if fmt not in ('docx','html','json') or (revision and fmt=='json'):
+    if fmt not in ('docx','html','json','tex') or (revision and fmt=='json'):
         raise ServiceError('Định dạng xuất chưa được hỗ trợ.')
     stem=('de_cuong' if revision else 'de_kiem_tra')+('_giao_vien' if answers else '_hoc_sinh')
+    if fmt=='tex':
+        from latex_generator import generate_exam_latex, generate_review_latex
+        tex_content = generate_review_latex(record) if revision else generate_exam_latex(record, answers=answers)
+        return tex_content.encode('utf-8'), 'application/x-tex; charset=utf-8', stem+'.tex'
     if fmt=='json':
         value=record if answers else public_record(record)
         return json.dumps(value,ensure_ascii=False,indent=2,allow_nan=False).encode(),'application/json; charset=utf-8',stem+'.json'
     if fmt=='html':return _html(record,answers,revision),'text/html; charset=utf-8',stem+'.html'
     return _docx(record,answers,revision),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',stem+'.docx'
+
+
+def export_answer_grid_docx(answer_grid: dict, title: str = "BẢNG ĐÁP ÁN TỔNG HỢP CÁC MÃ ĐỀ", meta: dict = None) -> bytes:
+    try:
+        from docx import Document
+        from docx.shared import Cm, Pt, RGBColor
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.enum.table import WD_TABLE_ALIGNMENT
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+    except ImportError as exc:
+        raise ServiceError('Chưa tìm thấy python-docx.', status=409) from exc
+
+    doc = Document()
+    sec = doc.sections[0]
+    sec.page_width = Cm(21); sec.page_height = Cm(29.7)
+    sec.top_margin = Cm(2.0); sec.bottom_margin = Cm(2.0)
+    sec.left_margin = Cm(2.5); sec.right_margin = Cm(2.0)
+
+    for style in doc.styles:
+        if style.type == 1:
+            style.font.name = 'Times New Roman'
+            rpr = style.element.get_or_add_rPr()
+            fonts = rpr.find(qn('w:rFonts'))
+            if fonts is None:
+                fonts = OxmlElement('w:rFonts'); rpr.insert(0, fonts)
+            for attr in list(fonts.attrib):
+                if 'theme' in attr.lower(): del fonts.attrib[attr]
+            for attr in ('ascii', 'hAnsi', 'eastAsia', 'cs'):
+                fonts.set(qn('w:'+attr), 'Times New Roman')
+
+    p_hdr = doc.add_paragraph()
+    p_hdr.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    if (meta or {}).get('school_profile', True):
+        r_h = p_hdr.add_run("TRƯỜNG TH, THCS VÀ THPT QUỐC TẾ Á CHÂU\n")
+        r_h.bold = True; r_h.font.size = Pt(11)
+    r_t = p_hdr.add_run(title.upper() + "\n")
+    r_t.bold = True; r_t.font.size = Pt(13); r_t.font.color.rgb = RGBColor(180, 20, 20)
+    if meta:
+        subj = str(meta.get('subject_name', 'TIN HỌC')).upper()
+        grd = meta.get('grade', '')
+        s_yr = meta.get('school_year', '2026 - 2027')
+        r_sub = p_hdr.add_run(f"MÔN: {subj} {grd} — NĂM HỌC {s_yr}")
+        r_sub.bold = True; r_sub.font.size = Pt(10.5)
+
+    codes = answer_grid.get('codes', [])
+    mc = answer_grid.get('mc', {})
+    if mc and codes:
+        p_sec = doc.add_paragraph()
+        p_sec.paragraph_format.space_before = Pt(8); p_sec.paragraph_format.space_after = Pt(4)
+        r = p_sec.add_run("I. BẢNG ĐÁP ÁN TRẮC NGHIỆM KHÁCH QUAN")
+        r.bold = True; r.font.size = Pt(11.5)
+
+        cols = 1 + len(codes)
+        rows = 1 + len(mc)
+        tbl = doc.add_table(rows=rows, cols=cols)
+        tbl.alignment = WD_TABLE_ALIGNMENT.CENTER; tbl.autofit = False
+        _set_table_borders(tbl, val='single', sz='4', color='B0C0D0')
+
+        col_w = min(2.5, 16.0 / cols)
+        hdr_cells = tbl.rows[0].cells
+        hdr_cells[0].text = "Câu"; hdr_cells[0].width = Cm(1.6)
+        _set_cell_bg(hdr_cells[0], 'EBF0FA')
+        hdr_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        if hdr_cells[0].paragraphs[0].runs: hdr_cells[0].paragraphs[0].runs[0].bold = True
+
+        for ci, code in enumerate(codes, 1):
+            hdr_cells[ci].text = f"Mã {code}"; hdr_cells[ci].width = Cm(col_w)
+            _set_cell_bg(hdr_cells[ci], 'EBF0FA')
+            hdr_cells[ci].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if hdr_cells[ci].paragraphs[0].runs: hdr_cells[ci].paragraphs[0].runs[0].bold = True
+
+        repeat = OxmlElement('w:tblHeader'); tbl.rows[0]._tr.get_or_add_trPr().append(repeat)
+
+        sorted_slots = sorted(mc.keys(), key=lambda x: int(x) if str(x).isdigit() else 999)
+        for ri, slot in enumerate(sorted_slots, 1):
+            r_cells = tbl.rows[ri].cells
+            r_cells[0].text = f"{slot}"; r_cells[0].width = Cm(1.6)
+            r_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if r_cells[0].paragraphs[0].runs: r_cells[0].paragraphs[0].runs[0].bold = True
+            for ci, code in enumerate(codes, 1):
+                ans = mc[slot].get(code, '-')
+                r_cells[ci].text = str(ans); r_cells[ci].width = Cm(col_w)
+                r_cells[ci].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                if r_cells[ci].paragraphs[0].runs: r_cells[ci].paragraphs[0].runs[0].bold = True
+
+    yn = answer_grid.get('yn', {})
+    if yn and codes:
+        p_sec = doc.add_paragraph()
+        p_sec.paragraph_format.space_before = Pt(10); p_sec.paragraph_format.space_after = Pt(4)
+        r = p_sec.add_run("II. BẢNG ĐÁP ÁN TRẮC NGHIỆM ĐÚNG / SAI")
+        r.bold = True; r.font.size = Pt(11.5)
+
+        cols = 1 + len(codes)
+        rows = 1 + len(yn)
+        tbl_yn = doc.add_table(rows=rows, cols=cols)
+        tbl_yn.alignment = WD_TABLE_ALIGNMENT.CENTER; tbl_yn.autofit = False
+        _set_table_borders(tbl_yn, val='single', sz='4', color='B0C0D0')
+
+        col_w_yn = min(3.5, 15.0 / max(1, len(codes)))
+        hdr_cells = tbl_yn.rows[0].cells
+        hdr_cells[0].text = "Câu"; hdr_cells[0].width = Cm(2.0)
+        _set_cell_bg(hdr_cells[0], 'EBF0FA')
+        hdr_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        if hdr_cells[0].paragraphs[0].runs: hdr_cells[0].paragraphs[0].runs[0].bold = True
+
+        for ci, code in enumerate(codes, 1):
+            hdr_cells[ci].text = f"Mã {code}"; hdr_cells[ci].width = Cm(col_w_yn)
+            _set_cell_bg(hdr_cells[ci], 'EBF0FA')
+            hdr_cells[ci].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if hdr_cells[ci].paragraphs[0].runs: hdr_cells[ci].paragraphs[0].runs[0].bold = True
+
+        repeat_yn = OxmlElement('w:tblHeader'); tbl_yn.rows[0]._tr.get_or_add_trPr().append(repeat_yn)
+
+        sorted_yn_slots = sorted(yn.keys(), key=lambda x: int(x) if str(x).isdigit() else 999)
+        for ri, slot in enumerate(sorted_yn_slots, 1):
+            r_cells = tbl_yn.rows[ri].cells
+            r_cells[0].text = f"Câu {slot}"; r_cells[0].width = Cm(2.0)
+            r_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if r_cells[0].paragraphs[0].runs: r_cells[0].paragraphs[0].runs[0].bold = True
+            for ci, code in enumerate(codes, 1):
+                ans = yn[slot].get(code, '-')
+                r_cells[ci].text = str(ans); r_cells[ci].width = Cm(col_w_yn)
+                r_cells[ci].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Grid widths and cell widths must both fit the actual printable area.
+    available = sec.page_width-sec.left_margin-sec.right_margin
+    for table in doc.tables:
+        first = Cm(1.4)
+        widths = [first]+[(available-first)//(len(table.columns)-1)]*(len(table.columns)-1)
+        for col, width in zip(table.columns, widths): col.width = width
+        for row in table.rows:
+            for cell, width in zip(row.cells, widths):
+                cell.width = width
+                for paragraph in cell.paragraphs:
+                    paragraph.paragraph_format.space_after = Pt(2)
+                    paragraph.paragraph_format.line_spacing = 1
+    bio = io.BytesIO()
+    doc.save(bio)
+    return bio.getvalue()

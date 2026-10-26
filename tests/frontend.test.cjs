@@ -27,6 +27,13 @@ assert.equal(core.scopedUrl('/api/state',''), '/api/state');
 assert.equal(core.scopedUrl('https://example.test/path','course-a'), 'https://example.test/path');
 assert.deepEqual(core.contextGrades({allowed_grades:[12]}), [12]);
 assert.deepEqual(core.contextGrades({}), [8,9,10]);
+const physicsContext={curriculum_id:'physics-course',subject_name:'Vật lí',allowed_grades:[10]};
+const physicsLessons=[{grade:10,lesson_code:'VL01',lesson_name_source:'Làm quen với Vật lí học'}];
+const samples={'Vật lí':{10:[{grade:10,lesson_code:'STATIC01'}]}};
+assert.deepEqual(core.courseLessons(physicsLessons,physicsContext,10,'Vật lí',samples),physicsLessons);
+assert.deepEqual(core.courseLessons([],physicsContext,10,'Vật lí',samples),[]);
+assert.deepEqual(core.courseLessons(physicsLessons,physicsContext,9,'Vật lí',samples),[]);
+assert.deepEqual(core.courseLessons(physicsLessons,physicsContext,10,'Tin học',samples),[]);
 // Saved-document edits affect its snapshot, including shuffled choices, not the bank.
 const originalQuestion={id:'q1',type:'MC',question:'Câu gốc',options:['A gốc','B gốc','C gốc','D gốc'],correct:0};
 const snapshot={questions:[structuredClone(originalQuestion)]};

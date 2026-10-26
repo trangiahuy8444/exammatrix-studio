@@ -270,4 +270,69 @@ class BackendTests(unittest.TestCase):
         self.assertIn(f'<strong>[{corr_letter}.]</strong>', html_str)
         self.assertNotIn('BẢNG ĐÁP ÁN', html_str)
 
+    def test_create_permuted_exams_and_master_answer_grid(self):
+        from exports import export_answer_grid_docx
+        e = self.svc.generate_exam(self.request())
+        orig_q_map = {q['question']: q['options'][q['correct']] for q in e['questions'] if q.get('type') == 'MC'}
+
+        res = self.svc.create_permuted_exams(e['id'], codes=['101', '102', '103', '104'])
+        self.assertEqual(res['count'], 4)
+        self.assertEqual(res['clean_codes'], ['101', '102', '103', '104'])
+
+        # Verify each generated exam
+        for variant in res['generated_exams']:
+            self.assertIn(variant['exam_code'], ['101', '102', '103', '104'])
+            self.assertEqual(variant['parent_exam_id'], e['id'])
+            for q in variant['questions']:
+                if q.get('type') == 'MC':
+                    # Crucial test: correct answer text must remain 100% faithful to the original question!
+                    orig_corr_text = orig_q_map[q['question']]
+                    perm_corr_text = q['options'][q['correct']]
+                    self.assertEqual(orig_corr_text, perm_corr_text,
+                                     f"Code {variant['exam_code']} question '{q['question']}' shifted correct answer incorrectly!")
+                    # Check option explanations sync if present
+                    if q.get('option_explanations'):
+                        self.assertEqual(len(q['option_explanations']), len(q['options']))
+
+        # Verify answer grid
+        grid = res['answer_grid']
+        self.assertIn('mc', grid)
+        self.assertTrue(len(grid['mc']) > 0)
+        for slot, code_answers in grid['mc'].items():
+            for code in ['101', '102', '103', '104']:
+                self.assertIn(code, code_answers)
+                self.assertIn(code_answers[code], ['A', 'B', 'C', 'D'])
+
+        # Test export master answer grid docx
+        grid_docx = export_answer_grid_docx(grid, meta={'subject_name': 'Tin học', 'grade': 8})
+        self.assertTrue(len(grid_docx) > 1000)
+        with zipfile.ZipFile(io.BytesIO(grid_docx)) as z:
+            doc_xml = z.read('word/document.xml').decode()
+            self.assertIn('BẢNG ĐÁP ÁN TỔNG HỢP CÁC MÃ ĐỀ', doc_xml)
+            self.assertIn('Mã 101', doc_xml)
+            self.assertIn('Mã 104', doc_xml)
+
+    def test_export_exam_bundle_zip(self):
+        e = self.svc.generate_exam(self.request())
+        self.svc.create_permuted_exams(e['id'], codes=['101', '102'])
+
+        # Test DOCX bundle
+        zip_bytes, mime, fn = self.svc.export_exam_bundle(e['id'], fmt='docx')
+        self.assertEqual(mime, 'application/zip')
+        self.assertTrue(fn.endswith('.zip'))
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+            names = z.namelist()
+            self.assertTrue(any('01_De_thi_hoc_sinh/De_thi_Ma_101.docx' in n for n in names))
+            self.assertTrue(any('01_De_thi_hoc_sinh/De_thi_Ma_102.docx' in n for n in names))
+            self.assertTrue(any('02_Dap_an_va_Huong_dan_cham/Dap_an_chi_tiet_Ma_101.docx' in n for n in names))
+            self.assertTrue(any('02_Dap_an_va_Huong_dan_cham/Bang_dap_an_tong_hop_cac_ma_de.docx' in n for n in names))
+
+        # Test TeX bundle
+        zip_tex, mime_tex, fn_tex = self.svc.export_exam_bundle(e['id'], fmt='tex')
+        self.assertEqual(mime_tex, 'application/zip')
+        with zipfile.ZipFile(io.BytesIO(zip_tex)) as z:
+            names = z.namelist()
+            self.assertTrue(any('01_De_thi_hoc_sinh/De_thi_Ma_101.tex' in n for n in names))
+            self.assertTrue(any('02_Dap_an_va_Huong_dan_cham/Dap_an_chi_tiet_Ma_101.tex' in n for n in names))
+
 if __name__=='__main__':unittest.main()

@@ -84,6 +84,14 @@ class BankService:
             raise ServiceError('Ngân hàng thiếu danh mục PPCT.', status=409)
         self.catalog = copy.deepcopy(initial['ppct'])
         self.lessons = {(x['grade'], x['lesson_code']): x for x in self.catalog.get('lessons', [])}
+        curricula_path = self.data_dir / 'curricula.json'
+        if curricula_path.exists():
+            try:
+                self.subject_curricula = read_json(curricula_path, {})
+            except Exception:
+                self.subject_curricula = {}
+        else:
+            self.subject_curricula = {}
 
     def _load_bank(self):
         return self._read_data(self.bank_path)
@@ -164,7 +172,8 @@ class BankService:
     def state(self):
         with self.lock:
             return copy.deepcopy(dict(bank=self._load_bank(), exams=self._records('exams'),
-                                      revisions=self._records('revisions'), templates=self.templates()))
+                                      revisions=self._records('revisions'), templates=self.templates(),
+                                      subject_curricula=getattr(self, 'subject_curricula', {})))
 
     def _atomic_save(self, path, value):
         if self.context and Path(path).name in ('exams.json', 'revisions.json', 'records.json') and isinstance(value, list):
@@ -211,15 +220,30 @@ class BankService:
         if not isinstance(raw, dict):
             raise ServiceError('Câu hỏi phải là một đối tượng JSON.')
         q = copy.deepcopy(raw)
+        if self.context.get('curriculum_id'):
+            expected_subject = self.context['subject_name']
+            if q.get('subject_name') and q['subject_name'] != expected_subject:
+                raise ServiceError('Môn của câu hỏi không thuộc chương trình đã chọn.')
+            q['subject_name'] = expected_subject
         grade = self._grade(q.get('grade'))
-        if q.get('type') not in ('MC', 'ES'):
-            raise ServiceError('Chỉ hỗ trợ câu MC và ES; chưa hỗ trợ TF/Đúng/Sai.')
+        if q.get('type') not in ('MC', 'ES', 'YN', 'SHORT'):
+            raise ServiceError('Chỉ hỗ trợ các dạng câu MC, ES, YN, SHORT.')
         lesson_code = self._text(q.get('lesson_code'), 'Mã bài')
+        subj = q.get('subject_name') or 'Tin học'
         lesson = self.lessons.get((grade, lesson_code))
+        if not lesson and subj != 'Tin học':
+            subj_dict = getattr(self, 'subject_curricula', {}).get(subj, {})
+            subj_list = subj_dict.get(str(grade), []) or subj_dict.get(grade, [])
+            lesson = next((l for l in subj_list if l.get('lesson_code') == lesson_code), None)
+
+        if not lesson and q.get('review_status') == 'draft':
+            lesson = {'lesson_code': lesson_code, 'outcomes': [q.get('learning_outcome')] if q.get('learning_outcome') else []}
+
         if not lesson:
             raise ServiceError('Bài học không thuộc PPCT của khối.', {'lesson_code': q.get('lesson_code')})
-        if q.get('learning_outcome') not in lesson.get('outcomes', []):
-            raise ServiceError('Yêu cầu cần đạt phải thuộc bài học trong PPCT.')
+        if lesson.get('outcomes') and q.get('learning_outcome') and q.get('learning_outcome') not in lesson.get('outcomes', []):
+            if q.get('review_status') != 'draft':
+                raise ServiceError('Yêu cầu cần đạt phải thuộc bài học trong PPCT.')
         if q.get('level') not in ('Biết', 'Hiểu', 'Vận dụng'):
             raise ServiceError('Mức độ câu hỏi không hợp lệ.')
         q['question'] = self._text(q.get('question'), 'Nội dung câu hỏi')
@@ -242,8 +266,30 @@ class BankService:
                 raise ServiceError('Đáp án đúng phải là một chỉ số từ 0 đến 3.')
             exp = q.get('option_explanations')
             if not isinstance(exp, list) or len(exp) != 4:
-                raise ServiceError('Cần giải thích riêng cho cả 4 phương án.')
-            q['option_explanations'] = [self._text(x, 'Giải thích phương án') for x in exp]
+                if status == 'draft':
+                    exp = [f'Giải thích phương án {chr(65+i)}' for i in range(4)]
+                else:
+                    raise ServiceError('Cần giải thích riêng cho cả 4 phương án.')
+            if status == 'draft':
+                q['option_explanations'] = [str(x).strip() or f'Giải thích phương án {chr(65+i)}' for i, x in enumerate(exp)]
+            else:
+                q['option_explanations'] = [self._text(x, 'Giải thích phương án') for x in exp]
+        elif q['type'] == 'YN':
+            stmts = q.get('statements')
+            if not isinstance(stmts, list) or len(stmts) != 4:
+                raise ServiceError('Câu Đúng/Sai (YN) cần đúng 4 mệnh đề a, b, c, d.')
+            cleaned_stmts = []
+            for i, st in enumerate(stmts):
+                if not isinstance(st, dict):
+                    raise ServiceError(f'Mệnh đề thứ {i+1} không đúng định dạng.')
+                lbl = str(st.get('label') or chr(97 + i)).strip()
+                txt = self._text(st.get('text'), f'Nội dung mệnh đề {lbl}')
+                cleaned_stmts.append({'label': lbl, 'text': txt, 'correct': bool(st.get('correct', False))})
+            q['statements'] = cleaned_stmts
+        elif q['type'] == 'SHORT':
+            if status != 'draft':
+                self._text(q.get('short_answer'), 'Đáp án câu trả lời ngắn')
+            q['short_answer'] = str(q.get('short_answer') or '').strip()
         else:
             rubric = q.get('rubric')
             if not isinstance(rubric, list) or len(rubric) != 4:
@@ -383,8 +429,8 @@ class BankService:
                 raise ServiceError('Dữ liệu bài học không hợp lệ.')
             grade = self._grade(payload.get('grade'))
             code = self._text(payload.get('lesson_code'), 'Mã bài học')
-            name = self._text(payload.get('lesson_name_source'), 'Tên bài học')
-            topic = self._text(payload.get('topic_source'), 'Tên chủ đề')
+            name = self._text(payload.get('lesson_name_source') or payload.get('lesson_name'), 'Tên bài học')
+            topic = self._text(payload.get('topic_source') or payload.get('topic') or 'Chủ đề chung', 'Tên chủ đề')
             outcomes = payload.get('outcomes') or []
             if isinstance(outcomes, str):
                 outcomes = [x.strip() for x in outcomes.splitlines() if x.strip()]
@@ -774,6 +820,167 @@ class BankService:
             self._atomic_save(self.data_dir/'exams.json', records)
             return copy.deepcopy(copy_ex)
 
+    def create_permuted_exams(self, ident, codes=None, num_variants=4, shuffle_questions=True,
+                              shuffle_options=True, shuffle_statements=False, seed=None, replace_existing=True):
+        with self.lock:
+            old = self.get_record('exams', ident)
+            if not old.get('questions'):
+                raise ServiceError('Đề kiểm tra không có câu hỏi để xáo trộn.')
+
+            if codes and isinstance(codes, (list, tuple)):
+                clean_codes = [str(c).strip() for c in codes if str(c).strip()]
+            else:
+                n = max(2, min(int(num_variants or 4), 10))
+                clean_codes = [f"10{i+1}" for i in range(n)]
+
+            if not clean_codes:
+                clean_codes = ['101', '102', '103', '104']
+
+            def _can_shuffle_mc_options(q):
+                if q.get('shuffle_options') is False or q.get('keep_order') is True:
+                    return False
+                options = q.get('options', [])
+                fixed_patterns = [
+                    'tất cả', 'cả a và b', 'cả a, b', 'cả b và c', 'cả a và c', 'cả a, b, c',
+                    'cả 3', 'cả ba', 'cả hai', 'cả 4', 'cả bốn',
+                    'không có đáp án nào', 'không có câu nào', 'không có phương án nào',
+                    'không phương án nào đúng', 'không đáp án nào đúng',
+                    'các phương án trên', 'các đáp án trên', 'các câu trên',
+                    'đáp án a và b', 'phương án a và b'
+                ]
+                pos_regex = re.compile(r'\b(cả\s+[a-d]|chỉ\s+[a-d]|đáp án\s+[a-d]|phương án\s+[a-d])\b', re.IGNORECASE)
+                for opt in options:
+                    opt_lower = str(opt).lower().strip()
+                    if any(pat in opt_lower for pat in fixed_patterns) or pos_regex.search(opt_lower):
+                        return False
+                return True
+
+            def _group_and_shuffle(qs_list, rng):
+                if not qs_list:
+                    return []
+                clusters = []
+                group_map = {}
+                for q in qs_list:
+                    gid = q.get('stimulus_id') or q.get('group_id') or q.get('passage_id') or q.get('context_id')
+                    if gid:
+                        if gid in group_map:
+                            group_map[gid].append(q)
+                        else:
+                            cl = [q]
+                            group_map[gid] = cl
+                            clusters.append(cl)
+                    else:
+                        clusters.append([q])
+                rng.shuffle(clusters)
+                return [q for cl in clusters for q in cl]
+
+            generated_exams = []
+            answer_grid = {'codes': clean_codes, 'mc': {}, 'yn': {}, 'short': {}, 'es': {}}
+
+            for idx, code in enumerate(clean_codes):
+                sub_seed = f"{seed or old['id']}_{code}_{idx}"
+                rng = random.Random(sub_seed)
+
+                new_ex = copy.deepcopy(old)
+                new_ex['id'] = f'EXAM-{uuid.uuid4().hex[:12]}'
+                new_ex['exam_code'] = code
+                new_ex['parent_exam_id'] = ident
+                base_title = re.sub(r'\s*-\s*Mã đề\s+.*$', '', old.get('title', 'Đề kiểm tra')).strip()
+                new_ex['title'] = f"{base_title} - Mã đề {code}"
+                new_ex['created_at'] = now()
+                source_slots = {(s['kind'], s['number']): s for s in (new_ex.get('matrix_snapshot') or {}).get('slots', [])}
+                for q in new_ex['questions']:
+                    if not q.get('slot_id') and source_slots:
+                        source_slot = source_slots.get((q['type'], q.get('slot_number')))
+                        if source_slot:
+                            q['slot_id'] = source_slot['id']
+
+                # Separate questions by type
+                mc_qs = [q for q in new_ex['questions'] if q.get('type') == 'MC']
+                yn_qs = [q for q in new_ex['questions'] if q.get('type') == 'YN']
+                short_qs = [q for q in new_ex['questions'] if q.get('type') == 'SHORT']
+                es_qs = [q for q in new_ex['questions'] if q.get('type') == 'ES']
+
+                if shuffle_questions:
+                    mc_qs = _group_and_shuffle(mc_qs, rng)
+                    yn_qs = _group_and_shuffle(yn_qs, rng)
+                    short_qs = _group_and_shuffle(short_qs, rng)
+
+                # Process MC questions (shuffle options & reassign slots)
+                for slot, q in enumerate(mc_qs, 1):
+                    q['slot_number'] = slot
+                    opts = q.get('options', [])
+                    if shuffle_options and len(opts) >= 2 and _can_shuffle_mc_options(q):
+                        orig_correct = q.get('correct', 0)
+                        orig_opts = list(opts)
+                        orig_exps = q.get('option_explanations', [])
+
+                        perm = list(range(len(orig_opts)))
+                        rng.shuffle(perm)
+
+                        q['options'] = [orig_opts[i] for i in perm]
+                        if orig_correct in perm:
+                            q['correct'] = perm.index(orig_correct)
+                        if orig_exps and len(orig_exps) == len(orig_opts):
+                            q['option_explanations'] = [orig_exps[i] for i in perm]
+
+                    ans_letter = chr(65 + q['correct']) if 'correct' in q and isinstance(q['correct'], int) and 0 <= q['correct'] <= 25 else 'A'
+                    answer_grid['mc'].setdefault(slot, {})[code] = ans_letter
+
+                # Process YN questions
+                for slot, q in enumerate(yn_qs, 1):
+                    q['slot_number'] = slot
+                    stmts = q.get('statements', [])
+                    if shuffle_statements and len(stmts) >= 2:
+                        perm = list(range(len(stmts)))
+                        rng.shuffle(perm)
+                        shuffled_stmts = [copy.deepcopy(stmts[i]) for i in perm]
+                        source_slot = source_slots.get(('YN', q.get('slot_number')))
+                        # Prefer stable slot identity if the question number has changed.
+                        source_slot = next((s for s in source_slots.values() if s['id'] == q.get('slot_id')), source_slot)
+                        if source_slot:
+                            parts_by_id = {p['id']: p for p in source_slot['parts']}
+                            part_ids = q.get('statement_part_ids') or [p['id'] for p in source_slot['parts']]
+                            if len(part_ids) != len(stmts) or set(part_ids) != set(parts_by_id):
+                                raise ServiceError('Không khớp các ý Đúng/Sai với bảng đặc tả nguồn.')
+                            q['statement_part_ids'] = [part_ids[i] for i in perm]
+                        for si, st in enumerate(shuffled_stmts):
+                            st['label'] = chr(97 + si)
+                        q['statements'] = shuffled_stmts
+
+                    yn_ans = ", ".join(f"{st.get('label', chr(97+si))}: {'Đ' if st.get('correct') else 'S'}" for si, st in enumerate(q.get('statements', [])))
+                    answer_grid['yn'].setdefault(slot, {})[code] = yn_ans
+
+                # Process Short answer questions
+                for slot, q in enumerate(short_qs, 1):
+                    q['slot_number'] = slot
+                    answer_grid['short'].setdefault(slot, {})[code] = str(q.get('correct_answer') or q.get('answer', ''))
+
+                # Process Essay questions
+                for slot, q in enumerate(es_qs, 1):
+                    q['slot_number'] = slot
+                    answer_grid['es'].setdefault(slot, {})[code] = f"{q.get('points', 1.0):g} đ"
+
+                new_ex['questions'] = mc_qs + yn_qs + short_qs + es_qs
+                if new_ex.get('matrix_snapshot'):
+                    new_ex['matrix_snapshot'] = self._exam_matrix(new_ex, None)
+                    new_ex['matrix_digest'] = new_ex['matrix_snapshot']['content_sha256']
+                generated_exams.append(new_ex)
+
+            records = self._records('exams')
+            if replace_existing:
+                records = [x for x in records if x.get('parent_exam_id') != ident]
+            records.extend(generated_exams)
+            self._atomic_save(self.data_dir/'exams.json', records)
+
+            return {
+                'parent_exam_id': ident,
+                'clean_codes': clean_codes,
+                'count': len(generated_exams),
+                'generated_exams': [copy.deepcopy(e) for e in generated_exams],
+                'answer_grid': answer_grid
+            }
+
     def _find_matrix_for_exam(self, grade, exam_type, matrix_service, matrix_id=None):
         records = (matrix_service.list() if hasattr(matrix_service, 'list') else matrix_service.list_records()) if matrix_service else []
         if matrix_id:
@@ -785,6 +992,184 @@ class BankService:
             return locked
         return next((x for x in records if x.get('grade') == grade and x.get('exam_type') == exam_type), None)
 
+    def _exam_matrix(self, exam, matrix_service):
+        snapshot = exam.get('matrix_snapshot')
+        if not (snapshot and snapshot.get('slots') and snapshot.get('requirements')):
+            snapshot = self._find_matrix_for_exam(exam.get('grade'), exam.get('exam_type'), matrix_service, exam.get('matrix_id'))
+        if not snapshot:
+            return None
+        snapshot = copy.deepcopy(snapshot)
+        if exam.get('parent_exam_id'):
+            from matrices.model import matrix_digest
+            slots_by_id = {s['id']: s for s in snapshot['slots']}
+            slots_by_number = {(s['kind'], s['number']): s for s in snapshot['slots']}
+            parent_questions = None
+            for q in exam.get('questions', []):
+                slot = slots_by_id.get(q.get('slot_id'))
+                if slot is None:
+                    if parent_questions is None:
+                        parent_questions = {p['id']: p for p in self.get_record('exams', exam['parent_exam_id'])['questions']}
+                    parent_q = parent_questions.get(q.get('id'), {})
+                    slot = slots_by_number.get((q['type'], parent_q.get('slot_number')))
+                if slot is None:
+                    raise ServiceError('Thiếu ánh xạ vị trí nguồn để xuất bảng đặc tả của mã đề này.')
+                slot['number'] = q['slot_number']
+                if q['type'] == 'YN' and q.get('statement_part_ids'):
+                    parts = {p['id']: p for p in slot['parts']}
+                    slot['parts'] = [parts[pid] for pid in q['statement_part_ids']]
+                    for i, part in enumerate(slot['parts']):
+                        part['label'] = chr(97+i)
+            snapshot.setdefault('source_matrix_digest', exam.get('matrix_digest') or snapshot.get('content_sha256'))
+            snapshot['exam_code'] = exam.get('exam_code', '')
+            title = re.sub(r'\s*-\s*Mã đề\s+.*$', '', snapshot.get('title', 'Ma trận')).strip()
+            snapshot['title'] = f"{title} - Mã đề {snapshot['exam_code']}"
+            snapshot['content_sha256'] = matrix_digest(snapshot)
+        return snapshot
+
+    def export_exam_bundle(self, ident, matrix_service=None, fmt='docx'):
+        import zipfile
+        import io
+        from exports import export_document, export_answer_grid_docx
+        from matrices.exports import export_matrix
+
+        with self.lock:
+            exam = self.get_record('exams', ident)
+            grade = exam.get('grade', 10)
+            exam_type = exam.get('exam_type', 'GK1')
+            subj_name = str(exam.get('subject_name') or 'Tin học')
+            s_year = str(exam.get('school_year', '2026-2027')).replace(' ', '')
+            folder_root = f"Ho_so_kiem_tra_Khoi_{grade}_{exam_type}_{s_year}"
+
+            all_exams = self._records('exams')
+            family = [x for x in all_exams if x.get('parent_exam_id') == ident]
+            if not family:
+                if exam.get('parent_exam_id'):
+                    parent_id = exam['parent_exam_id']
+                    family = [x for x in all_exams if x.get('parent_exam_id') == parent_id]
+                else:
+                    family = [exam]
+
+            included_components = []
+            missing_or_failed_components = []
+
+            bio = io.BytesIO()
+            with zipfile.ZipFile(bio, 'w', compression=zipfile.ZIP_DEFLATED) as z:
+                answer_grid_mc = {}
+                answer_grid_yn = {}
+                codes = []
+                seen_codes = {}
+
+                for ex in family:
+                    raw_code = str(ex.get('exam_code') or 'GOC').strip()
+                    if raw_code in seen_codes:
+                        seen_codes[raw_code] += 1
+                        code = f"{raw_code}_{seen_codes[raw_code]}"
+                    else:
+                        seen_codes[raw_code] = 1
+                        code = raw_code
+                    codes.append(code)
+
+                    # Student exam
+                    raw_stu, _, fn_stu = export_document(ex, fmt=fmt, answers=False, revision=False)
+                    z.writestr(f"{folder_root}/01_De_thi_hoc_sinh/De_thi_Ma_{code}.{fmt}", raw_stu)
+                    included_components.append(f"Đề thi học sinh - Mã {code} ({fmt.upper()})")
+
+                    # Teacher answer key
+                    raw_tch, _, fn_tch = export_document(ex, fmt=fmt, answers=True, revision=False)
+                    z.writestr(f"{folder_root}/02_Dap_an_va_Huong_dan_cham/Dap_an_chi_tiet_Ma_{code}.{fmt}", raw_tch)
+                    included_components.append(f"Đáp án & HDC chi tiết - Mã {code} ({fmt.upper()})")
+
+                    if len(family) > 1:
+                        matrix = self._exam_matrix(ex, matrix_service)
+                        if matrix:
+                            try:
+                                raw_mat, _, _ = export_matrix(matrix, self.catalog, fmt=fmt)
+                                z.writestr(f"{folder_root}/03_Ma_tran_va_Bang_dac_ta/Ma_tran_va_Bang_dac_ta_Ma_{code}.{fmt}", raw_mat)
+                                included_components.append(f"Ma trận & Bảng đặc tả theo số câu mã {code} ({fmt.upper()})")
+                            except Exception as exc:
+                                missing_or_failed_components.append(f"Ma trận mã {code}: {type(exc).__name__} - {exc}")
+                        else:
+                            missing_or_failed_components.append(f"Không tìm thấy ma trận cho mã {code}.")
+
+                    for q in ex.get('questions', []):
+                        slot = q.get('slot_number', 1)
+                        if q.get('type') == 'MC':
+                            ans_letter = chr(65 + q['correct']) if 'correct' in q and isinstance(q['correct'], int) and 0 <= q['correct'] <= 25 else 'A'
+                            answer_grid_mc.setdefault(slot, {})[code] = ans_letter
+                        elif q.get('type') == 'YN':
+                            yn_ans = ", ".join(f"{st.get('label', chr(97+si))}: {'Đ' if st.get('correct') else 'S'}" for si, st in enumerate(q.get('statements', [])))
+                            answer_grid_yn.setdefault(slot, {})[code] = yn_ans
+
+                # Master Answer Grid
+                if len(family) > 1 and fmt == 'docx':
+                    grid_payload = {'codes': codes, 'mc': answer_grid_mc, 'yn': answer_grid_yn}
+                    raw_grid = export_answer_grid_docx(grid_payload, meta=exam)
+                    z.writestr(f"{folder_root}/02_Dap_an_va_Huong_dan_cham/Bang_dap_an_tong_hop_cac_ma_de.docx", raw_grid)
+                    included_components.append("Bảng ma trận đáp án tổng hợp các mã đề (DOCX)")
+
+                # Matrix and Specification
+                matrix = self._exam_matrix(exam, matrix_service)
+                if len(family) > 1:
+                    pass  # Each variant already carries its own numbered specification above.
+                elif matrix:
+                    try:
+                        raw_mat, _, fn_mat = export_matrix(matrix, self.catalog, fmt=fmt)
+                        z.writestr(f"{folder_root}/03_Ma_tran_va_Bang_dac_ta/Ma_tran_va_Bang_dac_ta.{fmt}", raw_mat)
+                        included_components.append(f"Khung Ma trận & Bảng đặc tả: {matrix.get('title', 'Chuẩn')} ({fmt.upper()})")
+                    except Exception as exc:
+                        missing_or_failed_components.append(f"Ma trận & Bảng đặc tả ({matrix.get('title', '')}): {type(exc).__name__} - {str(exc)}")
+                else:
+                    missing_or_failed_components.append(f"Ma trận & Bảng đặc tả: Không tìm thấy bản ma trận phù hợp Khối {grade} kì {exam_type} trong cơ sở dữ liệu.")
+
+                # Revision Guide
+                rev_id = exam.get('revision_id')
+                if rev_id:
+                    try:
+                        rev = self.get_record('revisions', rev_id)
+                        raw_rev, _, fn_rev = export_document(rev, fmt=fmt, answers=False, revision=True)
+                        z.writestr(f"{folder_root}/04_De_cuong_on_tap/De_cuong_on_tap.{fmt}", raw_rev)
+                        included_components.append(f"Đề cương ôn tập: {rev.get('title', 'Đề cương')} ({fmt.upper()})")
+                    except Exception as exc:
+                        missing_or_failed_components.append(f"Đề cương ôn tập (ID {rev_id}): {type(exc).__name__} - {str(exc)}")
+                else:
+                    missing_or_failed_components.append("Đề cương ôn tập: Đề kiểm tra chưa liên kết Đề cương ôn tập (trường revision_id trống).")
+
+                # Generate Manifest Report
+                report_lines = [
+                    "BÁO CÁO ĐÓNG GÓI HỒ SƠ KIỂM TRA ĐÁNH GIÁ (EXAMMATRIX STUDIO)",
+                    "===========================================================",
+                    f"Môn học: {subj_name} — Khối: {grade} — Kì kiểm tra: {exam_type}",
+                    f"Đề gốc: {exam.get('title', 'Đề kiểm tra')} (ID: {ident})",
+                    f"Thời gian tạo gói: {now()}",
+                    f"Định dạng tệp trong gói: {fmt.upper()}",
+                    f"Tổng số mã đề hoán vị: {len(family)} mã ({', '.join(codes)})",
+                    "",
+                    "1. CÁC THÀNH PHẦN ĐÃ ĐÓNG GÓI THÀNH CÔNG:",
+                ]
+                for inc in included_components:
+                    report_lines.append(f"   [✓] {inc}")
+
+                report_lines.append("\n2. CẢNH BÁO THÀNH PHẦN CHƯA HOÀN TẤT HOẶC CÒN THIẾU:")
+                if missing_or_failed_components:
+                    for mis in missing_or_failed_components:
+                        report_lines.append(f"   [!] {mis}")
+                else:
+                    report_lines.append("   (Không có - Bộ hồ sơ đạt chuẩn đầy đủ 100%)")
+
+                report_lines.extend([
+                    "",
+                    "3. GHI CHÚ VỀ ĐỊNH DẠNG PDF KHẢO THÍ:",
+                    f"- Gói hồ sơ này được xuất dưới định dạng {fmt.upper()}.",
+                    "- Tính năng tự động biên dịch trực tiếp sang PDF qua XeLaTeX trong gói ZIP web",
+                    "  hiện chưa được tích hợp trên máy chủ (chưa kiểm chứng XeLaTeX runtime tự động).",
+                    "- Giáo viên có thể tải gói mã nguồn LaTeX (.tex) và biên dịch bằng XeLaTeX cục bộ",
+                    "  hoặc lưu trực tiếp từ file Word (.docx) sang PDF khi cần."
+                ])
+
+                z.writestr(f"{folder_root}/Bao_cao_dong_goi_ho_so.txt", "\n".join(report_lines))
+
+            return bio.getvalue(), 'application/zip', f"{folder_root}.zip"
+
     def verify_exam(self, ident, matrix_service, similarity_percent=None, similarity_mode=None):
         from docx_exam_importer import verify_exam_against_matrix
         with self.lock:
@@ -795,7 +1180,7 @@ class BankService:
             exam = records[idx]
             grade = exam.get('grade', 9)
             exam_type = exam.get('exam_type', 'GK1')
-            matrix = self._find_matrix_for_exam(grade, exam_type, matrix_service, exam.get('matrix_id'))
+            matrix = self._exam_matrix(exam, matrix_service)
             if not matrix:
                 raise ServiceError(f'Chưa có ma trận cho Khối {grade} ({exam_type}) để đối chiếu.')
             exam['similarity_target_percent'] = float(resolve_similarity(similarity_percent if similarity_percent is not None else exam.get('similarity_target_percent', 90)))

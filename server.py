@@ -5,6 +5,7 @@ import argparse
 import json
 import mimetypes
 import re
+import shutil
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -88,15 +89,31 @@ class Handler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.do_GET()
 
+    def _get_services(self):
+        query = parse_qs(urlsplit(self.path).query)
+        is_test = self.headers.get('X-Test-Mode') == '1' or any(query.get(k) == ['1'] for k in ('test_mode', 'test'))
+        if is_test:
+            if not hasattr(self.server, 'test_service'):
+                raise ServiceError('Môi trường thử chưa được thiết lập; không ghi vào ngân hàng thật.', status=400)
+            return self.server.test_service, self.server.test_matrix_service
+        return self.server.service, self.server.matrix_service
+
     def do_GET(self):
         try:
             self._local_request()
             url = urlsplit(self.path)
             path = unquote(url.path)
-            service = self.server.service
+            service, self.matrix_service = self._get_services()
             if path == '/api/state':
-                state=service.state();state['matrices']=self.server.matrix_service.list()
+                state=service.state();state['matrices']=self.matrix_service.list()
+                state['is_test_mode'] = (service == getattr(self.server, 'test_service', None))
                 return self._json(state)
+            if path == '/api/test/status':
+                return self._json({
+                    'test_mode_available': True,
+                    'is_test_active': (service == getattr(self.server, 'test_service', None)),
+                    'test_questions': len(self.server.test_service.state()['bank']['questions']) if hasattr(self.server, 'test_service') else 0
+                })
             if handle_matrix_get(self,path,parse_qs(url.query)):
                 return
             if path == '/api/bank/export':
@@ -134,6 +151,13 @@ class Handler(BaseHTTPRequestHandler):
                 record = service.get_record(name, ident)
                 raw, mime, filename = export_document(record, fmt, answer_value == '1', revision=name == 'revisions', target=target)
                 return self._send(raw, mime, filename=filename)
+            match_bundle = re.fullmatch(r'/api/exams/([A-Za-z0-9_-]+)/bundle\.zip', path)
+            if match_bundle:
+                ident = match_bundle.group(1)
+                query = parse_qs(url.query)
+                fmt = query.get('format', ['docx'])[0]
+                raw, mime, filename = service.export_exam_bundle(ident, self.matrix_service, fmt=fmt)
+                return self._send(raw, mime, filename=filename)
             if path.startswith('/api/'):
                 raise ServiceError('Không có API này.', status=404)
             # Public assets only. No directory listings, dotfiles, parent segments,
@@ -159,7 +183,16 @@ class Handler(BaseHTTPRequestHandler):
             self._local_request(mutation=True)
             payload = self._body()
             path = urlsplit(self.path).path
-            service = self.server.service
+            service, self.matrix_service = self._get_services()
+            if path == '/api/test/reset':
+                if service is not getattr(self.server, 'test_service', None):
+                    raise ServiceError('Chỉ được làm sạch dữ liệu khi đang ở chế độ Test.', status=400)
+                if hasattr(self.server, 'reset_test_sandbox'):
+                    self.server.reset_test_sandbox()
+                clean_state = self.server.test_service.state()
+                clean_state['matrices'] = self.server.test_matrix_service.list()
+                clean_state['is_test_mode'] = True
+                return self._json({'ok': True, 'state': clean_state})
             if handle_matrix_post(self,path,payload):
                 return
             if path == '/api/questions/save':
@@ -197,14 +230,64 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({'exams': service.delete_exam(payload.get('id'))})
             if path == '/api/exams/duplicate':
                 return self._json({'exam': service.duplicate_exam(payload.get('id')), 'exams': service.state()['exams']})
+            if path == '/api/exams/permute':
+                result = service.create_permuted_exams(
+                    ident=payload.get('id'),
+                    codes=payload.get('codes'),
+                    num_variants=payload.get('num_variants', 4),
+                    shuffle_questions=payload.get('shuffle_questions', True),
+                    shuffle_options=payload.get('shuffle_options', True),
+                    shuffle_statements=payload.get('shuffle_statements', False),
+                    seed=payload.get('seed')
+                )
+                return self._json({'result': result, 'exams': service.state()['exams']})
             if path == '/api/exams/verify':
-                return self._json({'exam': service.verify_exam(payload.get('id'), self.server.matrix_service, payload.get('similarity_percent'), payload.get('similarity_mode')), 'exams': service.state()['exams']})
+                return self._json({'exam': service.verify_exam(payload.get('id'), self.matrix_service, payload.get('similarity_percent'), payload.get('similarity_mode')), 'exams': service.state()['exams']})
             if path == '/api/exams/adjust-similarity':
-                return self._json(service.adjust_exam_similarity(payload, self.server.matrix_service))
+                return self._json(service.adjust_exam_similarity(payload, self.matrix_service))
             if path == '/api/exams/inspect-import':
-                return self._json(service.inspect_exam_import(payload, self.server.matrix_service))
+                return self._json(service.inspect_exam_import(payload, self.matrix_service))
             if path == '/api/exams/import-verified':
-                return self._json(service.import_verified_exams(payload, self.server.matrix_service))
+                return self._json(service.import_verified_exams(payload, self.matrix_service))
+            if path == '/api/ai/generate-by-outcome':
+                from ai_assistant import generate_questions_by_outcome, AiValidationError
+                try:
+                    questions = generate_questions_by_outcome(
+                        grade=payload.get('grade', 10),
+                        subject=payload.get('subject', 'Tin học'),
+                        lesson_name=payload.get('lesson_name', ''),
+                        learning_outcome=payload.get('learning_outcome', ''),
+                        level=payload.get('level', 'Biết'),
+                        count=payload.get('count', 3),
+                        question_type=payload.get('question_type', 'MC'),
+                        api_key=payload.get('api_key')
+                    )
+                    return self._json({'questions': questions})
+                except (AiValidationError, ValueError, RuntimeError) as exc:
+                    raise ServiceError(str(exc), status=400)
+            if path == '/api/ai/parse-raw':
+                from ai_assistant import parse_raw_exam_text, AiValidationError
+                try:
+                    questions = parse_raw_exam_text(
+                        raw_text=payload.get('raw_text', ''),
+                        grade=payload.get('grade', 10),
+                        subject=payload.get('subject', 'Tin học'),
+                        api_key=payload.get('api_key')
+                    )
+                    return self._json({'questions': questions})
+                except (AiValidationError, ValueError, RuntimeError) as exc:
+                    raise ServiceError(str(exc), status=400)
+            if path == '/api/ai/generate-variants':
+                from ai_assistant import generate_question_variants, AiValidationError
+                try:
+                    variants = generate_question_variants(
+                        question_obj=payload.get('question', {}),
+                        count=payload.get('count', 2),
+                        api_key=payload.get('api_key')
+                    )
+                    return self._json({'variants': variants})
+                except (AiValidationError, ValueError, RuntimeError) as exc:
+                    raise ServiceError(str(exc), status=400)
             raise ServiceError('Không có API này.', status=404)
         except ServiceError as exc:
             self._error(exc)
@@ -212,8 +295,33 @@ class Handler(BaseHTTPRequestHandler):
             self._error(ServiceError('Không thể lưu dữ liệu; bản đang dùng được giữ nguyên nếu ghi chưa hoàn tất.', {'reason': type(exc).__name__}, 409))
 
 
+def setup_test_sandbox(base_dir, bank_source=DEFAULT_BANK, clean=False):
+    sandbox_dir = Path(base_dir) / 'test_sandbox'
+    sandbox_bank = sandbox_dir / 'bank.json'
+    if clean or not sandbox_bank.exists():
+        if sandbox_dir.exists() and clean:
+            shutil.rmtree(sandbox_dir)
+        sandbox_dir.mkdir(parents=True, exist_ok=True)
+        (sandbox_dir / 'matrices').mkdir(parents=True, exist_ok=True)
+        # In test mode: start with ZERO PPCT lessons and ZERO questions (completely empty)
+        clean_bank = {
+            'schema_version': '1.0.0',
+            'metadata': {'title': 'Ngân hàng Chế độ Thử nghiệm (Dữ liệu hoàn toàn trống)'},
+            'ppct': {'sources': [], 'lessons': []},
+            'questions': []
+        }
+        sandbox_bank.write_text(json.dumps(clean_bank, ensure_ascii=False, indent=2), encoding='utf-8')
+        (sandbox_dir / 'records.json').write_text('[]', encoding='utf-8')
+        (sandbox_dir / 'matrices' / 'records.json').write_text('[]', encoding='utf-8')
+        curr_file = Path(base_dir) / 'curricula.json'
+        if curr_file.exists():
+            shutil.copy2(curr_file, sandbox_dir / 'curricula.json')
+    return sandbox_bank, sandbox_dir
+
+
 def create_server(bank_path=DEFAULT_BANK, data_dir=None, templates_path=None, public_dir=None, port=8765):
-    service = BankService(bank_path, data_dir or APP_DIR/'data', templates_path)
+    data_directory = Path(data_dir or APP_DIR/'data').resolve()
+    service = BankService(bank_path, data_directory, templates_path)
     public = Path(public_dir or APP_DIR/'public').resolve()
     if service.bank_path.is_relative_to(public) or service.data_dir.is_relative_to(public):
         raise ServiceError('Ngân hàng và lịch sử phải nằm ngoài thư mục public.')
@@ -221,6 +329,16 @@ def create_server(bank_path=DEFAULT_BANK, data_dir=None, templates_path=None, pu
     server.service = service
     server.matrix_service = MatrixService(service)
     server.public_dir = public
+
+    def reset_sandbox():
+        t_bank, t_dir = setup_test_sandbox(data_directory, bank_source=bank_path, clean=True)
+        server.test_service = BankService(t_bank, t_dir, templates_path)
+        server.test_matrix_service = MatrixService(server.test_service)
+
+    t_bank, t_dir = setup_test_sandbox(data_directory, bank_source=bank_path, clean=False)
+    server.test_service = BankService(t_bank, t_dir, templates_path)
+    server.test_matrix_service = MatrixService(server.test_service)
+    server.reset_test_sandbox = reset_sandbox
     return server
 
 

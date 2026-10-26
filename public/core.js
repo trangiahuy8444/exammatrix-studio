@@ -3,6 +3,15 @@
   const normalize=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();
   const jsonHeaders=token=>token?{'Content-Type':'application/json','X-CSRFToken':token}:{'Content-Type':'application/json'};
   const formatStoragePrefix=scope=>'tin_doc_fmt_v1:'+(scope?encodeURIComponent(scope)+':':'');
+  function courseLessons(stored,context,grade,subject,samples={}){
+    if(context?.curriculum_id){
+      if(subject!==context.subject_name)return [];
+      return stored.filter(l=>(!grade||Number(l.grade)===Number(grade))&&contextGrades(context).includes(Number(l.grade)));
+    }
+    const own=stored.filter(l=>(!grade||Number(l.grade)===Number(grade))&&
+      (l.subject_name===subject||(!l.subject_name&&subject==='Tin học')));
+    return own.length?own:(samples[subject]?.[Number(grade)]||[]);
+  }
   function filterQuestions(questions,f={}){
     const needle=normalize(f.search).trim();
     return questions.filter(q=>{
@@ -398,6 +407,6 @@ function syncEditedQuestionsFromSheet(sheet,record){
  });
  return changed;
 }
-  const api={syncEditedQuestionsFromSheet,scopedUrl,contextGrades,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  const api={syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

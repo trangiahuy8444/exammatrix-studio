@@ -18,7 +18,7 @@ def _upload(payload):
 
 
 def handle_matrix_get(handler,path,query):
-    service=handler.server.matrix_service
+    service=getattr(handler,'matrix_service',handler.server.matrix_service)
     if path=='/api/matrices':handler._json(dict(matrices=service.list()));return True
     page_match=re.fullmatch(r'/api/matrices/([A-Za-z0-9_-]+)/source-page/(\d+)',path)
     if page_match:
@@ -39,7 +39,7 @@ def handle_matrix_get(handler,path,query):
 
 
 def handle_matrix_post(handler,path,payload):
-    service=handler.server.matrix_service
+    service=getattr(handler,'matrix_service',handler.server.matrix_service)
     if path=='/api/exams/from-matrix':handler._json(dict(exam=generate_from_matrix(service.bank,service,payload)));return True
     if not path.startswith('/api/matrices/'):return False
     action=path.rsplit('/',1)[-1]

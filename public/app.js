@@ -4,18 +4,39 @@ const C=window.BankCore,$=s=>document.querySelector(s),esc=C.escapeHtml;
 const statusNames={approved:'Mẫu đã duyệt',content_checked:'Đã tự kiểm tra nội dung',draft:'Bản nháp',archived:'Đã lưu trữ'};
 const typeNames={MC:'Trắc nghiệm',ES:'Tự luận / thực hành'};
 const periodNames={TX:'Thường xuyên',GK1:'Giữa học kì I',CK1:'Cuối học kì I',GK2:'Giữa học kì II',CK2:'Cuối học kì II'};
-const store={context:{},bank:null,exams:[],revisions:[],templates:[],tab:'overview',selected:new Set(),filters:{grade:'',lesson:'',type:'',level:'',status:'active',search:''},page:1,ppctGrade:9,revisionGrade:9,examDraft:{grade:9,exam_type:'GK1',template_id:'',revision_id:'',title:'',duration:45,seed:'2026',similarity_percent:90,similarity_mode:'min',blueprint:[]},editing:null,busy:false};
+const store={context:{},bank:null,exams:[],revisions:[],templates:[],tab:'overview',selected:new Set(),selectedSubject:(typeof localStorage!=='undefined'&&localStorage.getItem('exammatrix_active_subject'))||(typeof location!=='undefined'&&new URLSearchParams(location.search).get('subject'))||'Tin học',filters:{grade:'',lesson:'',type:'',level:'',status:'active',search:'',subject:''},page:1,ppctGrade:10,ppctSubject:'Tin học',revisionGrade:10,examDraft:{grade:10,exam_type:'GK1',template_id:'',revision_id:'',title:'',duration:45,seed:'2026',similarity_percent:90,similarity_mode:'min',blueprint:[]},editing:null,busy:false,testPpctLoaded:false,isTestMode:Boolean(typeof sessionStorage!=='undefined'&&sessionStorage.getItem('exammatrix_test_mode')==='1'||typeof location!=='undefined'&&new URLSearchParams(location.search).get('test')==='1')};
 const opt=(value,label,selected=false)=>`<option value="${esc(value)}"${selected?' selected':''}>${esc(label)}</option>`;
 const badge=q=>`<span class="badge ${esc(q.review_status||'draft')}">${esc(statusNames[q.review_status]||q.review_status||'Bản nháp')}</span>`;
 const courseID=document.querySelector('meta[name="curriculum-id"]')?.content||'';
-const apiUrl=path=>C.scopedUrl(path,courseID);
+const apiUrl=path=>{let p=C.scopedUrl(path,courseID);if(store.isTestMode){const sep=p.includes('?')?'&':'?';p=p+sep+'test_mode=1';}return p;};
+const subject=record=>record?.subject_name||(store.context.curriculum_id?store.context.subject_name:null)||store.selectedSubject||store.context.subject_name||'Tin học';
 const grades=()=>C.contextGrades(store.context);
-const subject=record=>record?.subject_name||store.context.subject_name||'Tin học';
 const schoolProfile=()=>store.context.school_profile!==false;
 const needsSource=(grade,period)=>schoolProfile()&&C.sourceTemplateRequired(grade,period);
 const gradeOptions=g=>grades().map(v=>opt(v,`Khối ${v}`,Number(g)===v)).join('');
-const lessons=g=>(store.bank?.ppct?.lessons||[]).filter(l=>!g||Number(l.grade)===Number(g));
-const questions=()=>store.bank?.questions||[];
+const lessons=(g,subj)=>{
+  const s=subj||store.selectedSubject||subject();
+  if(store.context.curriculum_id)return C.courseLessons(store.bank?.ppct?.lessons||[],store.context,g,s);
+  if(store.isTestMode && !store.testPpctLoaded){
+    const stored=(store.bank?.ppct?.lessons||[]).filter(l=>(!g||Number(l.grade)===Number(g))&&((l.subject_name===s)||(!l.subject_name&&s==='Tin học')));
+    return stored;
+  }
+  const multiCatalog=(typeof window!=='undefined'&&window.SUBJECT_CURRICULA)||(store.subject_curricula||{});
+  if(s&&s!=='Tin học'){
+    const list=multiCatalog[s]?.[Number(g)]||multiCatalog[s]?.[String(g)]||[];
+    if(list.length)return list;
+  }
+  const stored=(store.bank?.ppct?.lessons||[]).filter(l=>(!g||Number(l.grade)===Number(g))&&((l.subject_name===s)||(!l.subject_name&&s==='Tin học')));
+  if(stored.length&&(!s||s==='Tin học'))return stored;
+  return multiCatalog[s]?.[Number(g)]||multiCatalog[s]?.[String(g)]||stored;
+};
+const questions=()=>{
+  const all=store.bank?.questions||[];
+  const s=subject();
+  return all.filter(q=>(q.subject_name===s)||(!q.subject_name&&s==='Tin học'));
+};
+const currentRevisions=()=>store.revisions.filter(r=>(r.subject_name===subject())||(!r.subject_name&&subject()==='Tin học'));
+const currentExams=()=>store.exams.filter(e=>(e.subject_name===subject())||(!e.subject_name&&subject()==='Tin học'));
 const filtered=()=>C.filterQuestions(questions(),store.filters);
 const countRecord=r=>r.question_count??r.questions?.length??0;
 function date(v){if(!v)return 'Chưa ghi thời điểm';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleString('vi-VN',{dateStyle:'short',timeStyle:'short'});}
@@ -25,7 +46,9 @@ function notify(message,error=false){const el=$('#notice');el.hidden=false;el.cl
 function clearNotice(){$('#notice').hidden=true;}
 function detailError(e){const details=e.details;if(!details)return e.message;return e.message+'\n'+(typeof details==='string'?details:JSON.stringify(details,null,2));}
 async function request(path,body){
- const response=await fetch(apiUrl(path),{method:body===undefined?'GET':'POST',headers:body===undefined?{}:C.jsonHeaders(document.querySelector('meta[name="csrf-token"]')?.content),body:body===undefined?undefined:JSON.stringify(body)});
+ const h=body===undefined?{}:C.jsonHeaders(document.querySelector('meta[name="csrf-token"]')?.content);
+ if(store.isTestMode)h['X-Test-Mode']='1';
+ const response=await fetch(apiUrl(path),{method:body===undefined?'GET':'POST',headers:h,body:body===undefined?undefined:JSON.stringify(body)});
  let data;try{data=await response.json();}catch{throw new Error('Không đọc được phản hồi từ ứng dụng. Hãy kiểm tra máy chủ cục bộ.');}
  if(!response.ok){const error=new Error(data.error||'Không thực hiện được yêu cầu.');error.details=data.details;throw error;}return data;
 }
@@ -38,7 +61,13 @@ async function mutate(path,body,onSuccess){
 }
 async function load(initial=false){
  $('#refresh').disabled=true;if(initial)$('#loading').hidden=false;
- try{const data=await request('/api/state');store.context=data.context||{};store.bank=data.bank;if(initial){const g=grades()[0];store.ppctGrade=g;store.revisionGrade=g;store.examDraft.grade=g;}store.exams=data.exams||[];store.revisions=data.revisions||[];store.templates=Array.isArray(data.templates)?data.templates:data.templates?.templates||[];store.selected=new Set([...store.selected].filter(id=>questions().some(q=>q.id===id)));if(initial)chooseExamTemplate();$('#loading').hidden=true;render();}
+ try{const data=await request('/api/state');store.context=data.context||{};store.bank=data.bank;
+ store.isTestMode=Boolean(data.is_test_mode);sessionStorage.setItem('exammatrix_test_mode',store.isTestMode?'1':'0');
+ if(store.context.curriculum_id){store.selectedSubject=store.context.subject_name;store.ppctSubject=store.context.subject_name;}
+ const picker=$('#global-subject-select');if(picker){picker.value=subject();picker.disabled=Boolean(store.context.curriculum_id);}
+ $('#test-mode-banner').hidden=!store.isTestMode;
+ if(initial){const g=grades()[0];store.ppctGrade=g;store.revisionGrade=g;store.examDraft.grade=g;}
+ store.exams=data.exams||[];store.revisions=data.revisions||[];store.templates=Array.isArray(data.templates)?data.templates:data.templates?.templates||[];store.selected=new Set([...store.selected].filter(id=>questions().some(q=>q.id===id)));if(initial)chooseExamTemplate();$('#loading').hidden=true;initGlobalSubject();render();}
  catch(e){$('#loading').hidden=true;notify(e.message,true);if(!store.bank)$('#overview').innerHTML=empty('Chưa mở được ngân hàng','Kiểm tra ứng dụng đang chạy rồi bấm Tải lại dữ liệu.');if(!store.bank)$('#overview').hidden=false;}
  finally{$('#refresh').disabled=false;}
 }
@@ -46,11 +75,13 @@ function switchTab(tab){store.tab=['overview','bank','ppct','revisions','matrice
 function render(){switchTab(location.hash.slice(1)||store.tab);}
 function renderCurrent(){({overview:renderOverview,bank:renderBank,ppct:renderPPCT,revisions:renderRevisions,exams:renderExams,matrices:renderMatrices}[store.tab])();}
 function renderOverview(){
+ const s=subject();
  const qs=questions(),active=qs.filter(q=>q.review_status!=='archived'),ready=active.filter(q=>['approved','content_checked'].includes(q.review_status));
- $('#overview').innerHTML=(!qs.length?`<div class="card"><h2>Bắt đầu ngân hàng ${esc(subject())} của bạn</h2><p>1. Thêm bài và yêu cầu cần đạt. 2. Soạn câu hỏi. 3. Chọn câu lưu đề cương, lập ma trận và tạo đề.</p><a class="button primary" href="#ppct">Thêm bài và yêu cầu cần đạt</a> <a class="button" href="#bank">Soạn câu hỏi</a></div>`:'')+title('Ngân hàng chuyên môn','Mỗi câu hỏi, một căn cứ rõ ràng','Quản lí nội dung theo chương trình. Chuẩn bị đề cương và tạo đề có kiểm tra ma trận.',`<a class="button primary" href="#bank">Mở ngân hàng</a>`)+
- `<div class="stats"><div class="stat"><strong>${active.length}</strong><span>Câu hỏi đang sử dụng</span><small>${active.filter(q=>q.type==='MC').length} trắc nghiệm · ${active.filter(q=>q.type==='ES').length} tự luận / thực hành</small></div><div class="stat"><strong>${ready.length}</strong><span>Câu đủ trạng thái để chọn đề</span><small>Mẫu đã duyệt hoặc đã tự kiểm tra nội dung</small></div><div class="stat"><strong>${store.revisions.length}</strong><span>Phiên bản đề cương</span><small>Lưu nội dung tại thời điểm tạo</small></div><div class="stat"><strong>${store.exams.length}</strong><span>Đề kiểm tra đã lưu</span><small>Có bản học sinh và bản giáo viên</small></div></div>`+
- `<div class="grade-grid">${grades().map(g=>{const a=active.filter(q=>q.grade===g);return `<a class="grade-card" href="#bank" data-open-grade="${g}"><h3>${esc(subject())} ${g}</h3><p>${lessons(g).filter(l=>a.some(q=>q.lesson_code===l.lesson_code)).length} bài có câu hỏi · Học kì I</p><div class="bar"><span style="width:${a.length?100:0}%"></span></div><strong>${a.length} câu hỏi</strong><span class="muted"> · Xem ngân hàng →</span></a>`;}).join('')}</div>`+
- `<div class="two-col" style="margin-top:22px"><div class="card"><h2>Chuẩn bị một đề kiểm tra</h2><ol class="muted"><li>Lọc và rà soát câu hỏi theo bài, YCCĐ và mức độ.</li><li>Chọn câu, lưu một phiên bản đề cương đã chuẩn bị phát.</li><li>Chọn ma trận, kiểm tra phân bố và tạo đề.</li></ol><a href="#revisions">Chuẩn bị đề cương →</a></div><div class="card"><h2>Trạng thái nội dung</h2><p class="muted">${qs.filter(q=>q.review_status==='approved').length} câu mẫu đã duyệt · ${qs.filter(q=>q.review_status==='content_checked').length} câu đã tự kiểm tra · ${qs.filter(q=>q.review_status==='draft').length} bản nháp · ${qs.filter(q=>q.review_status==='archived').length} câu lưu trữ.</p><div class="callout">Câu đã tự kiểm tra nội dung vẫn cần giáo viên xem lại trước khi sử dụng. Bản nháp và câu lưu trữ được loại khỏi quá trình tạo đề.</div>${schoolProfile()?'<p class="small muted">Mẫu Giữa HK1 khối 10 đang chờ xác minh một số phần của ma trận. Có thể tạo kiểm tra thường xuyên bằng ma trận riêng.</p>':''}</div></div>`;
+ const revs=currentRevisions(), exms=currentExams();
+ $('#overview').innerHTML=(!qs.length?`<div class="card"><h2>Bắt đầu ngân hàng môn ${esc(s)} của bạn</h2><p>1. Thiết lập phân phối chương trình môn ${esc(s)}. 2. Soạn câu hỏi. 3. Chuẩn bị đề cương, lập ma trận và tạo đề.</p><a class="button primary" href="#ppct">Quản lý PPCT ${esc(s)}</a> <a class="button" href="#bank">Soạn câu hỏi mới</a></div>`:'')+title(`Không gian chuyên môn · ${s}`,'Mỗi câu hỏi, một căn cứ rõ ràng',`Quản lí nội dung môn ${s} theo chương trình GDPT 2018. Chuẩn bị đề cương và tạo đề có kiểm tra ma trận.`,`<a class="button primary" href="#bank">Mở ngân hàng ${esc(s)}</a>`)+
+ `<div class="stats"><div class="stat"><strong>${active.length}</strong><span>Câu hỏi môn ${esc(s)}</span><small>${active.filter(q=>q.type==='MC').length} trắc nghiệm · ${active.filter(q=>q.type==='ES').length} tự luận</small></div><div class="stat"><strong>${ready.length}</strong><span>Câu đủ điều kiện tạo đề</span><small>Mẫu đã duyệt hoặc tự kiểm tra</small></div><div class="stat"><strong>${revs.length}</strong><span>Phiên bản đề cương</span><small>Môn ${esc(s)}</small></div><div class="stat"><strong>${exms.length}</strong><span>Đề kiểm tra đã lưu</span><small>Môn ${esc(s)}</small></div></div>`+
+ `<div class="grade-grid">${grades().map(g=>{const a=active.filter(q=>q.grade===g);return `<a class="grade-card" href="#bank" data-open-grade="${g}"><h3>${esc(s)} ${g}</h3><p>${lessons(g, s).filter(l=>a.some(q=>q.lesson_code===l.lesson_code)).length} bài có câu hỏi</p><div class="bar"><span style="width:${a.length?100:0}%"></span></div><strong>${a.length} câu hỏi</strong><span class="muted"> · Xem ngân hàng →</span></a>`;}).join('')}</div>`+
+ `<div class="two-col" style="margin-top:22px"><div class="card"><h2>Chuẩn bị một đề kiểm tra</h2><ol class="muted"><li>Lọc và rà soát câu hỏi môn ${esc(s)} theo bài, YCCĐ và mức độ.</li><li>Chọn câu, lưu một phiên bản đề cương đã chuẩn bị phát.</li><li>Chọn ma trận, kiểm tra phân bố và tạo đề.</li></ol><a href="#revisions">Chuẩn bị đề cương →</a></div><div class="card"><h2>Trạng thái nội dung môn ${esc(s)}</h2><p class="muted">${qs.filter(q=>q.review_status==='approved').length} câu mẫu đã duyệt · ${qs.filter(q=>q.review_status==='content_checked').length} câu đã tự kiểm tra · ${qs.filter(q=>q.review_status==='draft').length} bản nháp · ${qs.filter(q=>q.review_status==='archived').length} câu lưu trữ.</p><div class="callout">Câu đã tự kiểm tra nội dung vẫn cần giáo viên xem lại trước khi sử dụng. Bản nháp và câu lưu trữ được loại khỏi quá trình tạo đề.</div></div></div>`;
 }
 function renderBank(){
  const f=store.filters;
@@ -204,7 +235,7 @@ function mountExamViewerContent(hostEl,record,mode='student',isInline=false){
  const fmt=window.DocFormatter||C.DocFormatter;
  const body=buildExamSheetHtml(record,mode);
  hostEl.innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">XEM TOÀN BỘ ĐỀ KIỂM TRA & ĐỐI CHIẾU MA TRẬN</p><h2 id="${isInline?'inline-exam-title':'detail-title'}">${esc(record.title||'Đề kiểm tra')}</h2><p class="small muted">${meta}</p></div><div class="actions">${isInline?`<button type="button" class="export-link" data-modal-exam="${esc(record.id)}" data-mode="${esc(mode)}">⤢ Mở rộng toàn màn hình</button><button type="button" class="quiet" id="close-inline-exam">Đóng khung xem</button>`:`<button data-close="detail-dialog" class="quiet">Đóng</button>`}</div></div>`+
- `<div class="viewer-toolbar"><div class="viewer-tabs"><button type="button" class="${mode==='student'?'primary':''}" data-switch-exam-mode="student">📄 Xem đề học sinh</button><button type="button" class="${mode==='answers'?'primary':''}" data-switch-exam-mode="answers">🔑 Xem đáp án & HDC</button><button type="button" class="${mode==='verify'?'primary':''}" data-switch-exam-mode="verify">🛡️ Báo cáo Kiểm định Ma trận</button></div><div class="actions">${record.id?`<button type="button" class="export-link" data-reverify-exam="${esc(record.id)}">🔄 Kiểm định lại với Ma trận</button>`:''}${base?`<a class="button export-link" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button export-link" href="${base}?format=docx&answers=1">Word đáp án</a><a class="button export-link" href="${base}?format=docx&target=lms">📤 Tải tệp LMS</a><a class="button export-link" href="${base}?format=html&answers=${mode==='answers'?1:0}" target="_blank" rel="noopener">Mở trang in</a>`:''}</div></div>`+
+ `<div class="viewer-toolbar"><div class="viewer-tabs"><button type="button" class="${mode==='student'?'primary':''}" data-switch-exam-mode="student">📄 Xem đề học sinh</button><button type="button" class="${mode==='answers'?'primary':''}" data-switch-exam-mode="answers">🔑 Xem đáp án & HDC</button><button type="button" class="${mode==='verify'?'primary':''}" data-switch-exam-mode="verify">🛡️ Báo cáo Kiểm định Ma trận</button></div><div class="actions">${record.id?`<button type="button" class="export-link" data-reverify-exam="${esc(record.id)}">🔄 Kiểm định lại với Ma trận</button>`:''}${base?`<a class="button export-link" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button export-link" href="${base}?format=docx&answers=1">Word đáp án</a><a class="button export-link" href="${base}?format=tex&answers=0" title="Xuất mã nguồn XeLaTeX chuẩn">LaTeX đề thi</a><a class="button export-link" href="${base}?format=tex&answers=1" title="Xuất mã nguồn XeLaTeX Đáp án & HDC">LaTeX đáp án</a><a class="button export-link" href="${base}?format=docx&target=lms">📤 Tải tệp LMS</a><a class="button export-link" href="${base}?format=html&answers=${mode==='answers'?1:0}" target="_blank" rel="noopener">Mở trang in</a>`:''}</div></div>`+
  (fmt?fmt.toolbarHtml(fmtKey,false):'')+body;
  hostEl.querySelectorAll('[data-switch-exam-mode]').forEach(btn=>{
   btn.onclick=()=>mountExamViewerContent(hostEl,record,btn.dataset.switchExamMode,isInline);
@@ -328,7 +359,7 @@ function mountRevisionViewerContent(hostEl,record,showAnswers=false,isInline=fal
  const fmt=window.DocFormatter||C.DocFormatter;
  const body=buildRevisionSheetHtml(record,showAnswers);
  hostEl.innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">XEM TOÀN BỘ ĐỀ CƯƠNG ÔN TẬP</p><h2 id="${isInline?'inline-rev-title':'detail-title'}">${esc(record.title||'Đề cương ôn tập')}</h2><p class="small muted">Khối ${esc(record.grade)} · ${countRecord(record)} câu (${mcs.length} trắc nghiệm NLC${yns.length?`, ${yns.length} câu Đúng/Sai`:''}, ${ess.length} tự luận)</p></div><div class="actions">${isInline?`<button type="button" class="export-link" id="open-modal-rev">⤢ Mở rộng toàn màn hình</button><button type="button" class="quiet" id="close-inline-rev">Đóng khung xem</button>`:`<button data-close="detail-dialog" class="quiet">Đóng</button>`}</div></div>`+
- `<div class="viewer-toolbar"><div class="viewer-tabs"><button type="button" class="${!showAnswers?'primary':''}" data-switch-rev-ans="0">📄 Bản đề cương học sinh</button><button type="button" class="${showAnswers?'primary':''}" data-switch-rev-ans="1">🔑 Xem kèm đáp án & HDC</button></div>${base?`<div class="actions"><a class="button export-link" href="${base}?format=docx&answers=0">Word đề cương</a><a class="button export-link" href="${base}?format=docx&answers=1">Word kèm đáp án</a><a class="button export-link" href="${base}?format=docx&target=lms">📤 Tải tệp LMS</a><a class="button export-link" href="${base}?format=html&answers=${showAnswers?1:0}" target="_blank" rel="noopener">Bản in</a></div>`:''}</div>`+
+ `<div class="viewer-toolbar"><div class="viewer-tabs"><button type="button" class="${!showAnswers?'primary':''}" data-switch-rev-ans="0">📄 Bản đề cương học sinh</button><button type="button" class="${showAnswers?'primary':''}" data-switch-rev-ans="1">🔑 Xem kèm đáp án & HDC</button></div>${base?`<div class="actions"><a class="button export-link" href="${base}?format=docx&answers=0">Word đề cương</a><a class="button export-link" href="${base}?format=docx&answers=1">Word kèm đáp án</a><a class="button export-link" href="${base}?format=tex&answers=0" title="Xuất mã nguồn XeLaTeX chuẩn">LaTeX đề cương</a><a class="button export-link" href="${base}?format=docx&target=lms">📤 Tải tệp LMS</a><a class="button export-link" href="${base}?format=html&answers=${showAnswers?1:0}" target="_blank" rel="noopener">Bản in</a></div>`:''}</div>`+
  (fmt?fmt.toolbarHtml(fmtKey,false):'')+body;
  hostEl.querySelectorAll('[data-switch-rev-ans]').forEach(btn=>{
   btn.onclick=()=>mountRevisionViewerContent(hostEl,record,btn.dataset.switchRevAns==='1',isInline);
@@ -453,13 +484,43 @@ async function bulkUpdateSelected(action,status='approved'){
 }
 async function importBank(event){const file=event.target.files[0];if(!file)return;try{const bank=JSON.parse(await file.text());if(!confirm('Nhập ngân hàng từ tệp JSON này? Ứng dụng sẽ kiểm tra dữ liệu và sao lưu trước khi ghi. PPCT gốc được giữ theo danh mục đang có.'))return;await mutate('/api/bank/import',{bank},()=>{render();notify('Đã nhập ngân hàng và lưu bản sao trước thay đổi.');});}catch(e){notify('Không đọc được tệp JSON: '+e.message,true);}finally{event.target.value='';}}
 function renderPPCT(){
- const g=store.ppctGrade,ls=lessons(g);
- $('#ppct').innerHTML=title('Nguồn chương trình','Phân phối chương trình','Quản lý bài học, tuần, tiết và yêu cầu cần đạt theo từng khối.',`<button type="button" class="primary" id="add-ppct-lesson">+ Thêm bài học PPCT</button>`)+`<div class="card"><div class="field" style="max-width:220px;margin-bottom:18px"><label for="ppct-grade">Khối lớp</label><select id="ppct-grade">${gradeOptions(g)}</select></div><div class="table-wrap"><table class="ppct-table"><thead><tr><th>Tuần</th><th>Tiết</th><th>Bài / chủ đề</th><th>Yêu cầu cần đạt</th><th style="width:150px">Thao tác</th></tr></thead><tbody>${ls.map(l=>`<tr><td>${[...new Set((l.occurrences||[]).map(o=>o.week_raw))].map(esc).join('<br>')}</td><td>${[...new Set((l.occurrences||[]).map(o=>o.periods_raw))].map(esc).join(', ')}</td><td><strong>${esc(l.lesson_code)} · ${esc(l.lesson_name_source)}</strong><p class="small muted">${esc(l.topic_source)}</p></td><td><ul>${(l.outcomes||[]).map(o=>`<li>${esc(o)}</li>`).join('')}</ul></td><td><div class="actions"><button type="button" class="export-link" data-edit-ppct="${esc(l.lesson_code)}" data-grade="${g}">Sửa</button><button type="button" class="export-link danger" data-del-ppct="${esc(l.lesson_code)}" data-grade="${g}">Xóa</button></div></td></tr>`).join('')}</tbody></table></div></div><div class="card"><h2>Hồ sơ nguồn</h2>${(store.bank.ppct?.sources||[]).filter(s=>Number(s.grade)===g).map(s=>`<p class="small">${esc(s.path||s.source_file||'')}</p><p class="muted">${esc(s.approval_status||'Đối chiếu bản KHDH trong thư mục chuyên môn.')}</p>`).join('')}</div>`;
+ const g=store.ppctGrade;
+ const s=store.selectedSubject || store.ppctSubject || 'Tin học';
+ store.ppctSubject = s;
+ const allSubjects=['Tin học', 'Toán học', 'Vật lí', 'Hóa học', 'Sinh học', 'Ngữ văn', 'Tiếng Anh', 'Lịch sử', 'Địa lí'];
+ const ls=lessons(g, s);
+ $('#ppct').innerHTML=title(`Chương trình môn ${s}`,'Phân phối chương trình',`Quản lý bài học, tuần, tiết và yêu cầu cần đạt môn ${s} Khối ${g}.`,
+   `<div style="display:flex;gap:8px">` +
+   (store.isTestMode && !ls.length ? `<button type="button" class="button" id="btn-load-sample-ppct" style="background:#eaf3fb;color:var(--blue,#0267b1);font-weight:600">📥 Nạp mẫu PPCT GDPT 2018 (${esc(s)})</button>` : '') +
+   `<button type="button" class="primary" id="add-ppct-lesson">+ Thêm bài học PPCT</button></div>`)+
+ `<div class="card">
+   <div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+     <div class="field" style="min-width:200px">
+       <label for="ppct-subject" style="display:block;font-weight:600;margin-bottom:4px">Môn học</label>
+       <select id="ppct-subject" ${store.context.curriculum_id?'disabled':''} style="width:100%;padding:8px">${allSubjects.map(sub=>opt(sub,sub,sub===s)).join('')}</select>
+     </div>
+     <div class="field" style="min-width:180px">
+       <label for="ppct-grade" style="display:block;font-weight:600;margin-bottom:4px">Khối lớp</label>
+       <select id="ppct-grade" style="width:100%;padding:8px">${gradeOptions(g)}</select>
+     </div>
+   </div>
+   <div class="table-wrap">
+     <table class="ppct-table">
+       <thead><tr><th>Tuần</th><th>Tiết</th><th>Bài / chủ đề</th><th>Yêu cầu cần đạt (YCCĐ)</th><th style="width:150px">Thao tác</th></tr></thead>
+       <tbody>${ls.length ? ls.map(l=>`<tr><td>${[...new Set((l.occurrences||[]).map(o=>o.week_raw))].map(esc).join('<br>')}</td><td>${[...new Set((l.occurrences||[]).map(o=>o.periods_raw))].map(esc).join(', ')}</td><td><strong>${esc(l.lesson_code)} · ${esc(l.lesson_name_source || l.lesson_name || l.name)}</strong><p class="small muted">${esc(l.topic_source || '')}</p></td><td><ul>${(l.outcomes||[]).map(o=>`<li>${esc(o)}</li>`).join('')}</ul></td><td><div class="actions"><button type="button" class="export-link" data-edit-ppct="${esc(l.lesson_code)}" data-grade="${g}">Sửa</button><button type="button" class="export-link danger" data-del-ppct="${esc(l.lesson_code)}" data-grade="${g}">Xóa</button></div></td></tr>`).join('') : '<tr><td colspan="5" class="empty" style="text-align:center;padding:24px">Chưa có bài học PPCT cho môn và khối này. Bấm "+ Thêm bài học PPCT" để bổ sung, hoặc bấm "Nạp mẫu PPCT GDPT 2018" để nạp nhanh khung bài học.</td></tr>'}</tbody>
+     </table>
+   </div>
+ </div>
+ <div class="card"><h2>Hồ sơ nguồn</h2>${(store.bank.ppct?.sources||[]).filter(src=>Number(src.grade)===g && s==='Tin học').map(src=>`<p class="small">${esc(src.path||src.source_file||'')}</p><p class="muted">${esc(src.approval_status||'Đối chiếu bản KHDH trong thư mục chuyên môn.')}</p>`).join('') || `<p class="muted">Khung chương trình chuẩn Giáo dục Phổ thông 2018 (Bộ GD&ĐT) cho môn ${esc(s)}.</p>`}</div>`;
  $('#ppct-grade').onchange=e=>{store.ppctGrade=Number(e.target.value);renderPPCT();};
- $('#add-ppct-lesson').onclick=()=>openPPCTEditor(g,'');
+ $('#ppct-subject').onchange=e=>setGlobalSubject(e.target.value);
+ $('#add-ppct-lesson').onclick=()=>openPPCTEditor(g,'',s);
+ const sampleBtn=$('#btn-load-sample-ppct');
+ if(sampleBtn)sampleBtn.onclick=()=>{store.testPpctLoaded=true;renderPPCT();notify(`Đã nạp mẫu PPCT GDPT 2018 cho môn ${s}.`);};
 }
-function openPPCTEditor(grade,code=''){
- const existing=code?lessons(grade).find(l=>l.lesson_code===code):null;
+function openPPCTEditor(grade,code='',subj=''){
+ const s = subj || store.ppctSubject || 'Tin học';
+ const existing=code?lessons(grade, s).find(l=>l.lesson_code===code):null;
  const occ=(existing?.occurrences||[])[0]||{week_raw:'Tuần 1',periods_raw:'1, 2'};
  $('#edit-title').textContent=existing?`Sửa bài học PPCT · ${existing.lesson_code}`:'Thêm bài học vào PPCT';
  $('#question-form').innerHTML=`<div id="form-error" class="callout error" role="alert" hidden></div><div class="form-grid"><div class="field"><label for="ppct-edit-grade">Khối lớp</label><select id="ppct-edit-grade" name="grade"${existing?' disabled':''}>${gradeOptions(grade)}</select></div><div class="field"><label for="ppct-edit-code">Mã bài (ví dụ: B1, B13)</label><input id="ppct-edit-code" name="lesson_code" value="${esc(existing?.lesson_code||'')}" ${existing?'readonly':''} required></div><div class="field"><label for="ppct-edit-week">Tuần</label><input id="ppct-edit-week" name="week_raw" value="${esc(occ.week_raw||'')}" required></div><div class="field span2"><label for="ppct-edit-name">Tên bài học</label><input id="ppct-edit-name" name="lesson_name_source" value="${esc(existing?.lesson_name_source||'')}" required></div><div class="field"><label for="ppct-edit-periods">Tiết</label><input id="ppct-edit-periods" name="periods_raw" value="${esc(occ.periods_raw||'')}" required></div><div class="field full"><label for="ppct-edit-topic">Chủ đề</label><input id="ppct-edit-topic" name="topic_source" value="${esc(existing?.topic_source||'')}" required></div><div class="field full"><label for="ppct-edit-outcomes">Yêu cầu cần đạt (mỗi dòng 1 yêu cầu)</label><textarea id="ppct-edit-outcomes" name="outcomes" rows="6" required>${esc((existing?.outcomes||[]).join('\n'))}</textarea></div></div><div class="dialog-bottom"><button type="button" data-close="edit-dialog">Hủy</button><button type="submit" class="primary">Lưu bài học PPCT</button></div>`;
@@ -502,6 +563,7 @@ function revisionLinks(r){
   `<details class="dropdown-menu"><summary>📥 Tải về ▾</summary><div class="dropdown-content">`+
    `<a href="${base}?format=docx">Word đề cương</a>`+
    `<a href="${base}?format=docx&answers=1">Word kèm đáp án</a>`+
+   `<a href="${base}?format=tex&answers=0">LaTeX đề cương (.tex)</a>`+
    `<a href="${base}?format=docx&target=lms">📤 Tệp upload LMS (.docx)</a>`+
    `<a href="${base}?format=html" target="_blank" rel="noopener">Mở bản in</a>`+
   `</div></details>`+
@@ -603,8 +665,13 @@ function examLinks(r){
  return `<div class="card-actions">`+
   `<button type="button" class="export-link primary" data-view-exam="${esc(r.id)}" data-mode="student">👁 Xem toàn bộ đề</button>`+
   `<details class="dropdown-menu"><summary>📥 Tải về ▾</summary><div class="dropdown-content">`+
+   `<a href="/api/exams/${esc(r.id)}/bundle.zip?format=docx" style="font-weight:bold;color:var(--brand,#0a58ca)">📦 Tải trọn bộ Hồ sơ Word (.zip)</a>`+
+   `<a href="/api/exams/${esc(r.id)}/bundle.zip?format=tex">📦 Tải trọn bộ Hồ sơ LaTeX (.zip)</a>`+
+   `<hr>`+
    `<a href="${base}?format=docx&answers=0">Word học sinh</a>`+
    `<a href="${base}?format=docx&answers=1">Word đáp án & HDC</a>`+
+   `<a href="${base}?format=tex&answers=0">LaTeX đề thi (.tex)</a>`+
+   `<a href="${base}?format=tex&answers=1">LaTeX đáp án (.tex)</a>`+
    `<a href="${base}?format=docx&target=lms">📤 Tệp upload LMS (.docx)</a>`+
    `<a href="${base}?format=html&answers=0" target="_blank" rel="noopener">Trang in đề thi</a>`+
    `<a href="${base}?format=html&answers=1" target="_blank" rel="noopener">Trang in đáp án</a>`+
@@ -615,6 +682,7 @@ function examLinks(r){
    `<button type="button" data-view-exam="${esc(r.id)}" data-mode="answers">🔑 Xem đáp án & HDC</button>`+
    `<button type="button" data-edit-exam="${esc(r.id)}">Sửa thông tin đề</button>`+
    `<button type="button" data-dup-exam="${esc(r.id)}">Nhân bản đề</button>`+
+   `<button type="button" data-permute-exam="${esc(r.id)}">🔀 Trộn mã đề (2 hoặc 4 mã)</button>`+
    `<button type="button" data-load-exam="${esc(r.id)}">Nạp cấu hình tạo đề</button>`+
    `<hr>`+
    `<button type="button" class="danger" data-del-exam="${esc(r.id)}">Xóa đề kiểm tra</button>`+
@@ -700,6 +768,22 @@ async function duplicateExam(id){
   renderExams();notify('Đã nhân bản đề kiểm tra.');
  });
 }
+async function promptPermuteExam(id){
+ const ex=store.exams.find(x=>x.id===id);if(!ex)return;
+ const countStr=prompt(`Nhập số lượng mã đề cần trộn từ đề "${ex.title}" (ví dụ: 2 hoặc 4):`, "4");
+ if(!countStr)return;
+ const count=parseInt(countStr, 10);
+ if(isNaN(count)||count<2||count>10){
+  notify('Vui lòng nhập số lượng mã đề từ 2 đến 10.', true);
+  return;
+ }
+ const codes = count === 2 ? ['101', '102'] : ['101', '102', '103', '104'].slice(0, count);
+ await mutate('/api/exams/permute', {id, num_variants: count, codes, shuffle_questions: true, shuffle_options: true}, res=>{
+  if(res.exams)store.exams=res.exams;
+  renderExams();
+  notify(`Đã tạo thành công ${res.result?.count || count} mã đề hoán vị kèm bảng đáp án đồng bộ!`);
+ });
+}
 function loadExamConfig(id){
  const ex=store.exams.find(x=>x.id===id);if(!ex)return;
  store.examDraft={
@@ -734,13 +818,14 @@ document.addEventListener('click',event=>{
  const viewExam=event.target.closest('[data-view-exam]');if(viewExam){const ex=store.exams.find(r=>r.id===viewExam.dataset.viewExam);if(ex)openExamViewer(ex,viewExam.dataset.mode||'student');return;}
  const editExam=event.target.closest('[data-edit-exam]');if(editExam){openExamMetaEditor(editExam.dataset.editExam);return;}
  const dupExam=event.target.closest('[data-dup-exam]');if(dupExam){duplicateExam(dupExam.dataset.dupExam);return;}
+ const permExam=event.target.closest('[data-permute-exam]');if(permExam){promptPermuteExam(permExam.dataset.permuteExam);return;}
  const loadExam=event.target.closest('[data-load-exam]');if(loadExam){loadExamConfig(loadExam.dataset.loadExam);return;}
  const delExam=event.target.closest('[data-del-exam]');if(delExam){deleteExam(delExam.dataset.delExam);return;}
  const viewRev=event.target.closest('[data-view-revision]');if(viewRev){const rev=store.revisions.find(r=>r.id===viewRev.dataset.viewRevision);if(rev)openRevisionViewer(rev,viewRev.dataset.answers==='1');return;}
  const editRev=event.target.closest('[data-edit-revision]');if(editRev){startEditRevision(editRev.dataset.editRevision);return;}
  const dupRev=event.target.closest('[data-dup-revision]');if(dupRev){duplicateRevision(dupRev.dataset.dupRevision);return;}
  const delRev=event.target.closest('[data-del-revision]');if(delRev){deleteRevision(delRev.dataset.delRevision);return;}
- const editPPCT=event.target.closest('[data-edit-ppct]');if(editPPCT){openPPCTEditor(Number(editPPCT.dataset.grade),editPPCT.dataset.editPpct);return;}
+ const editPPCT=event.target.closest('[data-edit-ppct]');if(editPPCT){openPPCTEditor(Number(editPPCT.dataset.grade),editPPCT.dataset.editPpct,store.ppctSubject||'Tin học');return;}
  const delPPCT=event.target.closest('[data-del-ppct]');if(delPPCT){deletePPCTLesson(Number(delPPCT.dataset.grade),delPPCT.dataset.delPpct);return;}
  const grade=event.target.closest('[data-open-grade]');if(grade){store.filters.grade=grade.dataset.openGrade;store.filters.lesson='';store.page=1;return;}
  const detail=event.target.closest('[data-detail]');if(detail){showDetail(detail.dataset.detail);return;}
@@ -765,3 +850,695 @@ new MutationObserver(scopeDownloads).observe(document.body,{childList:true,subtr
 scopeDownloads();
 const coursePicker=document.getElementById('workspace-curriculum');
 if(coursePicker)coursePicker.onchange=()=>{location.href='/app/?curriculum='+encodeURIComponent(coursePicker.value);};
+
+// AI Assistant (Google Gemini) UI Integration
+function initAiAssistant() {
+  const btn = $('#btn-ai-assistant');
+  const dialog = $('#ai-dialog');
+  if (!btn || !dialog) return;
+
+  const accountInput = $('#gemini-teacher-account');
+  const keyInput = $('#gemini-key-input');
+  const keyStatus = $('#gemini-key-status');
+
+  function getStorageKey() {
+    const acc = (accountInput?.value || 'default').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    return `gemini_api_key_${acc || 'default'}`;
+  }
+
+  function getSavedApiKey() {
+    return localStorage.getItem(getStorageKey()) || localStorage.getItem('gemini_api_key') || '';
+  }
+
+  function syncKeyDisplay() {
+    const k = getSavedApiKey();
+    if (keyInput) keyInput.value = k;
+    if (keyStatus) keyStatus.textContent = k ? '✓ Đã cấu hình cho hồ sơ này' : 'Chưa có key';
+  }
+
+  accountInput?.addEventListener('input', syncKeyDisplay);
+
+  function syncAiLessons(grade, target='m1') {
+    const subj = target === 'm1' ? ($('#ai-m1-subject')?.value || 'Tin học') : ($('#ai-m2-subject')?.value || 'Tin học');
+    const list = lessons(Number(grade), subj);
+    const sel = $(target === 'm1' ? '#ai-m1-lesson-select' : '#ai-m2-lesson-select');
+    if (sel) {
+      sel.innerHTML = opt('', `— Chọn bài học ${subj} khối ${grade} —`, true) +
+        list.map(l => opt(l.lesson_code, `${l.lesson_code} · ${l.lesson_name_source || l.lesson_name || l.name}`)).join('') +
+        (target === 'm1' ? opt('__CUSTOM__', '✏️ Bài học khác (tự nhập)...') : '');
+    }
+    if (target === 'm1') {
+      syncAiOutcomeOptions(list, sel?.value);
+    }
+  }
+
+  function syncAiOutcomeOptions(lessonList, selectedCode) {
+    const outcomeSel = $('#ai-m1-outcome-select');
+    const outcomeText = $('#ai-m1-outcome');
+    if (!outcomeSel) return;
+    const curLesson = (lessonList || []).find(l => l.lesson_code === selectedCode);
+    const outcomes = curLesson?.outcomes || [];
+    if (outcomes.length > 0) {
+      outcomeSel.style.display = 'block';
+      outcomeSel.innerHTML = opt('', `— Gợi ý YCCĐ (${outcomes.length} mục) —`, true) +
+        outcomes.map(o => opt(o, o)).join('');
+      if (outcomeText && (!outcomeText.value || outcomeText.value.trim() === '')) {
+        outcomeText.value = outcomes[0];
+      }
+    } else {
+      outcomeSel.style.display = 'none';
+      outcomeSel.innerHTML = opt('', '— Gợi ý YCCĐ từ bài học —', true);
+    }
+  }
+
+  function syncAiExistingQuestions() {
+    const sel = $('#ai-m3-select-existing-q');
+    if (!sel) return;
+    const allQs = questions();
+    sel.innerHTML = opt('', '— Chọn một câu hỏi từ ngân hàng —', true) +
+      allQs.slice(0, 100).map(q => opt(q.id, `[Khối ${q.grade} - ${q.lesson_code}] ${esc(q.question.slice(0, 65))}...`)).join('');
+  }
+
+  btn.onclick = () => {
+    syncKeyDisplay();
+    const curSubj = store.selectedSubject || 'Tin học';
+    if ($('#ai-m1-subject')) $('#ai-m1-subject').value = curSubj;
+    if ($('#ai-m2-subject')) $('#ai-m2-subject').value = curSubj;
+    syncAiLessons($('#ai-m1-grade')?.value || 10, 'm1');
+    syncAiLessons($('#ai-m2-grade')?.value || 10, 'm2');
+    syncAiExistingQuestions();
+    dialog.showModal();
+  };
+
+  $('#ai-m1-subject')?.addEventListener('change', () => syncAiLessons($('#ai-m1-grade')?.value || 10, 'm1'));
+  $('#ai-m1-grade')?.addEventListener('change', () => syncAiLessons($('#ai-m1-grade')?.value || 10, 'm1'));
+  $('#ai-m1-lesson-select')?.addEventListener('change', (e) => {
+    const subj = $('#ai-m1-subject')?.value || 'Tin học';
+    const grd = Number($('#ai-m1-grade')?.value || 10);
+    const list = lessons(grd, subj);
+    syncAiOutcomeOptions(list, e.target.value);
+  });
+  $('#ai-m1-outcome-select')?.addEventListener('change', (e) => {
+    if (e.target.value && $('#ai-m1-outcome')) {
+      $('#ai-m1-outcome').value = e.target.value;
+    }
+  });
+
+  $('#ai-m2-subject')?.addEventListener('change', () => syncAiLessons($('#ai-m2-grade')?.value || 10, 'm2'));
+  $('#ai-m2-grade')?.addEventListener('change', () => syncAiLessons($('#ai-m2-grade')?.value || 10, 'm2'));
+
+  $('#ai-m3-select-existing-q')?.addEventListener('change', (e) => {
+    const qId = e.target.value;
+    if (!qId) return;
+    const qObj = questions().find(q => q.id === qId);
+    if (qObj) {
+      $('#ai-m3-question-json').value = JSON.stringify(qObj, null, 2);
+    }
+  });
+
+  const saveBtn = $('#save-gemini-key-btn');
+  if (saveBtn) {
+    saveBtn.onclick = () => {
+      const val = (keyInput.value || '').trim();
+      const sk = getStorageKey();
+      if (!val) {
+        localStorage.removeItem(sk);
+        localStorage.removeItem('gemini_api_key');
+        if (keyStatus) keyStatus.textContent = 'Đã xóa API Key.';
+        notify('Đã xóa Gemini API Key cho hồ sơ này.');
+      } else {
+        localStorage.setItem(sk, val);
+        localStorage.setItem('gemini_api_key', val);
+        if (keyStatus) keyStatus.textContent = '✓ Đã lưu thành công!';
+        notify('Đã lưu Gemini API Key vào Local Storage.');
+      }
+    };
+  }
+
+  // Switch tabs in AI modal
+  dialog.querySelectorAll('[data-ai-tab]').forEach(tabBtn => {
+    tabBtn.onclick = () => {
+      dialog.querySelectorAll('[data-ai-tab]').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = '#f5f5f5';
+        b.style.color = '#333';
+      });
+      tabBtn.classList.add('active');
+      tabBtn.style.background = 'var(--brand, #0a58ca)';
+      tabBtn.style.color = '#fff';
+
+      const tabId = tabBtn.dataset.aiTab;
+      dialog.querySelectorAll('.ai-pane').forEach(p => p.hidden = true);
+      const pane = $(`#ai-pane-${tabId}`);
+      if (pane) pane.hidden = false;
+      if (tabId === 'mode3') syncAiExistingQuestions();
+    };
+  });
+
+  function buildQuestionCardHtml(q, idx, prefix) {
+    const cid = `${prefix}-${idx}`;
+    const isMc = (q.type || 'MC') === 'MC';
+    const isYn = q.type === 'YN';
+    const opts = q.options || ['', '', '', ''];
+    const corr = q.correct;
+
+    return `
+      <div class="card" id="card-${cid}" style="margin-bottom:14px;padding:14px;background:#fcfdff;border:1px solid #d0dbe5;border-radius:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <label style="font-weight:bold;color:var(--navy,#102d4a);font-size:15px">
+            <input type="checkbox" class="${prefix}-select-chk" data-idx="${idx}" checked style="margin-right:6px">
+            Câu ${idx + 1} (${esc(q.type || 'MC')} - <span id="${cid}-lvl-badge">${esc(q.level || 'Biết')}</span>)
+          </label>
+          <button type="button" class="quiet" data-toggle-edit="${cid}" style="font-size:12px;cursor:pointer;color:var(--brand,#0a58ca)">✏️ Chỉnh sửa / Xem lại</button>
+        </div>
+
+        <!-- Preview block -->
+        <div id="${cid}-preview">
+          <p style="margin:0 0 8px;font-size:15px;white-space:pre-wrap" id="${cid}-prev-q">${esc(q.question || '')}</p>
+          ${isMc ? `
+            <div id="${cid}-prev-opts" style="padding-left:8px">
+              ${opts.map((opt, oi) => `
+                <p style="margin:3px 0;color:${oi === corr ? 'green;font-weight:bold' : '#333'}">
+                  ${String.fromCharCode(65 + oi)}. ${esc(opt)} ${oi === corr ? '✓ (Đáp án đúng)' : ''}
+                </p>
+              `).join('')}
+            </div>
+          ` : ''}
+          ${isYn && q.statements ? `
+            <div id="${cid}-prev-stmts" style="padding-left:8px">
+              ${q.statements.map(st => `
+                <p style="margin:3px 0"><b>${esc(st.label)})</b> ${esc(st.text)} <i>[${st.correct ? 'ĐÚNG' : 'SAI'}]</i></p>
+              `).join('')}
+            </div>
+          ` : ''}
+          ${q.option_explanations && q.option_explanations.length ? `
+            <p style="margin-top:8px;font-size:13px;color:#555;border-top:1px dashed #e0e8f0;padding-top:6px">
+              <em>Lời giải: ${esc(q.option_explanations[corr] || q.option_explanations.join('; '))}</em>
+            </p>
+          ` : ''}
+        </div>
+
+        <!-- Edit block (hidden by default) -->
+        <div id="${cid}-editor" hidden style="margin-top:10px;padding-top:10px;border-top:1px dashed #c0d0e0;background:#f5f8fb;padding:10px;border-radius:6px">
+          <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">Nội dung câu hỏi:</label>
+          <textarea id="${cid}-edit-q" rows="3" style="width:100%;padding:6px;box-sizing:border-box;margin-bottom:8px;font-family:inherit">${esc(q.question || '')}</textarea>
+
+          ${isMc ? `
+            <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">Phương án & Chọn đáp án đúng:</label>
+            ${opts.map((opt, oi) => `
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <input type="radio" name="${cid}-correct-radio" value="${oi}" ${oi === corr ? 'checked' : ''}>
+                <span style="font-weight:bold;width:18px">${String.fromCharCode(65 + oi)}.</span>
+                <input type="text" id="${cid}-opt-${oi}" value="${esc(opt)}" style="flex:1;padding:5px;box-sizing:border-box">
+              </div>
+            `).join('')}
+          ` : ''}
+
+          <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px">
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;margin-bottom:2px">Mức độ:</label>
+              <select id="${cid}-edit-lvl" style="width:100%;padding:4px">
+                <option value="Biết" ${q.level === 'Biết' ? 'selected' : ''}>Nhận biết</option>
+                <option value="Hiểu" ${q.level === 'Hiểu' ? 'selected' : ''}>Thông hiểu</option>
+                <option value="Vận dụng" ${q.level === 'Vận dụng' ? 'selected' : ''}>Vận dụng</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;margin-bottom:2px">Yêu cầu cần đạt (YCCĐ):</label>
+              <input type="text" id="${cid}-edit-yccd" value="${esc(q.learning_outcome || '')}" style="width:100%;padding:4px;box-sizing:border-box">
+            </div>
+          </div>
+
+          <div style="margin-top:8px">
+            <label style="display:block;font-size:12px;font-weight:600;margin-bottom:2px">Lời giải / Hướng dẫn chấm:</label>
+            <textarea id="${cid}-edit-exp" rows="2" style="width:100%;padding:5px;box-sizing:border-box">${esc(q.option_explanations ? (q.option_explanations[corr] || q.option_explanations.join('\n')) : '')}</textarea>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:center">
+          <button type="button" class="primary quiet" data-save-q="${cid}" style="font-size:13px">➕ Thêm vào Ngân hàng (Chờ duyệt)</button>
+          <span id="${cid}-save-msg" style="font-size:12px;color:green"></span>
+        </div>
+      </div>
+    `;
+  }
+
+  function getQuestionFromCard(cid, origQ) {
+    const qText = ($(`#${cid}-edit-q`) ? $(`#${cid}-edit-q`).value : origQ.question || '').trim();
+    if (!qText) throw new Error('Nội dung câu hỏi không được để trống.');
+
+    const qType = origQ.type || 'MC';
+    const lvl = $(`#${cid}-edit-lvl`) ? $(`#${cid}-edit-lvl`).value : (origQ.level || 'Biết');
+    const yccd = ($(`#${cid}-edit-yccd`) ? $(`#${cid}-edit-yccd`).value : (origQ.learning_outcome || '')).trim();
+
+    const result = {
+      type: qType,
+      level: lvl,
+      learning_outcome: yccd,
+      question: qText,
+      review_status: 'draft' // Strictly draft / pending review!
+    };
+
+    if (qType === 'MC') {
+      const opts = [];
+      for (let i = 0; i < 4; i++) {
+        const inp = $(`#${cid}-opt-${i}`);
+        const val = inp ? inp.value.trim() : (origQ.options ? origQ.options[i] : '');
+        if (!val) throw new Error(`Phương án ${String.fromCharCode(65 + i)} không được để trống.`);
+        opts.push(val);
+      }
+      result.options = opts;
+
+      let checkedIdx = null;
+      const radios = document.getElementsByName(`${cid}-correct-radio`);
+      for (const r of radios) {
+        if (r.checked) { checkedIdx = Number(r.value); break; }
+      }
+      if (checkedIdx === null && origQ.correct !== undefined) {
+        checkedIdx = Number(origQ.correct);
+      }
+      if (checkedIdx === null || isNaN(checkedIdx) || checkedIdx < 0 || checkedIdx > 3) {
+        throw new Error('Vui lòng chọn đáp án đúng (A, B, C hoặc D) cho câu hỏi trắc nghiệm.');
+      }
+      result.correct = checkedIdx;
+
+      const expVal = ($(`#${cid}-edit-exp`) ? $(`#${cid}-edit-exp`).value : '').trim();
+      if (expVal) {
+        result.option_explanations = [expVal];
+      }
+    } else if (qType === 'YN') {
+      result.statements = origQ.statements || [];
+    }
+
+    return result;
+  }
+
+  function bindCardEvents(container, questionsList, prefix, grade, lessonCode, subject) {
+    container.querySelectorAll('[data-toggle-edit]').forEach(btn => {
+      btn.onclick = () => {
+        const cid = btn.dataset.toggleEdit;
+        const editor = $(`#${cid}-editor`);
+        if (editor) {
+          editor.hidden = !editor.hidden;
+          btn.textContent = editor.hidden ? '✏️ Chỉnh sửa / Xem lại' : '▲ Thu gọn chỉnh sửa';
+        }
+      };
+    });
+
+    container.querySelectorAll('[data-save-q]').forEach(btn => {
+      btn.onclick = async () => {
+        const cid = btn.dataset.saveQ;
+        const idx = Number(cid.split('-').pop());
+        const origQ = questionsList[idx];
+
+        try {
+          const qData = getQuestionFromCard(cid, origQ);
+          const bankPayload = {
+            id: '',
+            grade: Number(grade),
+            subject_name: subject || 'Tin học',
+            lesson_code: lessonCode,
+            review_status: 'draft',
+            ...qData
+          };
+
+          await mutate('/api/bank/save', bankPayload, () => {
+            btn.textContent = '✅ Đã thêm vào Ngân hàng (Chờ duyệt)';
+            btn.disabled = true;
+            const msg = $(`#${cid}-save-msg`);
+            if (msg) msg.textContent = `✓ Đã lưu bài [${lessonCode}]`;
+            notify(`Đã lưu câu hỏi vào bài [${lessonCode}] ở trạng thái Chờ duyệt.`);
+          });
+        } catch (err) {
+          notify(err.message || 'Lỗi khi lưu câu hỏi', true);
+        }
+      };
+    });
+  }
+
+  // Mode 1: Generate by Learning Outcome
+  const m1Btn = $('#ai-m1-submit-btn');
+  if (m1Btn) {
+    m1Btn.onclick = async () => {
+      const key = getSavedApiKey();
+      if (!key) {
+        notify('Vui lòng nhập Gemini API Key ở tab "Cấu hình API Key" trước.', true);
+        return;
+      }
+      const selectedLessonCode = $('#ai-m1-lesson-select')?.value;
+      if (!selectedLessonCode) {
+        notify('Vui lòng chọn bài học từ danh mục PPCT trước khi sinh câu hỏi.', true);
+        return;
+      }
+      const outcome = ($('#ai-m1-outcome').value || '').trim();
+      if (!outcome) {
+        notify('Vui lòng nhập Yêu cầu cần đạt (YCCĐ).', true);
+        return;
+      }
+      const grade = Number($('#ai-m1-grade').value);
+      const subject = $('#ai-m1-subject').value;
+      const lessonObj = lessons(grade, subject).find(l => l.lesson_code === selectedLessonCode);
+      const lessonName = lessonObj ? (lessonObj.lesson_name_source || lessonObj.lesson_name || lessonObj.name) : 'Bài học';
+
+      const payload = {
+        grade: grade,
+        subject: subject,
+        level: $('#ai-m1-level').value,
+        question_type: $('#ai-m1-type').value,
+        count: Number($('#ai-m1-count').value || 3),
+        lesson_name: lessonName,
+        learning_outcome: outcome,
+        api_key: key
+      };
+
+      const resBox = $('#ai-m1-results');
+      resBox.innerHTML = '<p class="empty">⏳ Đang kết nối Gemini và sinh câu hỏi...</p>';
+
+      try {
+        const res = await request('/api/ai/generate-by-outcome', payload);
+        const qs = res.questions || [];
+        if (!qs.length) {
+          resBox.innerHTML = '<p class="empty">Không sinh được câu hỏi nào.</p>';
+          return;
+        }
+
+        resBox.innerHTML = `<p style="margin-bottom:10px"><strong>Sinh thành công ${qs.length} câu hỏi theo YCCĐ. Vui lòng xem lại và chỉnh sửa trước khi lưu:</strong></p>` +
+          qs.map((q, idx) => buildQuestionCardHtml(q, idx, 'm1')).join('');
+
+        bindCardEvents(resBox, qs, 'm1', grade, selectedLessonCode, subject);
+      } catch (err) {
+        resBox.innerHTML = `<p class="danger" style="color:red">Lỗi: ${esc(err.message || 'Không thể tạo câu hỏi')}</p>`;
+      }
+    };
+  }
+
+  // Mode 2: Parse Raw Text
+  const m2Btn = $('#ai-m2-submit-btn');
+  if (m2Btn) {
+    m2Btn.onclick = async () => {
+      const key = getSavedApiKey();
+      if (!key) {
+        notify('Vui lòng cấu hình Gemini API Key trước.', true);
+        return;
+      }
+      const raw = ($('#ai-m2-raw-text').value || '').trim();
+      if (!raw) {
+        notify('Vui lòng dán đề thô vào khung.', true);
+        return;
+      }
+      const grade = Number($('#ai-m2-grade').value);
+      const subject = $('#ai-m2-subject')?.value || 'Tin học';
+      const targetLesson = $('#ai-m2-lesson-select')?.value;
+      if (!targetLesson) {
+        notify('Vui lòng chọn bài học đích để gán câu hỏi bóc tách.', true);
+        return;
+      }
+
+      const resBox = $('#ai-m2-results');
+      resBox.innerHTML = '<p class="empty">⏳ Đang phân tích và bóc tách đề thô...</p>';
+
+      try {
+        const res = await request('/api/ai/parse-raw', { raw_text: raw, grade: grade, api_key: key });
+        const qs = res.questions || [];
+        if (!qs.length) {
+          resBox.innerHTML = '<p class="empty">Không bóc tách được câu hỏi nào từ nội dung thô.</p>';
+          return;
+        }
+
+        resBox.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px;background:#eef4fa;border-radius:6px">
+            <span><strong>Bóc tách thành công ${qs.length} câu hỏi.</strong></span>
+            <div style="display:flex;gap:8px">
+              <button type="button" class="quiet" id="m2-select-all" style="font-size:12px">🔘 Chọn tất cả</button>
+              <button type="button" class="quiet" id="m2-deselect-all" style="font-size:12px">⚪ Bỏ chọn tất cả</button>
+              <button type="button" class="primary" id="m2-bulk-save" style="font-size:12px;padding:6px 12px">💾 Lưu các câu đã chọn (Chờ duyệt)</button>
+            </div>
+          </div>
+          ${qs.map((q, idx) => buildQuestionCardHtml(q, idx, 'm2')).join('')}
+        `;
+
+        bindCardEvents(resBox, qs, 'm2', grade, targetLesson, subject);
+
+        const selectAllBtn = $('#m2-select-all');
+        const deselectAllBtn = $('#m2-deselect-all');
+        const bulkSaveBtn = $('#m2-bulk-save');
+
+        if (selectAllBtn) {
+          selectAllBtn.onclick = () => {
+            resBox.querySelectorAll('.m2-select-chk').forEach(c => c.checked = true);
+          };
+        }
+        if (deselectAllBtn) {
+          deselectAllBtn.onclick = () => {
+            resBox.querySelectorAll('.m2-select-chk').forEach(c => c.checked = false);
+          };
+        }
+        if (bulkSaveBtn) {
+          bulkSaveBtn.onclick = async () => {
+            const selectedChks = Array.from(resBox.querySelectorAll('.m2-select-chk:checked'));
+            if (!selectedChks.length) {
+              notify('Chưa chọn câu hỏi nào để lưu.', true);
+              return;
+            }
+            let savedCount = 0;
+            bulkSaveBtn.disabled = true;
+            bulkSaveBtn.textContent = '⏳ Đang lưu...';
+
+            for (const chk of selectedChks) {
+              const idx = Number(chk.dataset.idx);
+              const cid = `m2-${idx}`;
+              const origQ = qs[idx];
+              try {
+                const qData = getQuestionFromCard(cid, origQ);
+                const bankPayload = {
+                  id: '',
+                  grade: grade,
+                  subject_name: subject,
+                  lesson_code: targetLesson,
+                  review_status: 'draft',
+                  ...qData
+                };
+                await mutate('/api/bank/save', bankPayload, () => {});
+                savedCount++;
+                const saveBtn = resBox.querySelector(`[data-save-q="${cid}"]`);
+                if (saveBtn) {
+                  saveBtn.textContent = '✅ Đã thêm (Chờ duyệt)';
+                  saveBtn.disabled = true;
+                }
+              } catch (e) {
+                notify(`Lỗi ở Câu ${idx + 1}: ${e.message}`, true);
+              }
+            }
+            bulkSaveBtn.textContent = `✅ Đã lưu ${savedCount}/${selectedChks.length} câu (Chờ duyệt)`;
+            notify(`Đã lưu thành công ${savedCount} câu hỏi vào bài [${targetLesson}].`);
+          };
+        }
+      } catch (err) {
+        resBox.innerHTML = `<p class="danger" style="color:red">Lỗi: ${esc(err.message)}</p>`;
+      }
+    };
+  }
+
+  // Mode 3: Generate Variants
+  const m3Btn = $('#ai-m3-submit-btn');
+  if (m3Btn) {
+    m3Btn.onclick = async () => {
+      const key = getSavedApiKey();
+      if (!key) {
+        notify('Vui lòng cấu hình Gemini API Key trước.', true);
+        return;
+      }
+      const qText = ($('#ai-m3-question-json').value || '').trim();
+      if (!qText) {
+        notify('Vui lòng chọn hoặc nhập câu hỏi gốc.', true);
+        return;
+      }
+      let origObj = null;
+      try { origObj = JSON.parse(qText); } catch(e) {}
+      if (!origObj || !origObj.question) {
+        notify('Định dạng câu hỏi gốc chưa hợp lệ. Vui lòng chọn câu hỏi từ danh sách.', true);
+        return;
+      }
+
+      const resBox = $('#ai-m3-results');
+      resBox.innerHTML = '<p class="empty">⏳ Đang sinh các biến thể tương đương...</p>';
+      try {
+        const res = await request('/api/ai/generate-variants', { question: origObj, count: 2, api_key: key });
+        const vars = res.variants || [];
+        if (!vars.length) {
+          resBox.innerHTML = '<p class="empty">Không sinh được biến thể nào.</p>';
+          return;
+        }
+
+        resBox.innerHTML = `<p style="margin-bottom:10px"><strong>Sinh thành công ${vars.length} biến thể tương đương từ câu hỏi gốc:</strong></p>` +
+          vars.map((v, idx) => buildQuestionCardHtml(v, idx, 'm3')).join('');
+
+        bindCardEvents(resBox, vars, 'm3', origObj.grade || 10, origObj.lesson_code || 'L1', origObj.subject_name || 'Tin học');
+      } catch (err) {
+        resBox.innerHTML = `<p class="danger" style="color:red">Lỗi: ${esc(err.message)}</p>`;
+      }
+    };
+  }
+}
+initAiAssistant();
+
+// User Guide & Data Specifications Dialog Integration
+function initUserGuide() {
+  const guideBtn = $('#btn-user-guide');
+  const dialog = $('#help-dialog');
+  if (!guideBtn || !dialog) return;
+
+  guideBtn.onclick = () => {
+    dialog.showModal();
+  };
+
+  // Switch tabs in Help modal
+  dialog.querySelectorAll('[data-help-tab]').forEach(tabBtn => {
+    tabBtn.onclick = () => {
+      dialog.querySelectorAll('[data-help-tab]').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = '#f5f5f5';
+        b.style.color = '#333';
+      });
+      tabBtn.classList.add('active');
+      tabBtn.style.background = 'var(--navy, #102d4a)';
+      tabBtn.style.color = '#fff';
+
+      const tabId = tabBtn.dataset.helpTab;
+      dialog.querySelectorAll('.help-pane').forEach(p => p.hidden = true);
+      const pane = $(`#help-pane-${tabId}`);
+      if (pane) pane.hidden = false;
+    };
+  });
+
+  // Copy sample raw text button
+  const copyBtn = $('#btn-copy-sample-raw');
+  const sampleBlock = $('#sample-raw-text-block');
+  if (copyBtn && sampleBlock) {
+    copyBtn.onclick = async () => {
+      try {
+        const textToCopy = sampleBlock.textContent;
+        await navigator.clipboard.writeText(textToCopy);
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = '✓ Đã sao chép vào bộ nhớ đệm!';
+        copyBtn.style.background = 'var(--green, #1d7058)';
+        setTimeout(() => {
+          copyBtn.textContent = originalText;
+          copyBtn.style.background = '';
+        }, 2500);
+        notify('Đã sao chép mẫu đề thô chuẩn vào bộ nhớ đệm.');
+      } catch (e) {
+        notify('Không thể sao chép tự động: ' + e.message, true);
+      }
+    };
+  }
+}
+initUserGuide();
+
+// Test Mode (Clean Slate Sandbox) Integration
+function initTestMode() {
+  const toggleBtn = $('#btn-toggle-test-mode');
+  const banner = $('#test-mode-banner');
+  const exitBtn = $('#btn-exit-test-mode');
+  const resetBtn = $('#btn-reset-test-data');
+
+  function updateUi() {
+    if (store.isTestMode) {
+      if (banner) banner.hidden = false;
+      if (toggleBtn) {
+        toggleBtn.textContent = '🧪 Đang ở Chế độ Test';
+        toggleBtn.style.background = '#ffeeba';
+        toggleBtn.style.color = '#856404';
+        toggleBtn.style.borderColor = '#c58919';
+      }
+    } else {
+      if (banner) banner.hidden = true;
+      if (toggleBtn) {
+        toggleBtn.textContent = '🧪 Chế độ Test';
+        toggleBtn.style.background = '#fffdf5';
+        toggleBtn.style.color = '#9a6700';
+        toggleBtn.style.borderColor = '#e0c885';
+      }
+    }
+  }
+
+  async function setTestMode(active) {
+    store.isTestMode = Boolean(active);
+    sessionStorage.setItem('exammatrix_test_mode', store.isTestMode ? '1' : '0');
+    updateUi();
+    await load(true);
+    if (store.isTestMode) {
+      notify('Đã chuyển sang Chế độ Test: Dữ liệu hoàn toàn trống, không ảnh hưởng ngân hàng thật.');
+    } else {
+      notify('Đã quay về Môi trường Dữ liệu Thật (Chính thức).');
+    }
+  }
+
+  if (toggleBtn) {
+    toggleBtn.onclick = () => setTestMode(!store.isTestMode);
+  }
+  if (exitBtn) {
+    exitBtn.onclick = () => setTestMode(false);
+  }
+  if (resetBtn) {
+    resetBtn.onclick = async () => {
+      if (!confirm('Bạn có chắc chắn muốn làm sạch toàn bộ dữ liệu trong Chế độ Test về trạng thái trống hoàn toàn?')) return;
+      try {
+        const res = await request('/api/test/reset', {});
+        if (res && res.state) {
+          store.bank = res.state.bank;
+          store.exams = res.state.exams || [];
+          store.revisions = res.state.revisions || [];
+          store.selected.clear();
+          render();
+          notify('Đã làm sạch toàn bộ dữ liệu thử nghiệm về 0 câu hỏi.');
+        }
+      } catch (err) {
+        notify('Lỗi khi làm sạch dữ liệu test: ' + err.message, true);
+      }
+    };
+  }
+
+  updateUi();
+}
+initTestMode();
+
+function setGlobalSubject(subj) {
+  if (!subj) return;
+  store.selectedSubject = subj;
+  store.ppctSubject = subj;
+  store.filters.subject = subj;
+  try { localStorage.setItem('exammatrix_active_subject', subj); } catch(e) {}
+
+  const gSel = $('#global-subject-select');
+  if (gSel && gSel.value !== subj) gSel.value = subj;
+  const pSel = $('#ppct-subject');
+  if (pSel && pSel.value !== subj) pSel.value = subj;
+
+  const sideCaption = $('#sidebar-subject-caption');
+  if (sideCaption) sideCaption.textContent = `Khảo thí & Đánh giá · Môn ${subj}`;
+  const footSubj = $('#footer-subject-name');
+  if (footSubj) footSubj.textContent = subj;
+
+  // Sync AI modal inputs
+  const m1Subj = $('#ai-m1-subject');
+  if (m1Subj) m1Subj.value = subj;
+  const m2Subj = $('#ai-m2-subject');
+  if (m2Subj) m2Subj.value = subj;
+
+  render();
+  notify(`Đã chuyển không gian làm việc sang môn: ${subj}`);
+}
+
+function initGlobalSubject() {
+  const gSel = $('#global-subject-select');
+  if (gSel) {
+    gSel.value = store.selectedSubject || 'Tin học';
+    gSel.onchange = e => setGlobalSubject(e.target.value);
+  }
+  const sideCaption = $('#sidebar-subject-caption');
+  if (sideCaption) sideCaption.textContent = `Khảo thí & Đánh giá · Môn ${store.selectedSubject || 'Tin học'}`;
+  const footSubj = $('#footer-subject-name');
+  if (footSubj) footSubj.textContent = store.selectedSubject || 'Tin học';
+}
+initGlobalSubject();

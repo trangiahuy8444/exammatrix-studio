@@ -58,6 +58,15 @@ def read_json(path, default=None):
         raise ServiceError('Không đọc được dữ liệu JSON.', {'file': path.name, 'reason': str(exc)}, 409) from exc
 
 
+def mc_answer_letter(q):
+    """Chữ cái đáp án đúng của câu MC; báo lỗi thay vì đoán khi dữ liệu hỏng."""
+    correct = q.get('correct')
+    if type(correct) is not int or correct not in range(len(q.get('options') or 'ABCD')):
+        raise ServiceError('Câu trắc nghiệm có đáp án đúng không hợp lệ; không thể lập bảng đáp án.',
+                           {'id': q.get('id'), 'correct': correct}, 409)
+    return chr(65 + correct)
+
+
 def number(value, label):
     if isinstance(value, bool) or not isinstance(value, (int, float, str, Decimal)):
         raise ServiceError(f'{label} phải là số hữu hạn.')
@@ -317,7 +326,14 @@ class BankService:
         q.setdefault('source_rows', [])
         q.setdefault('semester', 1)
         q.setdefault('response_mode', 'Trắc nghiệm' if q['type'] == 'MC' else 'Tự luận')
-        q['outcome_index'] = lesson['outcomes'].index(q['learning_outcome'])
+        outcomes = lesson.get('outcomes') or []
+        if q.get('learning_outcome') in outcomes:
+            q['outcome_index'] = outcomes.index(q['learning_outcome'])
+        elif status == 'draft':
+            q['outcome_index'] = None  # Câu nháp (ví dụ do AI đề xuất) chưa gắn YCCĐ trong PPCT.
+        else:
+            raise ServiceError('Yêu cầu cần đạt phải thuộc bài học trong PPCT.',
+                               {'lesson_code': lesson_code, 'learning_outcome': q.get('learning_outcome')})
         return q
 
     def _validate_bank(self, bank):
@@ -927,7 +943,7 @@ class BankService:
                         if orig_exps and len(orig_exps) == len(orig_opts):
                             q['option_explanations'] = [orig_exps[i] for i in perm]
 
-                    ans_letter = chr(65 + q['correct']) if 'correct' in q and isinstance(q['correct'], int) and 0 <= q['correct'] <= 25 else 'A'
+                    ans_letter = mc_answer_letter(q)
                     answer_grid['mc'].setdefault(slot, {})[code] = ans_letter
 
                 # Process YN questions
@@ -1059,6 +1075,7 @@ class BankService:
             with zipfile.ZipFile(bio, 'w', compression=zipfile.ZIP_DEFLATED) as z:
                 answer_grid_mc = {}
                 answer_grid_yn = {}
+                answer_grid_short = {}
                 codes = []
                 seen_codes = {}
 
@@ -1097,15 +1114,17 @@ class BankService:
                     for q in ex.get('questions', []):
                         slot = q.get('slot_number', 1)
                         if q.get('type') == 'MC':
-                            ans_letter = chr(65 + q['correct']) if 'correct' in q and isinstance(q['correct'], int) and 0 <= q['correct'] <= 25 else 'A'
+                            ans_letter = mc_answer_letter(q)
                             answer_grid_mc.setdefault(slot, {})[code] = ans_letter
                         elif q.get('type') == 'YN':
                             yn_ans = ", ".join(f"{st.get('label', chr(97+si))}: {'Đ' if st.get('correct') else 'S'}" for si, st in enumerate(q.get('statements', [])))
                             answer_grid_yn.setdefault(slot, {})[code] = yn_ans
+                        elif q.get('type') == 'SHORT':
+                            answer_grid_short.setdefault(slot, {})[code] = canonical_short_answer(q)
 
                 # Master Answer Grid
                 if len(family) > 1 and fmt == 'docx':
-                    grid_payload = {'codes': codes, 'mc': answer_grid_mc, 'yn': answer_grid_yn}
+                    grid_payload = {'codes': codes, 'mc': answer_grid_mc, 'yn': answer_grid_yn, 'short': answer_grid_short}
                     raw_grid = export_answer_grid_docx(grid_payload, meta=exam)
                     z.writestr(f"{folder_root}/02_Dap_an_va_Huong_dan_cham/Bang_dap_an_tong_hop_cac_ma_de.docx", raw_grid)
                     included_components.append("Bảng ma trận đáp án tổng hợp các mã đề (DOCX)")

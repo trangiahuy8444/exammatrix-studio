@@ -1104,6 +1104,17 @@ def _docx_lms(record):
                 r_tag = p_st.add_run('[ĐÚNG]' if is_correct else '[SAI]')
                 r_tag.bold = True
 
+        elif q_type == 'SHORT':
+            p_q = doc.add_paragraph()
+            p_q.paragraph_format.space_before = Pt(6)
+            p_q.paragraph_format.space_after = Pt(2)
+            r_num = p_q.add_run(f'Câu {slot}. ')
+            r_num.bold = True
+            p_q.add_run(q_text)
+            # Rule 06 chưa quy định dạng TLN; tạm dùng cách đánh dấu đáp án trong ngoặc vuông như MC.
+            p_ans = doc.add_paragraph()
+            p_ans.paragraph_format.space_after = Pt(6)
+            p_ans.add_run(f'[Đáp án: {canonical_short_answer(q)}]').bold = True
         elif q_type == 'ES':
             p_q = doc.add_paragraph()
             p_q.paragraph_format.space_before = Pt(6)
@@ -1151,6 +1162,9 @@ def _html_lms(record):
                     body.append(f'<p><strong>[{lbl_str}]</strong> {st_text}  {tag}</p>')
                 else:
                     body.append(f'<p>{lbl_str} {st_text}  {tag}</p>')
+        elif q_type == 'SHORT':
+            body.append(f'<p><strong>Câu {slot}.</strong> {q_text}</p>')
+            body.append(f'<p><strong>[Đáp án: {escape(canonical_short_answer(q), quote=True)}]</strong></p>')
         elif q_type == 'ES':
             body.append(f'<p><strong>Câu {slot}.</strong> {q_text}</p>')
 
@@ -1180,6 +1194,36 @@ def export_document(record, fmt='docx', answers=False, revision=False, target=''
         return json.dumps(value,ensure_ascii=False,indent=2,allow_nan=False).encode(),'application/json; charset=utf-8',stem+'.json'
     if fmt=='html':return _html(record,answers,revision),'text/html; charset=utf-8',stem+'.html'
     return _docx(record,answers,revision),'application/vnd.openxmlformats-officedocument.wordprocessingml.document',stem+'.docx'
+
+
+def _answer_grid_table(doc, title, rows, codes):
+    """Một bảng đáp án: mỗi dòng một câu, mỗi cột một mã đề."""
+    from docx.shared import Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.oxml import OxmlElement
+    p_sec = doc.add_paragraph()
+    p_sec.paragraph_format.space_before = Pt(8); p_sec.paragraph_format.space_after = Pt(4)
+    r = p_sec.add_run(title)
+    r.bold = True; r.font.size = Pt(11.5)
+    tbl = doc.add_table(rows=1 + len(rows), cols=1 + len(codes))
+    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER; tbl.autofit = False
+    _set_table_borders(tbl, val='single', sz='4', color='B0C0D0')
+    for ci, text in enumerate(['Câu'] + [f'Mã {code}' for code in codes]):
+        cell = tbl.rows[0].cells[ci]
+        cell.text = text; _set_cell_bg(cell, 'EBF0FA')
+        cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        if cell.paragraphs[0].runs: cell.paragraphs[0].runs[0].bold = True
+    tbl.rows[0]._tr.get_or_add_trPr().append(OxmlElement('w:tblHeader'))
+    slots = sorted(rows.keys(), key=lambda x: int(x) if str(x).isdigit() else 999)
+    for ri, slot in enumerate(slots, 1):
+        cells = tbl.rows[ri].cells
+        cells[0].text = f'{slot}'
+        cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        if cells[0].paragraphs[0].runs: cells[0].paragraphs[0].runs[0].bold = True
+        for ci, code in enumerate(codes, 1):
+            cells[ci].text = str(rows[slot].get(code, '-'))
+            cells[ci].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 
 def export_answer_grid_docx(answer_grid: dict, title: str = "BẢNG ĐÁP ÁN TỔNG HỢP CÁC MÃ ĐỀ", meta: dict = None) -> bytes:
@@ -1226,84 +1270,13 @@ def export_answer_grid_docx(answer_grid: dict, title: str = "BẢNG ĐÁP ÁN T�
         r_sub.bold = True; r_sub.font.size = Pt(10.5)
 
     codes = answer_grid.get('codes', [])
-    mc = answer_grid.get('mc', {})
-    if mc and codes:
-        p_sec = doc.add_paragraph()
-        p_sec.paragraph_format.space_before = Pt(8); p_sec.paragraph_format.space_after = Pt(4)
-        r = p_sec.add_run("I. BẢNG ĐÁP ÁN TRẮC NGHIỆM KHÁCH QUAN")
-        r.bold = True; r.font.size = Pt(11.5)
-
-        cols = 1 + len(codes)
-        rows = 1 + len(mc)
-        tbl = doc.add_table(rows=rows, cols=cols)
-        tbl.alignment = WD_TABLE_ALIGNMENT.CENTER; tbl.autofit = False
-        _set_table_borders(tbl, val='single', sz='4', color='B0C0D0')
-
-        col_w = min(2.5, 16.0 / cols)
-        hdr_cells = tbl.rows[0].cells
-        hdr_cells[0].text = "Câu"; hdr_cells[0].width = Cm(1.6)
-        _set_cell_bg(hdr_cells[0], 'EBF0FA')
-        hdr_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        if hdr_cells[0].paragraphs[0].runs: hdr_cells[0].paragraphs[0].runs[0].bold = True
-
-        for ci, code in enumerate(codes, 1):
-            hdr_cells[ci].text = f"Mã {code}"; hdr_cells[ci].width = Cm(col_w)
-            _set_cell_bg(hdr_cells[ci], 'EBF0FA')
-            hdr_cells[ci].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            if hdr_cells[ci].paragraphs[0].runs: hdr_cells[ci].paragraphs[0].runs[0].bold = True
-
-        repeat = OxmlElement('w:tblHeader'); tbl.rows[0]._tr.get_or_add_trPr().append(repeat)
-
-        sorted_slots = sorted(mc.keys(), key=lambda x: int(x) if str(x).isdigit() else 999)
-        for ri, slot in enumerate(sorted_slots, 1):
-            r_cells = tbl.rows[ri].cells
-            r_cells[0].text = f"{slot}"; r_cells[0].width = Cm(1.6)
-            r_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            if r_cells[0].paragraphs[0].runs: r_cells[0].paragraphs[0].runs[0].bold = True
-            for ci, code in enumerate(codes, 1):
-                ans = mc[slot].get(code, '-')
-                r_cells[ci].text = str(ans); r_cells[ci].width = Cm(col_w)
-                r_cells[ci].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                if r_cells[ci].paragraphs[0].runs: r_cells[ci].paragraphs[0].runs[0].bold = True
-
-    yn = answer_grid.get('yn', {})
-    if yn and codes:
-        p_sec = doc.add_paragraph()
-        p_sec.paragraph_format.space_before = Pt(10); p_sec.paragraph_format.space_after = Pt(4)
-        r = p_sec.add_run("II. BẢNG ĐÁP ÁN TRẮC NGHIỆM ĐÚNG / SAI")
-        r.bold = True; r.font.size = Pt(11.5)
-
-        cols = 1 + len(codes)
-        rows = 1 + len(yn)
-        tbl_yn = doc.add_table(rows=rows, cols=cols)
-        tbl_yn.alignment = WD_TABLE_ALIGNMENT.CENTER; tbl_yn.autofit = False
-        _set_table_borders(tbl_yn, val='single', sz='4', color='B0C0D0')
-
-        col_w_yn = min(3.5, 15.0 / max(1, len(codes)))
-        hdr_cells = tbl_yn.rows[0].cells
-        hdr_cells[0].text = "Câu"; hdr_cells[0].width = Cm(2.0)
-        _set_cell_bg(hdr_cells[0], 'EBF0FA')
-        hdr_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        if hdr_cells[0].paragraphs[0].runs: hdr_cells[0].paragraphs[0].runs[0].bold = True
-
-        for ci, code in enumerate(codes, 1):
-            hdr_cells[ci].text = f"Mã {code}"; hdr_cells[ci].width = Cm(col_w_yn)
-            _set_cell_bg(hdr_cells[ci], 'EBF0FA')
-            hdr_cells[ci].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            if hdr_cells[ci].paragraphs[0].runs: hdr_cells[ci].paragraphs[0].runs[0].bold = True
-
-        repeat_yn = OxmlElement('w:tblHeader'); tbl_yn.rows[0]._tr.get_or_add_trPr().append(repeat_yn)
-
-        sorted_yn_slots = sorted(yn.keys(), key=lambda x: int(x) if str(x).isdigit() else 999)
-        for ri, slot in enumerate(sorted_yn_slots, 1):
-            r_cells = tbl_yn.rows[ri].cells
-            r_cells[0].text = f"Câu {slot}"; r_cells[0].width = Cm(2.0)
-            r_cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            if r_cells[0].paragraphs[0].runs: r_cells[0].paragraphs[0].runs[0].bold = True
-            for ci, code in enumerate(codes, 1):
-                ans = yn[slot].get(code, '-')
-                r_cells[ci].text = str(ans); r_cells[ci].width = Cm(col_w_yn)
-                r_cells[ci].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    sections = [(key, title) for key, title in (
+        ('mc', 'BẢNG ĐÁP ÁN TRẮC NGHIỆM NHIỀU LỰA CHỌN'),
+        ('yn', 'BẢNG ĐÁP ÁN TRẮC NGHIỆM ĐÚNG / SAI'),
+        ('short', 'BẢNG ĐÁP ÁN TRẢ LỜI NGẮN'),
+    ) if answer_grid.get(key) and codes]
+    for index, (key, title) in enumerate(sections):
+        _answer_grid_table(doc, f'{ROMAN[index]}. {title}', answer_grid[key], codes)
 
     # Grid widths and cell widths must both fit the actual printable area.
     available = sec.page_width-sec.left_margin-sec.right_margin

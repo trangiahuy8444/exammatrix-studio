@@ -1,0 +1,82 @@
+"""Observe the actual Django UI with a clean browser and the isolated teacher session."""
+import json
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+
+OUT=Path(__file__).resolve().parent
+session=json.loads(Path('/private/tmp/exammatrix-vatly10-session.json').read_text())
+base='http://127.0.0.1:8893'
+url=base+'/app/?curriculum='+session['curriculum']
+results={'checks':[],'page_errors':[],'http_errors':[]}
+def check(name,ok,detail=''):
+    results['checks'].append(dict(name=name,passed=bool(ok),detail=detail))
+    print(('PASS ' if ok else 'FAIL ')+name,flush=True)
+    save()
+def save(): (OUT/'browser_results.json').write_text(json.dumps(results,ensure_ascii=False,indent=2))
+shots=OUT/'screenshots';shots.mkdir(exist_ok=True)
+with sync_playwright() as p:
+    browser=p.chromium.launch(headless=True)
+    context=browser.new_context(viewport={'width':1440,'height':1100},device_scale_factor=1)
+    context.add_cookies([{'name':'sessionid','value':session['sessionid'],'url':base}])
+    page=context.new_page()
+    page.on('pageerror',lambda e:results['page_errors'].append(str(e)))
+    page.on('response',lambda r:results['http_errors'].append({'url':r.url,'status':r.status}) if r.status>=400 else None)
+    page.goto(url);page.wait_for_load_state('networkidle')
+    page.screenshot(path=str(shots/'01_initial_course.png'),full_page=True)
+    body=page.locator('body').inner_text()
+    results['initial_state']=page.evaluate('({selectedSubject:store.selectedSubject,context:store.context,isTestMode:store.isTestMode,grade:store.examDraft.grade,bankCount:store.bank.questions.length})')
+    check('Fresh browser opens selected physics course', '31' in body and 'Câu hỏi môn Vật lí' in body,body[:2500])
+    results['initial_selects']=page.locator('select').evaluate_all('(els)=>els.map(e=>({id:e.id,value:e.value,options:[...e.options].map(o=>({value:o.value,text:o.textContent}))}))')
+    # Explicitly choose physics as an observed UI workaround, then test core tabs.
+    select=page.locator('#global-subject-select')
+    if select.count():
+        select.select_option(label='Vật lí')
+        page.wait_for_load_state('networkidle')
+    page.locator('[data-tab="bank"]').click()
+    page.locator('#bank').wait_for(state='visible')
+    page.wait_for_selector('#filter-lesson')
+    page.screenshot(path=str(shots/'02_physics_bank.png'),full_page=True)
+    options=page.locator('#filter-lesson option').all_text_contents()
+    check('Physics lesson filter includes imported VL01-VL12',sum('VL' in x for x in options)>=12,options)
+    check('Physics bank lists saved questions',page.locator('#bank-list .q-card').count()>0)
+    page.locator('#filter-search').fill('150 m')
+    check('Search finds newly authored question',page.locator('#bank-list .q-card').count()==1)
+    page.locator('#filter-search').fill('')
+    page.locator('#add-question').click()
+    form=page.locator('#edit-dialog')
+    check('Question editor defaults to course grade 10',form.locator('select[name="grade"]').input_value()=='10')
+    form.locator('select[name="grade"]').select_option('10')
+    results['editor_selects']=form.locator('select').evaluate_all('(els)=>els.map(e=>({id:e.id,name:e.name,value:e.value,options:[...e.options].map(o=>({value:o.value,text:o.textContent}))}))')
+    lesson_options=form.locator('select[name="lesson_code"] option').all_text_contents()
+    check('Question editor offers imported physics lessons',any('VL01' in x or 'Làm quen với Vật lí' in x for x in lesson_options),lesson_options)
+    page.screenshot(path=str(shots/'03_question_editor.png'),full_page=True)
+    page.keyboard.press('Escape')
+    page.locator('[data-tab="ppct"]').click()
+    page.locator('#ppct').wait_for(state='visible')
+    page.wait_for_selector('#ppct-grade')
+    page.locator('#ppct-grade').select_option('10')
+    ppct=page.locator('#ppct').inner_text()
+    check('PPCT tab shows real imported lesson title','Làm quen với Vật lí học' in ppct,ppct[:3500])
+    page.screenshot(path=str(shots/'04_physics_curriculum.png'),full_page=True)
+    page.locator('[data-tab="matrices"]').click()
+    page.locator('#matrices').wait_for(state='visible')
+    page.wait_for_load_state('networkidle')
+    check('Matrices tab shows imported-context test matrix','TN 70%' in page.locator('#matrices').inner_text())
+    page.screenshot(path=str(shots/'05_physics_matrices.png'),full_page=True)
+    page.locator('[data-tab="exams"]').click()
+    page.locator('#exams').wait_for(state='visible')
+    page.wait_for_load_state('networkidle')
+    check('Exam tab shows variants','104' in page.locator('#exams').inner_text())
+    page.screenshot(path=str(shots/'06_physics_exams.png'),full_page=True)
+    download_link=page.locator('#exams a[href*="bundle.zip"][href*="docx"]').first
+    if download_link.count():
+        if not download_link.is_visible():
+            parent=download_link.locator('xpath=ancestor::details[1]')
+            if parent.count(): parent.locator('summary').first.click()
+        with page.expect_download() as waiting: download_link.click()
+        download=waiting.value
+        download.save_as(str(OUT/'exports'/'Ho_so_tai_qua_giao_dien.zip'))
+        check('Download bundle from actual UI',download.failure() is None)
+    check('No unhandled JavaScript exceptions',not results['page_errors'],results['page_errors'])
+    save()
+    browser.close()

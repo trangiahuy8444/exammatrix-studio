@@ -1,5 +1,9 @@
 # Triển khai thử nghiệm: Render + Neon PostgreSQL
 
+Bản dùng thử đã triển khai ngày 24/10/2026: https://ngan-hang-de-web.onrender.com/
+
+Đã xác minh Render Free, Neon Free ở Singapore, migration thành công, health check 200, trang đăng nhập/đăng ký HTTPS và yêu cầu đăng nhập được xử lý qua database thật. Chưa xác minh toàn bộ thao tác sau đăng nhập trên production; người dùng cần tự tạo mật khẩu/tài khoản đầu tiên.
+
 Mã nguồn nằm trong repository GitHub riêng tư. Render chạy Django; Neon giữ tài khoản, dữ liệu của từng giáo viên và tệp nguồn Word/ảnh. Không dùng GitHub Pages cho ứng dụng Django này.
 
 ## 1. Tạo cơ sở dữ liệu Neon

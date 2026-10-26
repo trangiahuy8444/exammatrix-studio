@@ -29,6 +29,15 @@ def header(record,title,code=''):
         (r' -- Mã đề: \textbf{'+esc(code)+'}' if code else '')+r'\end{center}'+'\n')
 
 
+def matrix_header(record,title):
+    """Tiêu đề ma trận/đặc tả như mẫu Word đã duyệt: không tên trường, không logo."""
+    from matrices.exports import matrix_period
+    full=(title+' '+matrix_period(record.get('exam_type',''))).strip()
+    return (r'\begin{center}\textbf{'+esc(full)+r'}\\[3pt]'+
+        r'\textbf{MÔN: '+esc(str(record.get('subject_name','Tin học')).upper())+' '+str(record.get('grade',10))+
+        ' - THỜI GIAN LÀM BÀI: '+str(record.get('duration',45))+r' PHÚT}\end{center}'+'\n')
+
+
 def preamble(record,landscape=False):
     from latex_generator import LATEX_PORTRAIT_PREAMBLE, LATEX_LANDSCAPE_PREAMBLE
     text=LATEX_LANDSCAPE_PREAMBLE if landscape else LATEX_PORTRAIT_PREAMBLE
@@ -131,9 +140,10 @@ def matrix(record):
         cells.append(label(v['totals']['items'] if metric=='count' else v['totals']['points'] if metric=='points' else 100))
         rows.append(cells)
     code=record.get('exam_code','')
-    out=[preamble(record,True),header(record,'KHUNG MA TRẬN ĐỀ KIỂM TRA ĐỊNH KÌ',code),
+    # Mẫu ma trận đã duyệt không có tên trường ở chân trang; vẫn giữ "Trang X/Y" (rule 03).
+    out=[preamble(record,True).replace(r'\lfoot{\textit{Trường TH, THCS \& THPT Quốc Tế Á Châu}}',r'\lfoot{}'),matrix_header(record,'MA TRẬN ĐỀ KIỂM TRA'),
         table([.7,2.3,3.7]+[1]*(len(headers)-3),headers,rows,size=8.5),
-        r'\clearpage',header(record,'BẢNG ĐẶC TẢ ĐỀ KIỂM TRA',code)]
+        r'\clearpage',matrix_header(record,'BẢNG ĐẶC TẢ ĐỀ KIỂM TRA')]
     lesson_map={l['lesson_code']:l for l in record['lessons']}
     counts=Counter((p['requirement_id'],s['kind']) for s in record['slots'] for p in s['parts'])
     rows=[]
@@ -147,6 +157,13 @@ def matrix(record):
             comp=esc(req.get('competency','')).replace(r'\_',r'\_\allowbreak ')
             cells.append(f'{count} {kind}'+r'\newline ('+{'Biết':'B','Hiểu':'H','Vận dụng':'V'}[req['level']]+') ('+comp+')' if count else '0')
         rows.append(cells)
+    from matrices.exports import spec_totals, spec_ratio_lines
+    tnkq_total,tl_total=spec_totals(v)
+    ratio,tnkq_share,tl_share=spec_ratio_lines(v,record.get('total_points',10))
+    span=lambda n,text:r'\multicolumn{'+str(n)+r'}{|c|}{\textbf{'+esc(text)+'}}'
+    rows.append([span(3,'Tổng'),'',span(3,tnkq_total),r'\textbf{'+esc(tl_total)+'}'])
+    rows.append([span(3,'Tỉ lệ %'),'',span(4,ratio)])
+    rows.append([span(3,'Tỉ lệ chung'),'',span(3,tnkq_share),r'\textbf{'+esc(tl_share)+'}'])
     out.append(table([.6,2,3,10,1.7,1.7,1.7,1.7],['TT','Chủ đề','Nội dung / bài','Yêu cầu cần đạt','MC','YN','Short','Tự luận'],rows,size=9))
     out.append(r'\end{document}')
     return '\n'.join(out)

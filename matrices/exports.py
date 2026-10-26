@@ -21,6 +21,38 @@ NAMES={'MC':'TNKQ-NLC','YN':'TNKQ-ĐS','ES':'Tự luận','SHORT':'Trả lời n
 
 
 def label(value):return f'{value:g}'.replace('.',',')
+LEVEL_ABBR={'Biết':'B','Hiểu':'H','Vận dụng':'VD'}
+
+
+def matrix_period(exam_type):
+    """Kỳ kiểm tra trong tiêu đề ma trận/đặc tả, ví dụ "GIỮA KÌ 1" (mẫu GK1 đã nộp)."""
+    return dict(TX='THƯỜNG XUYÊN',GK1='GIỮA KÌ 1',CK1='CUỐI KÌ 1',GK2='GIỮA KÌ 2',CK2='CUỐI KÌ 2').get(exam_type,'')
+
+
+def spec_totals(v):
+    """Dòng "Tổng" của bản đặc tả: ("16 câu B, 12 câu H", "3 câu VD") cho cột TNKQ và Tự luận."""
+    groups={'TNKQ':{},'TL':{}}
+    for row in v['rows']:
+        for key,cell in row['cells'].items():
+            kind,level=key.split('|');group=groups['TL' if kind=='ES' else 'TNKQ']
+            group[level]=group.get(level,0)+cell['count']
+    text=lambda g:', '.join(f'{groups[g][l]} câu {LEVEL_ABBR[l]}' for l in LEVELS if groups[g].get(l))
+    return text('TNKQ'),text('TL')
+
+
+def spec_ratio_lines(v,total_points=10):
+    """Dòng "Tỉ lệ %" và "Tỉ lệ chung" (TNKQ | Tự luận) của bản đặc tả, theo mẫu GK1 đã nộp."""
+    counts={l:0 for l in LEVELS};groups={'TNKQ':{},'TL':{}}
+    for row in v['rows']:
+        for key,cell in row['cells'].items():
+            kind,level=key.split('|');group=groups['TL' if kind=='ES' else 'TNKQ']
+            counts[level]+=cell['count'];group[level]=group.get(level,0)+float(cell['points'])
+    pct=lambda points:label(round(float(points)/float(total_points)*100,2))+'%'
+    ratio=', '.join(f'{counts[l]} câu {LEVEL_ABBR[l]} = {pct(v["totals"]["by_level"][l]["points"])}' for l in LEVELS if counts[l])
+    def share(name):
+        levels=[l for l in LEVELS if groups[name].get(l)]
+        return ' + '.join(LEVEL_ABBR[l] for l in levels)+' = '+pct(sum(groups[name].values())) if levels else ''
+    return ratio,share('TNKQ'),share('TL')
 
 
 def _document():
@@ -208,8 +240,10 @@ def _spec(d,m,v):
         if offset==0:
             for ki,k in enumerate(('MC','YN','SHORT','ES'),4):_text(t.cell(ri,ki),v['totals']['by_kind'][k]['items'],True,True)
         else:
-            text='; '.join(f'{l}: {label(v["totals"]["by_level"][l]["points"]*10)}%' for l in LEVELS)
-            _text(t.cell(ri,3).merge(t.cell(ri,7)),text,True,True)
+            ratio,tnkq,tl=spec_ratio_lines(v,m.get('total_points',10))
+            if offset==1:_text(t.cell(ri,4).merge(t.cell(ri,7)),ratio,True,True)
+            else:
+                _text(t.cell(ri,4).merge(t.cell(ri,6)),tnkq,True,True);_text(t.cell(ri,7),tl,True,True)
 
 
 def _competencies(d,m,v):
@@ -242,7 +276,7 @@ def matrix_docx(matrix,ppct,section='all',mode='auto'):
     if section not in ('all','matrix','specification','competencies') or (section=='competencies' and matrix.get('profile')!='THPT'):raise ServiceError('Phần xuất không phù hợp mẫu.')
     if mode not in ('auto','raw','web'):raise ServiceError('Chế độ xem không hợp lệ.')
     m=matrix;d=_document();d.core_properties.title=m['title']
-    period=dict(TX='THƯỜNG XUYÊN',GK1='GIỮA KÌ 1',CK1='CUỐI KÌ 1',GK2='GIỮA KÌ 2',CK2='CUỐI KÌ 2').get(m['exam_type'],'')
+    period=matrix_period(m['exam_type'])
     source=(m.get('source') or {}).get('tables',[])
     report=validate_matrix(m,ppct,True)
     if mode=='raw':

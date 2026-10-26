@@ -1053,6 +1053,10 @@ function initAiAssistant() {
               </div>
             `).join('')}
           ` : ''}
+          ${q.type === 'SHORT' ? `
+            <label for="${cid}-edit-short" style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">Đáp án trả lời ngắn:</label>
+            <input type="text" id="${cid}-edit-short" value="${esc(C.shortAnswerOf(q))}" style="width:100%;padding:5px;box-sizing:border-box;margin-bottom:8px">
+          ` : ''}
 
           <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px">
             <div>
@@ -1123,11 +1127,15 @@ function initAiAssistant() {
       result.correct = checkedIdx;
 
       const expVal = ($(`#${cid}-edit-exp`) ? $(`#${cid}-edit-exp`).value : '').trim();
-      if (expVal) {
-        result.option_explanations = [expVal];
-      }
+      result.option_explanations = C.mcExplanations(origQ.option_explanations, checkedIdx, expVal);
     } else if (qType === 'YN') {
       result.statements = origQ.statements || [];
+    } else if (qType === 'SHORT') {
+      const inp = $(`#${cid}-edit-short`);
+      result.short_answer = inp ? inp.value.trim() : C.shortAnswerOf(origQ);
+    } else if (qType === 'ES') {
+      if (Array.isArray(origQ.rubric)) result.rubric = origQ.rubric;
+      if (origQ.equivalent_answer_policy) result.equivalent_answer_policy = origQ.equivalent_answer_policy;
     }
 
     return result;

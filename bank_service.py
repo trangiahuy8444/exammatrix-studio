@@ -58,6 +58,19 @@ def read_json(path, default=None):
         raise ServiceError('Không đọc được dữ liệu JSON.', {'file': path.name, 'reason': str(exc)}, 409) from exc
 
 
+PUBLIC_CURRICULA = Path(__file__).resolve().parent / 'public' / 'curricula.js'
+
+
+def load_default_curricula():
+    """Đọc danh mục môn từ public/curricula.js (phần sau `window.SUBJECT_CURRICULA =` là JSON)."""
+    try:
+        text = PUBLIC_CURRICULA.read_text(encoding='utf-8')
+        payload = text.split('window.SUBJECT_CURRICULA =', 1)[1].strip().rstrip(';')
+        return json.loads(payload)
+    except (OSError, IndexError, ValueError):
+        return {}
+
+
 def mc_answer_letter(q):
     """Chữ cái đáp án đúng của câu MC; báo lỗi thay vì đoán khi dữ liệu hỏng."""
     correct = q.get('correct')
@@ -94,14 +107,12 @@ class BankService:
             raise ServiceError('Ngân hàng thiếu danh mục PPCT.', status=409)
         self.catalog = copy.deepcopy(initial['ppct'])
         self.lessons = {(x['grade'], x['lesson_code']): x for x in self.catalog.get('lessons', [])}
+        # Danh mục nhiều môn: nguồn duy nhất là public/curricula.js; data_dir/curricula.json (nếu có) ghi đè.
         curricula_path = self.data_dir / 'curricula.json'
-        if curricula_path.exists():
-            try:
-                self.subject_curricula = read_json(curricula_path, {})
-            except Exception:
-                self.subject_curricula = {}
-        else:
-            self.subject_curricula = {}
+        try:
+            self.subject_curricula = read_json(curricula_path, {}) if curricula_path.exists() else load_default_curricula()
+        except Exception:
+            self.subject_curricula = load_default_curricula()
 
     def _load_bank(self):
         return self._read_data(self.bank_path)

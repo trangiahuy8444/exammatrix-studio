@@ -45,3 +45,13 @@ assert.equal(snapshot.questions[0].question,'Câu trong bản đề');
 assert.equal(snapshot.questions[0].options[0],'Phương án trong đề');
 assert.equal(originalQuestion.question,'Câu gốc');
 assert.deepEqual(originalQuestion.options,['A gốc','B gốc','C gốc','D gốc']);
+
+// Mốc A3: dữ liệu câu do AI đề xuất gửi đủ trường khi lưu vào ngân hàng.
+assert.deepEqual(core.mcExplanations(['a','b','c','d'],2,'Giải thích mới'),['a','b','Giải thích mới','d']);
+assert.deepEqual(core.mcExplanations(undefined,1,'X'),['','X','','']);
+assert.deepEqual(core.mcExplanations(['chỉ một'],0,''),['chỉ một','','','']);
+assert.equal(core.shortAnswerOf({short_answer:' 2 '}),'2');
+assert.equal(core.shortAnswerOf({correct_answer:'2'}),'2');
+assert.equal(core.shortAnswerOf({answer:'2'}),'2');
+assert.equal(core.shortAnswerOf({}),'');
+console.log('PASS frontend: giải thích 4 phương án, đáp án trả lời ngắn');

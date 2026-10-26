@@ -40,6 +40,21 @@ class DraftOutcomeTests(unittest.TestCase):
         self.assertEqual(self.svc.save_question(mc(learning_outcome='Xử lí dữ liệu.'))['outcome_index'], 1)
 
 
+class CurriculaSingleSourceTests(unittest.TestCase):
+    def test_service_without_data_catalog_uses_public_curricula(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); bank = root / 'bank.json'
+            bank.write_text(json.dumps(fixture(), ensure_ascii=False))
+            svc = BankService(bank, root / 'data')  # không có data/curricula.json (như tài khoản Django)
+            self.assertIn('Vật lí', svc.subject_curricula)
+            self.assertTrue(svc.subject_curricula['Toán học'])
+
+    def test_public_catalog_is_valid_json_payload(self):
+        from bank_service import load_default_curricula
+        catalog = load_default_curricula()
+        self.assertEqual(len(catalog), 8)
+
+
 class AnswerLetterTests(unittest.TestCase):
     def test_valid_indexes(self):
         self.assertEqual([mc_answer_letter(dict(correct=i)) for i in range(4)], ['A', 'B', 'C', 'D'])

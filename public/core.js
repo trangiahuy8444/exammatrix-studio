@@ -407,6 +407,17 @@ function syncEditedQuestionsFromSheet(sheet,record){
  });
  return changed;
 }
-  const api={syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  // Giải thích đủ 4 phương án; ô "Lời giải" của giáo viên ghi vào phương án đúng.
+  function mcExplanations(existing,correctIndex,text){
+    const out=[0,1,2,3].map(i=>String((Array.isArray(existing)&&existing[i])||''));
+    if(String(text||'').trim()&&correctIndex>=0&&correctIndex<4)out[correctIndex]=String(text).trim();
+    return out;
+  }
+  // Đáp án câu trả lời ngắn theo tên trường chuẩn short_answer (đọc được tên cũ).
+  function shortAnswerOf(q){
+    for(const k of ['short_answer','correct_answer','answer']){const v=q&&q[k];if(v!==undefined&&v!==null&&String(v).trim())return String(v).trim();}
+    return '';
+  }
+  const api={mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

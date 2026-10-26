@@ -75,6 +75,13 @@ class DatabaseStorage:
         return list(StoredSource.objects.filter(state=self.state, key__startswith=prefix).values_list('key', flat=True))
 
 
+def state_data_dir(state):
+    """Thư mục riêng của một ngân hàng; read_source còn đọc tệp nguồn cũ nằm ở đây."""
+    directory = Path(settings.MEDIA_ROOT)/str(state.workspace_id)/(
+        'curriculum-'+str(state.curriculum_id) if state.curriculum_id else 'legacy')
+    return directory/'sandbox' if state.is_test_mode else directory
+
+
 def bank_for_user(user, curriculum=None, *, test_mode=False):
     """Call inside an atomic transaction with the workspace row locked for writes."""
     workspace = workspace_for(user)
@@ -88,9 +95,7 @@ def bank_for_user(user, curriculum=None, *, test_mode=False):
         documents['bank']['ppct']['_context'] = context
     state, _ = LegacyState.objects.get_or_create(workspace=workspace, curriculum=curriculum, is_test_mode=test_mode,
                                                 defaults={'documents': documents})
-    directory = Path(settings.MEDIA_ROOT)/str(workspace.pk)/('curriculum-'+str(curriculum.pk) if curriculum else 'legacy')
-    if test_mode:
-        directory = directory/'sandbox'
+    directory = state_data_dir(state)
     service = BankService(directory/'bank.json', directory,
                           storage=DatabaseStorage(state, directory, context if curriculum else None), context=context if curriculum else None)
     service.app_dir = APP_DIR

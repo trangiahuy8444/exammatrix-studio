@@ -26,6 +26,7 @@ from domain.profiles import KIND_LABELS, PROFILE_KINDS, allowed_kinds, default_p
 from domain.scoring import exam_policy, policy_table
 from domain.matrix_checks import cell_check, ratio_warnings
 from domain.reuse import DEFAULT_RECENT_DAYS, bank_duplicates, recent_uses
+from domain.permutation import mapping_rows, verify_codes
 from domain.revision_criterion import MODES as REVISION_MODES, revision_report
 from input_schema import canonical_short_answer
 from pathlib import Path
@@ -1325,6 +1326,10 @@ class BankService:
                     new_ex['matrix_digest'] = new_ex['matrix_snapshot']['content_sha256']
                 generated_exams.append(new_ex)
 
+            # B7: tự kiểm tra trước khi lưu — mọi mã đề giữ đúng bộ câu, điểm và nội dung/đáp án của đề gốc.
+            problems = verify_codes(old, generated_exams)
+            if problems:
+                raise ServiceError('Mã đề hoán vị không khớp đề gốc; không lưu mã đề nào.', {'problems': problems}, 409)
             records = self._records('exams')
             if replace_existing:
                 records = [x for x in records if x.get('parent_exam_id') != ident]
@@ -1336,8 +1341,23 @@ class BankService:
                 'clean_codes': clean_codes,
                 'count': len(generated_exams),
                 'generated_exams': [copy.deepcopy(e) for e in generated_exams],
-                'answer_grid': answer_grid
+                'answer_grid': answer_grid,
+                'mapping': mapping_rows(old, generated_exams)
             }
+
+    def export_permutation_mapping(self, ident):
+        """B7: tệp Word bảng đối chiếu mã đề của một đề gốc (hoặc của bộ chứa mã đề đang chọn)."""
+        from exports import export_mapping_docx
+        exam = self.get_record('exams', ident)
+        parent_id = exam.get('parent_exam_id') or ident
+        records = self._records('exams')
+        parent = next((x for x in records if x.get('id') == parent_id), None)
+        children = [x for x in records if x.get('parent_exam_id') == parent_id]
+        if parent is None or not children:
+            raise ServiceError('Đề này chưa có các mã đề hoán vị để đối chiếu.', {'id': ident})
+        codes = [c.get('exam_code') for c in children]
+        raw = export_mapping_docx(mapping_rows(parent, children), codes, meta=parent, problems=verify_codes(parent, children))
+        return raw, f'bang_doi_chieu_ma_de_{parent_id}.docx'
 
     def _find_matrix_for_exam(self, grade, exam_type, matrix_service, matrix_id=None):
         records = (matrix_service.list() if hasattr(matrix_service, 'list') else matrix_service.list_records()) if matrix_service else []
@@ -1467,6 +1487,19 @@ class BankService:
                     raw_grid = export_answer_grid_docx(grid_payload, meta=exam)
                     z.writestr(f"{folder_root}/02_Dap_an_va_Huong_dan_cham/Bang_dap_an_tong_hop_cac_ma_de.docx", raw_grid)
                     included_components.append("Bảng ma trận đáp án tổng hợp các mã đề (DOCX)")
+                # B7: bảng đối chiếu mã đề (câu gốc, vị trí, đáp án sau hoán vị, điểm) và kết quả tự kiểm tra.
+                if len(family) > 1:
+                    parent = exam if not exam.get('parent_exam_id') else next(
+                        (x for x in all_exams if x.get('id') == exam['parent_exam_id']), None)
+                    if parent is not None:
+                        from exports import export_mapping_docx
+                        problems = verify_codes(parent, family)
+                        z.writestr(f"{folder_root}/02_Dap_an_va_Huong_dan_cham/Bang_doi_chieu_ma_de.docx",
+                                   export_mapping_docx(mapping_rows(parent, family), codes, meta=parent, problems=problems))
+                        included_components.append("Bảng đối chiếu mã đề với đề gốc (DOCX)")
+                        missing_or_failed_components.extend(f"Đối chiếu mã đề: {p}" for p in problems)
+                    else:
+                        missing_or_failed_components.append("Bảng đối chiếu mã đề: không còn đề gốc để đối chiếu.")
 
                 # Matrix and Specification
                 matrix = self._exam_matrix(exam, matrix_service)

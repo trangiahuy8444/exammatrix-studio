@@ -790,6 +790,7 @@ function examLinks(r){
    `<a href="${base}?format=pdf&answers=0">PDF học sinh</a>`+
    `<a href="${base}?format=tex&answers=0">LaTeX đề thi (.tex)</a>`+
    `<a href="${base}?format=html&answers=0" target="_blank" rel="noopener">Trang in đề thi</a>`+
+   (ans&&(r.parent_exam_id||store.exams.some(x=>x.parent_exam_id===r.id))?`<a href="/api/exams/${esc(r.id)}/mapping.docx">🔀 Bảng đối chiếu mã đề (.docx)</a>`:'')+
    (ans?`<hr><a href="${base}?format=docx&answers=1">Word đáp án & HDC</a>`+
    `<a href="${base}?format=pdf&answers=1">PDF đáp án & HDC</a>`+
    `<a href="${base}?format=tex&answers=1">LaTeX đáp án (.tex)</a>`+

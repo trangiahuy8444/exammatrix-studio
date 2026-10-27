@@ -1364,6 +1364,49 @@ def _answer_grid_table(doc, title, rows, codes):
             cells[ci].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 
+def export_mapping_docx(rows, codes, meta=None, problems=None):
+    """B7: bảng đối chiếu mã đề — mỗi mã đề một bảng: vị trí, câu gốc, mã câu, đáp án sau hoán vị, điểm."""
+    from docx import Document
+    from docx.enum.section import WD_ORIENT
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml import OxmlElement
+    from docx.shared import Cm, Pt
+    doc = Document()
+    _times_new_roman_styles(doc, 11)
+    section = doc.sections[0]
+    section.orientation = WD_ORIENT.LANDSCAPE
+    section.page_width, section.page_height = Cm(29.7), Cm(21.0)
+    for side in ('left_margin', 'right_margin'):
+        setattr(section, side, Cm(2.0))
+    section.top_margin = section.bottom_margin = Cm(1.0)
+    p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run('BẢNG ĐỐI CHIẾU MÃ ĐỀ VỚI ĐỀ GỐC'); r.bold = True; r.font.size = Pt(14)
+    if meta:
+        p2 = doc.add_paragraph(); p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p2.add_run(f"{meta.get('title', '')} — Khối {meta.get('grade', '')}").italic = True
+    p3 = doc.add_paragraph()
+    p3.add_run('Kết quả tự kiểm tra: ' + ('mọi mã đề giữ đúng bộ câu, điểm và đáp án của đề gốc.' if not problems
+                                          else f'{len(problems)} lỗi — ' + '; '.join(problems))).bold = True
+    kinds = {'MC': 'Nhiều lựa chọn', 'YN': 'Đúng/Sai', 'SHORT': 'Trả lời ngắn', 'ES': 'Tự luận'}
+    headers = ['Phần', 'Câu trong mã đề', 'Câu gốc', 'Mã câu hỏi', 'Đáp án mã đề', 'Đáp án đề gốc', 'Điểm']
+    widths = [3.2, 2.6, 2.2, 4.0, 5.2, 5.2, 1.6]  # tổng 24 cm (rules/03: bảng ≤ 24 cm)
+    for code in codes:
+        h = doc.add_paragraph(); h.paragraph_format.space_before = Pt(8)
+        hr = h.add_run(f'Mã đề {code}'); hr.bold = True
+        table = doc.add_table(rows=1, cols=len(headers)); table.style = 'Table Grid'
+        for cell, text, w in zip(table.rows[0].cells, headers, widths):
+            cell.text = text; cell.width = Cm(w)
+            cell.paragraphs[0].runs[0].bold = True
+        table.rows[0]._tr.get_or_add_trPr().append(OxmlElement('w:tblHeader'))
+        for row in [r for r in rows if r['code'] == code]:
+            cells = table.add_row().cells
+            values = [kinds.get(row['kind'], row['kind']), str(row['slot']), str(row['source_slot'] or ''),
+                      str(row['question_id']), row['answer'], row['source_answer'], row['points'].replace('.', ',')]
+            for cell, text, w in zip(cells, values, widths):
+                cell.text = text; cell.width = Cm(w)
+    stream = io.BytesIO(); doc.save(stream); return stream.getvalue()
+
+
 def export_answer_grid_docx(answer_grid: dict, title: str = "BẢNG ĐÁP ÁN TỔNG HỢP CÁC MÃ ĐỀ", meta: dict = None) -> bytes:
     try:
         from docx import Document

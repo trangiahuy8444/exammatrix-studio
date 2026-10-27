@@ -197,6 +197,13 @@ class Handler(BaseHTTPRequestHandler):
                     self._require_answers(ident, f'{name}:{fmt}:{"lms" if target == "lms" else "answers"}')
                 raw, mime, filename = export_document(record, fmt, answer_value == '1', revision=name == 'revisions', target=target)
                 return self._send(raw, mime, filename=filename)
+            match_map = re.fullmatch(r'/api/exams/([A-Za-z0-9_-]+)/mapping\.docx', path)
+            if match_map:
+                # B7: bảng đối chiếu mã đề có đáp án nên cũng phải qua quyền xem đáp án.
+                ident = match_map.group(1)
+                self._require_answers(ident, 'mapping')
+                raw, filename = service.export_permutation_mapping(ident)
+                return self._send(raw, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', filename=filename)
             match_bundle = re.fullmatch(r'/api/exams/([A-Za-z0-9_-]+)/bundle\.zip', path)
             if match_bundle:
                 ident = match_bundle.group(1)

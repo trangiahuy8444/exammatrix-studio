@@ -23,7 +23,7 @@ from domain.review import (CHECKLIST, EXAM_ELIGIBLE, STATUSES, normalize_status,
                            technical_problems, version_hash)
 from domain.exam_lifecycle import FROZEN, exam_hash, exam_status
 from domain.profiles import KIND_LABELS, PROFILE_KINDS, allowed_kinds, default_profile_for_grade
-from domain.scoring import DEFAULT_POLICY, policy_table
+from domain.scoring import exam_policy, policy_table
 from input_schema import canonical_short_answer
 from pathlib import Path
 from domain.policies import resolve_similarity, require_revision
@@ -902,7 +902,7 @@ class BankService:
                         similarity_target_percent=sim_pct, similarity_mode=sim_mode,
                         question_count=len(selected), total_points=10, questions=selected,
                         profile=profile, allowed_kinds=list(kinds_allowed),
-                        scoring_policy=copy.deepcopy(payload.get('scoring_policy') or DEFAULT_POLICY),
+                        scoring_policy=exam_policy(payload.get('scoring_policy'), exam_type),
                         validation_note='Đã kiểm tra theo bài, dạng và mức độ; giáo viên cần đối chiếu chi tiết từng YCCĐ của bảng đặc tả trước khi phát hành.')
             records = self._records('exams'); records.append(exam)
             self._atomic_save(self.data_dir/'exams.json', records)

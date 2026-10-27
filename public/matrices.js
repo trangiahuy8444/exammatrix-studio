@@ -18,12 +18,12 @@
   function ynTable(m){const t=m&&m.scoring_policy&&m.scoring_policy.yn_table;return Object.fromEntries([0,1,2,3,4].map(n=>[n,String(t&&t[n]!==undefined?t[n]:DEFAULT_YN[n])]));}
   function setYnCoefficient(m,n,value){const t=ynTable(m);t[n]=String(value).trim().replace(',','.');
     if([0,1,2,3,4].every(k=>Number(t[k])===Number(DEFAULT_YN[k])))delete m.scoring_policy;
-    else m.scoring_policy={yn_table:t,rounding:'half_up_1dp',blank_counts_as:'wrong'};}
+    else m.scoring_policy={yn_table:t,blank_counts_as:'wrong'};}  // cách làm tròn theo loại bài, không lưu ở ma trận
   function profileOptionsHtml(m,locked){
     const eff=effectiveKinds(m),dis=locked?' disabled':'',t=ynTable(m);
     return `<h3 id="mx-profile-kinds">Dạng câu được phép và cách chấm Đúng/Sai</h3><p class="muted">Mặc định theo mẫu: THCS gồm trắc nghiệm và tự luận; THPT theo CV 7991 gồm cả Đúng/Sai và trả lời ngắn. Với KTTX có thể chọn dạng khác; lựa chọn được lưu cùng ma trận và đề.</p>
     <div class="actions">${ALL_KINDS.map(k=>`<label class="inline-check"><input type="checkbox" data-allow-kind="${k}"${eff.includes(k)?' checked':''}${dis}> ${E(kinds[k])}</label>`).join('')}</div>
-    ${eff.includes('YN')?`<div class="form-grid mx-yn-table">${[1,2,3,4].map(n=>`<div class="field"><label for="mx-yn-${n}">Đúng ${n} ý: hệ số</label><input id="mx-yn-${n}" data-yn-coef="${n}" inputmode="decimal" value="${E(String(t[n]).replace('.',','))}"${dis}></div>`).join('')}</div><p class="small muted">Điểm câu = điểm tối đa × hệ số. Ý bỏ trống, chọn cả hai hoặc lỗi tính là sai. Tổng bài làm tròn đến 1 chữ số thập phân (TT 22/2021, Điều 5).</p>`:''}`;
+    ${eff.includes('YN')?`<div class="form-grid mx-yn-table">${[1,2,3,4].map(n=>`<div class="field"><label for="mx-yn-${n}">Đúng ${n} ý: hệ số</label><input id="mx-yn-${n}" data-yn-coef="${n}" inputmode="decimal" value="${E(String(t[n]).replace('.',','))}"${dis}></div>`).join('')}</div><p class="small muted">Điểm câu = điểm tối đa × hệ số. Ý bỏ trống, chọn cả hai hoặc lỗi tính là sai. Tổng bài: định kì làm tròn đến 0,1; thường xuyên làm tròn đến số nguyên (TT 22/2021, Điều 5; quy ước tổ).</p>`:''}`;
   }
   const periods={TX:'Thường xuyên',GK1:'Giữa học kì I',CK1:'Cuối học kì I',GK2:'Giữa học kì II',CK2:'Cuối học kì II'};
   const levels=['Biết','Hiểu','Vận dụng'];

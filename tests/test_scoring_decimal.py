@@ -84,3 +84,31 @@ class ProfileTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class RoundingByExamTypeTests(unittest.TestCase):
+    """Quy ước tổ (27/10/2026): GK/CK làm tròn đến 0,1 (7,25 → 7,3); KTTX làm tròn đến số nguyên (7,5 → 8)."""
+
+    def test_rounding_mode_follows_exam_type(self):
+        from domain.scoring import rounding_for
+        self.assertEqual(rounding_for('TX'), 'half_up_integer')
+        for t in ('GK1', 'CK1', 'GK2', 'CK2'):
+            self.assertEqual(rounding_for(t), 'half_up_1dp')
+
+    def test_integer_rounding_for_regular_assessment(self):
+        for raw, expected in [('7.5', '8'), ('7.49', '7'), ('8.45', '8'), ('9.5', '10'), ('0.5', '1'), ('6.0', '6')]:
+            self.assertEqual(round_total(Decimal(raw), 'half_up_integer'), Decimal(expected), raw)
+
+    def test_periodic_rounding_unchanged(self):
+        self.assertEqual(round_total(Decimal('7.25'), 'half_up_1dp'), Decimal('7.3'))
+        self.assertEqual(round_total(Decimal('7.25')), Decimal('7.3'))
+
+    def test_unknown_rounding_rejected(self):
+        with self.assertRaises(ServiceError):
+            round_total(Decimal('7.25'), 'banker')
+
+    def test_default_policy_for_exam_type(self):
+        from domain.scoring import default_policy
+        self.assertEqual(default_policy('TX')['rounding'], 'half_up_integer')
+        self.assertEqual(default_policy('CK1')['rounding'], 'half_up_1dp')
+        self.assertEqual(default_policy('TX')['yn_table']['1'], '0.1')

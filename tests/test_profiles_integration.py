@@ -101,3 +101,13 @@ class BlueprintProfileTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ExamRoundingPolicyTests(unittest.TestCase):
+    def test_tx_exam_rounds_to_integer_and_matrix_policy_cannot_override(self):
+        from test_backend import BackendTests
+        case = BackendTests('test_total_must_be_ten_points'); case.setUp(); self.addCleanup(case.doCleanups)
+        tx = case.svc.generate_exam(case.request())  # exam_type TX
+        self.assertEqual(tx['scoring_policy']['rounding'], 'half_up_integer')
+        forced = case.svc.generate_exam(case.request(scoring_policy=dict(DEFAULT_POLICY, rounding='half_up_1dp'), seed=11))
+        self.assertEqual(forced['scoring_policy']['rounding'], 'half_up_integer')

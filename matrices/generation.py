@@ -9,7 +9,7 @@ from bank_service import ServiceError,content_hash,now,normalized
 from .model import matrix_digest,validate_matrix
 from domain.policies import resolve_similarity
 from domain.profiles import allowed_kinds
-from domain.scoring import DEFAULT_POLICY
+from domain.scoring import exam_policy
 
 
 def _usable(bank,service,ident):
@@ -89,7 +89,7 @@ def generate_from_matrix(bank_service,matrix_service,payload):
             revision_id=revision['id'],revision_match_count=matched,revision_required_count=required,
             similarity_target_percent=sim_pct,
             question_count=len(selected),total_points=10,questions=selected,
-            scoring_policy=copy.deepcopy(m.get('scoring_policy') or DEFAULT_POLICY),
+            scoring_policy=exam_policy(m.get('scoring_policy'),m['exam_type']),
             allowed_kinds=list(allowed_kinds(m)),profile=m.get('profile'),
             validation_note='Vị trí câu gắn với phiên bản ma trận; giáo viên đã xác nhận từng chỉ báo. Kiểm tra tự động không thay duyệt chuyên môn.')
         records=b._records('exams');records.append(exam);b._atomic_save(b.data_dir/'exams.json',records)

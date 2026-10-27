@@ -8,13 +8,15 @@ from decimal import Decimal
 from bank_service import ServiceError,content_hash,now,normalized
 from .model import matrix_digest,validate_matrix
 from domain.policies import resolve_similarity
+from domain.profiles import allowed_kinds
+from domain.scoring import DEFAULT_POLICY
 
 
 def _usable(bank,service,ident):
     m=service.get(ident);report=validate_matrix(m,bank.catalog,True)
     if m['status']!='locked' or not report['valid']:raise ServiceError('Chọn phiên bản ma trận đã khóa, không còn lỗi đối chiếu.',report)
     if m.get('content_sha256')!=matrix_digest(m):raise ServiceError('Nội dung phiên bản ma trận không còn khớp bản đã khóa.',status=409)
-    if not report['exam_supported']:raise ServiceError('Ma trận có dạng Đúng/Sai hoặc trả lời ngắn; bộ tạo đề hiện chưa hỗ trợ. Không đổi dạng hoặc bỏ phần thi.')
+    if not report['exam_supported']:raise ServiceError('Ma trận có câu Đúng/Sai hoặc trả lời ngắn trải trên nhiều bài/mức độ; cần biên soạn và đối chiếu riêng. Không đổi dạng hoặc bỏ phần thi.')
     return m
 
 
@@ -87,6 +89,8 @@ def generate_from_matrix(bank_service,matrix_service,payload):
             revision_id=revision['id'],revision_match_count=matched,revision_required_count=required,
             similarity_target_percent=sim_pct,
             question_count=len(selected),total_points=10,questions=selected,
+            scoring_policy=copy.deepcopy(m.get('scoring_policy') or DEFAULT_POLICY),
+            allowed_kinds=list(allowed_kinds(m)),profile=m.get('profile'),
             validation_note='Vị trí câu gắn với phiên bản ma trận; giáo viên đã xác nhận từng chỉ báo. Kiểm tra tự động không thay duyệt chuyên môn.')
         records=b._records('exams');records.append(exam);b._atomic_save(b.data_dir/'exams.json',records)
         return copy.deepcopy(exam)

@@ -3,10 +3,12 @@ import copy
 import hashlib
 import json
 from bank_service import ServiceError
-from .model import CONTENT_FIELDS, normalize_matrix
+from .model import CONTENT_FIELDS, OPTIONAL_CONTENT_FIELDS, normalize_matrix
 
 def _projection(matrix):
     result={k:copy.deepcopy(matrix.get(k)) for k in CONTENT_FIELDS if k!='source'}
+    for k in OPTIONAL_CONTENT_FIELDS:  # B3: chỉ có trong gói khi ma trận có, để gói cũ vẫn khớp hash
+        if k in matrix:result[k]=copy.deepcopy(matrix[k])
     for k in ('id','family_id','version','previous_id','status','confirmation'):
         if k in matrix:result[k]=copy.deepcopy(matrix[k])
     src=matrix.get('source')

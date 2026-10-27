@@ -9,13 +9,21 @@ from bank_service import ServiceError, number
 
 LEVELS = ('Biết', 'Hiểu', 'Vận dụng')
 KINDS = ('MC', 'YN', 'SHORT', 'ES')
+from domain.profiles import KIND_LABELS, allowed_kinds
+from domain.scoring import policy_table
+
 CONTENT_FIELDS = ('profile', 'grade', 'school_year', 'exam_type', 'duration', 'title',
                   'owner_name', 'campus', 'total_points', 'lessons', 'requirements',
                   'slots', 'indicator_catalog', 'source', 'reconciliation', 'mode')
 
 
+# B3: chỉ tính vào hash khi có mặt, để hash của các ma trận đã khóa trước đây không đổi.
+OPTIONAL_CONTENT_FIELDS = ('allowed_kinds', 'scoring_policy')
+
+
 def matrix_digest(matrix):
     body = {k: matrix.get(k) for k in CONTENT_FIELDS}
+    body.update({k: matrix[k] for k in OPTIONAL_CONTENT_FIELDS if k in matrix})
     return hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False,
                                     allow_nan=False, separators=(',', ':')).encode()).hexdigest()
 
@@ -136,6 +144,14 @@ def validate_matrix(matrix, ppct, for_lock=False):
         if r.get('competency') not in context.get('competencies', ('NLa','NLb','NLc','NLd','NLe')):error('competency','requirements.'+ident,'Chọn thành phần năng lực hợp lệ.')
     indicators={r.get('code'):r for r in arrays['indicator_catalog'] if isinstance(r.get('code'),str)}
     ids=set(); numbers=defaultdict(list);total=Decimal(0);exam_supported=True
+    try:
+        kinds_allowed=allowed_kinds(m)
+    except ServiceError as exc:
+        error('allowed_kinds','allowed_kinds',exc.error);kinds_allowed=KINDS
+    if 'scoring_policy' in m:
+        try:policy_table(m['scoring_policy'])
+        except ServiceError as exc:error('scoring_policy','scoring_policy',exc.error)
+    req_scope={r.get('id'):(r.get('lesson_code'),r.get('level')) for r in arrays['requirements'] if isinstance(r,dict)}
     for s in arrays['slots']:
         sid=s.get('id');kind=s.get('kind');n=s.get('number');parts=s.get('parts')
         if not isinstance(sid,str) or not sid or sid in ids:error('slot_id','slots','Mã vị trí trống hoặc trùng.')
@@ -148,8 +164,9 @@ def validate_matrix(matrix, ppct, for_lock=False):
         labels=[p.get('label','') for p in parts]
         if kind=='YN' and labels!=list('abcd'):error('yn_labels','slots','Đúng/Sai phải có đủ ý a, b, c, d theo thứ tự.')
         if len(labels)!=len(set(str(x) for x in labels)):error('labels','slots','Nhãn ý bị trùng.')
-        if kind not in ('MC','ES'):exam_supported=False
-        if m.get('profile')=='THCS' and kind in ('YN','SHORT'):error('profile_kind','slots','Mẫu ma trận THCS này chỉ phân bố MC và tự luận; không được bỏ cột của dạng đã phân bố.')
+        # B3: Đ/S và trả lời ngắn tạo đề tự động được khi cả câu thuộc một bài, một mức độ.
+        if kind in ('YN','SHORT') and len({req_scope.get(p.get('requirement_id')) for p in parts})!=1:exam_supported=False
+        if kind not in kinds_allowed:error('profile_kind','slots',f'Mẫu hồ sơ này không có dạng {KIND_LABELS[kind]}; chọn mẫu khác hoặc khai báo dạng câu được phép (KTTX).')
         if not isinstance(s.get('scoring'),dict) or s['scoring'].get('mode')!='sum_parts':error('scoring','slots','Cần xác nhận cách tính điểm theo từng ý.')
         partids=set()
         for p in parts:

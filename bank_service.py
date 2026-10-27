@@ -18,9 +18,12 @@ import unicodedata
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+from domain.errors import ServiceError
 from domain.review import (CHECKLIST, EXAM_ELIGIBLE, STATUSES, normalize_status, review_hash,
                            technical_problems, version_hash)
 from domain.exam_lifecycle import FROZEN, exam_hash, exam_status
+from domain.profiles import KIND_LABELS, PROFILE_KINDS, allowed_kinds, default_profile_for_grade
+from domain.scoring import DEFAULT_POLICY, policy_table
 from input_schema import canonical_short_answer
 from pathlib import Path
 from domain.policies import resolve_similarity, require_revision
@@ -35,10 +38,6 @@ def _without_approval(exam):
     return out
 
 
-class ServiceError(Exception):
-    def __init__(self, error, details=None, status=400):
-        super().__init__(error)
-        self.error, self.details, self.status = error, details, status
 
 
 def now():
@@ -792,13 +791,24 @@ class BankService:
                 rows = payload.get('blueprint')
             if not isinstance(rows, list) or not rows:
                 raise ServiceError('Cần khai báo ít nhất một dòng ma trận.')
+            # B3: dạng câu theo mẫu hồ sơ (THCS: MC, tự luận; THPT theo CV 7991: thêm Đ/S, trả lời ngắn; KTTX: tự chọn).
+            profile = payload.get('profile') or (default_profile_for_grade(grade) if self.school_profile else 'GENERAL')
+            if profile not in PROFILE_KINDS:
+                raise ServiceError('Mẫu hồ sơ kiểm tra không hợp lệ.', {'profile': profile})
+            if payload.get('scoring_policy') is not None:
+                policy_table(payload['scoring_policy'])
+            kinds_allowed = allowed_kinds(dict(profile=profile, **({'allowed_kinds': payload['allowed_kinds']}
+                                                                    if payload.get('allowed_kinds') is not None else {})))
             total = Decimal(0)
             cells = {}
             for row in rows:
                 if not isinstance(row, dict):
                     raise ServiceError('Dòng ma trận không đúng định dạng.')
-                if row.get('type') not in ('MC', 'ES'):
-                    raise ServiceError(f'Chưa hỗ trợ loại {row.get("type")}; TF/Đúng/Sai không được đổi thành MC.')
+                if row.get('type') not in kinds_allowed:
+                    label = KIND_LABELS.get(row.get('type'))
+                    raise ServiceError(f'Mẫu hồ sơ {profile} không có dạng {label}.' if label else
+                                       f'Không có dạng câu {row.get("type")}; Đúng/Sai không được đổi thành MC.',
+                                       {'type': row.get('type'), 'allowed_kinds': list(kinds_allowed)})
                 if not isinstance(row.get('lesson_code'), str) or (grade, row.get('lesson_code')) not in self.lessons or row.get('level') not in ('Biết', 'Hiểu', 'Vận dụng'):
                     raise ServiceError('Bài hoặc mức độ ma trận không thuộc danh mục.')
                 count = row.get('count')
@@ -891,6 +901,8 @@ class BankService:
                         revision_id=revision['id'], revision_match_count=matched, revision_required_count=required,
                         similarity_target_percent=sim_pct, similarity_mode=sim_mode,
                         question_count=len(selected), total_points=10, questions=selected,
+                        profile=profile, allowed_kinds=list(kinds_allowed),
+                        scoring_policy=copy.deepcopy(payload.get('scoring_policy') or DEFAULT_POLICY),
                         validation_note='Đã kiểm tra theo bài, dạng và mức độ; giáo viên cần đối chiếu chi tiết từng YCCĐ của bảng đặc tả trước khi phát hành.')
             records = self._records('exams'); records.append(exam)
             self._atomic_save(self.data_dir/'exams.json', records)

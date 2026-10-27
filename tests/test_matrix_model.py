@@ -42,7 +42,7 @@ class MatrixModelTests(unittest.TestCase):
         m['slots']=[dict(id='Y1',kind='YN',number=1,scoring=dict(mode='sum_parts'),
             parts=[dict(id=f'P{i}',label=label,requirement_id='R1',points=2.5,indicator='AC1') for i,label in enumerate('abcd')])]
         r=model.validate_matrix(m,self.ppct,True)
-        self.assertTrue(r['valid'],r);self.assertFalse(r['exam_supported'])
+        self.assertTrue(r['valid'],r);self.assertTrue(r['exam_supported'])  # B3: Đ/S một bài, một mức độ tạo đề tự động được
         self.assertEqual(r['totals']['questions'],1);self.assertEqual(r['totals']['items'],4)
         m['slots'][0]['parts'][3]['label']='c'
         self.assertFalse(model.validate_matrix(m,self.ppct,True)['valid'])

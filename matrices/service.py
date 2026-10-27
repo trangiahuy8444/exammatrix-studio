@@ -5,7 +5,7 @@ import json
 import uuid
 from bank_service import ServiceError, now, read_json
 from .exports import matrix_body_html
-from .model import CONTENT_FIELDS, normalize_matrix, validate_matrix, matrix_digest
+from .model import CONTENT_FIELDS, OPTIONAL_CONTENT_FIELDS, normalize_matrix, validate_matrix, matrix_digest
 
 
 def received_core(m):
@@ -72,13 +72,16 @@ class MatrixService:
                     raise ServiceError('Không được thay nội dung, chỉ tiêu hoặc điểm của ma trận nhận từ nguồn.',status=409)
                 updated=copy.deepcopy(old)
                 for k in CONTENT_FIELDS:updated[k]=copy.deepcopy(m.get(k))
+                for k in OPTIONAL_CONTENT_FIELDS:  # B3: dạng câu được phép, chính sách chấm
+                    if k in m:updated[k]=copy.deepcopy(m[k])
+                    else:updated.pop(k,None)
                 if override:updated['mode']=m.get('mode','authored')
                 m=updated;m['status']='draft'
             else:
                 if expected_revision!=0:raise ServiceError('Phiên bản nháp mới không hợp lệ.')
                 if not override and m['mode']!='authored':raise ServiceError('Bản nhận phải được nhập và đối chiếu nguồn trước.')
                 if not override and m['grade'] not in self.authored_grades:raise ServiceError('Theo phân công hiện tại, thầy biên soạn ma trận khối 9; khối 8/10 nhận bản của giáo viên phụ trách.')
-                m={k:copy.deepcopy(m.get(k)) for k in CONTENT_FIELDS}
+                m={**{k:copy.deepcopy(m.get(k)) for k in CONTENT_FIELDS},**{k:copy.deepcopy(m[k]) for k in OPTIONAL_CONTENT_FIELDS if k in m}}
                 m.update(id='MATRIX-'+uuid.uuid4().hex[:12],family_id='FAMILY-'+uuid.uuid4().hex[:12],version=1,
                          previous_id=None,revision=0,status='draft',audit=[],created_at=now())
                 m['source']=None

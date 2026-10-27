@@ -89,6 +89,17 @@ SECTION_TITLES = (
 ROMAN = ('I', 'II', 'III', 'IV')
 
 
+def yn_points_note(record, max_points):
+    """Câu hướng dẫn chấm Đ/S theo bảng hệ số lưu trong đề (B3), ví dụ "Đúng 1 ý: 0,1 điểm; …; 4 ý: 1 điểm"."""
+    from domain.scoring import dec, policy_table
+    table = policy_table(record.get('scoring_policy'))
+    def fmt(v):
+        text = format(v.normalize(), 'f') if v != 0 else '0'
+        return text.replace('.', ',')
+    parts = [f'{n} ý: {fmt(dec(max_points) * table[n])} điểm' for n in range(1, 5)]
+    return 'Đúng ' + '; '.join(parts)
+
+
 def _section_defs(record):
     present = {q.get('type') for q in record.get('questions', [])}
     if present <= {'MC', 'ES'}:
@@ -707,6 +718,12 @@ def _docx(record, answers, revision):
                     row_cells[si + 1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
                 row_cells[5].text = f"{point_label(q.get('points', 1.0))} đ"
                 row_cells[5].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for max_points in sorted({q.get('points', 1.0) for q in yn_questions}):
+                p_note = doc.add_paragraph()
+                p_note.paragraph_format.space_before = Pt(3)
+                r_note = p_note.add_run(f'Cách tính điểm câu Đúng/Sai ({point_label(max_points)} điểm/câu): '
+                                        f'{yn_points_note(record, max_points)}.')
+                r_note.italic = True; r_note.font.size = Pt(10.5)
             p_sp = doc.add_paragraph()
             p_sp.paragraph_format.space_before = Pt(0); p_sp.paragraph_format.space_after = Pt(2)
 

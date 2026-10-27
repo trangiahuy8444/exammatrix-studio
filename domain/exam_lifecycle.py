@@ -14,7 +14,7 @@ STATE_LABELS = {'drafting': 'Đang soạn', 'pending_approval': 'Chờ duyệt',
 # Trường quản trị, không thuộc nội dung đề. Mọi trường khác (kể cả trường mới thêm sau này) đều vào hash.
 ADMIN_FIELDS = frozenset({
     'status', 'lifecycle', 'approved_hash', 'approved_by', 'approved_at', 'locked_at', 'published_at', 'usage',
-    'updated_at', 'created_at', 'verification', 'needs_verification', 'previous_exam_id',
+    'updated_at', 'created_at', 'verification', 'needs_verification', 'previous_exam_id', 'reuse_check',
 })
 
 

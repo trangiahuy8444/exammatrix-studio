@@ -245,7 +245,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == '/api/questions/save':
                 question = service.save_question(payload.get('question'))
-                return self._json({'question': question, 'bank': service.state()['bank']})
+                from domain.reuse import bank_duplicates
+                bank = service.state()['bank']
+                # B5: chỉ cảnh báo câu trùng nguyên văn (kể cả khác khối), không chặn lưu.
+                return self._json({'question': question, 'bank': bank,
+                                   'duplicates': bank_duplicates(question, bank.get('questions', []))})
             if path == '/api/questions/review':
                 question = service.review_question(payload.get('id'), payload.get('action'), actor=self._actor(),
                                                    checklist=payload.get('checklist'), reason=payload.get('reason', ''))

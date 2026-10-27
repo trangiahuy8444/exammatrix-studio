@@ -186,12 +186,13 @@ function revisionGoals(record){
 const syncEditedQuestionsFromSheet=C.syncEditedQuestionsFromSheet;
 // B4: bảng đối chiếu từng ô (bài × YCCĐ × dạng × mức độ) và cảnh báo tỉ lệ CV 7991 (chỉ cảnh báo).
 function cellReportHtml(v){
- if(!v||(!v.cells&&!(v.ratio_warnings||[]).length))return '';
+ if(!v||(!v.cells&&!(v.ratio_warnings||[]).length&&!(v.reuse_warnings||[]).length))return '';
  const kindName={MC:'Nhiều lựa chọn',YN:'Đúng/Sai',SHORT:'Trả lời ngắn',ES:'Tự luận'};
  const bad=(v.cells?.cells||[]).filter(c=>!c.ok).length;
  return `<div class="doc-sheet"><h4>ĐỐI CHIẾU TỪNG Ô MA TRẬN ${v.cells?(v.cells.ok?'<span class="badge approved">Khớp tất cả ô</span>':`<span class="badge needs_review">${bad} ô lệch</span>`):''}</h4>`+
   (v.cells?`<div class="table-wrap"><table><thead><tr><th>Bài</th><th>YCCĐ</th><th>Dạng</th><th>Mức độ</th><th>Số câu (ma trận / đề)</th><th>Điểm (ma trận / đề)</th><th></th></tr></thead><tbody>${v.cells.cells.map(c=>`<tr${c.ok?'':' style="background:#fff0f1"'}><td>${esc(c.lesson_code||'')}</td><td>${esc(c.outcome||'')}</td><td>${esc(kindName[c.kind]||c.kind||'')}</td><td>${esc(c.level||'')}</td><td>${c.expected_questions} / ${c.actual_questions}</td><td>${esc(String(c.expected_points).replace('.',','))} / ${esc(String(c.actual_points).replace('.',','))}</td><td>${c.ok?'✓':'Lệch'}</td></tr>`).join('')}</tbody></table></div>`:'')+
-  ((v.ratio_warnings||[]).length?`<div class="callout warning"><strong>Cảnh báo tỉ lệ (ngưỡng nội bộ, không bắt buộc theo CV 7991)</strong><ul>${v.ratio_warnings.map(w=>`<li>${esc(w.message)}</li>`).join('')}</ul></div>`:'')+`</div>`;
+  ((v.ratio_warnings||[]).length?`<div class="callout warning"><strong>Cảnh báo tỉ lệ (ngưỡng nội bộ, không bắt buộc theo CV 7991)</strong><ul>${v.ratio_warnings.map(w=>`<li>${esc(w.message)}</li>`).join('')}</ul></div>`:'')+
+  ((v.reuse_warnings||[]).length?`<div class="callout warning"><strong>Câu đã dùng trong đề phát hành gần đây (chỉ cảnh báo)</strong><ul>${v.reuse_warnings.map(w=>`<li>Câu ${esc(w.slot_number??'')} (${esc(w.question_id)}) ${w.match==='id'?'cùng mã':'trùng nội dung'} với “${esc(w.other_title||w.other_exam_id)}”, phát hành ${esc(String(w.published_at||'').slice(0,10))}</li>`).join('')}</ul></div>`:'')+`</div>`;
 }
 function buildVerificationReportHtml(record){
  const v=record.verification;
@@ -501,7 +502,9 @@ async function saveQuestion(event){
  const lessonPeriods=(lesson?.occurrences||[]).flatMap(r=>String(r.periods_raw||'').match(/\d+/g)||[]).map(Number);if(lessonPeriods.length){q.first_ppct_period=Math.min(...lessonPeriods);q.after_hk1_exam=q.first_ppct_period>=(q.grade===10?32:16);}
 
  if(q.type==='MC'){q.options=[0,1,2,3].map(i=>f.get('option'+i).trim());q.correct=Number(f.get('correct'));q.option_explanations=[0,1,2,3].map(i=>f.get('explanation'+i).trim());delete q.rubric;delete q.equivalent_answer_policy;}else{q.rubric=[0,1,2,3].map(i=>({criterion:f.get('rubric'+i).trim(),points:.25}));q.equivalent_answer_policy=f.get('equivalent_answer_policy').trim();delete q.options;delete q.correct;delete q.option_explanations;}
- const result=await mutate('/api/questions/save',{question:q},()=>{$('#edit-dialog').close();render();notify('Đã lưu câu hỏi vào ngân hàng.');});return result;
+ const result=await mutate('/api/questions/save',{question:q},res=>{$('#edit-dialog').close();render();
+  const dup=res.duplicates||[];
+  notify(dup.length?`Đã lưu câu hỏi. Lưu ý: nội dung trùng nguyên văn với ${dup.map(d=>`${d.id} (Khối ${d.grade})`).join(', ')}. Chỉ là cảnh báo.`:'Đã lưu câu hỏi vào ngân hàng.');});return result;
 }
 async function archiveQuestion(id){const q=questions().find(q=>q.id===id);if(!q||!confirm(`Lưu trữ câu ${id}? Câu sẽ ngừng được chọn tạo đề; nội dung và lịch sử vẫn được giữ.`))return;await mutate('/api/questions/archive',{id},()=>{store.selected.delete(id);$('#detail-dialog').close();render();notify('Đã lưu trữ câu hỏi. Có thể tìm lại qua bộ lọc “Đã lưu trữ”.');});}
 async function restoreQuestion(id){
@@ -730,8 +733,9 @@ function examRows(){return selectedTemplate()?.rows||store.examDraft.blueprint;}
 const examStatusNames={drafting:'Đang soạn',pending_approval:'Chờ duyệt',locked:'Đã duyệt & khóa',published:'Đã phát hành'};
 const examActionNames={submit:'Gửi duyệt đề',approve:'Duyệt & khóa đề',return:'Trả lại đề',publish:'Phát hành đề',new_revision:'Tạo bản chỉnh sửa mới'};
 function examLifecycle(r){
- const s=C.examStatusOf(r),last=(r.lifecycle||[]).slice(-1)[0];
+ const s=C.examStatusOf(r),last=(r.lifecycle||[]).slice(-1)[0],reused=(r.reuse_check?.warnings||[]).length;
  return `<div class="exam-lifecycle"><span class="badge exam-${s}">${esc(examStatusNames[s])}</span>`+
+  (reused?`<span class="badge draft" title="Câu đã có trong đề phát hành ${esc(r.reuse_check.days)} ngày gần đây; chỉ là cảnh báo">⚠ ${reused} câu vừa dùng</span>`:'')+
   (last?`<span class="small muted">${esc(last.at?.slice(0,16).replace('T',' ')||'')} · ${esc(last.by||'')}${last.reason?' — '+esc(last.reason):''}</span>`:'')+
   C.examActions(r).map(a=>`<button type="button" class="export-link${a==='approve'||a==='publish'?' primary':''}" data-exam-act="${a}" data-exam-id="${esc(r.id)}">${esc(examActionNames[a])}</button>`).join('')+`</div>`;
 }

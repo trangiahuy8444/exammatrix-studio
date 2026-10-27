@@ -25,6 +25,7 @@ from domain.exam_lifecycle import FROZEN, exam_hash, exam_status
 from domain.profiles import KIND_LABELS, PROFILE_KINDS, allowed_kinds, default_profile_for_grade
 from domain.scoring import exam_policy, policy_table
 from domain.matrix_checks import cell_check, ratio_warnings
+from domain.reuse import DEFAULT_RECENT_DAYS, bank_duplicates, recent_uses
 from input_schema import canonical_short_answer
 from pathlib import Path
 from domain.policies import resolve_similarity, require_revision
@@ -33,7 +34,8 @@ from domain.policies import resolve_similarity, require_revision
 def _without_approval(exam):
     """Bản sao/mã đề mới của một đề: bắt đầu lại ở trạng thái đang soạn, không kế thừa phê duyệt (B2)."""
     out = copy.deepcopy(exam)
-    for key in ('status', 'lifecycle', 'approved_hash', 'approved_by', 'approved_at', 'locked_at', 'published_at', 'usage'):
+    for key in ('status', 'lifecycle', 'approved_hash', 'approved_by', 'approved_at', 'locked_at', 'published_at', 'usage',
+                'reuse_check'):
         out.pop(key, None)
     out['status'] = 'drafting'
     return out
@@ -905,7 +907,7 @@ class BankService:
                         profile=profile, allowed_kinds=list(kinds_allowed),
                         scoring_policy=exam_policy(payload.get('scoring_policy'), exam_type),
                         validation_note='Đã kiểm tra theo bài, dạng và mức độ; giáo viên cần đối chiếu chi tiết từng YCCĐ của bảng đặc tả trước khi phát hành.')
-            records = self._records('exams'); records.append(exam)
+            records = self._records('exams'); exam['reuse_check'] = self.reuse_check(exam, records); records.append(exam)
             self._atomic_save(self.data_dir/'exams.json', records)
             return copy.deepcopy(exam)
 
@@ -958,6 +960,11 @@ class BankService:
             self._atomic_save(self.data_dir/'exams.json', records)
             return copy.deepcopy(records)
 
+    def reuse_check(self, exam, records=None, days=DEFAULT_RECENT_DAYS):
+        """B5: câu đã có trong đề phát hành gần đây (chỉ cảnh báo). Lưu ở trường quản trị, không vào hash đề."""
+        records = self._records('exams') if records is None else records
+        return dict(checked_at=now(), days=days, warnings=recent_uses(exam, records, days=days))
+
     def _attach_cell_report(self, report, exam, matrix):
         if matrix.get('slots'):
             report['cells'] = cell_check(exam, matrix, self.catalog)
@@ -965,6 +972,7 @@ class BankService:
                 report['passed'] = False
                 report['status'] = 'failed'
         report['ratio_warnings'] = ratio_warnings(matrix)
+        report['reuse_warnings'] = recent_uses(exam, self._records('exams'))
 
     @staticmethod
     def _assert_exam_editable(exam, message='Đề đã duyệt & khóa hoặc đã phát hành; hãy tạo bản chỉnh sửa mới để sửa.'):
@@ -1004,7 +1012,7 @@ class BankService:
                     raise ServiceError('Chỉ tạo bản chỉnh sửa mới từ đề đã duyệt hoặc đã phát hành.', status=409)
                 rev = {k: copy.deepcopy(v) for k, v in exam.items()
                        if k not in ('status', 'lifecycle', 'approved_hash', 'approved_by', 'approved_at', 'locked_at',
-                                    'published_at', 'usage')}
+                                    'published_at', 'usage', 'reuse_check')}
                 rev.update(id=f'EXAM-{uuid.uuid4().hex[:12]}', status='drafting', previous_exam_id=exam['id'],
                            created_at=now(), lifecycle=[dict(entry, action='new_revision_from', source=exam['id'])])
                 records.append(rev)
@@ -1037,6 +1045,7 @@ class BankService:
                     matrix = self._exam_matrix(exam, matrix_service)
                     if matrix:
                         exam['matrix_snapshot'] = copy.deepcopy(matrix)  # chụp ma trận cùng đề, không tham chiếu
+                exam['reuse_check'] = self.reuse_check(exam, records)
                 exam['approved_hash'] = exam_hash(exam)
                 exam['approved_by'], exam['approved_at'] = entry['by'], entry['at']
                 entry['content_hash'] = exam['approved_hash']

@@ -10,6 +10,7 @@ from .model import matrix_digest,validate_matrix
 from domain.policies import resolve_similarity
 from domain.profiles import allowed_kinds
 from domain.scoring import exam_policy
+from domain.reuse import recent_uses
 
 
 def _usable(bank,service,ident):
@@ -38,10 +39,14 @@ def matrix_candidates(bank_service,matrix_service,matrix_id):
         m=_usable(bank_service,matrix_service,matrix_id)
         slots=[]
         reqs={r['id']:r for r in m['requirements']}
+        exams=bank_service._records('exams')
+        def used(q):  # B5: đề đã phát hành gần đây có câu này (cùng mã hoặc cùng nội dung)
+            return [dict(exam_id=u['other_exam_id'],title=u['other_title'],published_at=u['published_at'],match=u['match'])
+                    for u in recent_uses(dict(id=None,questions=[q]),exams)]
         for s in m['slots']:
             qs=_eligible(bank_service,m,s)
             slots.append(dict(slot=copy.deepcopy(s),requirements=[copy.deepcopy(reqs[p['requirement_id']]) for p in s['parts']],
-                candidates=[dict({k:copy.deepcopy(q[k]) for k in ('id','question','learning_outcome','type','level','lesson_code','review_status','options','correct','rubric') if k in q},content_hash=content_hash(q)) for q in qs]))
+                candidates=[dict({k:copy.deepcopy(q[k]) for k in ('id','question','learning_outcome','type','level','lesson_code','review_status','options','correct','rubric') if k in q},content_hash=content_hash(q),recently_used=used(q)) for q in qs]))
         return dict(matrix=m,slots=slots)
 
 
@@ -92,5 +97,5 @@ def generate_from_matrix(bank_service,matrix_service,payload):
             scoring_policy=exam_policy(m.get('scoring_policy'),m['exam_type']),
             allowed_kinds=list(allowed_kinds(m)),profile=m.get('profile'),
             validation_note='Vị trí câu gắn với phiên bản ma trận; giáo viên đã xác nhận từng chỉ báo. Kiểm tra tự động không thay duyệt chuyên môn.')
-        records=b._records('exams');records.append(exam);b._atomic_save(b.data_dir/'exams.json',records)
+        records=b._records('exams');exam['reuse_check']=b.reuse_check(exam,records);records.append(exam);b._atomic_save(b.data_dir/'exams.json',records)
         return copy.deepcopy(exam)

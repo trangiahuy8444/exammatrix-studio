@@ -301,6 +301,14 @@ class Handler(BaseHTTPRequestHandler):
                 exam = service.exam_transition(payload.get('id'), payload.get('action'), actor=self._actor(),
                                                reason=payload.get('reason', ''), matrix_service=self.matrix_service)
                 return self._json({'exam': exam, 'exams': service.state()['exams']})
+            if path == '/api/exams/close-match':
+                mark = service.mark_close_match(payload.get('id'), payload.get('question_id'), payload.get('revision_question_id'),
+                                                payload.get('reason', ''), actor=self._actor())
+                return self._json({'mark': mark, 'exams': service.state()['exams']})
+            if path == '/api/exams/close-match/review':
+                mark = service.review_close_match(payload.get('id'), payload.get('question_id'), payload.get('action'),
+                                                  actor=self._actor(), reason=payload.get('reason', ''))
+                return self._json({'mark': mark, 'exams': service.state()['exams']})
             if path == '/api/exams/verify':
                 return self._json({'exam': service.verify_exam(payload.get('id'), self.matrix_service, payload.get('similarity_percent'), payload.get('similarity_mode')), 'exams': service.state()['exams']})
             if path == '/api/exams/adjust-similarity':

@@ -97,5 +97,5 @@ def generate_from_matrix(bank_service,matrix_service,payload):
             scoring_policy=exam_policy(m.get('scoring_policy'),m['exam_type']),
             allowed_kinds=list(allowed_kinds(m)),profile=m.get('profile'),
             validation_note='Vị trí câu gắn với phiên bản ma trận; giáo viên đã xác nhận từng chỉ báo. Kiểm tra tự động không thay duyệt chuyên môn.')
-        records=b._records('exams');exam['reuse_check']=b.reuse_check(exam,records);records.append(exam);b._atomic_save(b.data_dir/'exams.json',records)
+        records=b._records('exams');exam['reuse_check']=b.reuse_check(exam,records);b._refresh_revision_check(exam);records.append(exam);b._atomic_save(b.data_dir/'exams.json',records)
         return copy.deepcopy(exam)

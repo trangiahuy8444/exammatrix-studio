@@ -184,6 +184,37 @@ function revisionGoals(record){
  return [...map.values()];
 }
 const syncEditedQuestionsFromSheet=C.syncEditedQuestionsFromSheet;
+// B6: tiêu chí đề cương T = (trùng + bám sát đã duyệt) / tổng ≥ 90%, độ bao phủ YCCĐ 100%.
+function revisionCriterionHtml(record){
+ const c=record.revision_check||(record.verification&&record.verification.revision_criterion);if(!c)return '';
+ const rev=store.revisions.find(r=>r.id===record.revision_id),revQs=rev?.questions||[],marks=record.close_matches||{},editable=C.examEditable(record);
+ const qById=Object.fromEntries((record.questions||[]).map(q=>[q.id,q]));
+ const statusName={pending:'Chờ duyệt',approved:'Đã duyệt',rejected:'Không công nhận'};
+ const row=qid=>{const q=qById[qid]||{},m=marks[qid],same=revQs.filter(r=>r.lesson_code===q.lesson_code),choices=(same.length?same:revQs);
+  return `<tr><td>Câu ${esc(q.slot_number??'')}</td><td>${esc((q.question||'').slice(0,140))}</td><td>${m?`<span class="badge ${m.status==='approved'?'approved':m.status==='pending'?'pending_review':'needs_review'}">${esc(statusName[m.status]||m.status)}</span><br><span class="small muted">Gốc: ${esc(m.revision_question_id)} · ${esc(m.reason)}${m.approved_by?' · duyệt: '+esc(m.approved_by):''}${m.review_reason?' · '+esc(m.review_reason):''}</span>`:'<span class="small muted">Ngoài đề cương</span>'}</td><td>${!editable?'':
+   (m&&m.status==='pending'?`<button type="button" class="export-link primary" data-close-review="approve" data-qid="${esc(qid)}">Duyệt bám sát</button> <button type="button" class="export-link" data-close-review="reject" data-qid="${esc(qid)}">Không công nhận</button>`:
+   `<select data-close-rev="${esc(qid)}" aria-label="Câu gốc trong đề cương cho câu ${esc(q.slot_number??'')}">${choices.map(r=>opt(r.id,`${r.id} · ${(r.question||'').slice(0,80)}`,m?.revision_question_id===r.id)).join('')}</select><input data-close-reason="${esc(qid)}" placeholder="Lý do bám sát (bắt buộc)" aria-label="Lý do bám sát"><button type="button" class="export-link" data-close-mark="${esc(qid)}">Đánh dấu bám sát</button>`)}</td></tr>`;};
+ const listed=[...c.close_approved,...c.outside];
+ return `<div class="doc-sheet"><h4>TIÊU CHÍ ĐỀ CƯƠNG ${c.passed?'<span class="badge approved">Đạt</span>':'<span class="badge needs_review">Chưa đạt</span>'}</h4>
+  <p><strong>T = ${esc(String(c.t_percent).replace('.',','))}%</strong> = (${c.exact_count} câu trùng + ${c.close_count} câu bám sát đã duyệt) / ${c.total} câu · cần ≥ ${esc(c.threshold)}% (${c.required} câu).
+  Tỉ lệ theo điểm (tham khảo): ${esc(String(c.points_percent).replace('.',','))}%. Độ bao phủ YCCĐ: <strong>${esc(String(c.coverage.percent).replace('.',','))}%</strong> điểm (cần 100%).</p>
+  ${c.coverage.missing.length?`<div class="callout error">YCCĐ không có trong đề cương: ${c.coverage.missing.map(m=>`Câu ${esc(m.slot_number??'')} (${esc(m.lesson_code||'')} · ${esc(m.learning_outcome||'')})`).join('; ')}</div>`:''}
+  <p class="small">Cách tính: <select data-rev-policy aria-label="Cách tính tiêu chí đề cương"${editable?'':' disabled'}>${opt('trung_va_bam_sat','Trùng + bám sát đã duyệt',c.mode==='trung_va_bam_sat')}${opt('chi_trung','Chỉ tính câu trùng',c.mode==='chi_trung')}</select>${editable?' <button type="button" class="export-link" data-rev-policy-save>Lưu cách tính</button>':''}</p>
+  ${listed.length?`<div class="table-wrap"><table><thead><tr><th>Câu</th><th>Nội dung</th><th>Bám sát</th><th></th></tr></thead><tbody>${listed.map(row).join('')}</tbody></table></div>`:'<p class="small muted">Tất cả câu đều trùng với đề cương.</p>'}
+  <p class="small muted">Câu bám sát chỉ được tính sau khi được duyệt. Đề đã khóa không đổi được câu bám sát.</p></div>`;
+}
+async function closeMatchAct(hostEl,record,isInline,el){
+ const refresh=async()=>{const updated=store.exams.find(x=>x.id===record.id)||record;mountExamViewerContent(hostEl,updated,'verify',isInline);};
+ let done=null;
+ if(el.dataset.closeMark){const qid=el.dataset.closeMark,reason=(hostEl.querySelector(`[data-close-reason="${CSS.escape(qid)}"]`)?.value||'').trim(),rid=hostEl.querySelector(`[data-close-rev="${CSS.escape(qid)}"]`)?.value;
+  if(!reason)return notify('Cần ghi lý do câu bám sát đề cương.',true);
+  done=await mutate('/api/exams/close-match',{id:record.id,question_id:qid,revision_question_id:rid,reason},r=>{if(r.exams)store.exams=r.exams;});}
+ else if(el.dataset.closeReview){const payload={id:record.id,question_id:el.dataset.qid,action:el.dataset.closeReview};
+  if(payload.action==='reject'){const reason=prompt('Lý do không công nhận bám sát (bắt buộc):');if(!reason||!reason.trim())return notify('Cần ghi lý do.',true);payload.reason=reason.trim();}
+  done=await mutate('/api/exams/close-match/review',payload,r=>{if(r.exams)store.exams=r.exams;});}
+ else if(el.dataset.revPolicySave!==undefined){done=await mutate('/api/exams/update',{id:record.id,revision_policy:hostEl.querySelector('[data-rev-policy]').value},r=>{if(r.exams)store.exams=r.exams;else if(r.exam)store.exams=store.exams.map(x=>x.id===r.exam.id?r.exam:x);});}
+ if(done){await refresh();notify('Đã cập nhật tiêu chí đề cương.');}
+}
 // B4: bảng đối chiếu từng ô (bài × YCCĐ × dạng × mức độ) và cảnh báo tỉ lệ CV 7991 (chỉ cảnh báo).
 function cellReportHtml(v){
  if(!v||(!v.cells&&!(v.ratio_warnings||[]).length&&!(v.reuse_warnings||[]).length))return '';
@@ -252,7 +283,7 @@ function mcColsClass(options){
  return 'cols-1';
 }
 function buildExamSheetHtml(record,mode='student'){
- if(mode==='verify')return buildVerificationReportHtml(record)+cellReportHtml(record.verification);
+ if(mode==='verify')return buildVerificationReportHtml(record)+revisionCriterionHtml(record)+cellReportHtml(record.verification);
  const mcs=(record.questions||[]).filter(q=>q.type==='MC');
  const yns=(record.questions||[]).filter(q=>q.type==='YN');
  const ess=(record.questions||[]).filter(q=>q.type==='ES');
@@ -306,6 +337,7 @@ function mountExamViewerContent(hostEl,record,mode='student',isInline=false){
  if(closeInlineBtn)closeInlineBtn.onclick=()=>{store.activeExamViewId=null;hostEl.hidden=true;hostEl.innerHTML='';};
  const modalBtn=hostEl.querySelector('[data-modal-exam]');
  if(modalBtn)modalBtn.onclick=()=>openExamViewerModal(record,mode);
+ hostEl.querySelectorAll('[data-close-mark],[data-close-review],[data-rev-policy-save]').forEach(el=>{el.onclick=()=>closeMatchAct(hostEl,record,isInline,el);});
  const reverifyBtn=hostEl.querySelector('[data-reverify-exam]');
  if(reverifyBtn)reverifyBtn.onclick=async()=>{
   await mutate('/api/exams/verify',{id:record.id},res=>{

@@ -26,6 +26,7 @@ from domain.profiles import KIND_LABELS, PROFILE_KINDS, allowed_kinds, default_p
 from domain.scoring import exam_policy, policy_table
 from domain.matrix_checks import cell_check, ratio_warnings
 from domain.reuse import DEFAULT_RECENT_DAYS, bank_duplicates, recent_uses
+from domain.revision_criterion import MODES as REVISION_MODES, revision_report
 from input_schema import canonical_short_answer
 from pathlib import Path
 from domain.policies import resolve_similarity, require_revision
@@ -35,7 +36,7 @@ def _without_approval(exam):
     """Bản sao/mã đề mới của một đề: bắt đầu lại ở trạng thái đang soạn, không kế thừa phê duyệt (B2)."""
     out = copy.deepcopy(exam)
     for key in ('status', 'lifecycle', 'approved_hash', 'approved_by', 'approved_at', 'locked_at', 'published_at', 'usage',
-                'reuse_check'):
+                'reuse_check', 'revision_check'):
         out.pop(key, None)
     out['status'] = 'drafting'
     return out
@@ -907,7 +908,8 @@ class BankService:
                         profile=profile, allowed_kinds=list(kinds_allowed),
                         scoring_policy=exam_policy(payload.get('scoring_policy'), exam_type),
                         validation_note='Đã kiểm tra theo bài, dạng và mức độ; giáo viên cần đối chiếu chi tiết từng YCCĐ của bảng đặc tả trước khi phát hành.')
-            records = self._records('exams'); exam['reuse_check'] = self.reuse_check(exam, records); records.append(exam)
+            records = self._records('exams'); exam['reuse_check'] = self.reuse_check(exam, records)
+            self._refresh_revision_check(exam); records.append(exam)
             self._atomic_save(self.data_dir/'exams.json', records)
             return copy.deepcopy(exam)
 
@@ -933,6 +935,11 @@ class BankService:
                 old['duration'] = dur
             if 'campus' in payload:
                 old['campus'] = str(payload.get('campus') or '').strip()
+            if 'revision_policy' in payload:  # B6: tổ chọn "trùng + bám sát đã duyệt" hoặc "chỉ tính câu trùng"
+                if payload['revision_policy'] not in REVISION_MODES:
+                    raise ServiceError('Cách tính tiêu chí đề cương không hợp lệ.', {'revision_policy': payload['revision_policy']})
+                old['revision_policy'] = payload['revision_policy']
+                self._refresh_revision_check(old)
             if 'exam_code' in payload:
                 old['exam_code'] = str(payload.get('exam_code') or '').strip()
             if 'questions' in payload:
@@ -960,6 +967,77 @@ class BankService:
             self._atomic_save(self.data_dir/'exams.json', records)
             return copy.deepcopy(records)
 
+    def _revision_for(self, exam):
+        if not exam.get('revision_id'):
+            return None
+        return next((r for r in self._records('revisions') if r.get('id') == exam['revision_id']), None)
+
+    def revision_criterion(self, ident):
+        """B6: báo cáo tiêu chí đề cương của một đề (T, nhóm trùng/bám sát, độ bao phủ YCCĐ)."""
+        exam = self.get_record('exams', ident)
+        revision = self._revision_for(exam)
+        if revision is None:
+            raise ServiceError('Đề chưa gắn phiên bản đề cương còn tồn tại để đối chiếu.', {'id': ident})
+        return revision_report(exam, revision)
+
+    def _refresh_revision_check(self, exam):
+        revision = self._revision_for(exam)
+        if revision is not None:
+            exam['revision_check'] = revision_report(exam, revision)
+        else:
+            exam.pop('revision_check', None)
+
+    def _close_match_target(self, ident, question_id):
+        records = self._records('exams')
+        exam = next((x for x in records if x.get('id') == ident), None)
+        if exam is None:
+            raise ServiceError('Không tìm thấy đề kiểm tra.', {'id': ident}, 404)
+        self._assert_exam_editable(exam, 'Đề đã duyệt & khóa hoặc đã phát hành; không đổi được câu bám sát.')
+        if not any(q.get('id') == question_id for q in exam.get('questions', [])):
+            raise ServiceError('Câu không có trong đề.', {'question_id': question_id})
+        return records, exam
+
+    def mark_close_match(self, ident, question_id, revision_question_id, reason, actor='local'):
+        """Đánh dấu câu trong đề "bám sát" một câu của đề cương; chỉ được tính sau khi được duyệt (B6)."""
+        with self.lock:
+            records, exam = self._close_match_target(ident, question_id)
+            reason = str(reason or '').strip()
+            if not reason:
+                raise ServiceError('Cần ghi lý do câu bám sát đề cương (ví dụ: cùng YCCĐ, đổi số liệu).')
+            revision = self._revision_for(exam)
+            if revision is None or not any(r.get('id') == revision_question_id for r in revision.get('questions', [])):
+                raise ServiceError('Câu gốc phải thuộc phiên bản đề cương của đề.', {'revision_question_id': revision_question_id})
+            mark = dict(revision_question_id=revision_question_id, reason=reason[:1000], status='pending',
+                        marked_by=str(actor or 'local'), marked_at=now())
+            exam.setdefault('close_matches', {})[question_id] = mark
+            self._refresh_revision_check(exam)
+            exam['updated_at'] = now()
+            self._atomic_save(self.data_dir/'exams.json', records)
+            return copy.deepcopy(mark)
+
+    def review_close_match(self, ident, question_id, action, actor='local', reason=''):
+        with self.lock:
+            records, exam = self._close_match_target(ident, question_id)
+            mark = (exam.get('close_matches') or {}).get(question_id)
+            if not mark:
+                raise ServiceError('Câu này chưa được đánh dấu bám sát.', {'question_id': question_id}, 404)
+            reason = str(reason or '').strip()
+            if action == 'approve':
+                mark.update(status='approved', approved_by=str(actor or 'local'), approved_at=now())
+                if reason:
+                    mark['review_reason'] = reason[:1000]
+            elif action == 'reject':
+                if not reason:
+                    raise ServiceError('Khi không công nhận bám sát phải ghi lý do.')
+                mark.update(status='rejected', rejected_by=str(actor or 'local'), rejected_at=now(), review_reason=reason[:1000])
+                mark.pop('approved_by', None); mark.pop('approved_at', None)
+            else:
+                raise ServiceError('Thao tác không hợp lệ.', {'action': action})
+            self._refresh_revision_check(exam)
+            exam['updated_at'] = now()
+            self._atomic_save(self.data_dir/'exams.json', records)
+            return copy.deepcopy(mark)
+
     def reuse_check(self, exam, records=None, days=DEFAULT_RECENT_DAYS):
         """B5: câu đã có trong đề phát hành gần đây (chỉ cảnh báo). Lưu ở trường quản trị, không vào hash đề."""
         records = self._records('exams') if records is None else records
@@ -973,6 +1051,9 @@ class BankService:
                 report['status'] = 'failed'
         report['ratio_warnings'] = ratio_warnings(matrix)
         report['reuse_warnings'] = recent_uses(exam, self._records('exams'))
+        self._refresh_revision_check(exam)
+        if exam.get('revision_check'):
+            report['revision_criterion'] = exam['revision_check']
 
     @staticmethod
     def _assert_exam_editable(exam, message='Đề đã duyệt & khóa hoặc đã phát hành; hãy tạo bản chỉnh sửa mới để sửa.'):
@@ -1012,7 +1093,7 @@ class BankService:
                     raise ServiceError('Chỉ tạo bản chỉnh sửa mới từ đề đã duyệt hoặc đã phát hành.', status=409)
                 rev = {k: copy.deepcopy(v) for k, v in exam.items()
                        if k not in ('status', 'lifecycle', 'approved_hash', 'approved_by', 'approved_at', 'locked_at',
-                                    'published_at', 'usage', 'reuse_check')}
+                                    'published_at', 'usage', 'reuse_check', 'revision_check')}
                 rev.update(id=f'EXAM-{uuid.uuid4().hex[:12]}', status='drafting', previous_exam_id=exam['id'],
                            created_at=now(), lifecycle=[dict(entry, action='new_revision_from', source=exam['id'])])
                 records.append(rev)
@@ -1039,8 +1120,22 @@ class BankService:
                     problems += [f"Ô ma trận {c['lesson_code']} · {c['kind']} · {c['level']}: cần {c['expected_questions']} câu/"
                                  f"{c['expected_points']} điểm, đề có {c['actual_questions']} câu/{c['actual_points']} điểm."
                                  for c in cells['cells'] if not c['ok']]
+                revision = self._revision_for(exam)
+                if revision is None:
+                    problems.append('Đề chưa gắn phiên bản đề cương còn tồn tại để đối chiếu.')
+                else:
+                    crit = revision_report(exam, revision)
+                    entry['revision_criterion'] = {k: crit[k] for k in ('mode', 't_percent', 'exact_count', 'close_count',
+                                                                        'total', 'required', 'points_percent')}
+                    if not crit['coverage']['ok']:
+                        problems.append(f"Độ bao phủ YCCĐ của đề cương mới {crit['coverage']['percent']}% điểm (cần 100%): "
+                                        + ', '.join(f"câu {m['slot_number']}" for m in crit['coverage']['missing']) + '.')
+                    if crit['exact_count'] + crit['close_count'] < crit['required']:
+                        problems.append(f"Tiêu chí đề cương T = {crit['t_percent']}% ({crit['exact_count']} câu trùng + "
+                                        f"{crit['close_count']} câu bám sát đã duyệt / {crit['total']} câu), cần ≥ 90%.")
                 if problems:
-                    raise ServiceError('Đề có câu chưa duyệt, khác phiên bản đã duyệt hoặc lệch ma trận.', {'problems': problems})
+                    raise ServiceError('Đề có câu chưa duyệt, khác phiên bản đã duyệt, lệch ma trận hoặc chưa đạt tiêu chí đề cương.',
+                                       {'problems': problems})
                 if matrix_service is not None and not exam.get('matrix_snapshot'):
                     matrix = self._exam_matrix(exam, matrix_service)
                     if matrix:

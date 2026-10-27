@@ -1,0 +1,108 @@
+"""Đối chiếu đề với ma trận theo từng ô và cảnh báo tỉ lệ (mốc B4).
+
+Ô = (bài, YCCĐ trong PPCT, dạng câu, mức độ). Số câu tính theo vị trí (câu Đ/S 4 ý vẫn là 1 câu), điểm tính theo ý.
+
+Cảnh báo tỉ lệ chỉ áp dụng cho ma trận THPT của đề định kì, theo Phụ lục CV 7991/BGDĐT-GDTrH (ghi "tham khảo",
+các mức đều là "khoảng"): nhiều lựa chọn 3,0; Đúng – Sai 2,0; trả lời ngắn 2,0; tự luận 3,0 (môn không dùng trả lời
+ngắn thì chuyển toàn bộ điểm sang Đúng – Sai); Biết 4,0; Hiểu 3,0; Vận dụng 3,0. Ngưỡng lệch (mặc định ±0,5 điểm)
+là ngưỡng nội bộ, chỉnh được bằng `ratio_tolerance`, và chỉ sinh cảnh báo, không chặn.
+"""
+from collections import OrderedDict
+from decimal import Decimal
+
+from domain.errors import ServiceError
+from domain.scoring import dec
+
+KIND_TARGETS = {'MC': Decimal('3'), 'YN': Decimal('2'), 'SHORT': Decimal('2'), 'ES': Decimal('3')}
+LEVEL_TARGETS = {'Biết': Decimal('4'), 'Hiểu': Decimal('3'), 'Vận dụng': Decimal('3')}
+DEFAULT_TOLERANCE = Decimal('0.5')
+KIND_NAMES = {'MC': 'Nhiều lựa chọn', 'YN': 'Đúng – Sai', 'SHORT': 'Trả lời ngắn', 'ES': 'Tự luận'}
+PERIODIC = ('GK1', 'CK1', 'GK2', 'CK2')
+
+
+def fmt(value):
+    text = format(dec(value).normalize(), 'f')
+    return '0' if text in ('-0', '') else text
+
+
+def _outcomes(ppct, grade=None):
+    out = {}
+    for lesson in (ppct or {}).get('lessons', []):
+        if grade is not None and lesson.get('grade') not in (None, grade):
+            continue
+        for i, text in enumerate(lesson.get('outcomes', [])):
+            out[(lesson.get('lesson_code'), i)] = text
+    return out
+
+
+def cell_check(exam, matrix, ppct=None):
+    """So số câu và điểm của đề với ma trận ở từng ô. Trả về {'ok', 'cells': [...]} (điểm ghi dạng chuỗi Decimal)."""
+    outcomes = _outcomes(ppct, matrix.get('grade'))
+    reqs = {r.get('id'): r for r in matrix.get('requirements', []) if isinstance(r, dict)}
+    cells = OrderedDict()
+
+    def cell(lesson, outcome, kind, level):
+        key = (lesson, outcome, kind, level)
+        if key not in cells:
+            cells[key] = dict(lesson_code=lesson, outcome=outcome, kind=kind, level=level, expected_questions=0,
+                              actual_questions=0, expected_points=Decimal(0), actual_points=Decimal(0))
+        return cells[key]
+
+    for s in matrix.get('slots', []):
+        for i, part in enumerate(s.get('parts', [])):
+            r = reqs.get(part.get('requirement_id')) or {}
+            outcome = outcomes.get((r.get('lesson_code'), r.get('ppct_outcome_index')), r.get('text', ''))
+            c = cell(r.get('lesson_code'), outcome, s.get('kind'), r.get('level'))
+            c['expected_points'] += dec(part.get('points', 0))
+            if i == 0:
+                c['expected_questions'] += 1
+    for q in exam.get('questions', []):
+        c = cell(q.get('lesson_code'), q.get('learning_outcome'), q.get('type'), q.get('level'))
+        c['actual_questions'] += 1
+        c['actual_points'] += dec(q.get('points', 0))
+    rows = []
+    for c in cells.values():
+        c['ok'] = c['expected_questions'] == c['actual_questions'] and c['expected_points'] == c['actual_points']
+        c['expected_points'], c['actual_points'] = fmt(c['expected_points']), fmt(c['actual_points'])
+        rows.append(c)
+    return dict(ok=all(c['ok'] for c in rows), cells=rows)
+
+
+def tolerance_of(matrix):
+    raw = matrix.get('ratio_tolerance')
+    value = DEFAULT_TOLERANCE if raw in (None, '') else dec(raw)
+    if value < 0 or value > 10:
+        raise ServiceError('Ngưỡng cảnh báo tỉ lệ phải từ 0 đến 10 điểm.', {'ratio_tolerance': str(raw)})
+    return value
+
+
+def ratio_warnings(matrix):
+    """Cảnh báo (không chặn) khi điểm theo dạng câu hoặc mức độ lệch mức tham khảo của CV 7991 quá ngưỡng nội bộ."""
+    tolerance = tolerance_of(matrix)
+    if matrix.get('profile') != 'THPT' or matrix.get('exam_type') not in PERIODIC:
+        return []
+    reqs = {r.get('id'): r for r in matrix.get('requirements', []) if isinstance(r, dict)}
+    by_kind = {k: Decimal(0) for k in KIND_TARGETS}
+    by_level = {k: Decimal(0) for k in LEVEL_TARGETS}
+    for s in matrix.get('slots', []):
+        for part in s.get('parts', []):
+            points = dec(part.get('points', 0))
+            if s.get('kind') in by_kind:
+                by_kind[s['kind']] += points
+            level = (reqs.get(part.get('requirement_id')) or {}).get('level')
+            if level in by_level:
+                by_level[level] += points
+    targets = dict(KIND_TARGETS)
+    if by_kind['SHORT'] == 0:  # CV 7991, chú thích 3
+        targets['YN'] += targets.pop('SHORT')
+        by_kind.pop('SHORT')
+    warnings = []
+    for code, actual, target, name in ([('ratio_kind', by_kind[k], t, KIND_NAMES[k]) for k, t in targets.items()] +
+                                       [('ratio_level', by_level[k], t, 'Mức ' + k) for k, t in LEVEL_TARGETS.items()]):
+        diff = actual - target
+        if abs(diff) > tolerance:
+            warnings.append(dict(code=code, severity='warning', path='slots', actual=fmt(actual), target=fmt(target),
+                                 message=f'{name}: {fmt(actual).replace(".", ",")} điểm; CV 7991 tham khảo khoảng '
+                                         f'{fmt(target).replace(".", ",")} điểm (lệch {fmt(abs(diff)).replace(".", ",")}, '
+                                         f'vượt ngưỡng nội bộ ±{fmt(tolerance).replace(".", ",")}). Chỉ là cảnh báo.'))
+    return warnings

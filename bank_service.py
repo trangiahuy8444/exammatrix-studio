@@ -24,6 +24,7 @@ from domain.review import (CHECKLIST, EXAM_ELIGIBLE, STATUSES, normalize_status,
 from domain.exam_lifecycle import FROZEN, exam_hash, exam_status
 from domain.profiles import KIND_LABELS, PROFILE_KINDS, allowed_kinds, default_profile_for_grade
 from domain.scoring import exam_policy, policy_table
+from domain.matrix_checks import cell_check, ratio_warnings
 from input_schema import canonical_short_answer
 from pathlib import Path
 from domain.policies import resolve_similarity, require_revision
@@ -957,6 +958,14 @@ class BankService:
             self._atomic_save(self.data_dir/'exams.json', records)
             return copy.deepcopy(records)
 
+    def _attach_cell_report(self, report, exam, matrix):
+        if matrix.get('slots'):
+            report['cells'] = cell_check(exam, matrix, self.catalog)
+            if not report['cells']['ok']:
+                report['passed'] = False
+                report['status'] = 'failed'
+        report['ratio_warnings'] = ratio_warnings(matrix)
+
     @staticmethod
     def _assert_exam_editable(exam, message='Đề đã duyệt & khóa hoặc đã phát hành; hãy tạo bản chỉnh sửa mới để sửa.'):
         if exam_status(exam) in FROZEN:
@@ -1016,8 +1025,14 @@ class BankService:
                 if status != 'pending_approval':
                     raise ServiceError('Chỉ duyệt được đề đang chờ duyệt.', {'status': status}, 409)
                 problems = self._exam_question_problems(exam)
+                snapshot = exam.get('matrix_snapshot') or {}
+                if snapshot.get('slots'):
+                    cells = cell_check(exam, snapshot, self.catalog)
+                    problems += [f"Ô ma trận {c['lesson_code']} · {c['kind']} · {c['level']}: cần {c['expected_questions']} câu/"
+                                 f"{c['expected_points']} điểm, đề có {c['actual_questions']} câu/{c['actual_points']} điểm."
+                                 for c in cells['cells'] if not c['ok']]
                 if problems:
-                    raise ServiceError('Đề có câu chưa duyệt hoặc khác phiên bản đã duyệt.', {'problems': problems})
+                    raise ServiceError('Đề có câu chưa duyệt, khác phiên bản đã duyệt hoặc lệch ma trận.', {'problems': problems})
                 if matrix_service is not None and not exam.get('matrix_snapshot'):
                     matrix = self._exam_matrix(exam, matrix_service)
                     if matrix:
@@ -1435,6 +1450,8 @@ class BankService:
                 exam.get('similarity_target_percent', 90.0),
                 exam.get('similarity_mode', 'min'),
             )
+            # B4: đối chiếu từng ô (bài × YCCĐ × dạng × mức độ) và cảnh báo tỉ lệ CV 7991 (chỉ cảnh báo).
+            self._attach_cell_report(report, exam, matrix)
             exam['verification'] = report
             exam['matrix_id'] = matrix.get('id')
             exam['revision_match_count'] = report['revision_check']['matched_questions']
@@ -1685,6 +1702,8 @@ class BankService:
                 exam.get('similarity_target_percent', 90.0),
                 exam.get('similarity_mode', 'min'),
             )
+            # B4: đối chiếu từng ô (bài × YCCĐ × dạng × mức độ) và cảnh báo tỉ lệ CV 7991 (chỉ cảnh báo).
+            self._attach_cell_report(report, exam, matrix)
             exam['verification'] = report
             exam['matrix_id'] = matrix.get('id')
             exam['revision_match_count'] = report['revision_check']['matched_questions']

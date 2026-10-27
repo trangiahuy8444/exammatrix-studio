@@ -184,6 +184,15 @@ function revisionGoals(record){
  return [...map.values()];
 }
 const syncEditedQuestionsFromSheet=C.syncEditedQuestionsFromSheet;
+// B4: bảng đối chiếu từng ô (bài × YCCĐ × dạng × mức độ) và cảnh báo tỉ lệ CV 7991 (chỉ cảnh báo).
+function cellReportHtml(v){
+ if(!v||(!v.cells&&!(v.ratio_warnings||[]).length))return '';
+ const kindName={MC:'Nhiều lựa chọn',YN:'Đúng/Sai',SHORT:'Trả lời ngắn',ES:'Tự luận'};
+ const bad=(v.cells?.cells||[]).filter(c=>!c.ok).length;
+ return `<div class="doc-sheet"><h4>ĐỐI CHIẾU TỪNG Ô MA TRẬN ${v.cells?(v.cells.ok?'<span class="badge approved">Khớp tất cả ô</span>':`<span class="badge needs_review">${bad} ô lệch</span>`):''}</h4>`+
+  (v.cells?`<div class="table-wrap"><table><thead><tr><th>Bài</th><th>YCCĐ</th><th>Dạng</th><th>Mức độ</th><th>Số câu (ma trận / đề)</th><th>Điểm (ma trận / đề)</th><th></th></tr></thead><tbody>${v.cells.cells.map(c=>`<tr${c.ok?'':' style="background:#fff0f1"'}><td>${esc(c.lesson_code||'')}</td><td>${esc(c.outcome||'')}</td><td>${esc(kindName[c.kind]||c.kind||'')}</td><td>${esc(c.level||'')}</td><td>${c.expected_questions} / ${c.actual_questions}</td><td>${esc(String(c.expected_points).replace('.',','))} / ${esc(String(c.actual_points).replace('.',','))}</td><td>${c.ok?'✓':'Lệch'}</td></tr>`).join('')}</tbody></table></div>`:'')+
+  ((v.ratio_warnings||[]).length?`<div class="callout warning"><strong>Cảnh báo tỉ lệ (ngưỡng nội bộ, không bắt buộc theo CV 7991)</strong><ul>${v.ratio_warnings.map(w=>`<li>${esc(w.message)}</li>`).join('')}</ul></div>`:'')+`</div>`;
+}
 function buildVerificationReportHtml(record){
  const v=record.verification;
  if(!v){
@@ -242,7 +251,7 @@ function mcColsClass(options){
  return 'cols-1';
 }
 function buildExamSheetHtml(record,mode='student'){
- if(mode==='verify')return buildVerificationReportHtml(record);
+ if(mode==='verify')return buildVerificationReportHtml(record)+cellReportHtml(record.verification);
  const mcs=(record.questions||[]).filter(q=>q.type==='MC');
  const yns=(record.questions||[]).filter(q=>q.type==='YN');
  const ess=(record.questions||[]).filter(q=>q.type==='ES');

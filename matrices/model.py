@@ -11,6 +11,7 @@ LEVELS = ('Biết', 'Hiểu', 'Vận dụng')
 KINDS = ('MC', 'YN', 'SHORT', 'ES')
 from domain.profiles import KIND_LABELS, allowed_kinds
 from domain.scoring import policy_table
+from domain.matrix_checks import ratio_warnings
 
 CONTENT_FIELDS = ('profile', 'grade', 'school_year', 'exam_type', 'duration', 'title',
                   'owner_name', 'campus', 'total_points', 'lessons', 'requirements',
@@ -18,7 +19,7 @@ CONTENT_FIELDS = ('profile', 'grade', 'school_year', 'exam_type', 'duration', 't
 
 
 # B3: chỉ tính vào hash khi có mặt, để hash của các ma trận đã khóa trước đây không đổi.
-OPTIONAL_CONTENT_FIELDS = ('allowed_kinds', 'scoring_policy')
+OPTIONAL_CONTENT_FIELDS = ('allowed_kinds', 'scoring_policy', 'ratio_tolerance')
 
 
 def matrix_digest(matrix):
@@ -148,6 +149,10 @@ def validate_matrix(matrix, ppct, for_lock=False):
         kinds_allowed=allowed_kinds(m)
     except ServiceError as exc:
         error('allowed_kinds','allowed_kinds',exc.error);kinds_allowed=KINDS
+    try:
+        warnings.extend(ratio_warnings(m))  # B4: cảnh báo tỉ lệ CV 7991, không chặn
+    except ServiceError as exc:
+        error('ratio_tolerance','ratio_tolerance',exc.error)
     if 'scoring_policy' in m:
         try:policy_table(m['scoring_policy'])
         except ServiceError as exc:error('scoring_policy','scoring_policy',exc.error)

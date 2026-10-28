@@ -106,3 +106,41 @@ def ratio_warnings(matrix):
                                          f'{fmt(target).replace(".", ",")} điểm (lệch {fmt(abs(diff)).replace(".", ",")}, '
                                          f'vượt ngưỡng nội bộ ±{fmt(tolerance).replace(".", ",")}). Chỉ là cảnh báo.'))
     return warnings
+
+
+def shortfall_report(matrix, questions, ppct=None):
+    """B9: với mỗi ô (bài × YCCĐ × dạng × mức độ): số câu cần, số câu đã duyệt có sẵn và số còn thiếu.
+
+    Chỉ câu đã duyệt mới tính là đủ (đề chính thức chỉ dùng câu đã duyệt). Kèm số câu chờ duyệt, cần sửa và nháp
+    để giáo viên biết duyệt thêm có bù được không. Một câu ngân hàng có thể đứng ở nhiều vị trí cùng ô, nên "cần"
+    là số vị trí của ô.
+    """
+    from domain.review import normalize_status
+    outcomes = _outcomes(ppct, matrix.get('grade'))
+    reqs = {r.get('id'): r for r in matrix.get('requirements', []) if isinstance(r, dict)}
+    cells = OrderedDict()
+    for s in matrix.get('slots', []):
+        parts = s.get('parts') or []
+        if not parts:
+            continue
+        r = reqs.get(parts[0].get('requirement_id')) or {}
+        outcome = outcomes.get((r.get('lesson_code'), r.get('ppct_outcome_index')), r.get('text', ''))
+        key = (r.get('lesson_code'), outcome, s.get('kind'), r.get('level'))
+        cell = cells.setdefault(key, dict(grade=matrix.get('grade'), lesson_code=key[0], outcome=key[1], kind=key[2],
+                                          level=key[3], needed=0, slots=[], approved=0, pending_review=0,
+                                          needs_review=0, draft=0))
+        cell['needed'] += 1
+        cell['slots'].append(f"{s.get('kind')} {s.get('number')}")
+    for q in questions:
+        if q.get('grade') != matrix.get('grade'):
+            continue
+        cell = cells.get((q.get('lesson_code'), q.get('learning_outcome'), q.get('type'), q.get('level')))
+        status = normalize_status(q.get('review_status'))
+        if cell is not None and status in ('approved', 'pending_review', 'needs_review', 'draft'):
+            cell[status] += 1
+    rows = []
+    for cell in cells.values():
+        cell['shortfall'] = max(0, cell['needed'] - cell['approved'])
+        rows.append(cell)
+    total = sum(c['shortfall'] for c in rows)
+    return dict(matrix_id=matrix.get('id'), ok=total == 0, total_shortfall=total, cells=rows)

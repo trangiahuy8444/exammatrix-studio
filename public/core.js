@@ -432,10 +432,13 @@ function syncEditedQuestionsFromSheet(sheet,record){
       if(f.level&&q.level!==f.level)return false;
       if(f.type&&q.type!==f.type)return false;
       if(f.origin&&(q.origin||'teacher')!==f.origin)return false;
+      if(f.outcome&&q.learning_outcome!==f.outcome)return false;
       return true;
     }).sort((a,b)=>(a.grade-b.grade)||String(a.lesson_code).localeCompare(String(b.lesson_code),'vi',{numeric:true})||
       ((LEVEL_ORDER[a.level]??9)-(LEVEL_ORDER[b.level]??9))||String(a.id).localeCompare(String(b.id)));
   }
+  // B9: bộ lọc màn hình duyệt cho đúng một ô ma trận
+  function reviewFiltersForCell(c){return {status:'pending_review',grade:String(c.grade),lesson:c.lesson_code,type:c.kind,level:c.level,origin:'',outcome:c.outcome};}
   function reviewKeyAction(key){return {a:'approve',r:'return',j:'next',k:'prev',e:'edit'}[String(key||'').toLowerCase()]||null;}
   function stepIndex(i,delta,length){if(!length)return 0;return Math.min(length-1,Math.max(0,i+delta));}
   function checklistMissing(checklist,items){return (items||[]).map(x=>x.key).filter(k=>!(checklist&&checklist[k]===true));}
@@ -450,6 +453,6 @@ function syncEditedQuestionsFromSheet(sheet,record){
   function examEditable(e){return !['locked','published'].includes(examStatusOf(e));}
   // B8: số thứ tự bài KTTX tiếp theo trong cùng khối, học kì, lớp
   function nextKttxNumber(acts,grade,semester,className){return 1+Math.max(0,...(acts||[]).filter(a=>a.grade===grade&&a.semester===semester&&(a.class_name||'')===(className||'')).map(a=>a.k));}
-  const api={nextKttxNumber,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  const api={reviewFiltersForCell,nextKttxNumber,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

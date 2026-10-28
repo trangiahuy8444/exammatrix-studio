@@ -87,6 +87,11 @@ class MatrixService:
                 m['source']=None
             return self._write(m,'save')
 
+    def shortfall(self,ident):
+        """B9: báo cáo thiếu câu đã duyệt theo từng ô của ma trận."""
+        from domain.matrix_checks import shortfall_report
+        return shortfall_report(self.get(ident),self.bank._load_bank()['questions'],self.bank.catalog)
+
     def review(self,ident):
         return validate_matrix(self.get(ident),self.bank.catalog,True)
 

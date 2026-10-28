@@ -26,7 +26,7 @@ def handle_matrix_get(handler,path,query):
         raw=service.source_page_bytes(ident,int(page_str))
         handler._send(raw,'image/png')
         return True
-    match=re.fullmatch(r'/api/matrices/([A-Za-z0-9_-]+)(?:/(export|candidates|compare))?',path)
+    match=re.fullmatch(r'/api/matrices/([A-Za-z0-9_-]+)(?:/(export|candidates|compare|shortfall))?',path)
     if not match:return False
     ident,action=match.groups();m=service.get(ident)
     if action=='export':
@@ -34,6 +34,7 @@ def handle_matrix_get(handler,path,query):
         handler._send(raw,mime,filename=name)
     elif action=='candidates':handler._json(matrix_candidates(service.bank,service,ident))
     elif action=='compare':handler._json(service.compare(ident))
+    elif action=='shortfall':handler._json(service.shortfall(ident))
     else:handler._json(dict(matrix=m,validation=service.review(ident)))
     return True
 

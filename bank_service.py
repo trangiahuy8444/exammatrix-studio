@@ -27,7 +27,7 @@ from domain.scoring import exam_policy, policy_table
 from domain.matrix_checks import cell_check, ratio_warnings
 from domain.reuse import DEFAULT_RECENT_DAYS, bank_duplicates, recent_uses
 from domain.permutation import mapping_rows, verify_codes
-from domain.kttx import FORM_KEYS, FORMS, TIN_HOC_PERIODS, activity_title, kttx_overview
+from domain.kttx import CLUSTER_FORM, FORM_KEYS, FORMS, TIN_HOC_PERIODS, activity_title, kttx_overview
 from domain.revision_criterion import MODES as REVISION_MODES, revision_report
 from input_schema import canonical_short_answer
 from pathlib import Path
@@ -1364,7 +1364,10 @@ class BankService:
     def kttx_state(self):
         activities = self._read_data(self.data_dir/'kttx.json', [])
         grades = self._kttx_grades()
-        return dict(activities=copy.deepcopy(activities), forms=[dict(f) for f in FORMS],
+        forms = [dict(f) for f in FORMS]
+        if any(g >= CLUSTER_FORM['min_grade'] for g in grades):
+            forms.append(dict(CLUSTER_FORM))
+        return dict(activities=copy.deepcopy(activities), forms=forms,
                     overview=kttx_overview(activities, {g: self.periods_per_year(g) for g in grades}, grades))
 
     def save_kttx(self, payload, actor='local'):
@@ -1380,6 +1383,8 @@ class BankService:
                 raise ServiceError('Số thứ tự bài KTTX phải từ 1 đến 20.')
             if payload.get('form') not in FORM_KEYS:
                 raise ServiceError('Hình thức phải theo TT 22/2021, Điều 6, khoản 1.', {'form': payload.get('form')})
+            if payload['form'] == CLUSTER_FORM['key'] and grade < CLUSTER_FORM['min_grade']:
+                raise ServiceError('Cụm chuyên đề học tập chỉ có ở cấp THPT (TT 22/2021, Điều 6, khoản 3).')
             try:
                 max_score = Decimal(str(payload.get('max_score', '10')).replace(',', '.'))
             except Exception:

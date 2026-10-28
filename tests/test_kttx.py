@@ -113,3 +113,35 @@ class BundleNameTests(unittest.TestCase):
         raw, _, _ = case.svc.export_exam_bundle(exam['id'], None, fmt='docx')
         with zipfile.ZipFile(io.BytesIO(raw)) as z:
             self.assertTrue(all(n.startswith('Tin 8_Kiểm tra thường xuyên 2 - HK I/') for n in z.namelist()), z.namelist()[:3])
+
+
+class StudyTopicClusterTests(unittest.TestCase):
+    """TT 22/2021, Điều 6, khoản 3: kết quả cụm chuyên đề học tập (THPT) tính là 01 lần ĐGtx, ngoài số ở khoản 2."""
+
+    def test_cluster_counted_separately_from_regular_count(self):
+        acts = [dict(grade=10, semester=1, k=1, recorded=True, form='viet'),
+                dict(grade=10, semester=1, k=2, recorded=True, form='thuc_hanh'),
+                dict(grade=10, semester=1, k=3, recorded=True, form='viet'),
+                dict(grade=10, semester=1, k=4, recorded=True, form='cum_chuyen_de')]
+        row = kttx_overview(acts, {10: 70}, grades=[10], semesters=[1])[0]
+        self.assertEqual((row['required'], row['recorded'], row['cluster_recorded']), (3, 3, 1))
+        self.assertTrue(row['ok'])
+        self.assertIn('cụm chuyên đề', row['message'])
+
+    def test_more_than_one_cluster_result_warns(self):
+        acts = [dict(grade=10, semester=1, k=i, recorded=True, form='viet') for i in (1, 2, 3)] + \
+               [dict(grade=10, semester=1, k=4, recorded=True, form='cum_chuyen_de'),
+                dict(grade=10, semester=1, k=5, recorded=True, form='cum_chuyen_de')]
+        row = kttx_overview(acts, {10: 70}, grades=[10], semesters=[1])[0]
+        self.assertFalse(row['ok'])
+        self.assertIn('01 kết quả cụm chuyên đề', row['message'])
+
+    def test_cluster_form_only_for_upper_secondary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); bank = root/'bank.json'; bank.write_text(json.dumps(fixture(), ensure_ascii=False))
+            svc = BankService(bank, root/'data')
+            with self.assertRaises(ServiceError):
+                svc.save_kttx(dict(grade=8, semester=1, k=1, form='cum_chuyen_de', max_score='10', recorded=True))
+            a = svc.save_kttx(dict(grade=10, semester=1, k=1, form='cum_chuyen_de', max_score='10', recorded=True))
+            self.assertEqual(a['form'], 'cum_chuyen_de')
+            self.assertIn('cum_chuyen_de', [f['key'] for f in svc.kttx_state()['forms']])

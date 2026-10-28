@@ -102,3 +102,13 @@ console.log('PASS frontend: giải thích 4 phương án, đáp án trả lời 
   assert.equal(core.nextKttxNumber(acts,9,1,''),1);
   console.log('PASS frontend: số thứ tự KTTX');
 }
+
+// B9: lọc màn hình duyệt theo đúng ô ma trận (cả YCCĐ)
+{
+  const qs=[{id:'a',grade:9,lesson_code:'B1',type:'MC',level:'Biết',learning_outcome:'YCCĐ một',review_status:'pending_review'},
+            {id:'b',grade:9,lesson_code:'B1',type:'MC',level:'Biết',learning_outcome:'YCCĐ hai',review_status:'pending_review'}];
+  assert.deepEqual(core.reviewQueue(qs,{outcome:'YCCĐ hai'}).map(q=>q.id),['b']);
+  assert.deepEqual(core.reviewFiltersForCell({grade:9,lesson_code:'B1',kind:'MC',level:'Biết',outcome:'YCCĐ hai'}),
+    {status:'pending_review',grade:'9',lesson:'B1',type:'MC',level:'Biết',origin:'',outcome:'YCCĐ hai'});
+  console.log('PASS frontend: lọc duyệt theo ô ma trận');
+}

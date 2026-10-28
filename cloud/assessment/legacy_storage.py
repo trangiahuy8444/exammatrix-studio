@@ -10,6 +10,7 @@ from django.db.models import Sum
 import hashlib
 from .models import empty_legacy_documents
 from .context import course_context
+from domain.test_seed import seed_bank, install_sample, SAMPLE_GRADE
 
 APP_DIR = Path(__file__).resolve().parents[2]
 
@@ -93,21 +94,49 @@ def bank_for_user(user, curriculum=None, *, test_mode=False):
     if curriculum is not None:
         documents['bank']['metadata'].update(subject_name=curriculum.subject.name, school_year=curriculum.school_year)
         documents['bank']['ppct']['_context'] = context
-    state, _ = LegacyState.objects.get_or_create(workspace=workspace, curriculum=curriculum, is_test_mode=test_mode,
+    if test_mode:
+        documents = _test_documents(workspace, curriculum, documents)
+    state, created = LegacyState.objects.get_or_create(workspace=workspace, curriculum=curriculum, is_test_mode=test_mode,
                                                 defaults={'documents': documents})
     directory = state_data_dir(state)
     service = BankService(directory/'bank.json', directory,
                           storage=DatabaseStorage(state, directory, context if curriculum else None), context=context if curriculum else None)
     service.app_dir = APP_DIR
+    if test_mode and created:
+        _maybe_install_sample(service, context)
     return service
+
+
+def _test_documents(workspace, curriculum, documents):
+    """Vùng Test = bản sao PPCT và câu hỏi của ngân hàng thật cùng khóa học; đề, đề cương, ma trận để trống."""
+    normal = LegacyState.objects.filter(workspace=workspace, curriculum=curriculum, is_test_mode=False).only('documents').first()
+    if normal is not None and (normal.documents or {}).get('bank'):
+        documents = copy.deepcopy(documents)
+        documents['bank'] = seed_bank(normal.documents['bank'])
+    return documents
+
+
+def _maybe_install_sample(service, context):
+    """Chưa có câu thật: nạp bộ câu mẫu Tin học 10 (chỉ khi khóa học là Tin học và có Khối 10)."""
+    if service._load_bank().get('questions'):
+        return
+    grades = context.get('allowed_grades') if context else None
+    if (context or {}).get('subject_name', 'Tin học') != 'Tin học' or (grades and SAMPLE_GRADE not in grades):
+        return
+    install_sample(service)
 
 
 def reset_test_bank(user, curriculum=None):
     """Reset only the isolated state, keeping its version history for recovery."""
     service = bank_for_user(user, curriculum, test_mode=True)
     state = service.storage.state
-    for key, value in empty_legacy_documents().items():
+    documents = _test_documents(state.workspace, curriculum, empty_legacy_documents())
+    if curriculum is not None:
+        documents['bank'].setdefault('ppct', {})['_context'] = course_context(curriculum)
+    for key, value in documents.items():
         path = next(p for p, name in service.storage.paths.items() if name == key)
         service.storage.save(path, value)
     StoredSource.objects.filter(state=state).delete()
-    return bank_for_user(user, curriculum, test_mode=True)
+    service = bank_for_user(user, curriculum, test_mode=True)
+    _maybe_install_sample(service, course_context(curriculum) if curriculum else None)
+    return service

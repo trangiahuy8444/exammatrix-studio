@@ -21,25 +21,25 @@ class SandboxIsolationTests(TestCase):
     def url(self, path, test=False):
         return path+'?curriculum='+str(self.course.pk)+('&test_mode=1' if test else '')
 
-    def test_test_mode_starts_empty_and_does_not_mutate_normal_bank(self):
+    def test_test_mode_starts_with_copy_and_does_not_mutate_normal_bank(self):
         before = self.client.get(self.url('/api/state')).json()
         state = self.client.get(self.url('/api/state', True)).json()
         self.assertTrue(state['is_test_mode'])
-        self.assertEqual(state['bank']['questions'], [])
-        self.assertEqual(state['bank']['ppct']['lessons'], [])
+        self.assertEqual([q['id'] for q in state['bank']['questions']], [q['id'] for q in before['bank']['questions']])
+        self.assertEqual(len(state['bank']['ppct']['lessons']), len(before['bank']['ppct']['lessons']))
+        self.assertEqual(state['exams'], [])
         lesson = before['bank']['ppct']['lessons'][0]
         r = self.client.post(self.url('/api/ppct/save-lesson', True), lesson, content_type='application/json')
         self.assertEqual(r.status_code, 200, r.content)
-        q = copy.deepcopy(before['bank']['questions'][0]); q.pop('id')
+        q = copy.deepcopy(before['bank']['questions'][0]); q.pop('id'); q['question'] += ' (câu thử trong vùng Test)'
         r = self.client.post(self.url('/api/questions/save', True), {'question':q}, content_type='application/json')
         self.assertEqual(r.status_code, 200, r.content)
-        self.assertEqual(len(self.client.get(self.url('/api/state', True)).json()['bank']['questions']), 1)
+        self.assertEqual(len(self.client.get(self.url('/api/state', True)).json()['bank']['questions']), 13)
         self.assertEqual(self.client.get(self.url('/api/state')).json()['bank'], before['bank'])
         r = self.client.post(self.url('/api/test/reset', True), {}, content_type='application/json')
         self.assertEqual(r.status_code, 200, r.content)
         self.assertTrue(r.json()['state']['is_test_mode'])
-        self.assertEqual(r.json()['state']['bank']['questions'], [])
-        self.assertEqual(r.json()['state']['bank']['ppct']['lessons'], [])
+        self.assertEqual(len(r.json()['state']['bank']['questions']), 12)  # làm sạch = chép lại bản sao mới
         self.assertEqual(self.client.get(self.url('/api/state')).json()['bank'], before['bank'])
 
     def test_reset_requires_explicit_test_mode(self):
@@ -60,6 +60,7 @@ class SandboxIsolationTests(TestCase):
         self.client.get(self.url('/api/state', True))
         second = Curriculum.objects.create(workspace=self.workspace, subject=self.course.subject,
             grade=10, school_year='2026-2027', title='Other physics course')
+        # Khóa học mới chưa có câu thật: vùng thử chỉ có câu mẫu tự soạn khi là môn Tin học; môn khác để trống.
         self.assertEqual(self.client.get('/api/state?test_mode=1&curriculum='+str(second.pk)).json()['bank']['questions'], [])
         other = get_user_model().objects.create_user('other-sandbox-owner')
         self.client.force_login(other)

@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 from bank_service import BankService, ServiceError
 from domain.answer_access import redact_answers
+from domain.test_seed import seed_bank, install_sample
 from exports import export_document
 from matrices.service import MatrixService
 from matrices.http import handle_matrix_get,handle_matrix_post
@@ -401,19 +402,19 @@ def setup_test_sandbox(base_dir, bank_source=DEFAULT_BANK, clean=False):
             shutil.rmtree(sandbox_dir)
         sandbox_dir.mkdir(parents=True, exist_ok=True)
         (sandbox_dir / 'matrices').mkdir(parents=True, exist_ok=True)
-        # In test mode: start with ZERO PPCT lessons and ZERO questions (completely empty)
-        clean_bank = {
-            'schema_version': '1.0.0',
-            'metadata': {'title': 'Ngân hàng Chế độ Thử nghiệm (Dữ liệu hoàn toàn trống)'},
-            'ppct': {'sources': [], 'lessons': []},
-            'questions': []
-        }
-        sandbox_bank.write_text(json.dumps(clean_bank, ensure_ascii=False, indent=2), encoding='utf-8')
+        # Vùng Test bắt đầu bằng BẢN SAO PPCT và câu hỏi của ngân hàng thật (đề, đề cương, ma trận trống).
+        try:
+            live = json.loads(Path(bank_source).read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            live = {}
+        sandbox_bank.write_text(json.dumps(seed_bank(live), ensure_ascii=False, indent=2), encoding='utf-8')
         (sandbox_dir / 'records.json').write_text('[]', encoding='utf-8')
         (sandbox_dir / 'matrices' / 'records.json').write_text('[]', encoding='utf-8')
         curr_file = Path(base_dir) / 'curricula.json'
         if curr_file.exists():
             shutil.copy2(curr_file, sandbox_dir / 'curricula.json')
+        if not live.get('questions'):
+            install_sample(BankService(sandbox_bank, sandbox_dir))
     return sandbox_bank, sandbox_dir
 
 

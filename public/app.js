@@ -1599,7 +1599,7 @@ function initTestMode() {
     updateUi();
     await load(true);
     if (store.isTestMode) {
-      notify('Đã chuyển sang Chế độ Test: Dữ liệu hoàn toàn trống, không ảnh hưởng ngân hàng thật.');
+      notify('Đã chuyển sang Chế độ Test: có sẵn bản sao PPCT và câu hỏi để thử; mọi thao tác không ảnh hưởng ngân hàng thật.');
     } else {
       notify('Đã quay về Môi trường Dữ liệu Thật (Chính thức).');
     }
@@ -1613,7 +1613,7 @@ function initTestMode() {
   }
   if (resetBtn) {
     resetBtn.onclick = async () => {
-      if (!confirm('Bạn có chắc chắn muốn làm sạch toàn bộ dữ liệu trong Chế độ Test về trạng thái trống hoàn toàn?')) return;
+      if (!confirm('Làm mới Chế độ Test? Đề, đề cương, ma trận thử sẽ bị xóa; câu hỏi và PPCT được chép lại mới từ ngân hàng thật.')) return;
       try {
         const res = await request('/api/test/reset', {});
         if (res && res.state) {
@@ -1622,10 +1622,10 @@ function initTestMode() {
           store.revisions = res.state.revisions || [];
           store.selected.clear();
           render();
-          notify('Đã làm sạch toàn bộ dữ liệu thử nghiệm về 0 câu hỏi.');
+          notify('Đã làm mới Chế độ Test bằng bản sao mới của ngân hàng.');
         }
       } catch (err) {
-        notify('Lỗi khi làm sạch dữ liệu test: ' + err.message, true);
+        notify('Lỗi khi làm mới dữ liệu test: ' + err.message, true);
       }
     };
   }

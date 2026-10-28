@@ -112,3 +112,15 @@ console.log('PASS frontend: giải thích 4 phương án, đáp án trả lời 
     {status:'pending_review',grade:'9',lesson:'B1',type:'MC',level:'Biết',origin:'',outcome:'YCCĐ hai'});
   console.log('PASS frontend: lọc duyệt theo ô ma trận');
 }
+
+// Hướng dẫn theo màn hình đang mở: mỗi thẻ chính có hướng dẫn riêng, chi tiết
+{
+  const tabs=['overview','bank','review','ppct','revisions','matrices','exams','kttx'];
+  tabs.forEach(t=>{const g=core.screenGuide(t);assert.ok(g.title&&g.purpose,t);assert.ok(g.steps.length>=3,t);});
+  assert.equal(new Set(tabs.map(t=>core.screenGuide(t).title)).size,tabs.length);
+  assert.equal(core.screenGuide('khong-co').title,'Tổng quan');
+  assert.match(core.screenGuide('bank',{testMode:true}).tips[0],/Chế độ Test/);
+  assert.ok(!core.screenGuide('bank').tips.some(x=>/Chế độ Test/.test(x)));
+  assert.ok(core.screenGuide('ppct').steps.some(x=>/Word hoặc JSON/.test(x)));
+  console.log('PASS frontend: hướng dẫn theo màn hình');
+}

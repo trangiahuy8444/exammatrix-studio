@@ -631,6 +631,136 @@ class BankService:
             self._atomic_save(self.bank_path, bank)
             return copy.deepcopy(bank)
 
+    # Nhập PPCT từ Word (bảng KHDH Phụ lục 1) hoặc JSON: đối chiếu trước, chỉ ghi khi giáo viên xác nhận.
+    def _read_ppct_payload(self, payload):
+        import base64
+        import binascii
+        from ppct_import import grade_from_filename, parse_docx, parse_json
+        if not isinstance(payload, dict):
+            raise ServiceError('Dữ liệu nhập PPCT không hợp lệ.')
+        name = str(payload.get('filename') or '').strip()
+        grade = payload.get('grade')
+        if isinstance(grade, str) and grade.strip().isdigit():
+            grade = int(grade)
+        if payload.get('content_base64') is not None:
+            if not name.lower().endswith('.docx') or not isinstance(payload['content_base64'], str):
+                raise ServiceError('Chọn một tệp .docx hợp lệ.')
+            try:
+                raw = base64.b64decode(payload['content_base64'], validate=True)
+            except (binascii.Error, ValueError) as exc:
+                raise ServiceError('Nội dung tệp tải lên không hợp lệ.') from exc
+            if not 0 < len(raw) <= 8*1024*1024:
+                raise ServiceError('Tệp Word phải nhỏ hơn 8 MB.')
+            grade = self._grade(grade if grade not in (None, '') else grade_from_filename(name))
+            lessons, issues = parse_docx(raw, grade, name)
+        elif payload.get('json') is not None:
+            raw = json.dumps(payload['json'], ensure_ascii=False, sort_keys=True).encode('utf-8')
+            lessons, issues = parse_json(payload['json'], grade if grade not in (None, '') else None)
+            name = name or 'PPCT.json'
+        else:
+            raise ServiceError('Chọn tệp Word (.docx) hoặc JSON chứa PPCT.')
+        for lesson in lessons:
+            lesson['grade'] = self._grade(lesson['grade'])
+            for occurrence in lesson.get('occurrences') or []:
+                occurrence.setdefault('grade', lesson['grade'])
+            lesson['source_file'] = lesson.get('source_file') or name
+        return lessons, issues, name, raw
+
+    def _ppct_conflict(self, bank, grade, code, outcomes):
+        """Cùng quy tắc với save_ppct_lesson: không bỏ YCCĐ đang có câu dùng; không đổi YCCĐ của bài đã gắn ma trận."""
+        existing = next((x for x in bank['ppct'].get('lessons', []) if x.get('grade') == grade and x.get('lesson_code') == code), None)
+        if existing is None or existing.get('outcomes', []) == outcomes:
+            return None
+        used = {q.get('learning_outcome') for q in bank.get('questions', []) if q.get('grade') == grade and q.get('lesson_code') == code}
+        missing = sorted(x for x in used - set(outcomes) if x)
+        if missing:
+            return dict(reason='Yêu cầu cần đạt đang có câu hỏi sử dụng sẽ bị bỏ hoặc thay.', outcomes=missing)
+        if any(m.get('grade') == grade and any(r.get('lesson_code') == code for r in m.get('requirements', []))
+               for m in self._read_data(self.data_dir/'matrices/records.json', [])):
+            return dict(reason='Bài đã được liên kết trong ma trận; YCCĐ phải giữ nguyên danh sách và thứ tự.')
+        return None
+
+    def _ppct_diff(self, bank, lessons):
+        from ppct_import import same_name
+        current = {(x.get('grade'), x.get('lesson_code')): x for x in bank['ppct'].get('lessons', [])}
+        rows = []
+        for lesson in lessons:
+            key = (lesson['grade'], lesson['lesson_code'])
+            old = current.get(key)
+            row = dict(grade=lesson['grade'], lesson_code=lesson['lesson_code'], lesson_name=lesson['lesson_name_source'],
+                       topic=lesson['topic_source'], outcomes=lesson['outcomes'], occurrences=len(lesson.get('occurrences') or []))
+            if not lesson['outcomes']:
+                row.update(status='conflict', conflict=dict(reason='Bài chưa có yêu cầu cần đạt.'))
+            elif old is None:
+                row['status'] = 'new'
+            else:
+                changes = []
+                if not same_name(old.get('lesson_name_source', ''), lesson['lesson_name_source']):
+                    changes.append(dict(field='Tên bài', old=old.get('lesson_name_source', ''), new=lesson['lesson_name_source']))
+                if (old.get('topic_source') or '') != lesson['topic_source']:
+                    changes.append(dict(field='Chủ đề', old=old.get('topic_source', ''), new=lesson['topic_source']))
+                if old.get('outcomes', []) != lesson['outcomes']:
+                    changes.append(dict(field='Yêu cầu cần đạt', old=old.get('outcomes', []), new=lesson['outcomes']))
+                conflict = self._ppct_conflict(bank, *key, lesson['outcomes'])
+                row.update(status='conflict' if conflict else ('changed' if changes else 'unchanged'), changes=changes)
+                if conflict:
+                    row['conflict'] = conflict
+            rows.append(row)
+        summary = {k: sum(r['status'] == k for r in rows) for k in ('new', 'changed', 'unchanged', 'conflict')}
+        return rows, summary
+
+    def inspect_ppct_import(self, payload):
+        with self.lock:
+            lessons, issues, name, raw = self._read_ppct_payload(payload)
+            rows, summary = self._ppct_diff(self._load_bank(), lessons)
+            return dict(filename=name, sha256=hashlib.sha256(raw).hexdigest(), lessons=rows, summary=summary, issues=issues,
+                        grades=sorted({x['grade'] for x in lessons}))
+
+    def apply_ppct_import(self, payload):
+        """Thêm bài mới, cập nhật bài thay đổi; bỏ qua bài xung đột. Bài đang có mà tệp không nhắc tới được giữ nguyên."""
+        from ppct_import import same_name
+        with self.lock:
+            lessons, issues, name, raw = self._read_ppct_payload(payload)
+            sha = hashlib.sha256(raw).hexdigest()
+            if payload.get('expected_sha256') and payload['expected_sha256'] != sha:
+                raise ServiceError('Tệp đã thay đổi so với lúc đối chiếu. Hãy đọc và đối chiếu lại.', status=409)
+            bank = self._load_bank()
+            rows, summary = self._ppct_diff(bank, lessons)
+            status = {(r['grade'], r['lesson_code']): r['status'] for r in rows}
+            if not summary['new'] and not summary['changed']:
+                raise ServiceError('Không có bài mới hoặc bài thay đổi để nhập.', dict(summary=summary), 409)
+            catalog = bank.setdefault('ppct', {})
+            current = catalog.setdefault('lessons', [])
+            for lesson in lessons:
+                key = (lesson['grade'], lesson['lesson_code'])
+                entry = dict(grade=lesson['grade'], lesson_code=lesson['lesson_code'], lesson_name_source=lesson['lesson_name_source'],
+                             topic_source=lesson['topic_source'], outcomes=lesson['outcomes'], source_file=lesson['source_file'],
+                             occurrences=lesson.get('occurrences') or [dict(table_index=0, row_index=0, week_raw='', periods_raw='')])
+                if status[key] == 'new':
+                    current.append(entry)
+                elif status[key] == 'changed':
+                    old = next(x for x in current if (x.get('grade'), x.get('lesson_code')) == key)
+                    if same_name(old.get('lesson_name_source', ''), entry['lesson_name_source']):
+                        entry['lesson_name_source'] = old['lesson_name_source']
+                    old.update(entry)
+                    for q in bank.get('questions', []):
+                        if (q.get('grade'), q.get('lesson_code')) == key:
+                            q['lesson_name'] = entry['lesson_name_source']
+                            q['topic_source'] = entry['topic_source']
+                            if q.get('learning_outcome') in entry['outcomes']:
+                                q['outcome_index'] = entry['outcomes'].index(q['learning_outcome'])
+            sources = catalog.setdefault('sources', [])
+            for grade in sorted({x['grade'] for x in lessons}):
+                if not any(x.get('grade') == grade and x.get('sha256') == sha for x in sources):
+                    sources.append(dict(grade=grade, path=name, sha256=sha, imported_at=now(),
+                                        approval_status='Nhập qua ứng dụng; giáo viên đối chiếu với bản KHDH đã duyệt.'))
+            if name.lower().endswith('.docx'):
+                self.write_source('matrices/sources/ppct-'+sha+'.docx', raw)
+            self.catalog = copy.deepcopy(bank['ppct'])
+            self.lessons = {(x['grade'], x['lesson_code']): x for x in self.catalog.get('lessons', [])}
+            self._atomic_save(self.bank_path, bank)
+            return dict(bank=copy.deepcopy(bank), summary=summary, lessons=rows, issues=issues)
+
     def save_revision(self, payload):
         with self.lock:
             title = self._text(payload.get('title'), 'Tên đề cương')

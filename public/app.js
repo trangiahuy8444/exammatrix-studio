@@ -642,12 +642,48 @@ function renderPPCT(){
      </table>
    </div>
  </div>
- <div class="card"><h2>Hồ sơ nguồn</h2>${(store.bank.ppct?.sources||[]).filter(src=>Number(src.grade)===g && s==='Tin học').map(src=>`<p class="small">${esc(src.path||src.source_file||'')}</p><p class="muted">${esc(src.approval_status||'Đối chiếu bản KHDH trong thư mục chuyên môn.')}</p>`).join('') || `<p class="muted">Khung chương trình chuẩn Giáo dục Phổ thông 2018 (Bộ GD&ĐT) cho môn ${esc(s)}.</p>`}</div>`;
+ ${ppctImportCard(g)}
+ <div class="card"><h2>Hồ sơ nguồn</h2>${(store.bank.ppct?.sources||[]).filter(src=>Number(src.grade)===g && s==='Tin học').map(src=>`<p class="small">${esc(src.path||src.source_file||'')}${src.sha256?` <span class="muted">· SHA-256 ${esc(String(src.sha256).slice(0,12))}…</span>`:''}</p><p class="muted">${esc(src.approval_status||'Đối chiếu bản KHDH trong thư mục chuyên môn.')}</p>`).join('') || `<p class="muted">Khung chương trình chuẩn Giáo dục Phổ thông 2018 (Bộ GD&ĐT) cho môn ${esc(s)}.</p>`}</div>`;
  $('#ppct-grade').onchange=e=>{store.ppctGrade=Number(e.target.value);renderPPCT();};
  $('#ppct-subject').onchange=e=>setGlobalSubject(e.target.value);
  $('#add-ppct-lesson').onclick=()=>openPPCTEditor(g,'',s);
  const sampleBtn=$('#btn-load-sample-ppct');
  if(sampleBtn)sampleBtn.onclick=()=>{store.testPpctLoaded=true;renderPPCT();notify(`Đã nạp mẫu PPCT GDPT 2018 cho môn ${s}.`);};
+ bindPpctImport(g);
+}
+// Nhập PPCT từ Word (bảng KHDH Phụ lục 1) hoặc JSON: đọc và đối chiếu trước, chỉ ghi khi giáo viên xác nhận.
+const PPCT_STATUS={new:['Bài mới','approved'],changed:['Có thay đổi','pending_review'],unchanged:['Giữ nguyên','draft'],conflict:['Xung đột — bỏ qua','needs_review']};
+function ppctImportCard(g){
+ const imp=store.ppctImport, r=imp&&imp.report;
+ const rows=r?r.lessons.map(x=>{const [label,cls]=PPCT_STATUS[x.status]||[x.status,''];
+   const detail=x.status==='conflict'?esc(x.conflict?.reason||'')+(x.conflict?.outcomes?`<ul>${x.conflict.outcomes.map(o=>`<li>${esc(o)}</li>`).join('')}</ul>`:'')
+     :(x.changes||[]).map(c=>`<div><strong>${esc(c.field)}:</strong> ${Array.isArray(c.new)?`${c.old.length} → ${c.new.length} YCCĐ<ul>${c.new.filter(o=>!c.old.includes(o)).map(o=>`<li>+ ${esc(o)}</li>`).join('')}${c.old.filter(o=>!c.new.includes(o)).map(o=>`<li>− ${esc(o)}</li>`).join('')}</ul>`:`${esc(c.old)} → ${esc(c.new)}`}</div>`).join('')||(x.status==='new'?`${x.outcomes.length} YCCĐ · ${x.occurrences} lần dạy`:'');
+   return `<tr><td><span class="badge ${cls}">${esc(label)}</span></td><td>Khối ${esc(x.grade)} · <strong>${esc(x.lesson_code)}</strong></td><td>${esc(x.lesson_name)}<p class="small muted">${esc(x.topic)}</p></td><td class="small">${detail}</td></tr>`;}).join(''):'';
+ const sm=r?r.summary:null;
+ return `<div class="card"><h2>Nhập PPCT từ Word hoặc JSON</h2>
+  <p class="muted">Word: tệp KHDH Phụ lục 1 của tổ (bảng có cột Tuần, Bài học, Số tiết, PPCT, Yêu cầu cần đạt…). JSON: <code>{"lessons":[{"grade","lesson_code","lesson_name_source","topic_source","outcomes":[…]}]}</code> hoặc tệp xuất ngân hàng. Khối của tệp Word lấy theo tên tệp (TIN 8…), nếu không có thì lấy khối đang chọn (Khối ${esc(g)}).</p>
+  <div class="actions"><input type="file" id="ppct-import-file" accept=".docx,.json"><button type="button" class="button" id="ppct-import-inspect">Đọc và đối chiếu</button>
+  ${r?`<button type="button" class="primary" id="ppct-import-apply" ${sm.new+sm.changed?'':'disabled'}>Xác nhận nhập (${sm.new} bài mới, ${sm.changed} bài thay đổi)</button><button type="button" class="quiet" id="ppct-import-cancel">Hủy</button>`:''}</div>
+  ${r?`<p class="callout">Tệp ${esc(r.filename)} · Khối ${r.grades.map(esc).join(', ')} · ${r.lessons.length} bài: ${sm.new} mới, ${sm.changed} thay đổi, ${sm.unchanged} giữ nguyên, ${sm.conflict} xung đột. Bài xung đột được bỏ qua; bài đang có mà tệp không nhắc đến được giữ nguyên.</p>
+  ${r.issues.length?`<ul class="mx-errors">${r.issues.map(i=>`<li>${esc(i.message)}</li>`).join('')}</ul>`:''}
+  <div class="table-wrap"><table><thead><tr><th>Kết quả</th><th>Mã bài</th><th>Bài / chủ đề</th><th>Chi tiết</th></tr></thead><tbody>${rows}</tbody></table></div>`:''}
+ </div>`;
+}
+function bindPpctImport(g){
+ const read=async()=>{
+   const file=$('#ppct-import-file')?.files?.[0];
+   if(!file)throw new Error('Chọn tệp Word (.docx) hoặc JSON trước.');
+   if(file.name.toLowerCase().endsWith('.json'))return {filename:file.name,grade:g,json:JSON.parse(await file.text())};
+   if(file.size>8*1024*1024)throw new Error('Tệp Word phải nhỏ hơn 8 MB.');
+   const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});
+   return {filename:file.name,content_base64:base64,...(/TIN\s*\d/i.test(file.name)?{}:{grade:g})};
+ };
+ const inspect=$('#ppct-import-inspect');
+ if(inspect)inspect.onclick=async()=>{try{const payload=await read();const report=await request('/api/ppct/inspect-import',payload);store.ppctImport={payload,report};renderPPCT();}catch(err){notify(err.message,true);}};
+ const apply=$('#ppct-import-apply');
+ if(apply)apply.onclick=async()=>{const imp=store.ppctImport;try{const result=await request('/api/ppct/apply-import',{...imp.payload,expected_sha256:imp.report.sha256});store.bank=result.bank;store.ppctImport=null;renderPPCT();notify(`Đã nhập PPCT: ${result.summary.new} bài mới, ${result.summary.changed} bài cập nhật, ${result.summary.conflict} bài xung đột được giữ nguyên.`);}catch(err){notify(err.message,true);}};
+ const cancel=$('#ppct-import-cancel');
+ if(cancel)cancel.onclick=()=>{store.ppctImport=null;renderPPCT();};
 }
 function openPPCTEditor(grade,code='',subj=''){
  const s = subj || store.ppctSubject || 'Tin học';
@@ -1514,12 +1550,24 @@ function initAiAssistant() {
 initAiAssistant();
 
 // User Guide & Data Specifications Dialog Integration
+function renderScreenGuide() {
+  const pane = $('#help-pane-current');
+  if (!pane) return;
+  const g = C.screenGuide(store.tab, {testMode: !!store.isTestMode});
+  pane.innerHTML = `<div class="callout"><strong>${esc(g.title)}</strong><p>${esc(g.purpose)}</p></div>
+    <h3>Các bước thực hiện</h3><ol>${g.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>
+    ${g.tips.length ? `<h3>Lưu ý</h3><ul>${g.tips.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    <p class="muted">Chuyển sang màn hình khác rồi mở lại Hướng dẫn để xem hướng dẫn của màn hình đó. Các thẻ bên cạnh là cẩm nang chung.</p>`;
+}
+
 function initUserGuide() {
   const guideBtn = $('#btn-user-guide');
   const dialog = $('#help-dialog');
   if (!guideBtn || !dialog) return;
 
   guideBtn.onclick = () => {
+    renderScreenGuide();
+    dialog.querySelector('[data-help-tab="current"]').click();
     dialog.showModal();
   };
 

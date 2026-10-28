@@ -274,6 +274,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({'bank': service.bulk_questions(payload.get('ids'), payload.get('action'), payload.get('status'))})
             if path == '/api/ppct/save-lesson':
                 return self._json({'bank': service.save_ppct_lesson(payload.get('lesson') or payload)})
+            if path == '/api/ppct/inspect-import':
+                return self._json(service.inspect_ppct_import(payload))
+            if path == '/api/ppct/apply-import':
+                return self._json(service.apply_ppct_import(payload))
             if path == '/api/ppct/delete-lesson':
                 return self._json({'bank': service.delete_ppct_lesson(payload.get('grade'), payload.get('lesson_code'))})
             if path == '/api/bank/import':

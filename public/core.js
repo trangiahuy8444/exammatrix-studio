@@ -453,6 +453,73 @@ function syncEditedQuestionsFromSheet(sheet,record){
   function examEditable(e){return !['locked','published'].includes(examStatusOf(e));}
   // B8: số thứ tự bài KTTX tiếp theo trong cùng khối, học kì, lớp
   function nextKttxNumber(acts,grade,semester,className){return 1+Math.max(0,...(acts||[]).filter(a=>a.grade===grade&&a.semester===semester&&(a.class_name||'')===(className||'')).map(a=>a.k));}
-  const api={reviewFiltersForCell,nextKttxNumber,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  // Hướng dẫn theo màn hình đang mở (giáo viên yêu cầu 28/10/2026): mỗi màn hình có mục đích, các bước và lưu ý riêng.
+  const SCREEN_GUIDES={
+    overview:{title:'Tổng quan',purpose:'Xem nhanh tình trạng ngân hàng của môn đang chọn và đi đến việc cần làm tiếp theo.',
+      steps:['Đọc các ô số liệu: tổng số câu, số câu theo khối, theo trạng thái duyệt.',
+        'Bấm "Mở màn hình duyệt câu hỏi →" nếu còn câu đang chờ duyệt.',
+        'Bấm "Soạn câu hỏi mới" hoặc "Chuẩn bị đề cương →" để sang bước tiếp theo.'],
+      tips:['Đề chính thức chỉ dùng câu ở trạng thái "Đã duyệt".']},
+    bank:{title:'Ngân hàng câu hỏi',purpose:'Tìm, soạn, sửa và nhập câu hỏi (MC, Đúng/Sai, Trả lời ngắn, Tự luận) theo bài học và YCCĐ trong PPCT.',
+      steps:['Lọc theo khối, bài học, dạng câu, mức độ, trạng thái hoặc gõ vào ô tìm kiếm (mã câu, nội dung, phương án, YCCĐ).',
+        'Bấm "+ Thêm câu hỏi": chọn khối, bài, YCCĐ, mức độ, dạng câu rồi nhập nội dung và đáp án. MC cần đủ 4 phương án kèm giải thích; Đúng/Sai cần đủ 4 ý a–d; Trả lời ngắn cần đáp án; Tự luận cần 4 tiêu chí chấm, tổng 1 điểm.',
+        'Bấm "Sửa" trên một câu để chỉnh. Sửa nội dung, đáp án, YCCĐ hoặc mức độ của câu đã duyệt sẽ đưa câu về "Cần sửa lại" và phải duyệt lại.',
+        'Tích chọn nhiều câu rồi dùng "Thao tác hàng loạt": "Gửi duyệt", "📤 Xuất Word LMS", "Tạo đề cương từ lựa chọn" hoặc "Xóa câu đã chọn".',
+        '"Nhập JSON" để nạp nhiều câu theo lược đồ chuẩn; "Xuất JSON" để sao lưu hoặc chia sẻ.'],
+      tips:['Câu mới và câu do AI tạo luôn ở trạng thái nháp, không tự lên "Đã duyệt".',
+        'Ứng dụng cảnh báo khi câu trùng nguyên văn với câu đã có.']},
+    review:{title:'Duyệt câu hỏi',purpose:'Kiểm định từng câu theo phiếu 7 mục trước khi câu được dùng trong đề chính thức.',
+      steps:['Chọn bộ lọc (trạng thái, khối, bài, dạng, mức độ, nguồn) để lập hàng đợi duyệt.',
+        'Đọc toàn văn câu, đáp án, giải thích hoặc hướng dẫn chấm, YCCĐ ở khung bên phải.',
+        'Tích đủ 7 mục của phiếu kiểm định rồi bấm "Duyệt (A)".',
+        'Nếu chưa đạt: nhập lý do (bắt buộc) rồi bấm "Trả lại (R)". Câu đã duyệt mà phát hiện sai: nhập lý do rồi "Thu hồi duyệt, trả lại (R)".',
+        'Dùng "Sau (J) ›" và "‹ Trước (K)" để chuyển câu; "Sửa (E)" để mở trình sửa câu.'],
+      tips:['Phím tắt: A duyệt, R trả lại, J câu sau, K câu trước, E sửa.',
+        'Không có nút "duyệt tất cả": mỗi câu phải được mở và xác nhận phiếu riêng. Lịch sử duyệt ghi người duyệt, thời điểm và lý do.']},
+    ppct:{title:'Phân phối chương trình',purpose:'Quản lí danh mục bài học và YCCĐ của từng khối — nguồn chuẩn cho câu hỏi, đề cương và ma trận.',
+      steps:['Chọn khối lớp để xem danh sách bài, số tiết, tuần và YCCĐ.',
+        'Nhập PPCT từ tệp: trong thẻ "Nhập PPCT từ Word hoặc JSON", chọn tệp KHDH Phụ lục 1 (.docx) hoặc tệp JSON, bấm "Đọc và đối chiếu". Xem bảng so sánh (bài mới / có thay đổi / giữ nguyên / xung đột), rồi bấm "Xác nhận nhập".',
+        'Bấm "+ Thêm bài học PPCT" để thêm bài thủ công, hoặc "Sửa" trên một bài để chỉnh tên, chủ đề, YCCĐ.',
+        '"Hồ sơ nguồn" cho biết PPCT được nhập từ tệp nào (kèm mã SHA-256).'],
+      tips:['YCCĐ đang được câu hỏi sử dụng, hoặc bài đã gắn vào ma trận, không thể xóa/sửa tùy ý (ứng dụng báo xung đột).',
+        'Nhập PPCT không xóa bài cũ; bài có xung đột được bỏ qua và liệt kê để giáo viên xử lí.']},
+    revisions:{title:'Đề cương ôn tập',purpose:'Chọn bộ câu hỏi công bố cho học sinh ôn tập. Đề kiểm tra phải lấy từ hoặc bám sát đề cương (≥ 90% số câu).',
+      steps:['Chọn khối, lọc câu ở ngân hàng rồi bấm "Thêm câu đang lọc của khối…" hoặc thêm từng câu.',
+        'Bấm "Xem toàn bộ đang chọn" để rà lại danh sách.',
+        'Đặt "Tên phiên bản" rồi "Lưu phiên bản đề cương". Mỗi lần lưu là một bản chụp cố định, không đổi theo ngân hàng.',
+        'Muốn chỉnh bản đã lưu: mở bản đó, sửa, rồi "Cập nhật…" hoặc "Lưu thành bản mới".',
+        '"📥 Import Đề cương (.docx / .json)" để nhập đề cương có sẵn.'],
+      tips:['Mục "Giới hạn kiến thức ôn tập" khi xuất có đúng 3 cột: STT, Tên chủ đề, Tên bài.']},
+    matrices:{title:'Ma trận & đặc tả',purpose:'Lập, nhập, đối chiếu và khóa ma trận – bảng đặc tả; tạo đề theo ma trận.',
+      steps:['"Nhập ma trận" → "Chọn Word hoặc gói JSON" để nhận ma trận của tổ (Khối 8, 10); hoặc "+ Tạo ma trận khối…" để tự thiết kế (Khối 9).',
+        'Đi lần lượt 5 bước: 1. Thông tin hồ sơ → 2. Bài học & YCCĐ → 3. Phân bố câu hỏi và ý → 4. Đối chiếu & xác nhận → 5. Word & phiên bản dùng chung.',
+        'Ở bước 3, chọn dạng câu được phép và cách chấm Đúng/Sai; ứng dụng cảnh báo tỉ lệ theo CV 7991 (chỉ cảnh báo).',
+        'Bấm "Báo cáo thiếu câu theo ô" để biết ô nào chưa đủ câu đã duyệt; "Mở duyệt ô này" để sang màn hình duyệt đã lọc sẵn.',
+        '"Xác nhận bản đã thống nhất để khóa" rồi "Khóa phiên bản này". Muốn sửa bản đã khóa: "Tạo phiên bản mới".',
+        '"Tạo và lưu đề riêng" để sinh đề trực tiếp từ ma trận.'],
+      tips:['Giữ nguyên YCCĐ, số câu, số điểm của ma trận gốc.','Đánh số câu dạng (1, 2, 3) hoặc (1a, 1b), không dùng (C1 - C4).']},
+    exams:{title:'Tạo đề kiểm tra',purpose:'Sinh đề từ ngân hàng theo ma trận và đề cương, kiểm định, duyệt – khóa, phát hành và xuất hồ sơ.',
+      steps:['Điền tên đề, khối, kì kiểm tra, thời gian; chọn ma trận và "Phiên bản đề cương dùng đối chiếu".',
+        'Bấm "Tạo và lưu đề kiểm tra". Nếu thiếu câu, ứng dụng báo rõ ô thiếu (không tự hạ mức độ hay đổi bài).',
+        'Mở đề đã lưu, xem kết quả "Kiểm định": tổng 10 điểm, khớp từng ô ma trận, tiêu chí đề cương T ≥ 90%, bao phủ YCCĐ 100%.',
+        'Vòng đời: "Gửi duyệt đề" → "Duyệt & khóa" → "Phát hành". Đề đã khóa không sửa được; muốn sửa tạo bản chỉnh sửa mới và duyệt lại.',
+        'Nhập "Mã xáo trộn" để tạo các mã đề hoán vị; tải "Bảng đối chiếu mã đề".',
+        'Xuất: "Tải trọn bộ Hồ sơ Word" / "PDF" (PDF chuyển từ chính tệp Word), "Tải tệp LMS", hoặc mã nguồn XeLaTeX.'],
+      tips:['Đáp án và hướng dẫn chấm chỉ tải được với tài khoản có quyền xem đáp án; mỗi lần tải đều được ghi nhật ký.',
+        'Câu đã dùng trong đề phát hành gần đây được cảnh báo (không chặn).']},
+    kttx:{title:'Kiểm tra thường xuyên',purpose:'Lập kế hoạch các hoạt động KTTX và theo dõi số đầu điểm ĐĐGtx cần có theo TT 22/2021, Điều 6.',
+      steps:['Xem "Tổng quan đầu điểm": số đầu điểm đã chọn ghi nhận / cần có của từng khối, học kì, lớp.',
+        'Điền khối, học kì, lớp (để trống = tất cả lớp), hình thức, thang điểm tối đa, ghi chú; có thể gắn một đề TX đã lưu.',
+        'Bấm "Thêm hoạt động". Tên hồ sơ tự đặt theo mẫu "Tin N_Kiểm tra thường xuyên k - HK I/II".',
+        'Đánh dấu hoạt động được chọn để ghi nhận đầu điểm; điểm quy đổi về thang 10 và làm tròn đến số nguyên.'],
+      tips:['Khối THPT có thể ghi nhận kết quả cụm chuyên đề học tập như 1 đầu điểm ĐĐGtx (Điều 6.3).',
+        'Tổng quan chỉ cảnh báo khi thiếu đầu điểm, không chặn thao tác.']},
+  };
+  const TEST_MODE_TIP='Đang ở Chế độ Test: dữ liệu là bản sao, mọi thao tác không ảnh hưởng ngân hàng thật. Bấm "🔄 Làm mới dữ liệu test" để chép lại bản sao mới.';
+  function screenGuide(tab,opts){
+    const g=SCREEN_GUIDES[tab]||SCREEN_GUIDES.overview;
+    return {...g,tips:(opts&&opts.testMode)?[TEST_MODE_TIP,...g.tips]:g.tips.slice()};
+  }
+  const api={screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

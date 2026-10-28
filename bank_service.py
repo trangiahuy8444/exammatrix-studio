@@ -27,6 +27,7 @@ from domain.scoring import exam_policy, policy_table
 from domain.matrix_checks import cell_check, ratio_warnings
 from domain.reuse import DEFAULT_RECENT_DAYS, bank_duplicates, recent_uses
 from domain.permutation import mapping_rows, verify_codes
+from domain.kttx import FORM_KEYS, FORMS, TIN_HOC_PERIODS, activity_title, kttx_overview
 from domain.revision_criterion import MODES as REVISION_MODES, revision_report
 from input_schema import canonical_short_answer
 from pathlib import Path
@@ -1345,6 +1346,81 @@ class BankService:
                 'mapping': mapping_rows(old, generated_exams)
             }
 
+    # --- B8: kiểm tra thường xuyên (TT 22/2021, Điều 6) ---------------------------------------------------
+    def _kttx_grades(self):
+        return list(self.context.get('allowed_grades') or (8, 9, 10))
+
+    def periods_per_year(self, grade):
+        """Số tiết/năm học của môn: khai báo trong chương trình; môn Tin học mặc định theo TT 32/2018."""
+        declared = (self.context.get('policy') or {}).get('periods_per_year')
+        if isinstance(declared, dict):
+            declared = declared.get(str(grade))
+        if type(declared) is int and declared > 0:
+            return declared
+        if (self.context.get('subject_name') or 'Tin học') == 'Tin học':
+            return TIN_HOC_PERIODS.get(grade)
+        return None
+
+    def kttx_state(self):
+        activities = self._read_data(self.data_dir/'kttx.json', [])
+        grades = self._kttx_grades()
+        return dict(activities=copy.deepcopy(activities), forms=[dict(f) for f in FORMS],
+                    overview=kttx_overview(activities, {g: self.periods_per_year(g) for g in grades}, grades))
+
+    def save_kttx(self, payload, actor='local'):
+        with self.lock:
+            if not isinstance(payload, dict):
+                raise ServiceError('Dữ liệu hoạt động KTTX không hợp lệ.')
+            grade, semester, k = payload.get('grade'), payload.get('semester'), payload.get('k')
+            if type(grade) is not int or grade not in self._kttx_grades():
+                raise ServiceError('Khối không thuộc chương trình đang chọn.', {'grade': grade})
+            if semester not in (1, 2):
+                raise ServiceError('Học kì phải là 1 hoặc 2.')
+            if type(k) is not int or not 1 <= k <= 20:
+                raise ServiceError('Số thứ tự bài KTTX phải từ 1 đến 20.')
+            if payload.get('form') not in FORM_KEYS:
+                raise ServiceError('Hình thức phải theo TT 22/2021, Điều 6, khoản 1.', {'form': payload.get('form')})
+            try:
+                max_score = Decimal(str(payload.get('max_score', '10')).replace(',', '.'))
+            except Exception:
+                raise ServiceError('Thang điểm tối đa không hợp lệ.')
+            if not max_score.is_finite() or max_score <= 0 or max_score > 1000:
+                raise ServiceError('Thang điểm tối đa phải lớn hơn 0 và không quá 1000.')
+            class_name = str(payload.get('class_name') or '').strip()[:30]
+            exam_id = payload.get('exam_id') or None
+            if exam_id:
+                exam = next((e for e in self._records('exams') if e.get('id') == exam_id), None)
+                if exam is None or exam.get('exam_type') != 'TX' or exam.get('grade') != grade:
+                    raise ServiceError('Chỉ gắn được đề kiểm tra thường xuyên (TX) cùng khối.', {'exam_id': exam_id})
+            records = self._read_data(self.data_dir/'kttx.json', [])
+            ident = payload.get('id')
+            old = next((a for a in records if a.get('id') == ident), None) if ident else None
+            if ident and old is None:
+                raise ServiceError('Không tìm thấy hoạt động KTTX.', {'id': ident}, 404)
+            for a in records:
+                if a.get('id') != ident and (a.get('grade'), a.get('class_name') or '', a.get('semester'), a.get('k')) == (grade, class_name, semester, k):
+                    raise ServiceError(f'Đã có TX{k}-HK{semester} cho khối {grade}{" lớp " + class_name if class_name else ""}.', status=409)
+            activity = dict(id=ident or f'KTTX-{uuid.uuid4().hex[:12]}', code=f'TX{k}-HK{semester}', grade=grade,
+                            semester=semester, k=k, class_name=class_name, form=payload['form'],
+                            max_score=format(max_score.normalize(), 'f'), recorded=payload.get('recorded') is True,
+                            exam_id=exam_id, note=str(payload.get('note') or '').strip()[:500],
+                            title=activity_title(self.context.get('subject_name'), grade, k, semester),
+                            created_at=(old or {}).get('created_at') or now(), updated_at=now(),
+                            updated_by=str(actor or 'local'))
+            records = [a for a in records if a.get('id') != activity['id']] + [activity]
+            records.sort(key=lambda a: (a['grade'], a['class_name'], a['semester'], a['k']))
+            self._atomic_save(self.data_dir/'kttx.json', records)
+            return copy.deepcopy(activity)
+
+    def delete_kttx(self, ident):
+        with self.lock:
+            records = self._read_data(self.data_dir/'kttx.json', [])
+            remaining = [a for a in records if a.get('id') != ident]
+            if len(remaining) == len(records):
+                raise ServiceError('Không tìm thấy hoạt động KTTX.', {'id': ident}, 404)
+            self._atomic_save(self.data_dir/'kttx.json', remaining)
+            return copy.deepcopy(remaining)
+
     def export_permutation_mapping(self, ident):
         """B7: tệp Word bảng đối chiếu mã đề của một đề gốc (hoặc của bộ chứa mã đề đang chọn)."""
         from exports import export_mapping_docx
@@ -1417,6 +1493,11 @@ class BankService:
             subj_name = str(exam.get('subject_name') or 'Tin học')
             s_year = str(exam.get('school_year', '2026-2027')).replace(' ', '')
             folder_root = f"Ho_so_kiem_tra_Khoi_{grade}_{exam_type}_{s_year}"
+            # B8: đề gắn với hoạt động KTTX thì gói mang tên "Tin {N}_Kiểm tra thường xuyên {k} - HK {I|II}".
+            linked = next((a for a in self._read_data(self.data_dir/'kttx.json', [])
+                           if a.get('exam_id') in (ident, exam.get('parent_exam_id'))), None)
+            if linked:
+                folder_root = linked['title'] + (f" {linked['class_name']}" if linked.get('class_name') else '')
 
             all_exams = self._records('exams')
             family = [x for x in all_exams if x.get('parent_exam_id') == ident]

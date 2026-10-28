@@ -22,7 +22,7 @@ class DatabaseStorage:
         self.paths = {
             self.data_dir/'bank.json': 'bank', self.data_dir/'exams.json': 'exams',
             self.data_dir/'revisions.json': 'revisions', self.data_dir/'exam_templates.json': 'templates',
-            self.data_dir/'matrices/records.json': 'matrices',
+            self.data_dir/'matrices/records.json': 'matrices', self.data_dir/'kttx.json': 'kttx',
         }
 
     def key(self, path):

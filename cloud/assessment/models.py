@@ -7,7 +7,7 @@ from workspace.models import OwnedRecord, Curriculum, Lesson
 def empty_legacy_documents():
     return {'bank': {'schema_version': '1.0.0', 'metadata': {},
                      'ppct': {'sources': [], 'lessons': []}, 'questions': []},
-            'exams': [], 'revisions': [], 'templates': {'templates': []}, 'matrices': []}
+            'exams': [], 'revisions': [], 'templates': {'templates': []}, 'matrices': [], 'kttx': []}
 
 
 class LegacyState(OwnedRecord):

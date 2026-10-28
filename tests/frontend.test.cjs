@@ -92,3 +92,13 @@ console.log('PASS frontend: giải thích 4 phương án, đáp án trả lời 
   assert.equal(core.examEditable({status:'locked'}),false);assert.equal(core.examEditable({status:'pending_approval'}),true);
   console.log('PASS frontend: vòng đời đề');
 }
+
+// B8: gợi ý số thứ tự bài KTTX tiếp theo
+{
+  const acts=[{grade:8,semester:1,k:1,class_name:''},{grade:8,semester:1,k:3,class_name:''},{grade:8,semester:2,k:1,class_name:''},{grade:8,semester:1,k:1,class_name:'8A1'}];
+  assert.equal(core.nextKttxNumber(acts,8,1,''),4);
+  assert.equal(core.nextKttxNumber(acts,8,2,''),2);
+  assert.equal(core.nextKttxNumber(acts,8,1,'8A1'),2);
+  assert.equal(core.nextKttxNumber(acts,9,1,''),1);
+  console.log('PASS frontend: số thứ tự KTTX');
+}

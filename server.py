@@ -146,6 +146,8 @@ class Handler(BaseHTTPRequestHandler):
                 state['is_test_mode'] = (service == getattr(self.server, 'test_service', None))
                 state['can_view_answers'] = self._can_view_answers()
                 return self._json(state)
+            if path == '/api/kttx':
+                return self._json(service.kttx_state())
             if path == '/api/ai/status':
                 from ai_assistant import ai_status
                 return self._json(ai_status(self._ai_scope()))
@@ -308,6 +310,12 @@ class Handler(BaseHTTPRequestHandler):
                 exam = service.exam_transition(payload.get('id'), payload.get('action'), actor=self._actor(),
                                                reason=payload.get('reason', ''), matrix_service=self.matrix_service)
                 return self._json({'exam': exam, 'exams': service.state()['exams']})
+            if path == '/api/kttx/save':
+                activity = service.save_kttx(payload.get('activity') or payload, actor=self._actor())
+                return self._json({'activity': activity, **service.kttx_state()})
+            if path == '/api/kttx/delete':
+                service.delete_kttx(payload.get('id'))
+                return self._json(service.kttx_state())
             if path == '/api/exams/close-match':
                 mark = service.mark_close_match(payload.get('id'), payload.get('question_id'), payload.get('revision_question_id'),
                                                 payload.get('reason', ''), actor=self._actor())

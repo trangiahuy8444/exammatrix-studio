@@ -71,9 +71,9 @@ async function load(initial=false){
  catch(e){$('#loading').hidden=true;notify(e.message,true);if(!store.bank)$('#overview').innerHTML=empty('Chưa mở được ngân hàng','Kiểm tra ứng dụng đang chạy rồi bấm Tải lại dữ liệu.');if(!store.bank)$('#overview').hidden=false;}
  finally{$('#refresh').disabled=false;}
 }
-function switchTab(tab){store.tab=['overview','bank','review','ppct','revisions','matrices','exams'].includes(tab)?tab:'overview';document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==store.tab);document.querySelectorAll('[data-tab]').forEach(a=>{if(a.dataset.tab===store.tab)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});if(store.bank)renderCurrent();}
+function switchTab(tab){store.tab=['overview','bank','review','ppct','revisions','matrices','exams','kttx'].includes(tab)?tab:'overview';document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==store.tab);document.querySelectorAll('[data-tab]').forEach(a=>{if(a.dataset.tab===store.tab)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});if(store.bank)renderCurrent();}
 function render(){switchTab(location.hash.slice(1)||store.tab);}
-function renderCurrent(){({overview:renderOverview,bank:renderBank,review:renderReview,ppct:renderPPCT,revisions:renderRevisions,exams:renderExams,matrices:renderMatrices}[store.tab])();}
+function renderCurrent(){({overview:renderOverview,bank:renderBank,review:renderReview,ppct:renderPPCT,revisions:renderRevisions,exams:renderExams,kttx:renderKttx,matrices:renderMatrices}[store.tab])();}
 // B1: màn hình duyệt câu hỏi số lượng lớn. Không có nút "duyệt tất cả": mỗi câu phải mở và xác nhận phiếu riêng.
 function renderReview(){
  const f=store.reviewFilters||(store.reviewFilters={status:'pending_review',grade:'',lesson:'',level:'',type:'',origin:''});
@@ -126,6 +126,35 @@ document.addEventListener('keydown',e=>{
  const btn=document.querySelector(`#review [data-review-act="${act}"]`);
  if(btn||act==='next'||act==='prev'){e.preventDefault();reviewAct(act);}
 });
+// B8: kiểm tra thường xuyên theo TT 22/2021, Điều 6 — đầu điểm ghi sổ / cần có (chỉ cảnh báo).
+async function renderKttx(){
+ const el=$('#kttx');
+ try{store.kttx=await request('/api/kttx');}catch(e){el.innerHTML=`<div class="callout error">${esc(e.message)}</div>`;return;}
+ const st=store.kttx,forms=Object.fromEntries(st.forms.map(f=>[f.key,f.label])),d=store.kttxDraft||(store.kttxDraft={grade:grades()[0],semester:1,class_name:'',form:'viet',max_score:'10',recorded:true,exam_id:'',note:''});
+ const k=d.id?d.k:C.nextKttxNumber(st.activities,Number(d.grade),Number(d.semester),d.class_name);
+ const txExams=store.exams.filter(e=>e.exam_type==='TX'&&Number(e.grade)===Number(d.grade));
+ el.innerHTML=`<div class="page-head"><div><p class="eyebrow">TT 22/2021 · Điều 6</p><h1>Kiểm tra thường xuyên</h1><p>Số điểm đánh giá thường xuyên (ĐĐGtx) cần ghi sổ mỗi học kì theo số tiết/năm của môn: 35 tiết → 2; trên 35 đến 70 → 3; trên 70 → 4. Hoạt động KTTX không giới hạn; thầy/cô chọn hoạt động nào ghi sổ.</p></div></div>
+ <div class="card"><h2>Tổng quan đầu điểm</h2><div class="table-wrap"><table><thead><tr><th>Khối</th><th>Lớp</th><th>Học kì</th><th>Số tiết/năm</th><th>Chọn ghi sổ / cần có</th><th>Hoạt động</th><th>Ghi chú</th></tr></thead><tbody>${st.overview.map(r=>`<tr><td>${r.grade}</td><td>${esc(r.class_name||'Tất cả lớp')}</td><td>HK ${r.semester===1?'I':'II'}</td><td>${r.periods_per_year??'—'}</td><td><span class="badge ${r.ok?'approved':'draft'}">${r.recorded} / ${r.required??'?'}</span></td><td>${r.activities}</td><td class="small">${esc(r.message)}</td></tr>`).join('')}</tbody></table></div><p class="small muted">Bảng chỉ cảnh báo, không chặn việc tạo đề hay lưu hoạt động.</p></div>
+ <div class="two-col"><div class="card"><h2>${d.id?'Sửa':'Thêm'} hoạt động ${esc(`TX${k}-HK${d.semester}`)}</h2><div class="form-grid">
+  <div class="field"><label for="kt-grade">Khối</label><select id="kt-grade"${d.id?' disabled':''}>${grades().map(g=>opt(g,'Khối '+g,Number(d.grade)===g)).join('')}</select></div>
+  <div class="field"><label for="kt-sem">Học kì</label><select id="kt-sem"${d.id?' disabled':''}>${opt(1,'HK I',Number(d.semester)===1)}${opt(2,'HK II',Number(d.semester)===2)}</select></div>
+  <div class="field"><label for="kt-class">Lớp (để trống = tất cả lớp)</label><input id="kt-class" value="${esc(d.class_name)}"${d.id?' disabled':''}></div>
+  <div class="field"><label for="kt-form">Hình thức</label><select id="kt-form">${st.forms.map(f=>opt(f.key,f.label,f.key===d.form)).join('')}</select></div>
+  <div class="field"><label for="kt-max">Thang điểm tối đa</label><input id="kt-max" inputmode="decimal" value="${esc(String(d.max_score).replace('.',','))}"></div>
+  <div class="field"><label for="kt-exam">Đề TX gắn kèm (nếu có)</label><select id="kt-exam">${opt('','— Không gắn đề —',!d.exam_id)}${txExams.map(e=>opt(e.id,e.title,e.id===d.exam_id)).join('')}</select></div>
+  <div class="field full"><label class="inline-check"><input type="checkbox" id="kt-recorded"${d.recorded?' checked':''}> Chọn kết quả hoạt động này làm ĐĐGtx ghi vào sổ</label></div>
+  <div class="field full"><label for="kt-note">Ghi chú</label><input id="kt-note" value="${esc(d.note||'')}"></div></div>
+  <p class="small muted">Tên hồ sơ: <strong>${esc(st.activities.find(a=>a.id===d.id)?.title||`${(store.context.subject_name||'Tin học')==='Tin học'?'Tin':store.context.subject_name} ${d.grade}_Kiểm tra thường xuyên ${k} - HK ${Number(d.semester)===1?'I':'II'}`)}</strong>. Điểm quy đổi về thang 10 và làm tròn đến số nguyên (quy ước tổ cho bài thường xuyên).</p>
+  <div class="actions"><button type="button" class="primary" id="kt-save">${d.id?'Lưu thay đổi':'Thêm hoạt động'}</button>${d.id?'<button type="button" id="kt-cancel">Hủy sửa</button>':''}</div></div>
+ <div class="card"><h2>Hoạt động đã lên kế hoạch (${st.activities.length})</h2>${st.activities.length?st.activities.map(a=>`<article class="saved-item"><div><h3>${esc(a.title)}${a.class_name?' · '+esc(a.class_name):''}</h3><p>${esc(a.code)} · ${esc(forms[a.form]||a.form)} · thang ${esc(String(a.max_score).replace('.',','))} điểm · ${a.recorded?'<strong>ghi sổ</strong>':'không ghi sổ'}${a.exam_id?' · có đề gắn kèm':''}</p>${a.note?`<p class="small muted">${esc(a.note)}</p>`:''}</div><div class="actions"><button type="button" class="export-link" data-kt-edit="${esc(a.id)}">Sửa</button><button type="button" class="export-link danger" data-kt-del="${esc(a.id)}">Xóa</button></div></article>`).join(''):empty('Chưa có hoạt động KTTX','Thêm hoạt động đầu tiên ở khung bên trái.')}</div></div>`;
+ const read=()=>{Object.assign(d,{grade:Number($('#kt-grade').value),semester:Number($('#kt-sem').value),class_name:$('#kt-class').value.trim(),form:$('#kt-form').value,max_score:$('#kt-max').value.trim().replace(',','.'),exam_id:$('#kt-exam').value,recorded:$('#kt-recorded').checked,note:$('#kt-note').value});};
+ ['kt-grade','kt-sem','kt-class'].forEach(id=>{$('#'+id).onchange=()=>{read();renderKttx();};});
+ $('#kt-save').onclick=async()=>{read();const payload={...d,k:d.id?d.k:C.nextKttxNumber(st.activities,d.grade,d.semester,d.class_name),exam_id:d.exam_id||null};
+  const done=await mutate('/api/kttx/save',{activity:payload});if(done){store.kttxDraft=null;notify(`Đã lưu ${done.activity.title}.`);renderKttx();}};
+ const cancel=$('#kt-cancel');if(cancel)cancel.onclick=()=>{store.kttxDraft=null;renderKttx();};
+ el.querySelectorAll('[data-kt-edit]').forEach(b=>b.onclick=()=>{store.kttxDraft={...st.activities.find(a=>a.id===b.dataset.ktEdit)};store.kttxDraft.exam_id=store.kttxDraft.exam_id||'';renderKttx();});
+ el.querySelectorAll('[data-kt-del]').forEach(b=>b.onclick=async()=>{const a=st.activities.find(x=>x.id===b.dataset.ktDel);if(!a||!confirm(`Xóa ${a.title}?`))return;const done=await mutate('/api/kttx/delete',{id:a.id});if(done){notify('Đã xóa hoạt động KTTX.');renderKttx();}});
+}
 function renderOverview(){
  const s=subject();
  const qs=questions(),active=qs.filter(q=>q.review_status!=='archived'),ready=active.filter(q=>q.review_status==='approved');

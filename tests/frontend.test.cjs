@@ -10,6 +10,27 @@ assert.equal(core.templateBlocked({unsupported:false}),false);
 assert.deepEqual(core.revisionIds(qs,['a','b','c'],9),['a','b']);
 assert.equal(core.escapeHtml('<img onerror="x">'),'&lt;img onerror=&quot;x&quot;&gt;');
 console.log('PASS frontend: accents, filters, points, unsupported templates, revision grade, HTML safety');
+{
+  const rows=[{lesson_code:'B1',type:'MC',level:'Biết',count:2},{lesson_code:'B1',type:'MC',level:'Biết',count:1},{lesson_code:'B2',type:'ES',level:'Vận dụng',count:1}];
+  const bank=[{id:'x',lesson_code:'B1',type:'MC',level:'Biết',review_status:'approved'},{id:'y',lesson_code:'B1',type:'MC',level:'Biết',review_status:'draft'},{id:'z',lesson_code:'B3',type:'MC',level:'Biết',review_status:'approved'}];
+  const cov=core.matrixCellCoverage(rows,[bank[0],bank[2]],bank,3);
+  assert.equal(cov.cells.length,2);
+  assert.deepEqual(cov.cells[0],{lesson_code:'B1',type:'MC',level:'Biết',need:9,selected:1,available:1,short:8,bankShort:8});
+  assert.equal(cov.outside,1);assert.equal(cov.need,12);
+  console.log('PASS frontend: matrix cell coverage while choosing revision questions');
+}
+{
+  const cells=[{key:'a',need:8,available:30},{key:'b',need:2,available:3}];
+  assert.deepEqual(core.distributeCounts(cells,20),{a:16,b:3});
+  assert.deepEqual(core.distributeCounts(cells,7),{a:6,b:1});
+  assert.deepEqual(core.distributeCounts(cells,0),{});
+  const cell={lesson_code:'B1',type:'MC',level:'Biết',outcomes:['Y1']};
+  assert.equal(core.cellMatches(cell,{lesson_code:'B1',type:'MC',level:'Biết',learning_outcome:'Y1'}),true);
+  assert.equal(core.cellMatches(cell,{lesson_code:'B1',type:'MC',level:'Biết',learning_outcome:'Y2'}),false);
+  assert.equal(core.cellMatches({...cell,outcomes:[]},{lesson_code:'B1',type:'MC',level:'Biết',learning_outcome:'Y2'}),true);
+  console.log('PASS frontend: chia số câu đề cương theo ô, khớp câu với ô có YCCĐ');
+}
+
 
 for (const grade of [8, 10]) for (const period of ['GK1', 'CK1', 'GK2', 'CK2']) assert.equal(core.sourceTemplateRequired(grade, period), true);
 assert.equal(core.sourceTemplateRequired(9, 'GK1'), false);
@@ -20,7 +41,7 @@ assert.ok(core.DocFormatter.toolbarHtml('test-key', false).includes('data-fmt-cm
 assert.deepEqual(core.jsonHeaders(''), {'Content-Type':'application/json'});
 assert.deepEqual(core.jsonHeaders('test-csrf-token'), {'Content-Type':'application/json','X-CSRFToken':'test-csrf-token'});
 assert.notEqual(core.formatStoragePrefix('teacher-a'), core.formatStoragePrefix('teacher-b'));
-assert.equal(core.formatStoragePrefix(''), 'tin_doc_fmt_v1:');
+assert.equal(core.formatStoragePrefix(''), 'tin_doc_fmt_v2:');
 assert.equal(core.scopedUrl('/api/state','course-a'), '/api/state?curriculum=course-a');
 assert.equal(core.scopedUrl('/api/exams/a/export?format=docx','course-a'), '/api/exams/a/export?format=docx&curriculum=course-a');
 assert.equal(core.scopedUrl('/api/state',''), '/api/state');
@@ -124,3 +145,26 @@ console.log('PASS frontend: giải thích 4 phương án, đáp án trả lời 
   assert.ok(core.screenGuide('ppct').steps.some(x=>/Word hoặc JSON/.test(x)));
   console.log('PASS frontend: hướng dẫn theo màn hình');
 }
+
+// Included in the established frontend validation command.
+require('./exam_drafts.test.cjs');
+
+// G1-LEVEL4: giữ VDC trong lựa chọn, lọc đúng ô và thứ tự duyệt.
+{
+ const options=core.levelOptions('Vận dụng cao');
+ assert.match(options,/<option value="Vận dụng cao" selected>Vận dụng cao<\/option>/);
+ assert.equal((options.match(/<option /g)||[]).length,4);
+ const questions=[{id:'a',grade:9,lesson_code:'B1',level:'Chưa xác định',review_status:'pending_review'},
+  {id:'z',grade:9,lesson_code:'B1',level:'Vận dụng cao',review_status:'pending_review'},
+  {id:'v',grade:9,lesson_code:'B1',level:'Vận dụng',review_status:'pending_review'}];
+ assert.deepEqual(core.reviewQueue(questions).map(q=>q.id),['v','z','a']);
+ assert.deepEqual(core.filterQuestions(questions,{level:'Vận dụng cao'}).map(q=>q.id),['z']);
+ assert.deepEqual(core.reviewQueue(questions,core.reviewFiltersForCell({grade:9,lesson_code:'B1',level:'Vận dụng cao'})).map(q=>q.id),['z']);
+}
+console.log('PASS ngân hàng bốn mức: lựa chọn, lọc và thứ tự duyệt');
+assert.equal(core.levelAfterTypeChange('Vận dụng cao','ES'),'Vận dụng cao');
+assert.equal(core.levelAfterTypeChange('Biết','ES'),'Vận dụng');
+assert.equal(core.levelAfterTypeChange('Vận dụng cao','MC'),'Vận dụng cao');
+
+// Rich question checks run with the established frontend validation command.
+require('./question_text_frontend.test.cjs');

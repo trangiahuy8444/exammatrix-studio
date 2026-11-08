@@ -132,15 +132,24 @@ def classify_question_metadata(grade: int, q_type: str, question_text: str, slot
     norm_q = _norm(question_text)
     stem_q = _stem_key(question_text)
     bq = (bank_lookup or {}).get(norm_q) or (bank_lookup or {}).get(stem_q)
+    bank_id = bq.get('id') if bq else None
+
+    # Exact slot levels mapped directly to curriculum matrices
+    hieu_mc_slots = {
+        8: (5, 6, 7, 11, 12, 13, 17, 18, 23, 24, 25, 28),
+        9: (5, 6, 7, 12, 13, 14, 15, 20, 21, 22, 27, 28),
+        10: (1, 3, 5, 7, 10, 11, 14, 18, 19),
+    }.get(grade, ())
+
     if bq and q_type == 'MC':
+        lvl = 'Hiểu' if slot_num in hieu_mc_slots else 'Biết'
         return (
             bq.get('lesson_code', 'B1'),
-            bq.get('level', 'Biết'),
+            lvl,
             bq.get('learning_outcome', ''),
-            bq.get('id'),
+            bank_id,
         )
     t = norm_q
-    bank_id = bq.get('id') if bq else None
     if grade == 8:
         if q_type == 'ES':
             if slot_num == 1 or 'ổ đĩa trực tuyến' in t or 'google drive' in t:
@@ -149,19 +158,16 @@ def classify_question_metadata(grade: int, q_type: str, question_text: str, slot
                 return ('B3', 'Vận dụng', 'Nêu được ví dụ và lợi ích của việc khai thác thông tin số, dịch vụ công trực tuyến.', bank_id)
             return ('B4', 'Vận dụng', 'Biết cách ứng xử văn hóa, tôn trọng quyền riêng tư trong môi trường số.', bank_id)
         # MC classification for Grade 8
+        is_hieu = slot_num in hieu_mc_slots if (1 <= slot_num <= 28) else any(k in t for k in ('ưu điểm', 'tại sao', 'vì sao', 'so với', 'đặc điểm giúp', 'kết quả', 'khi thực hiện', 'ý nghĩa', 'giải thích', 'tình huống', 'nên làm', 'hành vi nào', 'cách nào', 'để tìm', 'hiệu quả', 'đáng tin cậy', 'đặc điểm nào', 'giúp', 'phân biệt', 'ví dụ nào'))
+        lvl = 'Hiểu' if is_hieu else 'Biết'
         if any(k in t for k in ('pascal', 'babbage', 'von neumann', 'transistor', 'mạch tích hợp', 'vi xử lý', 'công cụ tính toán', 'thế hệ máy tính', 'eniac', 'cơ học')):
-            lvl = 'Hiểu' if any(k in t for k in ('ưu điểm', 'tại sao', 'vì sao', 'so với', 'đặc điểm giúp')) else 'Biết'
             return ('B1', lvl, 'Trình bày được sơ lược lịch sử phát triển máy tính.', None)
         if any(k in t for k in ('scratch', 'thuật toán', 'chương trình', 'khối lệnh', 'biến', 'lặp', 'rẽ nhánh', 'ngôn ngữ lập trình', 'sơ đồ khối', 'bước giải')):
-            lvl = 'Hiểu' if any(k in t for k in ('kết quả', 'khi thực hiện', 'ý nghĩa', 'nếu', 'giải thích')) else 'Biết'
             return ('B12', lvl, 'Mô tả được kịch bản đơn giản dưới dạng thuật toán và tạo được chương trình đơn giản.', None)
         if any(k in t for k in ('bản quyền', 'đạo đức', 'văn hóa', 'riêng tư', 'xin phép', 'chia sẻ thông tin cá nhân', 'bắt nạt', 'ứng xử', 'pháp luật', 'sao chép trái phép', 'mạng xã hội', 'tài khoản cá nhân')):
-            lvl = 'Hiểu' if any(k in t for k in ('tình huống', 'nên làm', 'hành vi nào', 'vì sao', 'để bảo vệ')) else 'Biết'
             return ('B4', lvl, 'Biết và thực hiện được các quy định về đạo đức, văn hóa và pháp luật trong môi trường số.', None)
         if any(k in t for k in ('tìm kiếm', 'từ khóa', 'ngoặc kép', 'nguồn tin', 'đánh giá', 'khai thác', 'tên miền', '.gov', '.edu', 'lưu trữ', 'thư mục', 'tệp tin')):
-            lvl = 'Hiểu' if any(k in t for k in ('cách nào', 'để tìm', 'vì sao', 'hiệu quả', 'đáng tin cậy')) else 'Biết'
             return ('B3', lvl, 'Sử dụng được công cụ tìm kiếm, xử lí và trao đổi thông tin trong môi trường số.', None)
-        lvl = 'Hiểu' if any(k in t for k in ('tại sao', 'vì sao', 'đặc điểm nào', 'giúp', 'phân biệt', 'ví dụ nào')) else 'Biết'
         return ('B2', lvl, 'Nêu được các đặc điểm của thông tin trong môi trường số.', None)
 
     if grade == 9:
@@ -171,19 +177,14 @@ def classify_question_metadata(grade: int, q_type: str, question_text: str, slot
             if slot_num == 2 or 'phòng máy' in t or 'pháp lí' in t or 'tài khoản mạng' in t:
                 return ('B4', 'Vận dụng', 'Nêu được cách ứng xử hợp pháp, có văn hóa và nhận diện hành vi vi phạm pháp luật trên Internet.', None)
             return ('B5', 'Vận dụng', 'Nêu được lợi ích và cách sử dụng phần mềm mô phỏng trong học tập.', None)
-        if slot_num <= 6 or any(k in t for k in ('bộ xử lí', 'gắn bộ xử lí', 'nhị phân', 'số hóa', 'iot', 'tự động hóa', 'máy pos', 'nồi cơm', 'rô-bốt', 'thiết bị số')):
-            lvl = 'Hiểu' if slot_num in (5, 6) or any(k in t for k in ('tác động', 'thay đổi', 'lợi ích', 'ảnh hưởng')) else 'Biết'
+        is_hieu = slot_num in hieu_mc_slots if (1 <= slot_num <= 28) else any(k in t for k in ('tác động', 'thay đổi', 'lợi ích', 'ảnh hưởng'))
+        lvl = 'Hiểu' if is_hieu else 'Biết'
+        if slot_num <= 7 or any(k in t for k in ('bộ xử lí', 'gắn bộ xử lí', 'nhị phân', 'số hóa', 'iot', 'tự động hóa', 'máy pos', 'nồi cơm', 'rô-bốt', 'thiết bị số')):
             return ('B1', lvl, 'Nhận biết thế giới kĩ thuật số và tác động của công nghệ thông tin lên xã hội.', None)
-        if slot_num <= 11 or any(k in t for k in ('tính mới', 'tính chính xác', 'tính đầy đủ', 'tính sử dụng được', '4 tiêu chí', 'bốn tiêu chí', 'giải quyết vấn đề')):
-            lvl = 'Hiểu' if slot_num in (10, 11) else 'Biết'
-            return ('B2', lvl, 'Giải thích được sự cần thiết phải quan tâm đến chất lượng thông tin khi giải quyết vấn đề.', None)
-        if slot_num <= 15 or any(k in t for k in ('đánh giá chất lượng', 'nguồn thông tin', 'cổng thông tin', 'chính thống')):
-            lvl = 'Hiểu' if slot_num in (14, 15) else 'Biết'
-            return ('B3', lvl, 'Tìm kiếm và đánh giá được chất lượng thông tin phục vụ giải quyết vấn đề.', None)
+        if slot_num <= 15 or any(k in t for k in ('tính mới', 'tính chính xác', 'tính đầy đủ', 'tính sử dụng được', '4 tiêu chí', 'bốn tiêu chí', 'giải quyết vấn đề', 'đánh giá chất lượng', 'nguồn thông tin', 'cổng thông tin', 'chính thống')):
+            return ('B2' if slot_num <= 11 else 'B3', lvl, 'Giải thích được sự cần thiết phải quan tâm đến chất lượng thông tin khi giải quyết vấn đề.', None)
         if slot_num <= 22 or any(k in t for k in ('luật an ninh mạng', 'vi phạm pháp luật', 'tác động tiêu cực', 'lừa đảo', 'bản quyền', 'thông tin sai sự thật', 'nghị định')):
-            lvl = 'Hiểu' if slot_num in (20, 21, 22) else 'Biết'
             return ('B4', lvl, 'Nhận biết một số vấn đề pháp lí về sử dụng dịch vụ Internet.', None)
-        lvl = 'Hiểu' if slot_num in (26, 27, 28) else 'Biết'
         return ('B5', lvl, 'Nhận biết và nêu được lợi ích của phần mềm mô phỏng.', None)
 
     if grade == 10:
@@ -200,26 +201,22 @@ def classify_question_metadata(grade: int, q_type: str, question_text: str, slot
                 return ('B11', 'Hiểu', 'Tuân thủ quy định pháp luật và tôn trọng bản quyền trong môi trường số.', None)
             return ('B10', 'Hiểu', 'Khai thác tài nguyên học tập số và dịch vụ trực tuyến trên Internet.', None)
         # MC for Grade 10
+        is_hieu = slot_num in hieu_mc_slots if (1 <= slot_num <= 19) else any(k in t for k in ('sự khác biệt', 'khi phóng to', 'tổ hợp phím', 'thao tác', 'để tạo'))
+        lvl = 'Hiểu' if is_hieu else 'Biết'
         if any(k in t for k in ('inkscape', 'đồ họa', 'vectơ', 'bitmap', 'raster', '.svg', 'path', 'node', 'layer', 'màu tô', 'nét vẽ', 'ctrl + d', 'shift +', 'union', 'difference')):
-            lvl = 'Hiểu' if any(k in t for k in ('sự khác biệt', 'khi phóng to', 'tổ hợp phím', 'thao tác', 'để tạo')) else 'Biết'
             return ('B12', lvl, 'Nhận biết đồ họa vectơ/bitmap và các thao tác cơ bản trong Inkscape.', None)
         if any(k in t for k in ('bản quyền', 'quyền tác giả', 'sở hữu trí tuệ', 'luật an ninh mạng', 'văn hóa ứng xử', 'xin phép tác giả', 'vi phạm')):
-            lvl = 'Hiểu' if any(k in t for k in ('hành vi nào', 'tình huống', 'vì sao')) else 'Biết'
             return ('B11', lvl, 'Nêu được các quy định pháp luật và tôn trọng bản quyền trên môi trường số.', None)
         if any(k in t for k in ('google translate', 'dịch', 'khai thác tài nguyên', 'học liệu mở', 'tìm kiếm trên internet')):
-            return ('B10', 'Hiểu', 'Khai thác được các dịch vụ và tài nguyên học tập trên Internet.', None)
+            return ('B10', lvl, 'Khai thác được các dịch vụ và tài nguyên học tập trên Internet.', None)
         if any(k in t for k in ('virus', 'trojan', 'worm', 'ransomware', 'phishing', 'mã độc', 'tường lửa', 'mật khẩu', 'an toàn')):
-            lvl = 'Hiểu' if any(k in t for k in ('cách phòng', 'hành động nào', 'tình huống')) else 'Biết'
             return ('B9', lvl, 'Nhận biết các mối đe dọa an toàn thông tin trên không gian mạng.', None)
         if any(k in t for k in ('lan', 'wan', 'đám mây', 'cloud', 'iot', 'internet of things', 'mạng máy tính', 'kết nối mạng')):
-            lvl = 'Hiểu' if any(k in t for k in ('so sánh', 'đặc trưng', 'ví dụ nào', 'lợi ích')) else 'Biết'
             return ('B8', lvl, 'Phân biệt mạng LAN/Internet và nêu được vai trò của IoT, điện toán đám mây.', None)
         if any(k in t for k in ('qr', 'điện thoại thông minh', 'kết nối bluetooth', 'thiết bị số thông dụng', 'hệ điều hành', 'cài đặt')):
-            return ('B7', 'Biết', 'Thực hành sử dụng thiết bị số thông dụng.', None)
+            return ('B7', lvl, 'Thực hành sử dụng thiết bị số thông dụng.', None)
         if any(k in t for k in ('thiết bị thông minh', 'cách mạng công nghiệp', 'xã hội tri thức', 'ai ', 'trí tuệ nhân tạo', 'tác động của tin học')):
-            lvl = 'Hiểu' if any(k in t for k in ('tại sao', 'đặc điểm giúp', 'vai trò')) else 'Biết'
             return ('B2', lvl, 'Nêu được vai trò của thiết bị thông minh và tin học đối với xã hội.', None)
-        lvl = 'Hiểu' if any(k in t for k in ('tại sao', 'quá trình', 'đổi đơn vị', 'bao nhiêu')) else 'Biết'
         return ('B1', lvl, 'Phân biệt được thông tin và dữ liệu, đơn vị lưu trữ dữ liệu.', None)
 
     return ('B1', 'Biết', '', None)
@@ -353,17 +350,14 @@ def _parse_question_block(paragraphs: list[str], grade: int, mc_answers: dict[in
                 ]
         elif q_type == 'YN':
             ans_dict = yn_answers.get(slot_num, {})
-            # Level per statement for Grade 10 YN (12 statements across 3 YN questions: 7 Biết, 3 Hiểu, 2 Vận dụng)
-            default_stmt_levels = {
-                1: {'a': 'Biết', 'b': 'Biết', 'c': 'Hiểu', 'd': 'Vận dụng'},
-                2: {'a': 'Biết', 'b': 'Biết', 'c': 'Hiểu', 'd': 'Vận dụng'},
-                3: {'a': 'Biết', 'b': 'Biết', 'c': 'Biết', 'd': 'Hiểu'},
-            }.get(slot_num, {'a': 'Biết', 'b': 'Biết', 'c': 'Hiểu', 'd': 'Vận dụng'})
+            # Level per statement for Grade 10 YN (all 3 questions follow: a: Biết, b: Biết, c: Hiểu, d: Vận dụng)
+            default_stmt_levels = {'a': 'Biết', 'b': 'Biết', 'c': 'Hiểu', 'd': 'Vận dụng'}
             for st in current.get('statements', []):
                 lbl = st['label']
                 if lbl in ans_dict:
                     st['correct'] = ans_dict[lbl]
                 st.setdefault('level', default_stmt_levels.get(lbl, 'Biết'))
+                st.setdefault('points', 0.25)
         elif q_type == 'ES':
             if slot_num in es_rubrics and es_rubrics[slot_num]:
                 current['rubric'] = copy.deepcopy(es_rubrics[slot_num])
@@ -458,10 +452,17 @@ def _parse_question_block(paragraphs: list[str], grade: int, mc_answers: dict[in
                 current['question'] = (current['question'] + '\n' + s).strip()
         elif current['type'] == 'ES':
             m_sub = re.match(r'^([a-c])\)\s*(.*)$', s, flags=re.I)
-            if m_sub:
+            m_pt = re.search(r'\(([\d,.]+)\s*đ(?:iểm)?\)\s*$', s, flags=re.I) if (not m_sub and grade == 10) else None
+            if m_sub and grade == 10:
                 lbl = m_sub.group(1).lower()
                 sub_txt = m_sub.group(2).strip()
-                current['sub_items'].append({'label': lbl, 'text': sub_txt})
+                current['sub_items'].append({'label': lbl, 'text': sub_txt, 'points': 0.25, 'level': 'Vận dụng'})
+                current['question'] = (current['question'] + f'\n{lbl}) {sub_txt}').strip()
+            elif m_pt and grade == 10 and len(current.get('sub_items', [])) < 3:
+                lbl = chr(ord('a') + len(current['sub_items']))
+                sub_txt = s.strip()
+                pts = float(m_pt.group(1).replace(',', '.'))
+                current['sub_items'].append({'label': lbl, 'text': sub_txt, 'points': pts, 'level': 'Vận dụng'})
                 current['question'] = (current['question'] + f'\n{lbl}) {sub_txt}').strip()
             else:
                 current['question'] = (current['question'] + '\n' + s).strip()
@@ -687,9 +688,34 @@ def verify_exam_against_matrix(exam: dict, matrix: dict, revision: dict | None =
     req_pct = float(resolve_similarity(required_similarity_percent))
     sim_mode = similarity_mode or exam.get('similarity_mode') or 'min'
 
+    import math
+    verification_issues = []
+
+    def positive_points(value):
+        if isinstance(value, bool):
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return number if math.isfinite(number) and number > 0 else None
+
+    question_point_values = {}
+    for q in questions:
+        value = positive_points(q.get('points'))
+        if value is None:
+            verification_issues.append('Câu hỏi: điểm phải là số hữu hạn lớn hơn 0.')
+        question_point_values[id(q)] = value if value is not None else 0.0
+
+    def question_points(q):
+        return question_point_values[id(q)]
+
     # 1. Expected quotas by question type, level, and lesson from Matrix slots + requirements
-    expected_types = {'MC': {'questions': 0, 'items': 0, 'points': 0.0}, 'YN': {'questions': 0, 'items': 0, 'points': 0.0}, 'ES': {'questions': 0, 'items': 0, 'points': 0.0}}
-    expected_levels = {'Biết': {'items': 0, 'points': 0.0}, 'Hiểu': {'items': 0, 'points': 0.0}, 'Vận dụng': {'items': 0, 'points': 0.0}}
+    expected_types = {kind: {'questions': 0, 'items': 0, 'points': 0.0}
+                      for kind in ('MC', 'YN', 'SHORT', 'ES')}
+    from input_schema import ALLOWED_LEVELS
+    levels = tuple(ALLOWED_LEVELS)
+    expected_levels = {level: {'items': 0, 'points': 0.0} for level in levels}
     expected_lessons = {}
 
     req_by_id = {r['id']: r for r in matrix.get('requirements', []) if isinstance(r, dict) and 'id' in r}
@@ -719,7 +745,7 @@ def verify_exam_against_matrix(exam: dict, matrix: dict, revision: dict | None =
                     'question_type': q_type,
                     'expected_items': 0,
                     'expected_points': 0.0,
-                    'counts': {'Biết': 0, 'Hiểu': 0, 'Vận dụng': 0},
+                    'counts': {level: 0 for level in levels},
                     'question_numbers': [],
                 })
                 les_entry['expected_items'] += 1
@@ -733,14 +759,14 @@ def verify_exam_against_matrix(exam: dict, matrix: dict, revision: dict | None =
         for r in matrix.get('rows', []):
             q_type = r.get('question_type', 'MC')
             counts = r.get('counts', {})
-            row_items = sum(int(counts.get(k, 0)) for k in ('Biết', 'Hiểu', 'Vận dụng'))
+            row_items = sum(int(counts.get(k, 0)) for k in levels)
             pts = float(r.get('points', 0))
             if q_type in expected_types:
                 expected_types[q_type]['questions'] += row_items
                 expected_types[q_type]['items'] += row_items
                 expected_types[q_type]['points'] = round(expected_types[q_type]['points'] + pts, 2)
             unit_pt = (pts / row_items) if row_items else 0.0
-            for lvl in ('Biết', 'Hiểu', 'Vận dụng'):
+            for lvl in levels:
                 c = int(counts.get(lvl, 0))
                 if c > 0:
                     expected_levels[lvl]['items'] += c
@@ -752,30 +778,32 @@ def verify_exam_against_matrix(exam: dict, matrix: dict, revision: dict | None =
                 'question_type': q_type,
                 'expected_items': 0,
                 'expected_points': 0.0,
-                'counts': {'Biết': 0, 'Hiểu': 0, 'Vận dụng': 0},
+                'counts': {level: 0 for level in levels},
                 'question_numbers': r.get('question_numbers', []),
             })
             les_entry['expected_items'] += row_items
             les_entry['expected_points'] = round(les_entry['expected_points'] + pts, 2)
-            for lvl in ('Biết', 'Hiểu', 'Vận dụng'):
+            for lvl in levels:
                 les_entry['counts'][lvl] += int(counts.get(lvl, 0))
 
     # 2. Actual counts from Exam
     mc_qs = [q for q in questions if q.get('type') == 'MC']
     yn_qs = [q for q in questions if q.get('type') == 'YN']
+    short_qs = [q for q in questions if q.get('type') == 'SHORT']
     es_qs = [q for q in questions if q.get('type') == 'ES']
 
     yn_stmt_count = sum(len(q.get('statements', [])) for q in yn_qs)
-    es_item_count = sum(len(q.get('sub_items', [])) or (3 if grade == 10 else 1) for q in es_qs) if expected_types['ES']['items'] > len(es_qs) else len(es_qs)
+    es_item_count = sum(len(q.get('sub_items', [])) or 1 for q in es_qs)
 
     actual_types = {
-        'MC': {'questions': len(mc_qs), 'items': len(mc_qs), 'points': round(sum(float(q.get('points', 0)) for q in mc_qs), 2)},
-        'YN': {'questions': len(yn_qs), 'items': yn_stmt_count, 'points': round(sum(float(q.get('points', 0)) for q in yn_qs), 2)},
-        'ES': {'questions': len(es_qs), 'items': es_item_count, 'points': round(sum(float(q.get('points', 0)) for q in es_qs), 2)},
+        'MC': {'questions': len(mc_qs), 'items': len(mc_qs), 'points': round(sum(question_points(q) for q in mc_qs), 2)},
+        'YN': {'questions': len(yn_qs), 'items': yn_stmt_count, 'points': round(sum(question_points(q) for q in yn_qs), 2)},
+        'SHORT': {'questions': len(short_qs), 'items': len(short_qs), 'points': round(sum(question_points(q) for q in short_qs), 2)},
+        'ES': {'questions': len(es_qs), 'items': es_item_count, 'points': round(sum(question_points(q) for q in es_qs), 2)},
     }
 
     type_checks = []
-    for qt, label in [('MC', 'Trắc nghiệm nhiều lựa chọn (MC)'), ('YN', 'Trắc nghiệm Đúng/Sai (YN)'), ('ES', 'Tự luận (ES)')]:
+    for qt, label in [('MC', 'Trắc nghiệm nhiều lựa chọn (MC)'), ('YN', 'Trắc nghiệm Đúng/Sai (YN)'), ('SHORT', 'Trả lời ngắn (SHORT)'), ('ES', 'Tự luận (ES)')]:
         exp = expected_types[qt]
         act = actual_types[qt]
         if exp['items'] == 0 and act['items'] == 0:
@@ -794,48 +822,77 @@ def verify_exam_against_matrix(exam: dict, matrix: dict, revision: dict | None =
 
     # 3. Total points check
     total_expected = round(sum(v['points'] for v in expected_types.values()), 2) or 10.0
-    total_actual = round(sum(float(q.get('points', 0)) for q in questions), 2)
+    total_actual = round(sum(question_points(q) for q in questions), 2)
     points_ok = abs(total_expected - total_actual) < 0.01
 
-    # 4. Cognitive level check
-    # For Grade 8 & 9: 16 Biết (4.0đ), 12 Hiểu (3.0đ), 3 Vận dụng (3.0đ)
-    # For Grade 10: 23 Biết (5.75đ), 10 Hiểu (2.50đ), 7 Vận dụng (1.75đ)
-    actual_levels = {'Biết': {'items': 0, 'points': 0.0}, 'Hiểu': {'items': 0, 'points': 0.0}, 'Vận dụng': {'items': 0, 'points': 0.0}}
-    for q in mc_qs:
-        lvl = q.get('level', 'Biết')
+    # 4. Đo mức độ từ dữ liệu câu/ý; không thay bằng định mức mong đợi.
+    actual_levels = {level: {'items': 0, 'points': 0.0} for level in levels}
+    def add_level(item, points, label):
+        lvl = item.get('level')
         if lvl not in actual_levels:
-            lvl = 'Biết'
+            verification_issues.append(f'{label}: thiếu mức độ nhận thức hợp lệ.')
+            return
+        points = positive_points(points)
+        if points is None:
+            verification_issues.append(f'{label}: điểm phải được khai báo bằng số hữu hạn lớn hơn 0.')
+            return
         actual_levels[lvl]['items'] += 1
-        actual_levels[lvl]['points'] = round(actual_levels[lvl]['points'] + float(q.get('points', 0.25)), 2)
+        actual_levels[lvl]['points'] = round(actual_levels[lvl]['points'] + float(points), 2)
 
+    def check_part_total(q, parts, label):
+        values = [positive_points(part.get('points')) for part in parts]
+        if (any(value is None for value in values)
+                or abs(sum(value or 0 for value in values) - question_points(q)) >= 0.01):
+            verification_issues.append(f'{label}: tổng điểm các ý phải khớp điểm của chính câu hỏi.')
+
+    for q in mc_qs:
+        add_level(q, q.get('points'), 'Câu trắc nghiệm')
+    for q in short_qs:
+        add_level(q, q.get('points'), 'Câu trả lời ngắn')
     for q in yn_qs:
-        for st in q.get('statements', []):
-            lvl = st.get('level', 'Biết')
-            if lvl not in actual_levels:
-                lvl = 'Biết'
-            actual_levels[lvl]['items'] += 1
-            actual_levels[lvl]['points'] = round(actual_levels[lvl]['points'] + 0.25, 2)
-
+        statements = q.get('statements', [])
+        # Bản chụp đã đối chiếu phải giữ đúng liên kết từng ý, kể cả sau hoán vị.
+        if ('reviewed_part_ids' in q or 'statement_part_ids' in q
+                or any('part_id' in st or 'requirement_id' in st for st in statements)):
+            slot = next((s for s in matrix.get('slots', []) if s.get('id') == q.get('slot_id') and s.get('kind') == 'YN'), None)
+            parts = {p['id']: p for p in slot.get('parts', [])} if slot else {}
+            reviewed = q.get('reviewed_part_ids')
+            mapping = q.get('statement_part_ids')
+            outcomes = exam.get('matrix_requirement_outcomes')
+            valid = (isinstance(reviewed, list) and isinstance(mapping, list)
+                     and isinstance(outcomes, dict)
+                     and all(isinstance(pid, str) for pid in reviewed + mapping)
+                     and len(reviewed) == len(mapping) == len(statements) == len(parts)
+                     and set(reviewed) == set(mapping) == set(parts))
+            if valid:
+                for st, pid in zip(statements, mapping):
+                    part = parts[pid]
+                    req = req_by_id.get(part.get('requirement_id'), {})
+                    points = positive_points(st.get('points'))
+                    expected = positive_points(part.get('points'))
+                    outcome = outcomes.get(part.get('requirement_id'))
+                    if (st.get('part_id') != pid or st.get('requirement_id') != part.get('requirement_id')
+                            or st.get('level') != req.get('level') or st.get('lesson_code') != req.get('lesson_code')
+                            or not isinstance(outcome, str) or not outcome.strip()
+                            or st.get('learning_outcome') != outcome
+                            or points is None or expected is None or abs(points - expected) >= 0.01):
+                        valid = False
+            if not valid:
+                verification_issues.append('Câu Đúng/Sai: ánh xạ từng ý đã đối chiếu không khớp ma trận nguồn.')
+        check_part_total(q, statements, 'Câu Đúng/Sai')
+        for st in statements:
+            add_level(st, st.get('points'), 'Ý Đúng/Sai')
     for q in es_qs:
-        if expected_types['ES']['items'] == 9 and len(es_qs) == 3:
-            # Grade 10 ES: 3 questions x 3 sub-items (a, b, c) = 9 sub-items (2 Biết, 2 Hiểu, 5 Vận dụng)
-            sub_lvls = (['Biết', 'Hiểu', 'Vận dụng'] if q.get('slot_number') in (1, 2) else ['Vận dụng', 'Vận dụng', 'Vận dụng'])
-            for sl in sub_lvls:
-                actual_levels[sl]['items'] += 1
-                actual_levels[sl]['points'] = round(actual_levels[sl]['points'] + 0.25, 2)
+        sub_items = q.get('sub_items', [])
+        if sub_items:
+            check_part_total(q, sub_items, 'Câu tự luận')
+            for sub in sub_items:
+                add_level(sub, sub.get('points'), 'Ý tự luận')
         else:
-            lvl = q.get('level', 'Vận dụng')
-            actual_levels[lvl]['items'] += 1
-            actual_levels[lvl]['points'] = round(actual_levels[lvl]['points'] + float(q.get('points', 1.0)), 2)
-
-    # Normalize MC Biết/Hiểu split when heuristic classification differs slightly from matrix Biết/Hiểu split
-    mc_total_exp = expected_types['MC']['items']
-    if len(mc_qs) == mc_total_exp:
-        # Ensure level_checks reflects matrix alignment when MC count == expected
-        actual_levels = copy.deepcopy(expected_levels)
+            add_level(q, q.get('points'), 'Câu tự luận')
 
     level_checks = []
-    for lvl in ('Biết', 'Hiểu', 'Vận dụng'):
+    for lvl in levels:
         exp = expected_levels[lvl]
         act = actual_levels[lvl]
         ok = (exp['items'] == act['items']) and (abs(exp['points'] - act['points']) < 0.01)
@@ -882,7 +939,7 @@ def verify_exam_against_matrix(exam: dict, matrix: dict, revision: dict | None =
             q['in_revision'] = False
         if in_rev:
             matched_q_count += 1
-            matched_pts = round(matched_pts + float(q.get('points', 0)), 2)
+            matched_pts = round(matched_pts + question_points(q), 2)
         question_sim_items.append({
             'index': idx,
             'id': q.get('id', f'Q-{idx+1}'),
@@ -890,7 +947,7 @@ def verify_exam_against_matrix(exam: dict, matrix: dict, revision: dict | None =
             'type': q.get('type', 'MC'),
             'lesson_code': q.get('lesson_code', ''),
             'level': q.get('level', 'Biết'),
-            'points': float(q.get('points', 0.25)),
+            'points': question_points(q),
             'in_revision': in_rev,
             'question': q_text.split('\n')[0][:110],
         })
@@ -902,8 +959,8 @@ def verify_exam_against_matrix(exam: dict, matrix: dict, revision: dict | None =
     # the requested minimum. Use unrounded sums for the actual decision.
     from decimal import Decimal, ROUND_CEILING
     required_count = int((Decimal(str(req_pct)) * len(questions) / 100).to_integral_value(rounding=ROUND_CEILING))
-    raw_total = sum((Decimal(str(q.get('points', 0))) for q in questions), Decimal(0))
-    raw_covered = sum((Decimal(str(q.get('points', 0))) for q in questions if q.get('in_revision')), Decimal(0))
+    raw_total = sum((Decimal(str(question_points(q))) for q in questions), Decimal(0))
+    raw_covered = sum((Decimal(str(question_points(q))) for q in questions if q.get('in_revision')), Decimal(0))
     points_met = raw_total > 0 and raw_covered * 100 >= Decimal(str(req_pct)) * raw_total
     count_met = matched_q_count >= required_count
     rev_ok = bool(revision and questions and (points_met or count_met))
@@ -911,22 +968,19 @@ def verify_exam_against_matrix(exam: dict, matrix: dict, revision: dict | None =
         rev_ok = rev_ok and ((points_met and abs(rev_pct_points - req_pct) <= 5.0)
                              or (count_met and matched_q_count == required_count))
 
-    # 7. Lesson & Slot Notes
-    notes = []
-    if grade == 8:
-        notes.append('Cấu trúc 28 câu MC (7,0đ) + 3 câu ES (3,0đ) = 10,0 điểm khớp 100% khung Ma trận Khối 8.')
-        notes.append('Lưu ý vị trí câu: Câu 14, 15 hỏi kiến thức máy tính/dữ liệu số liên môn Chuẩn CĐ1-CĐ2; Câu 17 và Câu 24 hoán đổi vị trí giữa Bài 3 và Bài 4 nhưng tổng số câu và mức độ nhận thức toàn đề bảo toàn 100%.')
-    elif grade == 9:
-        notes.append('Đề thi Khối 9 khớp tuyệt đối 100% từng câu (Câu 1..28 MC và Câu 1..3 Tự luận) với Ma trận và Bảng đặc tả Khối 9.')
-    elif grade == 10:
-        notes.append('Đề thi Khối 10 khớp 100% định mức 19 câu MC (4,75đ) + 3 câu Đúng/Sai (12 ý = 3,0đ) + 3 câu Tự luận (9 ý a,b,c = 2,25đ ở Bài 1, Bài 8, Bài 12) = 10,0 điểm.')
-
-    if exam.get('exam_code') and exam.get('exam_code') not in ('GỐC', '101'):
-        notes.append(f'Mã đề {exam.get("exam_code")}: Đã đảo thứ tự câu hỏi và phương án trắc nghiệm từ đề gốc, giữ nguyên 100% ma trận đặc tả.')
-
+    # 7. Kết luận chỉ phản ánh các phép đối chiếu thực tế ở trên.
     all_types_ok = all(tc['matched'] for tc in type_checks)
+    all_levels_ok = all(lc['matched'] for lc in level_checks)
     all_es_ok = all(ec['matched'] for ec in es_checks)
-    passed = bool(points_ok and all_types_ok and all_es_ok and rev_ok)
+    passed = bool(points_ok and all_types_ok and all_levels_ok and all_es_ok
+                  and rev_ok and not verification_issues)
+    notes = list(dict.fromkeys(verification_issues))
+    if not all_levels_ok:
+        notes.append('Phân bố mức độ nhận thức hoặc điểm theo mức độ chưa khớp ma trận.')
+    if not all_types_ok:
+        notes.append('Số ý hoặc điểm theo dạng câu hỏi chưa khớp ma trận.')
+    if passed:
+        notes.append('Các kiểm tra tổng điểm, dạng câu, mức độ, bài tự luận và độ phủ đề cương đều đạt.')
 
     return {
         'passed': passed,
@@ -957,7 +1011,7 @@ def verify_exam_against_matrix(exam: dict, matrix: dict, revision: dict | None =
         },
         'notes': notes,
         'summary': (
-            f'ĐẠT CHUẨN MA TRẬN ({total_actual:g}/10 điểm • {len(questions)} câu • '
+            f'ĐẠT CHUẨN MA TRẬN ({total_actual:g}/{total_expected:g} điểm • {len(questions)} câu • '
             f'Tương đồng đề cương {rev_pct_points:g}% điểm / yêu cầu {req_pct:g}%)'
             if passed else
             f'CHƯA ĐẠT CHUẨN (Tương đồng đề cương hiện tại {rev_pct_points:g}% điểm / yêu cầu {"đúng " if sim_mode == "exact" else "≥ "}{req_pct:g}%)'

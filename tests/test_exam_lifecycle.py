@@ -107,7 +107,13 @@ class LockedExamTests(LifecycleBase):
         self.assertEqual(ctx.exception.status, 409)
         after = self.svc.get_record('exams', self.exam['id'])
         self.assertEqual(after['status'], 'locked')
-        self.assertEqual(after['lifecycle'][-1]['action'], 'publish_blocked')
+        audit = after['lifecycle'].pop()
+        self.assertEqual(audit['action'], 'publish_blocked')
+        self.assertEqual(audit['by'], 'gv_a')
+        self.assertEqual(audit['from_status'], 'locked')
+        self.assertEqual(audit['content_hash'], exam_hash(after))
+        self.assertTrue(audit['at'])
+        self.assertEqual(after, records[0])
 
     def test_new_revision_starts_unapproved_and_keeps_original(self):
         locked = self.locked()

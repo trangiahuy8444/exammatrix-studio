@@ -92,19 +92,22 @@ class ImportFlowTests(unittest.TestCase):
     def test_inspect_does_not_write_then_apply_adds_lessons_and_source(self):
         service = self.service(empty_bank())
         before = (self.dir/'bank.json').read_bytes()
-        report = service.inspect_ppct_import(self.payload())
+        # Đối soát và xác nhận cùng một tệp, không tạo lại ZIP có timestamp mới.
+        payload = self.payload()
+        report = service.inspect_ppct_import(payload)
         self.assertEqual(report['summary'], {'new': 2, 'changed': 0, 'unchanged': 0, 'conflict': 0})
         self.assertEqual(report['grades'], [8])
         self.assertEqual((self.dir/'bank.json').read_bytes(), before)
-        result = service.apply_ppct_import(dict(self.payload(), expected_sha256=report['sha256']))
+        result = service.apply_ppct_import(dict(payload, expected_sha256=report['sha256']))
         lessons = result['bank']['ppct']['lessons']
         self.assertEqual([x['lesson_code'] for x in lessons], ['B1', 'B8a'])
         self.assertEqual(result['bank']['ppct']['sources'][0]['sha256'], report['sha256'])
-        self.assertTrue((self.dir/'matrices/sources'/('ppct-'+report['sha256']+'.docx')).is_file())
-        again = service.inspect_ppct_import(self.payload())
+        saved_source = self.dir/'matrices/sources'/('ppct-'+report['sha256']+'.docx')
+        self.assertEqual(saved_source.read_bytes(), base64.b64decode(payload['content_base64']))
+        again = service.inspect_ppct_import(payload)
         self.assertEqual(again['summary']['unchanged'], 2)
         with self.assertRaises(ServiceError) as ctx:
-            service.apply_ppct_import(self.payload())
+            service.apply_ppct_import(payload)
         self.assertEqual(ctx.exception.status, 409)
 
     def test_changed_sha_is_refused(self):

@@ -202,6 +202,30 @@ class LatexGeneratorTests(unittest.TestCase):
         self.assertIn("BẢNG ĐẶC TẢ ĐỀ KIỂM TRA", tex)
         self.assertIn("Câu 1, Câu 2", tex)
 
+    def test_four_level_matrix_latex_preserves_vdc_column_points_and_requirement(self):
+        from test_matrix_four_levels import four_level_matrix
+        m = four_level_matrix()
+        tex = generate_matrix_latex(m)
+        first = tex.split(r'\begin{longtable}', 1)[1].split(r'\end{longtable}', 1)[0]
+        self.assertIn(r'ES\newline Vận dụng cao', first)
+        self.assertIn('Tổng VDC', first)
+        lines = [line for line in first.splitlines() if ' & ' in line]
+        self.assertTrue(all(line.count(' & ')==11 for line in lines), lines)
+        self.assertIn('4 & 3 & 2 & 1 & 10', next(line for line in lines if 'Tổng số điểm' in line))
+        self.assertIn('Vận dụng cao: Yêu cầu minh họa 4.', tex)
+        self.assertIn('(Câu 4).', tex)
+        self.assertIn('1 câu VDC = 10', tex)
+
+    def test_old_three_level_matrix_latex_keeps_matching_column_counts(self):
+        from matrix_fixtures import minimal_matrix
+        tex = generate_matrix_latex(minimal_matrix())
+        first = tex.split(r'\begin{longtable}', 1)[1].split(r'\end{longtable}', 1)[0]
+        self.assertNotIn('Vận dụng cao', first)
+        self.assertNotIn('VDC', first)
+        lines = [line for line in first.splitlines() if ' & ' in line]
+        self.assertTrue(all(line.count(' & ')==9 for line in lines), lines)
+        self.assertIn('10 & 0 & 0 & 10', next(line for line in lines if 'Tổng số điểm' in line))
+
     def test_export_document_tex_integration(self):
         record = {
             'title': 'Kiểm tra 15 phút',

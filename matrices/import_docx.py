@@ -14,7 +14,11 @@ try:
 except ImportError:
     Document = _Cell = qn = None
 from bank_service import ServiceError
-from .model import normalize_matrix, LEVELS
+from .model import normalize_matrix
+
+# The received 13/16-column layouts have exactly three source columns per kind.
+# Do not use the model's four levels to index those legacy tables.
+LEGACY_LEVELS = ('Biết', 'Hiểu', 'Vận dụng')
 
 MAX_UPLOAD_BYTES=8*1024*1024
 MAX_UNCOMPRESSED_BYTES=64*1024*1024
@@ -88,6 +92,8 @@ def _requirements(text,source_index,code,grade=None,ppct=None):
             level='Biết';stripped=_requirements_split_heading(stripped,p,r'nhan\s+biet')
         elif p.startswith('thong hieu'):
             level='Hiểu';stripped=_requirements_split_heading(stripped,p,r'thong\s+hieu')
+        elif p.startswith('van dung cao'):
+            raise ServiceError('Mẫu 13/16 cột chưa hỗ trợ Vận dụng cao; cần đối chiếu nguồn bốn mức độ trước khi nhập.')
         elif p.startswith('van dung'):
             level='Vận dụng';stripped=_requirements_split_heading(stripped,p,r'van\s+dung')
         if not stripped or level is None:continue
@@ -99,6 +105,192 @@ def _requirements(text,source_index,code,grade=None,ppct=None):
             ppct_outcome_index=_outcome_match(stripped,grade,code,ppct),
             competency='NLa',choice_group=None))
     return result,bullet_map
+
+
+def _header(value):
+    return ' '.join(re.sub(r'[^a-z0-9 ]', ' ', plain(value)).split())
+
+
+def _compact_layout(table):
+    """Recognize headers, never a data table merely because it has ten columns."""
+    if not table.rows:return None
+    head=[_header(c.text) for c in table.rows[0].cells]
+    thcs=['TT','Chủ đề / Mạch kiến thức','Đơn vị kiến thức / Bài học',
+          'Nhận biết (TNKQ)','Thông hiểu (TNKQ)','Vận dụng (Tự luận)',
+          'Vận dụng cao (Tự luận)','Tổng số câu','Tổng điểm','Tỉ lệ %']
+    if len(table.columns)==10 and head==list(map(_header,thcs)):return 'THCS'
+    if len(table.columns)==10 and len(table.rows)>1:
+        sub=[_header(c.text) for c in table.rows[1].cells]
+        groups=['phan i tn nhieu lua chon','phan ii tn dung sai','phan iii tu luan']
+        if (head[:2]==['tt','chu de don vi kien thuc'] and head[8:]==['tong diem','ti le']
+            and all(head[2+j*2].startswith(prefix) and head[2+j*2]==head[3+j*2] for j,prefix in enumerate(groups))
+            and sub==['','','biet','hieu','biet a b','hieu vd c d','van dung','van dung cao','','']):return 'THPT'
+    if len(table.columns)==6:
+        common=head[:2]==['tt','chu de don vi kien thuc'] and head[5]=='ma cau hoi trong de'
+        if common and head[2]=='muc do danh gia' and head[3]=='yeu cau can dat chuan ct gdpt 2018' and head[4]=='so cau hoi theo muc do':return 'THCS-spec'
+        if common and head[2]=='dang thuc cau hoi' and head[3]=='yeu cau can dat chuong trinh gdpt 2018' and head[4]=='so luong cau y':return 'THPT-spec'
+    return None
+
+
+def _compact_level(value):
+    labels={'nhan biet':'Biết','biet':'Biết','thong hieu':'Hiểu','hieu':'Hiểu',
+            'van dung':'Vận dụng','vd':'Vận dụng','van dung cao':'Vận dụng cao','vdc':'Vận dụng cao'}
+    found=re.findall(r'\b(?:van dung cao|van dung|nhan biet|thong hieu|biet|hieu|vdc|vd)\b',plain(value))
+    levels={labels[v] for v in found}
+    return next(iter(levels)) if len(levels)==1 else None
+
+
+def _compact_count(value):
+    value=plain(value)
+    if value in ('','-','–','—'):return 0
+    found=re.match(r'^(\d+)(?![\d.,])(?:\s|\(|$)',value)
+    return int(found.group(1)) if found else None
+
+
+def _compact_refs(value,kind=None):
+    """Only explicit individual references; ranges are not expanded or counted."""
+    value=plain(value).strip()
+    value=re.sub(r'\b(?:cau|y)\s*','',value)
+    if not value:return []
+    refs=[]
+    for token in re.split(r'[,;\n]+',value):
+        match=re.fullmatch(r'\s*(?:(MC|TN|YN|DS|ES|TL)\s*-?\s*)?(\d+)([a-d]?)\s*',token,re.I)
+        if not match:return None
+        prefix,number,label=match.groups()
+        actual={'TN':'MC','DS':'YN','TL':'ES'}.get((prefix or '').upper(),(prefix or kind or '').upper())
+        if actual not in ('MC','YN','ES') or (kind and actual!=kind) or int(number)<1:return None
+        ref=(actual,int(number),label)
+        if ref in refs:return None
+        refs.append(ref)
+    return refs
+
+
+def _compact_exact_lesson(title,grade,ppct):
+    def parts(value):
+        value=plain(value)
+        prefix=re.match(r'^(?:bai\s*)?(\d+[a-z]?)\s*[.:]?\s*',value)
+        return (prefix.group(1),value[prefix.end():]) if prefix else (None,value)
+    number,wanted=parts(title)
+    matches=[]
+    for lesson in ppct.get('lessons',[]):
+        source_number,name=parts(lesson.get('lesson_name_source',''))
+        code_number=re.fullmatch(r'b(\d+[a-z]?)',plain(lesson.get('lesson_code','')))
+        known_numbers={n for n in (source_number,code_number.group(1) if code_number else None) if n}
+        if number and any(number!=known for known in known_numbers):continue
+        if lesson.get('grade')==grade and name==wanted:matches.append(lesson)
+    return matches[0] if title and len(matches)==1 else None
+
+
+def _inspect_compact(raw,filename,grade,ppct,pair,header):
+    mi,mt,profile=pair[0];si,st,_=pair[1]
+    if (grade==10)!=(profile=='THPT'):raise ServiceError('Khối đã chọn khác mẫu ma trận 10/6 cột.')
+    exam_type='CK1' if re.search(r'cuoi\s+(?:hoc\s+)?(?:ky|ki)\s*(?:i|1)\b|cuoi\s+hk\s*1',plain(header+' '+filename)) else 'GK1'
+    m=normalize_matrix(dict(grade=grade,mode='received',profile=profile,
+        title=f'Ma trận {"Cuối" if exam_type=="CK1" else "Giữa"} HK1 Tin học {grade}',
+        school_year='2026-2027',exam_type=exam_type,owner_name='',lessons=[],requirements=[],slots=[]),ppct)
+    issues=[dict(code='compact_reconciliation_required',message='Bản xem trước mẫu 10/6 cột chưa được xác nhận. Cần đối chiếu bài, YCCĐ, mã câu và điểm trước khi lưu/khóa hoặc sinh đề.')]
+    def issue(code,message):
+        if not any(i['code']==code and i['message']==message for i in issues):issues.append(dict(code=code,message=message))
+    matrix_counts={};matrix_cells=[];matrix_rows=[]
+    columns=[(3,'MC','Biết'),(4,'MC','Hiểu'),(5,'ES','Vận dụng'),(6,'ES','Vận dụng cao')] if profile=='THCS' else [(2,'MC','Biết'),(3,'MC','Hiểu'),(4,'YN','Biết'),(5,'YN',None),(6,'ES','Vận dụng'),(7,'ES','Vận dụng cao')]
+    for ri,row in enumerate(mt.rows[1 if profile=='THCS' else 2:],start=1 if profile=='THCS' else 2):
+        values=[c.text.strip() for c in row.cells]
+        if not re.fullmatch(r'\d+',values[0]):continue
+        title=values[2 if profile=='THCS' else 1];topic=values[1]
+        lesson=_compact_exact_lesson(title,grade,ppct)
+        source_index=len(m['lessons'])
+        m['lessons'].append(dict(source_index=source_index,lesson_code=(lesson or {}).get('lesson_code',''),title=title,topic=topic,spec_title='',spec_topic=''))
+        if not lesson:issue('source_mapping_ambiguous',f'Hàng ma trận {ri+1}: chưa có đối chiếu bài học chính xác với PPCT; không tự chọn bài gần nhất.')
+        row_count=0;row_counts_complete=True
+        for ci,kind,level in columns:
+            text=values[ci];count=_compact_count(text)
+            if count is None or count>500:
+                row_counts_complete=False;issue('source_count_ambiguous',f'Hàng ma trận {ri+1}, cột {ci+1}: số câu/ý chưa rõ hoặc vượt giới hạn.');continue
+            row_count+=count
+            if level is not None:matrix_counts.setdefault(kind,{}).setdefault(level,0);matrix_counts[kind][level]+=count
+            elif count:issue('source_level_ambiguous',f'Hàng ma trận {ri+1}, cột {ci+1}: nguồn gộp Hiểu/VD; cần phân mức từng ý, không tự gán mức.')
+            if not count:continue
+            groups=re.findall(r'\(([^)]+)\)',text)
+            ref_text=';'.join(groups)
+            ref_text=re.sub(r'\s*[,;]?\s*\d+(?:[.,]\d+)?\s*(?:điểm|đ)\s*','',ref_text,flags=re.I)
+            refs=_compact_refs(ref_text,kind)
+            points_match=re.findall(r'(\d+(?:[.,]\d+)?)\s*(?:điểm|đ)(?!\w)',text,re.I)
+            point=float(points_match[0].replace(',','.')) if len(points_match)==1 else None
+            if refs is None or not refs:issue('source_refs_ambiguous',f'Hàng ma trận {ri+1}, cột {ci+1}: mã câu chưa liệt kê riêng hoặc có dải mã; không tự mở rộng dải.')
+            elif len(refs)!=count:issue('source_count_disagreement',f'Hàng ma trận {ri+1}, cột {ci+1}: số mã câu không bằng số câu/ý đã ghi.')
+            if point is None:issue('source_points_ambiguous',f'Hàng ma trận {ri+1}, cột {ci+1}: cần xác nhận điểm cho từng vị trí, không tự chia tổng điểm.')
+            matrix_cells.append(dict(source_index=source_index,kind=kind,level=level,count=count,refs=refs,points=point))
+        if profile=='THCS' and row_counts_complete and _compact_count(values[7])!=row_count:issue('source_count_disagreement',f'Hàng ma trận {ri+1}: tổng số câu không bằng các ô phân bố.')
+        row_cells=[cell for cell in matrix_cells if cell['source_index']==source_index]
+        if row_counts_complete and row_cells and all(cell['points'] is not None for cell in row_cells):
+            declared=plain(values[8]).replace(',','.')
+            if re.fullmatch(r'\d+(?:\.\d+)?(?:\s*d)?',declared):
+                declared_points=float(re.match(r'\d+(?:\.\d+)?',declared).group())
+                if abs(declared_points-sum(cell['points'] for cell in row_cells))>.0001:
+                    issue('source_points_disagreement',f'Hàng ma trận {ri+1}: tổng điểm nguồn khác tổng điểm tường minh trong các ô; giữ nguyên để đối chiếu.')
+            else:issue('source_points_ambiguous',f'Hàng ma trận {ri+1}: tổng điểm nguồn chưa rõ; cần đối chiếu.')
+        matrix_rows.append(dict(source_index=source_index,source_row=ri,declared_total=values[7] if profile=='THCS' else None,declared_points=values[8],declared_ratio=values[9]))
+    if not matrix_rows:issue('source_rows_missing','Bảng ma trận chưa có hàng dữ liệu được nhận dạng; cần đối chiếu thủ công.')
+    spec_counts={};spec_refs={};spec_counts_complete=True;current_title='';current_lesson=None;current_index=None
+    for ri,row in enumerate(st.rows[1:],start=1):
+        values=[c.text.strip() for c in row.cells]
+        if plain(values[0]).startswith(('tong','ti le')):continue
+        if values[1]:
+            current_title=values[1];current_lesson=_compact_exact_lesson(current_title,grade,ppct)
+            candidates=[l for l in m['lessons'] if plain(l['title'])==plain(current_title)]
+            current_index=candidates[0]['source_index'] if len(candidates)==1 else None
+        if not values[3]:continue
+        level=_compact_level(values[2]);code=(current_lesson or {}).get('lesson_code','')
+        if not level:issue('source_level_ambiguous',f'Hàng đặc tả {ri+1}: mức độ chưa rõ hoặc gộp nhiều mức; cần đối chiếu.')
+        if current_index is None or not code:issue('source_mapping_ambiguous',f'Hàng đặc tả {ri+1}: bài/nhóm bài chưa khớp duy nhất với ma trận và PPCT.')
+        outcomes=(current_lesson or {}).get('outcomes',[])
+        outcome_indices=[i for i,v in enumerate(outcomes) if plain(v)==plain(values[3])]
+        outcome=outcome_indices[0] if len(outcome_indices)==1 else None
+        if outcome is None:issue('source_mapping_ambiguous',f'Hàng đặc tả {ri+1}: YCCĐ chưa khớp chính xác duy nhất với PPCT; cần chọn tường minh.')
+        rid=f'RC{ri}'
+        m['requirements'].append(dict(id=rid,source_index=current_index,lesson_code=code if current_index is not None else '',level=level or '',text=values[3],ppct_outcome_index=outcome,competency='NLa',choice_group=None))
+        refs=_compact_refs(values[5]);count=_compact_count(values[4])
+        if not refs or count!=len(refs) or not level:spec_counts_complete=False
+        if count is None or count>500:issue('source_count_ambiguous',f'Hàng đặc tả {ri+1}: số câu/ý chưa rõ hoặc vượt giới hạn.')
+        if refs is None or not refs:issue('source_refs_ambiguous',f'Hàng đặc tả {ri+1}: mã câu chưa rõ, có dải mã hoặc trộn dạng; không tự suy số câu.')
+        elif count!=len(refs):issue('source_count_disagreement',f'Hàng đặc tả {ri+1}: số mã câu không bằng số câu/ý đã ghi.')
+        if refs and level:
+            for ref in refs:
+                kind=ref[0];spec_counts.setdefault(kind,{}).setdefault(level,0);spec_counts[kind][level]+=1
+                if ref in spec_refs:issue('source_mapping_ambiguous',f'Hàng đặc tả {ri+1}: mã câu lặp, cần đối chiếu YCCĐ tường minh.')
+                else:spec_refs[ref]=(rid,current_index,level)
+    for kind in sorted(matrix_counts.keys()|spec_counts.keys()) if spec_counts_complete else []:
+        levels=matrix_counts.get(kind,{})
+        for level in sorted(levels.keys()|spec_counts.get(kind,{}).keys()):
+            count=levels.get(level,0)
+            if count!=spec_counts.get(kind,{}).get(level,0):issue('source_count_disagreement',f'{kind}, {level}: phân bố ma trận khác các mã câu đã đọc rõ trong đặc tả.')
+    # Slots require exact identity on both tables, exact PPCT outcomes and explicit
+    # source points. A partial/ambiguous source stays a preview, never a guess.
+    proposed=[];seen=set()
+    for cell in matrix_cells:
+        refs=cell['refs'] or []
+        if cell['count']!=len(refs) or cell['points'] is None:continue
+        if cell['count']!=1:
+            issue('source_points_ambiguous','Ô nguồn có nhiều câu/ý và chỉ có tổng điểm; cần xác nhận điểm từng vị trí.');continue
+        for ref in refs:
+            mapped=spec_refs.get(ref)
+            if ref in seen or not mapped or mapped[1:]!=(cell['source_index'],cell['level']):
+                issue('source_mapping_ambiguous','Mã câu giữa ma trận và đặc tả chưa khớp duy nhất theo bài và mức độ.');continue
+            seen.add(ref);kind,number,label=ref
+            if kind=='YN' or label:
+                issue('source_mapping_ambiguous','Các ý con cần đối chiếu nhóm câu và điểm từng ý trước khi dựng vị trí.');continue
+            ident=f'{kind}-{number}'
+            proposed.append(dict(id=ident,kind=kind,number=number,scoring=dict(mode='sum_parts'),parts=[dict(id=ident+'-P',label='',requirement_id=mapped[0],points=cell['points'],indicator='',source_index=cell['source_index'],source_level=cell['level'])]))
+    if len(issues)==1:
+        total=sum(p['parts'][0]['points'] for p in proposed)
+        if abs(total-10)>.0001:issue('source_points_disagreement','Tổng điểm các vị trí nguồn đọc rõ chưa bằng 10; cần đối chiếu trước khi dựng vị trí.')
+        else:m['slots']=sorted(proposed,key=lambda s:(('MC','YN','ES').index(s['kind']),s['number']))
+    raw_tables=[_raw_table(mt,mi),_raw_table(st,si)];digest=hashlib.sha256(raw).hexdigest()
+    notes=['Mẫu 10/6 cột: mọi ánh xạ chưa rõ được giữ để đối chiếu; bản xem trước không xác nhận nguồn và không cho phép suy ra khả năng sinh đề.']
+    m['source']=dict(name=PurePosixPath(filename.replace('\\','/')).name,sha256=digest,tables=raw_tables,notes=[],comparison_notes=notes,
+        compact=dict(layout='10/6',matrix_counts=matrix_counts,matrix_rows=matrix_rows))
+    m['reconciliation']=dict(confirmed=False,issues=issues)
+    return dict(candidate=m,raw_tables=raw_tables,issues=issues,comparison_notes=notes,source_sha256=digest)
 
 
 def inspect_docx(raw,filename,grade,ppct):
@@ -117,8 +309,17 @@ def inspect_docx(raw,filename,grade,ppct):
     except ServiceError:raise
     except Exception as exc:raise ServiceError('Không đọc được tệp DOCX hợp lệ.') from exc
     header=' '.join(p.text for p in doc.paragraphs[:6])
+    if doc.tables and len(doc.tables[0].columns)==2:
+        header+=' '+' '.join(c.text for r in doc.tables[0].rows[:2] for c in r.cells)
     found=re.search(r'tin\s+hoc\s*(\d+)',plain(header))
     if found and int(found.group(1))!=grade:raise ServiceError('Khối đã chọn khác khối ghi trong mẫu.')
+    compact=[(i,t,_compact_layout(t)) for i,t in enumerate(doc.tables)]
+    compact_m=[v for v in compact if v[2] in ('THCS','THPT')]
+    compact_s=[v for v in compact if v[2] in ('THCS-spec','THPT-spec')]
+    if compact_m or compact_s:
+        if len(compact_m)!=1 or len(compact_s)!=1 or compact_s[0][2]!=compact_m[0][2]+'-spec':
+            raise ServiceError('Mẫu 10/6 cột cần đúng một cặp ma trận/đặc tả cùng cấp học, đủ tiêu đề cột. Hãy đối chiếu nguồn.')
+        return _inspect_compact(raw,filename,grade,ppct,(compact_m[0],compact_s[0]),header)
     matrices=[];specs=[]
     for i,t in enumerate(doc.tables):
         head=plain(' '.join(c.text for r in t.rows[:3] for c in r.cells))
@@ -169,7 +370,7 @@ def inspect_docx(raw,filename,grade,ppct):
     counters=dict(MC=0,YN=0,ES=0);groups={}
     for index,row in enumerate(data_rows):
         for kind,start in ([('MC',3),('ES',6)] if profile=='THCS' else [('MC',3),('YN',6),('ES',9)]):
-            for li,level in enumerate(LEVELS):
+            for li,level in enumerate(LEGACY_LEVELS):
                 cell=row[start+li];match=re.match(r'\s*(\d+)',cell)
                 count=int(match.group(1)) if match else 0
                 if not count:continue
@@ -221,7 +422,7 @@ def inspect_docx(raw,filename,grade,ppct):
         actual['ES'][2]=sum(int(n) for n in re.findall(r'(\d+)\s*ES',spec[-1],re.I))
         actual['SHORT'][0]=int(leading(spec[-2]))
         for kind in expected:
-            for j,level in enumerate(LEVELS):
+            for j,level in enumerate(LEGACY_LEVELS):
                 matrix_counts[kind][j]+=expected[kind][j];spec_counts[kind][j]+=actual[kind][j]
                 if expected[kind][j]!=actual[kind][j]:issues.append(dict(code='source_count_disagreement',message=f'Bài {index+1}, {kind}, {level}: ma trận ghi {expected[kind][j]}, đặc tả ghi {actual[kind][j]}. Cần xác minh nguồn.'))
     # Reconcile explicit summary rows, rather than replacing declared values.
@@ -235,9 +436,9 @@ def inspect_docx(raw,filename,grade,ppct):
                 factor=(1 if profile=='THCS' and kind=='ES' else .25) if is_points else 1
                 for j in range(3):
                     value=matrix_counts[kind][j]*factor;expected_levels[j]+=value
-                    if abs(leading(vals[start+j])-value)>.0001:issues.append(dict(code='source_count_disagreement',message=f'Dòng tổng {"điểm" if is_points else "câu/ý"} của {kind}, {LEVELS[j]} không khớp các ô phân bố.'))
+                    if abs(leading(vals[start+j])-value)>.0001:issues.append(dict(code='source_count_disagreement',message=f'Dòng tổng {"điểm" if is_points else "câu/ý"} của {kind}, {LEGACY_LEVELS[j]} không khớp các ô phân bố.'))
             for j,value in enumerate(expected_levels):
-                if abs(leading(vals[end+j])-value)>.0001:issues.append(dict(code='source_count_disagreement',message=f'Tổng chung mức {LEVELS[j]} trong nguồn không khớp các ô phân bố.'))
+                if abs(leading(vals[end+j])-value)>.0001:issues.append(dict(code='source_count_disagreement',message=f'Tổng chung mức {LEGACY_LEVELS[j]} trong nguồn không khớp các ô phân bố.'))
             if profile=='THPT' and abs(leading(vals[-1])-sum(expected_levels))>.0001:issues.append(dict(code='source_count_disagreement',message='Tổng toàn đề trong nguồn không khớp các ô phân bố.'))
         elif name.startswith('ti le'):
             for kind,start in starts.items():
@@ -251,13 +452,13 @@ def inspect_docx(raw,filename,grade,ppct):
             for kind,pos in [('MC',4),('YN',5),('ES',len(vals)-1)]:
                 for n,level in re.findall(r'(\d+)\s*(?:cau|lenh|y)?\s*(B|H|VD|V)\b',plain(vals[pos]),re.I):
                     li={'B':0,'H':1,'VD':2,'V':2}[level.upper()]
-                    if int(n)!=spec_counts[kind][li]:issues.append(dict(code='source_count_disagreement',message=f'Dòng tổng đặc tả {kind}, {LEVELS[li]} không khớp các ô chi tiết.'))
+                    if int(n)!=spec_counts[kind][li]:issues.append(dict(code='source_count_disagreement',message=f'Dòng tổng đặc tả {kind}, {LEGACY_LEVELS[li]} không khớp các ô chi tiết.'))
         elif row_name.startswith('ti le %'):
             for n,level in re.findall(r'(\d+)\s*(B|H|VD|V)\s*=',plain(vals[4]),re.I):
                 li={'B':0,'H':1,'VD':2,'V':2}[level.upper()]
                 total_level=sum(spec_counts[k][li] for k in spec_counts)
                 if int(n)!=total_level:
-                    comparison_notes.append(f'Dòng tỉ lệ % bảng đặc tả ghi “{n}{level.upper()}”, trong khi dòng Tổng đặc tả ghi {total_level} câu/ý mức {LEVELS[li]}.')
+                    comparison_notes.append(f'Dòng tỉ lệ % bảng đặc tả ghi “{n}{level.upper()}”, trong khi dòng Tổng đặc tả ghi {total_level} câu/ý mức {LEGACY_LEVELS[li]}.')
     matrix_es=sum(len(s['parts']) for s in m['slots'] if s['kind']=='ES')
     spec_es=sum(int(x.group(1)) for r in spec_rows for x in re.finditer(r'(\d+)\s*ES',r[-1]))
     if matrix_es!=spec_es:issues.append(dict(code='source_essay_disagreement',message=f'Tự luận: ma trận có {matrix_es} ý, các ô đặc tả cộng thành {spec_es} ý. Cần người phụ trách xác minh, không tự sửa nguồn.'))

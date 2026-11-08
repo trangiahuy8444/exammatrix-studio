@@ -5,25 +5,51 @@
 
 ---
 
-## PHẦN 1. BẢNG TRA CỨU NHANH 7 LUỒNG CÔNG TÁC (QUICK REFERENCE CHEAT SHEET)
+## PHẦN 1. QUY TRÌNH RA ĐỀ KHẢO THÍ 6 BƯỚC KHÉP KÍN (WIZARD 6 BƯỚC)
 
-| STT | Luồng công tác | Vị trí trên web | Các bước thực hiện chính | Kết quả đầu ra | Lưu ý tuân thủ |
+Hệ thống ExamMatrix Studio vận hành theo chu trình chuẩn hóa khép kín 6 bước (Milestone C1 & C2):
+
+```mermaid
+flowchart TD
+    B1["Bước 1: Khóa Ma Trận & Bảng Đặc Tả"] --> B2["Bước 2: Lập Đề Cương Ôn Tập (T ≥ 90%)"]
+    B2 --> B3["Bước 3: Tạo Bộ 1–6 Đề Theo Ma Trận"]
+    B3 --> B4["Bước 4: Duyệt & Khóa Theo Cả Bộ Đề"]
+    B4 --> B5["Bước 5: Phát Hành Có Điều Kiện"]
+    B5 --> B6["Bước 6: Xuất Bản Trọn Gói (.zip) & Gói LMS"]
+```
+
+### Chi tiết 6 bước thực hiện trên giao diện Web:
+
+| Bước | Tên Bước | Vị trí trên web | Các thao tác của Giáo viên / Tổ trưởng | Kết quả đầu ra | Ràng buộc nghiệp vụ bắt buộc |
 |:---:|:---|:---|:---|:---|:---|
-| **1** | **Tra cứu & Quản lý PPCT** | Tab `Phân phối chương trình` | 1. Chọn Môn học và Khối lớp.<br>2. Xem bảng danh mục bài, tuần, tiết, YCCĐ chuẩn GDPT 2018.<br>3. Bấm `+ Thêm bài học PPCT` hoặc `Sửa`/`Xóa` nếu cần. | Danh mục bài học và YCCĐ chuẩn của môn học. | Số bài và YCCĐ tuân thủ KHDH và Quy tắc 5 (Rule 5). |
-| **2** | **Quản lý Ngân hàng câu hỏi** | Tab `Ngân hàng câu hỏi` | 1. Lọc theo Môn, Khối, Bài học, Mức độ nhận thức.<br>2. Bấm `+ Thêm câu hỏi` để nhập câu hỏi mới.<br>3. Chỉnh sửa nội dung, phương án, đáp án đúng, lời giải.<br>4. Thẩm định và duyệt câu hỏi (`Duyệt nội dung` / `Phê duyệt`). | Kho câu hỏi đạt chuẩn thẩm định, sẵn sàng đưa vào đề thi. | Câu mới tạo ở trạng thái `Chờ duyệt` (Draft), chỉ câu đã duyệt mới được đưa vào đề thi. |
-| **3** | **Sử dụng Trợ lý AI (Gemini)** | Nút `✨ Trợ lý AI (Gemini)` | 1. Cấu hình API Key tại tab `Cấu hình API Key`.<br>2. **Mode 1 (Theo YCCĐ):** Chọn Môn, Khối, Bài, mức độ $\rightarrow$ Chọn gợi ý YCCĐ $\rightarrow$ Bấm `Tạo câu hỏi`.<br>3. **Mode 2 (Bóc tách đề thô):** Chọn Môn & Khối $\rightarrow$ Dán văn bản $\rightarrow$ Bấm `Bóc tách`.<br>4. **Mode 3 (Sinh biến thể):** Chọn câu có sẵn $\rightarrow$ Bấm `Sinh biến thể`.<br>5. Xem trước, chỉnh sửa trực tiếp và bấm lưu (Chờ duyệt). | Bộ câu hỏi mới kèm đáp án và lời giải chi tiết. | API Key lưu cục bộ an toàn trên trình duyệt cá nhân. Không phát sinh chi phí khi chưa cho phép. |
-| **4** | **Thiết lập Ma trận & Bảng đặc tả** | Tab `Ma trận & Đặc tả` | 1. Chọn Khối lớp, Đợt kiểm tra (Giữa kỳ / Cuối kỳ).<br>2. Phân bổ số câu MC, YN, SHORT, ES vào từng dòng YCCĐ.<br>3. Hệ thống tự động tính toán tổng điểm cân bằng $10.0$ điểm. | Bảng Ma trận (Table 0) và Bảng đặc tả chuẩn. | Số câu dạng thuần số `(1, 2, 3)` (Rule 2). Ghi số câu ở cuối YCCĐ (Rule 2). Khổ ngang $\le 24\text{ cm}$ (Rule 3). |
-| **5** | **Trộn đề thi & Sinh mã đề hoán vị** | Tab `Đề thi & Đề cương` | 1. Chọn Ma trận nguồn.<br>2. Chọn số lượng mã đề hoán vị (**2 hoặc 4 mã đề**).<br>3. Bấm `Sinh đề thi hoán vị`.<br>4. Hệ thống xáo trộn độc lập câu hỏi và các phương án A, B, C, D. | - Các mã đề thi học sinh.<br>- Các bản Hướng dẫn chấm tương ứng.<br>- **Bảng đáp án tổng hợp (Master Answer Grid)**. | 90% câu hỏi bám sát Đề cương ôn tập (Rule 1). Bảo toàn nhóm câu chung ngữ liệu và phương án cố định. |
-| **6** | **Xuất bản & Tải Hồ sơ (.zip)** | Nút tải tại trang chi tiết Đề thi / Ma trận | 1. Bấm `Tải gói hồ sơ (.zip)` để tải 1-click trọn bộ.<br>2. Hoặc tải lẻ từng file Word (`.docx`) hoặc PDF (`.pdf`). | Gói ZIP gồm đủ: Đề thi các mã, Đáp án các mã, Master Answer Grid, Ma trận, Bảng đặc tả, Đề cương. | Đủ cả 2 định dạng Word và PDF (Rule 4). Font Times New Roman, lề chuẩn, không tràn viền (Rule 3). |
-| **7** | **Xuất file Trắc nghiệm LMS** | Tab `Đề thi & Đề cương` $\rightarrow$ `Xuất LMS` | 1. Chọn đề thi hoặc đề cương cần đưa lên LMS.<br>2. Bấm `Xuất file LMS`. | File văn bản chuẩn định dạng import LMS Canvas/Moodle/Google Form. | **Không có bảng đáp án ở cuối file** (Rule 6). Nhãn đúng đặt trong ngoặc vuông **`[A.] `** hoặc **`[a)] [ĐÚNG]`** (Rule 6). |
+| **B1** | **Khóa Ma trận & Bảng đặc tả** | Tab `Ma trận & Đặc tả` | 1. Chọn Môn, Khối, Kỳ kiểm tra (GK1, CK1, GK2, CK2, TX).<br>2. Nhập số câu theo ô (Bài $\times$ Mức độ $\times$ Dạng câu).<br>3. Kiểm tra cân bằng tổng điểm $10.0$.<br>4. Bấm `Khóa ma trận`. | Ma trận và Bảng đặc tả chính thức ở trạng thái `locked`. | Số câu dạng thuần số `(1, 2, 3)` (Rule 2). Ghi số câu ở cuối YCCĐ. Bảng rộng $\le 24\text{ cm}$ (Rule 3). |
+| **B2** | **Lập Đề cương ôn tập** | Tab `Đề cương ôn tập` | 1. Bấm `Lập đề cương theo ma trận`.<br>2. Chọn số lượng câu từng ô hoặc tổng số câu dự kiến.<br>3. Xem đối chiếu ma trận, kiểm tra độ phủ YCCĐ $100\%$.<br>4. Lưu nháp đề cương. | Bản đề cương ôn tập kèm ngân hàng câu hỏi ôn luyện. | Bảng "A. Giới hạn kiến thức" đúng 3 cột: `STT \| Tên chủ đề \| Tên bài` (Rule 5). Logo banner đặt giữa rộng $\approx 13,5\text{ cm}$. |
+| **B3** | **Tạo bộ đề theo ma trận** | Tab `Tạo đề thi` | 1. Chọn Ma trận đã khóa ở B1.<br>2. Chọn đề cương có sẵn hoặc để hệ thống tự lập; chọn **1–6 đề** trong bộ.<br>3. Bấm `Tạo bộ đề`, xem báo cáo và cảnh báo câu dùng chung. | Bộ các đề gốc, ưu tiên khác câu; có thể dùng chung câu khi nguồn câu hoặc đề cương chưa đủ lớn. | Mỗi đề phải đạt tiêu chí đề cương trước khi duyệt. Các mã hoán vị 101–104 của từng đề được tạo bằng thao tác riêng ở B6. |
+| **B4** | **Kiểm duyệt & Khóa cả bộ** | Tab `Tạo đề thi` $\rightarrow$ Thẻ Bộ đề | 1. Giáo viên ra đề bấm `Gửi duyệt cả bộ` (`submit`).<br>2. Tổ trưởng chuyên môn thẩm định câu hỏi và barem.<br>3. Tổ trưởng bấm `Duyệt & Khóa cả bộ` (`approve`). | Thao tác `approve` đưa cả bộ đề trực tiếp sang `locked` với giao dịch nguyên tử; API chuyển trạng thái đề không có thao tác `lock` riêng. | Giao dịch nguyên tử: nếu 1 đề trong bộ lỗi, toàn bộ được rollback an toàn. Đề đã khóa được chốt snapshot nội dung & mã băm SHA-256. |
+| **B5** | **Phát hành có điều kiện** | Tab `Đề cương` & Tab `Đề thi` | 1. Bấm `Phát hành đề cương` (`publish`) gửi học sinh.<br>2. Đến ngày thi, bấm `Phát hành bộ đề thi` (`publish`). | Trạng thái chuyển sang `published`. | **Luật bất biến:** Hệ thống tự động CHẶN phát hành đề cương nếu bộ đề thi căn cứ chưa được duyệt và khóa. |
+| **B6** | **Xuất bản & Tải Hồ sơ (.zip)** | Nút tải tại trang chi tiết Đề thi | 1. Với từng đề gốc, dùng thao tác tạo mã hoán vị 101–104 khi cần xáo trộn thứ tự câu và phương án.<br>2. Bấm `Tải gói hồ sơ (.zip)` và đọc báo cáo đóng gói bên trong.<br>3. Xuất riêng tệp LMS khi cần. | ZIP có số tệp tùy số mã đề, định dạng và thành phần xuất được; không cố định 12 tệp. Tệp LMS xuất riêng. | Đề học sinh không có đáp án. Đối chiếu bố cục với quy chuẩn trước khi dùng chính thức; xem cảnh báo thành phần thiếu hoặc lỗi trong báo cáo ZIP. |
+
+Chuyển DOCX sang PDF cần máy cục bộ có Microsoft Word và quyền tự động hóa phù hợp. Bản online vẫn xuất DOCX; không mặc định ZIP có đồng thời Word và PDF. Có thể tạo đề nháp chưa gắn đề cương rồi chọn đề cương khi kiểm định; duyệt chính thức vẫn phải đạt tiêu chí đề cương.
 
 ---
 
-## PHẦN 2. QUY CHUẨN LOẠI DỮ LIỆU & ĐỊNH DẠNG ĐẦU VÀO (INPUT SPECIFICATIONS)
+## PHẦN 2. CÁC LUỒNG CÔNG TÁC PHỤ TRỢ
 
-Nhằm đảm bảo hệ thống vận hành chính xác, render công thức mượt mà và biên dịch Word/PDF chuẩn mực, toàn bộ dữ liệu nhập vào hệ thống cần tuân thủ các quy chuẩn sau:
+### 2.1. Quản lý Ngân hàng câu hỏi & Vòng đời Thẩm định
+- **Vòng đời 4 trạng thái:** `draft` (Bản nháp) $\rightarrow$ `content_checked` (Đã soát nội dung) $\rightarrow$ `approved` (Đã phê duyệt) $\rightarrow$ `needs_review` (Cần chỉnh sửa lại).
+- **Cơ chế an toàn:** Khi một câu hỏi đã duyệt (`approved`) bị bất kỳ ai sửa nội dung, hệ thống sẽ **tự động chuyển trạng thái về `needs_review`** để ngăn chặn việc lọt câu hỏi chưa được thẩm định lại vào đề thi chính thức.
+- **Báo cáo thiếu câu B9 (Shortfall Report):** Báo cáo cảnh báo trực quan số câu còn thiếu của từng ô (bài $\times$ YCCĐ $\times$ dạng câu $\times$ mức độ).
 
-### 2.1. Cấu trúc câu hỏi ngân hàng (Question JSON Schema)
+### 2.2. Đánh giá Thường xuyên (KTTX theo TT 22/2021 Điều 6)
+- **Quy định số lượng:** Cấp THCS (35 tiết/năm): 2 ĐĐGtx/học kỳ; Cấp THPT (70 tiết/năm): 3 ĐĐGtx/học kỳ.
+- **Cụm chuyên đề học tập THPT (Điều 6.3):** Tính là 01 lần ĐGtx riêng biệt.
+- **Tiêu đề chuẩn hóa:** `Tin {Khối}_Kiểm tra thường xuyên {k} - HK {I|II}` kèm tên lớp (ví dụ: `Tin 8_Kiểm tra thường xuyên 1 - HK I 8A1`).
+
+---
+
+## PHẦN 3. QUY CHUẨN LOẠI DỮ LIỆU & ĐỊNH DẠNG ĐẦU VÀO (INPUT SPECIFICATIONS)
+
+### 3.1. Cấu trúc câu hỏi ngân hàng (Question JSON Schema)
 
 | Tên trường | Kiểu dữ liệu | Bắt buộc | Mô tả & Quy cách định dạng |
 |:---|:---|:---:|:---|
@@ -31,115 +57,30 @@ Nhằm đảm bảo hệ thống vận hành chính xác, render công thức m�
 | `grade` | Integer | **Có** | Khối lớp: `8`, `9`, `10`, `11`, hoặc `12`. |
 | `lesson_code` | String | **Có** | Mã bài học trong PPCT (ví dụ: `"B1"`, `"B2"`, `"B12"`, `"U1"`). |
 | `type` | String | **Có** | Dạng câu hỏi: `"MC"` (Nhiều lựa chọn), `"YN"` (Đúng/Sai), `"SHORT"` (Trả lời ngắn), `"ES"` (Tự luận). |
-| `level` | String | **Có** | Mức độ nhận thức: `"Biết"`, `"Hiểu"`, hoặc `"Vận dụng"`. |
+| `cognitive_level` | String | **Có** | Mức độ nhận thức: `"Biết"`, `"Hiểu"`, `"Vận dụng"`, hoặc `"Vận dụng cao"`. |
 | `learning_outcome` | String | **Có** | Yêu cầu cần đạt chuẩn GDPT 2018 (lấy từ PPCT môn học). |
 | `question` | String | **Có** | Nội dung câu hỏi (chấp nhận văn bản thường, công thức $\LaTeX$, khối code, bảng markdown). |
 | `options` | Array[4] | Với MC | Mảng đúng 4 chuỗi phương án `[A, B, C, D]`. Không được để trống phương án nào. |
-| `correct` | Integer | Với MC | Chỉ số đáp án đúng: `0` (tương ứng A), `1` (tương ứng B), `2` (tương ứng C), `3` (tương ứng D). |
-| `statements` | Array[4] | Với YN | Mảng 4 mệnh đề `[ {label: "a", text: "...", correct: true/false}, ... ]`. |
+| `correct` | Integer | Với MC | Chỉ số đáp án đúng: `0` (A), `1` (B), `2` (C), `3` (D). |
+| `statements` | Array[4] | Với YN | Mảng 4 nhận định `[ {label: "a", text: "...", correct: true/false}, ... ]` (Khối 10). |
+| `short_answer` | String | Với SHORT | Chuỗi đáp án ngắn chính xác (ví dụ: `"5"`, `"CPU"`). |
 | `rubric` | Array | Với ES | Mảng các bước chấm `[ {step: "...", points: 0.5}, ... ]` với tổng điểm khớp câu hỏi. |
-| `option_explanations`| Array/Str | Không | Hướng dẫn giải chi tiết cho câu hỏi hoặc từng phương án. |
-| `shared_context` | String | Không | Đoạn văn / ngữ cảnh dùng chung cho chùm câu (giữ liền kề khi trộn đề). |
-| `fixed_order_options`| Boolean | Không | Đặt `true` nếu các phương án không được đảo thứ tự (ví dụ: phương án chứa "Cả A và B đều đúng"). |
-| `review_status` | String | **Có** | Trạng thái thẩm định: `"draft"` (Chờ duyệt), `"content_checked"` (Đã kiểm tra), `"approved"` (Đã phê duyệt). |
+| `fixed_order_options`| Boolean | Không | Đặt `true` nếu các phương án không được đảo thứ tự (chứa "Cả A và B đều đúng"). |
+| `review_status` | String | **Có** | Trạng thái thẩm định: `"draft"`, `"content_checked"`, `"approved"`, `"needs_review"`. |
 
 ---
 
-### 2.2. Quy chuẩn Công thức Toán học & Ký hiệu Khoa học ($\LaTeX$)
+### 3.2. Quy chuẩn Định dạng File Trắc nghiệm Upload lên LMS (Rule 6)
 
-Hệ thống tích hợp bộ xử lý công thức toán học chuyên sâu. Mọi công thức toán, lý, hóa phải được định dạng bằng cú pháp $\LaTeX$:
-
-1. **Công thức cùng dòng (Inline Math):**
-   - Đặt giữa cặp dấu dollar đơn: `$ ... $`.
-   - *Ví dụ đúng:* 
-     - Nghiệm của phương trình là `$x = \frac{-b \pm \sqrt{\Delta}}{2a}$`.
-     - Cho tam giác vuông có cạnh góc vuông `$a = 3\text{ cm}$` và góc `$\alpha = 45^\circ$`.
-   - *Không nên viết:* `x = (-b +- sqrt(delta))/(2a)` (sẽ không render đẹp chuẩn sách giáo khoa).
-
-2. **Công thức khối biệt lập (Display Math):**
-   - Đặt giữa cặp dấu dollar kép: `$$ ... $$`.
-   - *Ví dụ đúng:*
-     $$S = \int_{a}^{b} f(x) \, dx$$
-
-3. **Lưu ý dấu dollar trong văn bản thường:**
-   - Khi viết về giá tiền (dollar), bắt buộc phải gõ `\$` (ví dụ: `Giá của thiết bị là \$250`), để tránh hệ thống hiểu nhầm là mở thẻ công thức toán.
-
----
-
-### 2.3. Quy chuẩn Khối Mã Nguồn Lập trình (Code Snippets)
-
-Dành cho môn Tin học (Python, C++, Scratch, Pascal, SQL, HTML/CSS):
-
-1. **Cú pháp khối code:**
-   ````text
-   ```python
-   def kiem_tra_so_nguyen_to(n):
-       if n < 2:
-           return False
-       for i in range(2, int(n**0.5) + 1):
-           if n % i == 0:
-               return False
-       return True
-   ```
-   ````
-
-2. **Quy định bảo toàn khoảng trắng:**
-   - Giữ nguyên thụt lề (Indentation) chuẩn mực của ngôn ngữ lập trình (4 spaces cho Python).
-   - Hệ thống tự động chuyển đổi thành font `Consolas` trong bản Word và khối `lstlisting` / `Verbatim` trong bản XeLaTeX.
-
----
-
-### 2.4. Quy chuẩn Định dạng Văn bản thô cho AI Bóc tách (Mode 2)
-
-Khi sử dụng tính năng **✨ Trợ lý AI $\rightarrow$ Chế độ 2: Bóc tách & Cấu trúc hóa đề thô**, giáo viên cần chuẩn bị văn bản theo các cấu trúc nhận diện dưới đây để AI trích xuất chính xác 100%:
-
-#### Mẫu 1: Câu hỏi Trắc nghiệm 4 lựa chọn (MC)
-```text
-Câu 1: Thiết bị nào sau đây là thiết bị vào của máy tính?
-A. Màn hình
-B. Máy in
-C. Bàn phím
-D. Loa
-Đáp án: C
-Lời giải: Bàn phím là thiết bị vào dùng để nhập dữ liệu ký tự vào máy tính.
-```
-
-#### Mẫu 2: Câu hỏi Trắc nghiệm Đúng / Sai (YN)
-```text
-Câu 2: Cho các nhận định sau về an toàn thông tin và văn hóa mạng:
-a) Không chia sẻ mật khẩu tài khoản cá nhân cho người lạ. [ĐÚNG]
-b) Mọi thông tin trên mạng xã hội đều được kiểm duyệt chính xác 100%. [SAI]
-c) Cần bật tính năng xác thực hai yếu tố (2FA) cho email. [ĐÚNG]
-d) Được phép sử dụng hình ảnh của người khác khi chưa có sự đồng ý. [SAI]
-Lời giải: Các thông tin trên mạng xã hội chưa được kiểm chứng có thể là tin giả.
-```
-
-#### Mẫu 3: Câu hỏi Trả lời ngắn (SHORT)
-```text
-Câu 3: Kết quả của biểu thức (17 MOD 5) + (17 DIV 5) trong Pascal bằng bao nhiêu?
-Đáp án: 5
-Lời giải: 17 MOD 5 = 2; 17 DIV 5 = 3. Tổng 2 + 3 = 5.
-```
-
-#### Mẫu 4: Câu hỏi Tự luận có Barem điểm (ES)
-```text
-Câu 4: Em hãy nêu hai biện pháp phòng chống mã độc bảo vệ máy tính cá nhân.
-Barem:
-- Biện pháp 1: Cài đặt và cập nhật thường xuyên phần mềm diệt virus uy tín (0.5 điểm).
-- Biện pháp 2: Không mở tệp đính kèm hoặc đường link đáng ngờ từ người lạ (0.5 điểm).
-```
-
----
-
-### 2.5. Quy chuẩn Định dạng File Trắc nghiệm Upload lên LMS (Rule 6)
-
-Tuân thủ nghiêm ngặt **Quy tắc 06 của Nhà trường**:
+Tuân thủ nghiêm ngặt **Quy chuẩn 06 của Nhà trường**:
 1. **Không để bảng đáp án** ở cuối file.
 2. **Đáp án đúng:** Nhãn phương án được in đậm và đặt trong dấu ngoặc vuông: **`[A.] `**, **`[B.] `**, **`[C.] `**, **`[D.] `** (nội dung phương án viết bình thường, không chèn các nhãn thừa như `[ĐÁP ÁN ĐÚNG]`).
 3. **Phương án sai:** Nhãn phương án viết bình thường không ngoặc vuông: `A. `, `B. `, `C. `, `D. `.
-4. **Dạng thức Đúng/Sai:** 
+4. **Dạng thức Đúng/Sai (Khối 10):**
    - Ý đúng: **`[a)] `** `Nội dung nhận định [ĐÚNG]`
    - Ý sai: `b) ` `Nội dung nhận định [SAI]`
+5. **Dạng thức Trả lời ngắn:**
+   - Dòng đáp án đặt ngay dưới câu hỏi, in đậm và đóng ngoặc vuông: **`[Đáp án: 2]`** hoặc **`[Đáp án: CPU]`**.
 
 *Ví dụ trích đoạn file LMS chuẩn:*
 ```text
@@ -149,22 +90,47 @@ B. Bộ nhớ chỉ đọc, dữ liệu không bị mất khi mất điện.
 C. Bộ nhớ ngoài dung lượng lớn.
 D. Bộ nhớ đệm tốc độ cao nằm trong CPU.
 
-Câu 2: Các nhận định sau về mạng máy tính:
-[a)] Internet là mạng toàn cầu kết nối hàng triệu máy tính. [ĐÚNG]
-b) Mạng LAN chỉ kết nối được tối đa 2 máy tính. [SAI]
-[c)] Switch là thiết bị chuyển mạch kết nối các thiết bị trong mạng cục bộ. [ĐÚNG]
-d) Mạng không dây (Wi-Fi) có tốc độ truyền tải nhanh hơn cáp quang. [SAI]
+Câu 2: Các nhận định sau về an toàn thông tin:
+[a)] Cần bật xác thực hai yếu tố (2FA) để bảo vệ tài khoản cá nhân. [ĐÚNG]
+b) Mật khẩu đơn giản như "123456" là đủ an toàn khi dùng mạng nội bộ. [SAI]
+[c)] Không mở các tệp đính kèm thư điện tử từ người gửi không xác định. [ĐÚNG]
+d) Được phép chia sẻ tài khoản LMS cho người ngoài lớp sử dụng. [SAI]
+
+Câu 3: Kết quả của biểu thức (17 MOD 5) + (17 DIV 5) trong Pascal bằng bao nhiêu?
+[Đáp án: 5]
 ```
 
 ---
 
-## PHẦN 3. CÁC CÂU HỎI THƯỜNG GẶP (FAQ) & XỬ LÝ SỰ CỐ
+### 3.3. Quy chuẩn Đề cương ôn tập — Bảng "A. Giới hạn kiến thức ôn tập" (Rule 5)
 
-1. **Câu hỏi:** *Tại sao khi trộn đề, các phương án "Cả A và B đều đúng" lại bị đảo lên đầu thành phương án A?*  
-   **Trả lời:** Với những câu hỏi có phương án phụ thuộc thứ tự, giáo viên cần tích chọn tùy chọn **"Giữ nguyên thứ tự phương án (Không đảo A, B, C, D)"** (`fixed_order_options: true`) trong trình chỉnh sửa câu hỏi.
+- Bảng giới hạn chỉ gồm đúng **3 cột**:
+  1. **STT** (Số thứ tự 1, 2, 3...)
+  2. **Tên chủ đề** (Chuẩn theo Ma trận & KHDH chính thức)
+  3. **Tên bài** (Chuẩn theo Ma trận & KHDH chính thức)
+- Tuyệt đối không thêm cột thời lượng, số tiết, hay mục tiêu bài học vào bảng này.
+- Logo trường là banner đặt chính giữa trang, rộng khoảng $13,5\text{ cm}$.
 
-2. **Câu hỏi:** *Khóa Gemini API Key có bị lộ ra ngoài hoặc chia sẻ cho người khác không?*  
-   **Trả lời:** Không. Khóa API Key được mã hóa và lưu trực tiếp trong Local Storage trên trình duyệt của máy tính Thầy/Cô, hệ thống không gửi hay lưu khóa trên bất kỳ máy chủ công cộng nào.
+---
 
-3. **Câu hỏi:** *Bảng đặc tả và Ma trận tải về mở trong Word có bị vỡ viền hay tràn trang không?*  
-   **Trả lời:** Không. Pipeline xuất Word của hệ thống được lập trình trực tiếp qua OpenXML Native với độ rộng cố định $\le 24\text{ cm}$ (khổ giấy ngang Landscape), đảm bảo vừa khít 100% lề trang và tự động lặp lại tiêu đề bảng khi sang trang mới.
+## PHẦN 4. BẢO MẬT & SAO LƯU DỮ LIỆU
+
+1. **Bảo mật đề thi:** Tài khoản học sinh hoặc chế độ xem đề học sinh tuyệt đối không được truy cập hay tải về tệp đáp án chi tiết hoặc bảng đáp án tổng hợp (trả về HTTP 403 Forbidden).
+2. **Sao lưu dữ liệu cục bộ (Lệnh A8):**
+   ```bash
+   cd cloud
+   python manage.py backup_local
+   python manage.py verify_backup var/backups/<thu_muc_sao_luu>
+   ```
+   Lệnh `verify_backup` kiểm tra tính toàn vẹn của bản sao lưu (tệp, mã băm và đối chiếu dữ liệu). Muốn xác nhận khả năng khôi phục, cần diễn tập `restore_local` riêng trong môi trường cách ly; kết quả verify đạt chưa thay thế diễn tập phục hồi.
+
+
+## Biên soạn mã và bảng cho đề giữa học kì
+
+Trong Ngân hàng câu hỏi, chọn Thêm hoặc Sửa câu hỏi. Dùng **Chèn mã** hoặc **Chèn bảng**, điền nội dung vào mẫu văn bản và kiểm tra ngay khung xem trước. Khối mã giữ thụt dòng; bảng có hàng tiêu đề và hàng phân cách hợp lệ sẽ thành bảng trong bản xem và Word. Cú pháp chưa đủ được giữ nguyên văn.
+
+Muốn đổi nội dung mã/bảng, hãy sửa ở cửa sổ biên soạn câu hỏi; công cụ định dạng bản xem không thay dữ liệu bên trong các khối nguồn này. Câu đã duyệt được sửa sẽ cần duyệt lại; đề đã khóa giữ bản chụp cũ. Chọn lại câu hoặc tạo bản đề mới theo quy trình hiện hành.
+
+Trả lời ngắn được hiển thị trong đề và đề cương theo ma trận. Bản học sinh có chỗ trả lời; bản giáo viên có đáp án. Bảng giới hạn kiến thức của đề cương có ba cột STT, Tên chủ đề, Tên bài.
+
+Các chỉnh trình bày chỉ lưu cục bộ ở bản cũ không tự nạp lại sau bản sửa này; nội dung câu và bản nháp trên máy chủ giữ nguyên. Hiện chưa hỗ trợ chuyển chuỗi LaTeX thành công thức Word gốc hoặc nhúng ảnh/đồ thị vào câu hỏi. Nếu ứng dụng đã mở từ trước, khởi động lại để nạp backend mới.

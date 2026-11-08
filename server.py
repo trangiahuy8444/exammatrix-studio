@@ -17,6 +17,7 @@ from domain.test_seed import seed_bank, install_sample
 from exports import export_document
 from matrices.service import MatrixService
 from matrices.http import handle_matrix_get,handle_matrix_post
+from matrices.generation import _usable as usable_matrix
 
 APP_DIR = Path(__file__).resolve().parent
 DEFAULT_BANK = APP_DIR.parent/'06_Kiem_tra_va_Danh_gia/01_Ngan_hang_cau_hoi/03_Ngan_hang_mo_rong_HK1_2026_10_21/NGAN_HANG_CAU_HOI_HK1_V1.json'
@@ -292,8 +293,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({'revision': service.duplicate_revision(payload.get('id')), 'revisions': service.state()['revisions']})
             if path == '/api/revisions/import-file':
                 return self._json({'revision': service.import_revision_file(payload), 'revisions': service.state()['revisions']})
+            if path in ('/api/exams/generate', '/api/exams/generate-set', '/api/revisions/propose'):
+                # Ma trận ở "Ma trận & đặc tả" chỉ do máy chủ nạp (đã khóa, không lỗi đối chiếu); không tin bản gửi lên.
+                payload.pop('_matrix', None)
+                if payload.get('matrix_id'):
+                    payload['_matrix'] = usable_matrix(service, self.matrix_service, payload['matrix_id'])
+            if path == '/api/revisions/propose':
+                return self._json(service.propose_revision(payload))
             if path == '/api/exams/generate':
                 return self._json({'exam': service.generate_exam(payload)})
+            if path == '/api/exams/generate-set':
+                result = service.generate_exam_set(payload)
+                state = service.state()
+                return self._json(dict(result, exams_all=state['exams'], revisions=state['revisions']))
             if path == '/api/exams/update':
                 return self._json({'exam': service.update_exam(payload), 'exams': service.state()['exams']})
             if path == '/api/exams/delete':
@@ -315,6 +327,15 @@ class Handler(BaseHTTPRequestHandler):
                 exam = service.exam_transition(payload.get('id'), payload.get('action'), actor=self._actor(),
                                                reason=payload.get('reason', ''), matrix_service=self.matrix_service)
                 return self._json({'exam': exam, 'exams': service.state()['exams']})
+            if path == '/api/exams/set/transition':
+                result = service.exam_set_transition(payload.get('set_id'), payload.get('action'), actor=self._actor(),
+                                                   reason=payload.get('reason', ''), matrix_service=self.matrix_service)
+                state = service.state()
+                return self._json(dict(result, exams_all=state['exams']))
+            if path == '/api/revisions/transition':
+                rev = service.revision_transition(payload.get('id'), payload.get('action'), actor=self._actor(),
+                                                 reason=payload.get('reason', ''))
+                return self._json({'revision': rev, 'revisions': service.state()['revisions']})
             if path == '/api/kttx/save':
                 activity = service.save_kttx(payload.get('activity') or payload, actor=self._actor())
                 return self._json({'activity': activity, **service.kttx_state()})
@@ -330,7 +351,7 @@ class Handler(BaseHTTPRequestHandler):
                                                   actor=self._actor(), reason=payload.get('reason', ''))
                 return self._json({'mark': mark, 'exams': service.state()['exams']})
             if path == '/api/exams/verify':
-                return self._json({'exam': service.verify_exam(payload.get('id'), self.matrix_service, payload.get('similarity_percent'), payload.get('similarity_mode')), 'exams': service.state()['exams']})
+                return self._json({'exam': service.verify_exam(payload.get('id'), self.matrix_service, payload.get('similarity_percent'), payload.get('similarity_mode'), payload.get('revision_id')), 'exams': service.state()['exams']})
             if path == '/api/exams/adjust-similarity':
                 return self._json(service.adjust_exam_similarity(payload, self.matrix_service))
             if path == '/api/exams/inspect-import':
@@ -406,7 +427,7 @@ def setup_test_sandbox(base_dir, bank_source=DEFAULT_BANK, clean=False):
             shutil.rmtree(sandbox_dir)
         sandbox_dir.mkdir(parents=True, exist_ok=True)
         (sandbox_dir / 'matrices').mkdir(parents=True, exist_ok=True)
-        # Vùng Test bắt đầu bằng BẢN SAO PPCT và câu hỏi của ngân hàng thật (đề, đề cương, ma trận trống).
+        # Vùng Test bắt đầu bằng BẢN SAO PPCT, câu hỏi và ma trận của ngân hàng thật (đề, đề cương trống).
         try:
             live = json.loads(Path(bank_source).read_text(encoding='utf-8'))
         except (OSError, ValueError):
@@ -414,6 +435,9 @@ def setup_test_sandbox(base_dir, bank_source=DEFAULT_BANK, clean=False):
         sandbox_bank.write_text(json.dumps(seed_bank(live), ensure_ascii=False, indent=2), encoding='utf-8')
         (sandbox_dir / 'records.json').write_text('[]', encoding='utf-8')
         (sandbox_dir / 'matrices' / 'records.json').write_text('[]', encoding='utf-8')
+        live_matrices = Path(base_dir) / 'matrices'
+        if (live_matrices / 'records.json').exists():  # ma trận cần có để thử tạo đề cương và đề theo ma trận
+            shutil.copytree(live_matrices, sandbox_dir / 'matrices', dirs_exist_ok=True)
         curr_file = Path(base_dir) / 'curricula.json'
         if curr_file.exists():
             shutil.copy2(curr_file, sandbox_dir / 'curricula.json')

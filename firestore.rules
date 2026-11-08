@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // QUY TẮC PHÂN QUYỀN GIÁO VIÊN: DỮ LIỆU CỦA AI THÌ CHỈ NGƯỜI ĐÓ TRUY CẬP
+    // =========================================================================
+    // Mỗi giáo viên được định danh bằng mã UID sau khi đăng nhập qua Firebase Auth.
+    // Toàn bộ Ngân hàng câu hỏi, Đề thi, Đề cương, Ma trận nằm trong nhánh:
+    // /workspaces/{userId}/...
+    
+    match /workspaces/{userId}/{allDocuments=**} {
+      // Chỉ cho phép ĐỌC và GHI khi:
+      // 1. Người dùng đã đăng nhập (request.auth != null)
+      // 2. UID của người đăng nhập trùng khớp 100% với userId của không gian làm việc
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Danh mục PPCT chuẩn dùng chung cho toàn trường (nếu có) chỉ cho đọc
+    match /system_catalogs/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false; // Chỉ quản trị viên cập nhật qua console
+    }
+
+    // Mọi đường dẫn khác mặc định bị chặn hoàn toàn
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

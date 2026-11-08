@@ -21,7 +21,11 @@ NAMES={'MC':'TNKQ-NLC','YN':'TNKQ-ĐS','ES':'Tự luận','SHORT':'Trả lời n
 
 
 def label(value):return f'{value:g}'.replace('.',',')
-LEVEL_ABBR={'Biết':'B','Hiểu':'H','Vận dụng':'VD'}
+LEVEL_ABBR={'Biết':'B','Hiểu':'H','Vận dụng':'VD','Vận dụng cao':'VDC'}
+
+def _export_levels(matrix):
+    # Giữ bố cục ba mức của hồ sơ cũ; VDC có cột riêng khi xuất hồ sơ bốn mức.
+    return LEVELS if any(r.get('level')=='Vận dụng cao' for r in matrix.get('requirements', [])) else LEVELS[:3]
 
 
 def matrix_period(exam_type):
@@ -57,7 +61,7 @@ def spec_ratio_lines(v,total_points=10):
 
 def _document():
     d=Document();s=d.sections[0];s.orientation=WD_ORIENT.LANDSCAPE
-    s.page_width=Cm(29.7);s.page_height=Cm(21);s.left_margin=s.right_margin=Cm(2.85);s.top_margin=s.bottom_margin=Cm(1)
+    s.page_width=Cm(29.7);s.page_height=Cm(21);s.left_margin=Cm(1.5);s.right_margin=Cm(1);s.top_margin=s.bottom_margin=Cm(1)
     for style in d.styles:
         if style.type!=1:continue
         style.font.name='Times New Roman';style.font.size=Pt(11);style.font.color.rgb=RGBColor(0,0,0)
@@ -88,7 +92,7 @@ def _heading(d,title,m):
 
 def _table(d,rows,widths,headers):
     widths=[23.8*w/sum(widths) for w in widths]
-    t=d.add_table(rows=rows,cols=len(widths));t.autofit=False;t.style='Table Grid'
+    t=d.add_table(rows=rows,cols=len(widths));t.autofit=False;t.style='Table Grid';t.alignment=1
     for col,w in zip(t.columns,widths):col.width=Cm(w)
     for ri,row in enumerate(t.rows):
         for c,w in zip(row.cells,widths):
@@ -148,18 +152,18 @@ def _matrix(d,m,v):
     kinds=['MC','ES'] if m['profile']=='THCS' else ['MC','YN','ES']
     if any(s['kind']=='SHORT' for s in m.get('slots',[])) and m['profile']=='THPT':kinds=['MC','YN','SHORT','ES']
     if m['profile']=='GENERAL':kinds=[k for k in ('MC','YN','SHORT','ES') if any(s['kind']==k for s in m.get('slots',[]))] or ['MC','ES']
-    n=3+len(kinds)*3+4
-    widths=[.9,3.1,4]+[1.05]*(3*len(kinds))+[1.1,1.1,1.1,1.7]
+    levels=_export_levels(m);level_count=len(levels)
+    widths=[.9,3.1,4]+[1.05]*(level_count*len(kinds))+[1.1]*level_count+[1.7]
     t=_table(d,3+len(v['rows'])+3,widths,3)
     for c,text in enumerate(['TT','Chương/\nchủ đề','Nội dung/\nđơn vị kiến thức']):_text(t.cell(0,c).merge(t.cell(2,c)),text,True,True)
-    end=3+3*len(kinds)
+    end=3+level_count*len(kinds)
     _text(t.cell(0,3).merge(t.cell(0,end-1)),'Mức độ đánh giá',True,True)
     for i,k in enumerate(kinds):
-        pos=3+3*i;_text(t.cell(1,pos).merge(t.cell(1,pos+2)),NAMES[k],True,True)
-        for j,l in enumerate(LEVELS):_text(t.cell(2,pos+j),'VD' if l=='Vận dụng' else l,True,True)
-    _text(t.cell(0,end).merge(t.cell(1,end+2)),'Tổng',True,True)
-    for j,l in enumerate(LEVELS):_text(t.cell(2,end+j),'VD' if l=='Vận dụng' else l,True,True)
-    _text(t.cell(0,end+3).merge(t.cell(2,end+3)),'Tỉ lệ %\nđiểm',True,True)
+        pos=3+level_count*i;_text(t.cell(1,pos).merge(t.cell(1,pos+level_count-1)),NAMES[k],True,True)
+        for j,l in enumerate(levels):_text(t.cell(2,pos+j),LEVEL_ABBR[l] if l.startswith('Vận dụng') else l,True,True)
+    _text(t.cell(0,end).merge(t.cell(1,end+level_count-1)),'Tổng',True,True)
+    for j,l in enumerate(levels):_text(t.cell(2,end+j),LEVEL_ABBR[l] if l.startswith('Vận dụng') else l,True,True)
+    _text(t.cell(0,end+level_count).merge(t.cell(2,end+level_count)),'Tỉ lệ %\nđiểm',True,True)
     topic_start=None;last_topic=None;topic_number=0
     for i,row in enumerate(v['rows'],3):
         if row['topic']!=last_topic:
@@ -169,27 +173,27 @@ def _matrix(d,m,v):
             _text(t.cell(i,0),topic_number,False,True);_text(t.cell(i,1),row['topic'],True)
         _text(t.cell(i,2),row['title'])
         for ki,k in enumerate(kinds):
-            for li,l in enumerate(LEVELS):
+            for li,l in enumerate(levels):
                 cell=row['cells'].get(k+'|'+l)
-                if cell:_text(t.cell(i,3+ki*3+li),str(cell['count'])+(' ES' if k=='ES' else '')+'\n('+', '.join(cell['refs'])+')',False,True)
-        for li,l in enumerate(LEVELS):_text(t.cell(i,end+li),row['counts'][l] or '',False,True)
-        _text(t.cell(i,end+3),label(row['percentage'])+'%',False,True)
+                if cell:_text(t.cell(i,3+ki*level_count+li),str(cell['count'])+(' ES' if k=='ES' else '')+'\n('+', '.join(cell['refs'])+')',False,True)
+        for li,l in enumerate(levels):_text(t.cell(i,end+li),row['counts'][l] or '',False,True)
+        _text(t.cell(i,end+level_count),label(row['percentage'])+'%',False,True)
     if topic_start is not None and 2+len(v['rows'])>topic_start:
         t.cell(topic_start,0).merge(t.cell(2+len(v['rows']),0));t.cell(topic_start,1).merge(t.cell(2+len(v['rows']),1))
     totals=v['totals']
     for ri,title in enumerate(('Tổng số câu và ý','Tổng số điểm','Tỉ lệ %'),3+len(v['rows'])):
         _text(t.cell(ri,0).merge(t.cell(ri,2)),title,True,True)
         for ki,k in enumerate(kinds):
-            for li,l in enumerate(LEVELS):
+            for li,l in enumerate(levels):
                 values=[r['cells'].get(k+'|'+l,{}) for r in v['rows']]
                 amount=sum(x.get('count',0) if title.startswith('Tổng số câu') else x.get('points',0) for x in values)
                 if title=='Tỉ lệ %':amount=amount/10*100
-                _text(t.cell(ri,3+ki*3+li),label(amount)+('%' if title=='Tỉ lệ %' else ''),True,True)
-        for li,l in enumerate(LEVELS):
+                _text(t.cell(ri,3+ki*level_count+li),label(amount)+('%' if title=='Tỉ lệ %' else ''),True,True)
+        for li,l in enumerate(levels):
             value=totals['by_level'][l]['items'] if title.startswith('Tổng số câu') else totals['by_level'][l]['points']
             if title=='Tỉ lệ %':value=value/10*100
             _text(t.cell(ri,end+li),label(value)+('%' if title=='Tỉ lệ %' else ''),True,True)
-        _text(t.cell(ri,end+3),label(totals['items'] if title.startswith('Tổng số câu') else 10 if title=='Tổng số điểm' else 100)+('%' if title=='Tỉ lệ %' else ''),True,True)
+        _text(t.cell(ri,end+level_count),label(totals['items'] if title.startswith('Tổng số câu') else 10 if title=='Tổng số điểm' else 100)+('%' if title=='Tỉ lệ %' else ''),True,True)
 
 
 def _spec(d,m,v):
@@ -233,7 +237,7 @@ def _spec(d,m,v):
                     allocated={p['requirement_id'] for slot in m['slots'] if slot['kind']==k for p in slot['parts']}
                     all_reqs=[r for r in v['requirements'] if r['lesson_code']==row['lesson_code'] and r['id'] in allocated]
                     comps=sorted({r.get('competency','') for r in all_reqs if r['level']==level and r['refs']})
-                    lines.append(f'{value["count"]} {k} ({dict(zip(LEVELS,("B","H","V")))[level]}) ('+', '.join(comps)+')')
+                    lines.append(f'{value["count"]} {k} ({"V" if level=="Vận dụng" else LEVEL_ABBR[level]}) ('+', '.join(comps)+')')
             _text(t.cell(i,ki),'\n'.join(lines) or ('' if continuation else '0'),False,True)
     for offset,name in enumerate(('Tổng','Tỉ lệ %','Tỉ lệ chung')):
         ri=3+len(expanded)+offset;_text(t.cell(ri,0).merge(t.cell(ri,2)),name,True,True)
@@ -247,19 +251,20 @@ def _spec(d,m,v):
 
 
 def _competencies(d,m,v):
-    t=_table(d,4+len(v['competencies']),[1.9,1.1,.7]+[1.7]*9,4)
+    levels=_export_levels(m);level_count=len(levels);end=3+3*level_count
+    t=_table(d,4+len(v['competencies']),[1.9,1.1,.7]+[1.7]*(3*level_count),4)
     _text(t.cell(0,0).merge(t.cell(3,0)),'Dạng thức',True,True)
     _text(t.cell(0,1).merge(t.cell(3,2)),'Câu hỏi',True,True)
-    _text(t.cell(0,3).merge(t.cell(0,11)),'Năng lực tin học',True,True)
+    _text(t.cell(0,3).merge(t.cell(0,end-1)),'Năng lực tin học',True,True)
     for i,(comp,name) in enumerate([('NLa','Sử dụng và quản lí các phương tiện CNTT&TT'),('NLb','Ứng xử phù hợp trong môi trường số'),('NLc','Giải quyết vấn đề với sự trợ giúp của máy tính')]):
-        start=3+3*i;_text(t.cell(1,start).merge(t.cell(1,start+2)),name+' ('+comp+')',True,True)
-        _text(t.cell(2,start).merge(t.cell(2,start+2)),'Cấp độ tư duy',True,True)
-        for j,l in enumerate(LEVELS):_text(t.cell(3,start+j),l,True,True)
+        start=3+level_count*i;_text(t.cell(1,start).merge(t.cell(1,start+level_count-1)),name+' ('+comp+')',True,True)
+        _text(t.cell(2,start).merge(t.cell(2,start+level_count-1)),'Cấp độ tư duy',True,True)
+        for j,l in enumerate(levels):_text(t.cell(3,start+j),l,True,True)
     for ri,part in enumerate(v['competencies'],4):
         _text(t.cell(ri,0),NAMES[part['kind']],False,True);_text(t.cell(ri,1),'Câu '+str(part['number']),False,True);_text(t.cell(ri,2),part['label'],False,True)
-        for ci in range(3,12):_text(t.cell(ri,ci),'',False,True)
+        for ci in range(3,end):_text(t.cell(ri,ci),'',False,True)
         if part['competency'] in ('NLa','NLb','NLc'):
-            col=3+('NLa','NLb','NLc').index(part['competency'])*3+LEVELS.index(part['level'])
+            col=3+('NLa','NLb','NLc').index(part['competency'])*level_count+levels.index(part['level'])
             _text(t.cell(ri,col),part['indicator'],False,True)
     d.add_page_break();h=d.add_heading('Mã hóa ma trận',level=1);h.alignment=1
     raw_tables=(m.get('source') or {}).get('tables',[])
@@ -368,7 +373,7 @@ def matrix_html(matrix,ppct,section='all',mode='auto'):
         'td.mx-left,[align="left"]{text-align:left}'
         'td.mx-req-cell{text-align:left;vertical-align:top;line-height:1.5}'
         'thead{display:table-header-group}'
-        '@page{size:A4 landscape;margin:1cm 2.85cm}'
+        '@page{size:A4 landscape;margin:1cm 1cm 1cm 1.5cm}'
         '@media print{body{margin:0;max-width:none;padding:0}tr{break-inside:avoid}}'
     )
     return ('<!doctype html><html lang="vi"><meta charset="utf-8"><title>'+escape(matrix['title'])+'</title><style>'+css+'</style><body>'+body+'</body></html>').encode()

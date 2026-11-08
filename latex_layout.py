@@ -116,26 +116,28 @@ def review(record):
 
 
 def matrix(record):
-    from matrices.model import matrix_view, LEVELS
+    from matrices.model import matrix_view
+    from matrices.exports import _export_levels
+    levels=_export_levels(record)
     v=matrix_view(record)
     kinds=[kind for kind in ('MC','YN','SHORT','ES') if any(s['kind']==kind for s in record['slots'])]
-    headers=['TT','Chủ đề','Nội dung / bài']+[kind+r'\newline '+esc(level) for kind in kinds for level in LEVELS]+['Tổng Biết','Tổng Hiểu','Tổng VD','Tỉ lệ điểm']
+    headers=['TT','Chủ đề','Nội dung / bài']+[kind+r'\newline '+esc(level) for kind in kinds for level in levels]+['Tổng '+{'Biết':'Biết','Hiểu':'Hiểu','Vận dụng':'VD','Vận dụng cao':'VDC'}[level] for level in levels]+['Tỉ lệ điểm']
     rows=[]
     for i,row in enumerate(v['rows'],1):
         cells=[str(i),esc(row['topic']),esc(row['title'])]
         for kind in kinds:
-            for level in LEVELS:
+            for level in levels:
                 cell=row['cells'].get(kind+'|'+level)
                 cells.append((str(cell['count'])+r'\newline ('+', '.join(cell['refs'])+')') if cell else '')
-        cells.extend(str(row['counts'][level]) for level in LEVELS)
+        cells.extend(str(row['counts'][level]) for level in levels)
         cells.append(label(row['percentage'])+r'\%');rows.append(cells)
     for title,metric in [('Tổng số câu và ý','count'),('Tổng số điểm','points'),('Tỉ lệ phần trăm','percentage')]:
         cells=['',esc(title),'']
         for kind in kinds:
-            for level in LEVELS:
+            for level in levels:
                 amount=sum(row['cells'].get(kind+'|'+level,{}).get('count' if metric=='count' else 'points',0) for row in v['rows'])
                 cells.append(label(amount if metric!='percentage' else amount*10)+(r'\%' if metric=='percentage' else ''))
-        cells.extend(label(v['totals']['by_level'][level]['items' if metric=='count' else 'points']*(10 if metric=='percentage' else 1)) for level in LEVELS)
+        cells.extend(label(v['totals']['by_level'][level]['items' if metric=='count' else 'points']*(10 if metric=='percentage' else 1)) for level in levels)
         cells.append(label(v['totals']['items'] if metric=='count' else v['totals']['points'] if metric=='points' else 100))
         rows.append(cells)
     code=record.get('exam_code','')
@@ -155,7 +157,7 @@ def matrix(record):
         for kind in ('MC','YN','SHORT','ES'):
             count=counts[(req['id'],kind)]
             comp=esc(req.get('competency','')).replace(r'\_',r'\_\allowbreak ')
-            cells.append(f'{count} {kind}'+r'\newline ('+{'Biết':'B','Hiểu':'H','Vận dụng':'V'}[req['level']]+') ('+comp+')' if count else '0')
+            cells.append(f'{count} {kind}'+r'\newline ('+{'Biết':'B','Hiểu':'H','Vận dụng':'V','Vận dụng cao':'VDC'}[req['level']]+') ('+comp+')' if count else '0')
         rows.append(cells)
     # Rule 03: bảng đặc tả ngắt trang theo chủ đề, mỗi trang 2 chủ đề; nhóm cuối liền với dòng tổng kết.
     topic_of=[lesson_map[req['lesson_code']]['topic'] for req in v['requirements']]

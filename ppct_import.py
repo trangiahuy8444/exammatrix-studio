@@ -11,11 +11,13 @@ import zipfile
 
 from domain.errors import ServiceError
 
-LESSON_RE = re.compile(r'^\s*Bài\s+(\d+[a-zA-Z]?)\s*[.:]\s*(.+)$', re.S)
+LESSON_RE = re.compile(r'^\s*(?:Bài|Tiết|Chủ đề\s*\d+\s*[-–.:]\s*Bài)?\s*Bài\s+(\d+[a-zA-Z]?)\s*[-–.:]\s*(.+)$', re.S | re.I)
 SEMESTER_RE = re.compile(r'^\s*Học\s*kì\s*(I{1,2}|[12])\b', re.I)
 TOPIC_RE = re.compile(r'^\s*Chủ\s*đề\b', re.I)
 CONTINUATION_RE = re.compile(r'\s*\((?:tt|tiếp(?: theo)?|t|tiết\s*\d+)\)?\s*$', re.I)
-HEADER_KEYS = ('tuần', 'bài học', 'yêu cầu cần đạt')
+WEEK_SYNONYMS = ('tuần', 'tiết theo tuần', 'thời điểm', 'week', 'tuần/tháng', 'tuần / tháng')
+LESSON_SYNONYMS = ('bài học', 'tên bài', 'bài dạy', 'nội dung bài dạy', 'chủ đề / bài học', 'chủ đề/bài học', 'chủ đề', 'nội dung', 'lesson')
+OUTCOME_SYNONYMS = ('yêu cầu cần đạt', 'yccđ', 'yccd', 'mục tiêu', 'chuẩn kiến thức', 'learning outcome')
 
 
 def _nfc(text):
@@ -53,8 +55,15 @@ def outcome_lines(raw):
 
 
 def grade_from_filename(name):
-    match = re.search(r'TIN\s*(\d{1,2})\b', _nfc(name), re.I)
-    return int(match.group(1)) if match else None
+    clean = _nfc(name)
+    match = re.search(r'(?:TIN|VẬT\s*L[ÍÝ]|VAT\s*L[IY]|TOÁN|TOAN|HÓA|HOA|SINH|VĂN|VAN|ANH|SỬ|SU|ĐỊA|DIA|KHTN|KHỐI|KHOI|K|LỚP|LOP)\s*(\d{1,2})\b', clean, re.I)
+    if match:
+        return int(match.group(1))
+    for m in re.finditer(r'\b(\d{1,2})\b', clean):
+        val = int(m.group(1))
+        if 6 <= val <= 12:
+            return val
+    return None
 
 
 def _row_texts(row):
@@ -63,7 +72,10 @@ def _row_texts(row):
 
 def _is_header(texts):
     low = [x.lower() for x in texts]
-    return all(any(key in x for x in low) for key in HEADER_KEYS)
+    has_week = any(any(key in x for key in WEEK_SYNONYMS) for x in low)
+    has_lesson = any(any(key in x for key in LESSON_SYNONYMS) for x in low)
+    has_outcome = any(any(key in x for key in OUTCOME_SYNONYMS) for x in low)
+    return has_week and has_lesson and has_outcome
 
 
 def parse_docx(raw, grade, source_file=''):
@@ -121,7 +133,7 @@ def parse_docx(raw, grade, source_file=''):
     return [lessons[c] for c in order], issues
 
 
-def parse_json(data, grade=None):
+def parse_json(data, grade=None, subject_name=None):
     """Nhận {lessons:[…]}, {ppct:{lessons:[…]}} (tệp xuất ngân hàng) hoặc một mảng bài học."""
     if isinstance(data, dict) and isinstance(data.get('ppct'), dict):
         data = data['ppct']
@@ -133,6 +145,7 @@ def parse_json(data, grade=None):
         if not isinstance(raw, dict):
             raise ServiceError(f'Bài thứ {index} không đúng định dạng.')
         item_grade = raw.get('grade', grade)
+        item_subj = raw.get('subject_name') or subject_name
         if isinstance(item_grade, str) and item_grade.strip().isdigit():
             item_grade = int(item_grade)
         outcomes = raw.get('outcomes') or []
@@ -143,7 +156,8 @@ def parse_json(data, grade=None):
                       topic_source=_nfc(raw.get('topic_source') or raw.get('topic') or 'Chủ đề chung').strip(),
                       outcomes=[_nfc(x).strip() for x in outcomes if _nfc(x).strip()],
                       occurrences=raw.get('occurrences') if isinstance(raw.get('occurrences'), list) else [],
-                      source_file=_nfc(raw.get('source_file') or '').strip())
+                      source_file=_nfc(raw.get('source_file') or '').strip(),
+                      subject_name=_nfc(item_subj).strip() if item_subj else '')
         if not lesson['lesson_code'] or not lesson['lesson_name_source']:
             raise ServiceError(f'Bài thứ {index} thiếu mã bài hoặc tên bài.')
         if not lesson['outcomes']:

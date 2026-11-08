@@ -1,15 +1,17 @@
 """
 Unit tests for Test Mode (Sandbox Isolation).
 Test mode starts with a COPY of the live PPCT and questions (giáo viên yêu cầu 28/10/2026: "chức năng test cần có sẵn
-câu hỏi"), 0 exams, 0 revisions, 0 matrices; operations in test mode NEVER affect the live exam bank.
+câu hỏi"), a copy of the live matrices, 0 exams, 0 revisions; operations in test mode NEVER affect the live exam bank.
 """
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from bank_service import BankService
 from matrices.service import MatrixService
-from server import setup_test_sandbox, create_server, DEFAULT_BANK
+from server import setup_test_sandbox, create_server
+from test_backend import fixture
 
 
 class TestModeIsolationTests(unittest.TestCase):
@@ -19,9 +21,8 @@ class TestModeIsolationTests(unittest.TestCase):
         self.data_dir = Path(self.temp_dir.name)
         # Create a mock live bank
         self.live_bank_file = self.data_dir / 'live_bank.json'
-        # Copy PPCT from DEFAULT_BANK
-        import json
-        live_data = json.loads(Path(DEFAULT_BANK).read_text(encoding='utf-8'))
+        # Dữ liệu tự soạn: test không phụ thuộc kho câu hỏi riêng của giáo viên.
+        live_data = fixture()
         self.live_bank_file.write_text(json.dumps(live_data, ensure_ascii=False), encoding='utf-8')
         (self.data_dir / 'records.json').write_text('[]', encoding='utf-8')
         (self.data_dir / 'matrices').mkdir(parents=True, exist_ok=True)
@@ -30,7 +31,7 @@ class TestModeIsolationTests(unittest.TestCase):
         self.server = create_server(
             bank_path=self.live_bank_file,
             data_dir=self.data_dir,
-            port=8799
+            port=0
         )
 
     def tearDown(self):
@@ -45,7 +46,7 @@ class TestModeIsolationTests(unittest.TestCase):
         self.assertEqual(len(test_state['bank']['ppct']['lessons']), len(live_state['bank']['ppct']['lessons']))
         self.assertEqual(len(test_state['exams']), 0, 'Test mode must start with 0 exams')
         self.assertEqual(len(test_state['revisions']), 0, 'Test mode must start with 0 revisions')
-        self.assertEqual(len(self.server.test_matrix_service.list()), 0, 'Test mode must start with 0 matrices')
+        self.assertEqual(len(self.server.test_matrix_service.list()), 0, 'Test mode copies the live matrices (none here)')
         self.assertNotEqual(self.server.test_service.bank_path, self.server.service.bank_path)
 
     def test_empty_live_bank_gets_self_written_sample(self):
@@ -114,6 +115,16 @@ class TestModeIsolationTests(unittest.TestCase):
         self.assertEqual(len(self.server.test_service.state()['bank']['questions']), live_count)
         self.assertEqual(len(self.server.test_service.state()['exams']), 0)
         self.assertEqual(len(self.server.test_matrix_service.list()), 0)
+
+    def test_sandbox_copies_live_matrices_without_touching_them(self):
+        live = self.data_dir / 'matrices' / 'records.json'
+        live.write_text(json.dumps([dict(id='MATRIX-live', grade=9, exam_type='GK1', status='locked', title='Ma trận thật')]),
+                        encoding='utf-8')
+        self.server.reset_test_sandbox()
+        self.assertEqual([m['id'] for m in self.server.test_matrix_service.list()], ['MATRIX-live'])
+        sandbox = self.data_dir / 'test_sandbox' / 'matrices' / 'records.json'
+        sandbox.write_text('[]', encoding='utf-8')
+        self.assertEqual(json.loads(live.read_text(encoding='utf-8'))[0]['id'], 'MATRIX-live')
 
     def test_test_mode_ppct_creation(self):
         before = len(self.server.test_service.state()['bank']['ppct']['lessons'])

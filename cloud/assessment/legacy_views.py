@@ -152,12 +152,24 @@ def _run_handler(request, workspace):
     handler.ai_scope = f'ws{workspace.pk}'
     handler.audit_events = []
     request._audit_events = handler.audit_events
+    transition_scope = {'/api/exams/transition': 'exam', '/api/exams/set/transition': 'exam_set'}.get(request.path)
+    history_sizes = {e['id']: len(e.get('lifecycle', [])) for e in service._records('exams')} if transition_scope else {}
     if request.method == 'POST':
         handler.do_POST()
     else:
         handler.do_GET()
     if handler.response is None:
         raise Http404()
+    if transition_scope and handler.response.status_code == 409:
+        # Engine đã lưu nhật ký từ chối. Lấy sự kiện trước khi giao dịch hoàn tác,
+        # không giữ bất kỳ thay đổi tài liệu/trạng thái phát hành nào của request lỗi.
+        for exam in service._records('exams'):
+            for entry in exam.get('lifecycle', [])[history_sizes.get(exam['id'], 0):]:
+                if entry.get('action') == 'publish_blocked':
+                    object_id = (exam.get('exam_set') or {}).get('id') if transition_scope == 'exam_set' else exam['id']
+                    handler.audit_events.append(dict(action='publish_blocked', object_id=object_id,
+                        details=dict(scope=transition_scope, exam_id=exam['id'],
+                                     content_hash=entry.get('content_hash'), from_status=entry.get('from_status'))))
     return handler.response
 
 

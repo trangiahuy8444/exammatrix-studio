@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 from bank_service import ServiceError, number
 
-LEVELS = ('Biết', 'Hiểu', 'Vận dụng')
+LEVELS = ('Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao')
 KINDS = ('MC', 'YN', 'SHORT', 'ES')
 from domain.profiles import KIND_LABELS, allowed_kinds
 from domain.scoring import policy_table
@@ -109,7 +109,14 @@ def validate_matrix(matrix, ppct, for_lock=False):
         if not isinstance(value,list) or any(not isinstance(v,dict) for v in value):
             error('shape',key,'Danh sách không đúng định dạng.');arrays[key]=[]
         else: arrays[key]=value
-    catalog = {(x['grade'], x['lesson_code']):x for x in ppct.get('lessons',[])}
+    subj = m.get('subject_name') or 'Tin học'
+    catalog = {}
+    for x in ppct.get('lessons', []):
+        x_subj = x.get('subject_name') or 'Tin học'
+        if x_subj == subj or (subj == 'Tin học' and 'subject_name' not in x):
+            catalog[(x['grade'], x['lesson_code'])] = x
+        if (x['grade'], x['lesson_code']) not in catalog:
+            catalog[(x['grade'], x['lesson_code'])] = x
     grade=m.get('grade') if type(m.get('grade')) is int else None
     context = ppct.get('_context', {})
     if type(m.get('grade')) is not int or m['grade'] not in context.get('allowed_grades', (8,9,10)): error('grade','grade','Khối không thuộc chương trình đã chọn.')

@@ -94,7 +94,7 @@ class ReviewGuideTests(unittest.TestCase):
 
     def test_logo_is_smaller(self):
         d = docx.Document(io.BytesIO(export_document(record(), 'docx', revision=True)[0]))
-        shapes = d.sections[0].header._element.xpath('.//wp:extent')
+        shapes = d.element.xpath('.//wp:extent')
         self.assertTrue(shapes)
         width_cm = Emu(int(shapes[0].get('cx'))).cm
         self.assertLess(width_cm, 16.0)

@@ -1,9 +1,9 @@
+from __future__ import annotations
 """Local question-bank persistence and constrained exam generation.
 
 PPCT and source templates are read-only. An exam is a snapshot, never a live
 view of the bank. All mutation methods serialize validation and atomic writes.
 """
-from __future__ import annotations
 import copy
 import hashlib
 import json
@@ -29,9 +29,35 @@ from domain.reuse import DEFAULT_RECENT_DAYS, bank_duplicates, recent_uses
 from domain.permutation import mapping_rows, verify_codes
 from domain.kttx import CLUSTER_FORM, FORM_KEYS, FORMS, TIN_HOC_PERIODS, activity_title, kttx_overview
 from domain.revision_criterion import MODES as REVISION_MODES, revision_report
-from input_schema import canonical_short_answer
+from input_schema import ALLOWED_LEVELS, canonical_short_answer
 from pathlib import Path
 from domain.policies import resolve_similarity, require_revision
+
+
+def normalize_subject_name(name):
+    if not name or not isinstance(name, str):
+        return 'Tin học'
+    s = str(name).strip()
+    low = s.lower()
+    if 'vật lý' in low or 'vật lí' in low:
+        return 'Vật lí'
+    if 'địa lý' in low or 'địa lí' in low:
+        return 'Địa lí'
+    if 'toán' in low:
+        return 'Toán học'
+    if 'hóa' in low:
+        return 'Hóa học'
+    if 'sinh' in low:
+        return 'Sinh học'
+    if 'văn' in low:
+        return 'Ngữ văn'
+    if 'anh' in low:
+        return 'Tiếng Anh'
+    if 'sử' in low:
+        return 'Lịch sử'
+    if 'tin' in low:
+        return 'Tin học'
+    return s
 
 
 def _without_approval(exam):
@@ -123,7 +149,12 @@ class BankService:
         if not isinstance(initial, dict) or not isinstance(initial.get('ppct'), dict):
             raise ServiceError('Ngân hàng thiếu danh mục PPCT.', status=409)
         self.catalog = copy.deepcopy(initial['ppct'])
-        self.lessons = {(x['grade'], x['lesson_code']): x for x in self.catalog.get('lessons', [])}
+        self.lessons = {}
+        for x in self.catalog.get('lessons', []):
+            subj = normalize_subject_name(x.get('subject_name') or 'Tin học')
+            self.lessons[(subj, x['grade'], x['lesson_code'])] = x
+            if subj == 'Tin học':
+                self.lessons[(x['grade'], x['lesson_code'])] = x
         # Danh mục nhiều môn: nguồn duy nhất là public/curricula.js; data_dir/curricula.json (nếu có) ghi đè.
         curricula_path = self.data_dir / 'curricula.json'
         try:
@@ -271,8 +302,8 @@ class BankService:
         if q.get('type') not in ('MC', 'ES', 'YN', 'SHORT'):
             raise ServiceError('Chỉ hỗ trợ các dạng câu MC, ES, YN, SHORT.')
         lesson_code = self._text(q.get('lesson_code'), 'Mã bài')
-        subj = q.get('subject_name') or 'Tin học'
-        lesson = self.lessons.get((grade, lesson_code))
+        subj = normalize_subject_name(q.get('subject_name') or self.context.get('subject_name') or 'Tin học')
+        lesson = self.lessons.get((subj, grade, lesson_code)) or self.lessons.get((grade, lesson_code))
         if not lesson and subj != 'Tin học':
             subj_dict = getattr(self, 'subject_curricula', {}).get(subj, {})
             subj_list = subj_dict.get(str(grade), []) or subj_dict.get(grade, [])
@@ -287,7 +318,7 @@ class BankService:
         if lesson.get('outcomes') and q.get('learning_outcome') and q.get('learning_outcome') not in lesson.get('outcomes', []):
             if q.get('review_status') != 'draft':
                 raise ServiceError('Yêu cầu cần đạt phải thuộc bài học trong PPCT.')
-        if q.get('level') not in ('Biết', 'Hiểu', 'Vận dụng'):
+        if q.get('level') not in ALLOWED_LEVELS:
             raise ServiceError('Mức độ câu hỏi không hợp lệ.')
         q['question'] = self._text(q.get('question'), 'Nội dung câu hỏi')
         if q['review_status'] not in STATUSES:
@@ -369,14 +400,26 @@ class BankService:
         return q
 
     def _validate_bank(self, bank):
+        if isinstance(bank, list):
+            bank = {'questions': bank, 'ppct': copy.deepcopy(self.catalog)}
         if not isinstance(bank, dict) or not isinstance(bank.get('questions'), list):
             raise ServiceError('Ngân hàng cần có mảng questions.')
-        if bank.get('ppct') != self.catalog:
+        if 'ppct' not in bank or bank.get('ppct') is None:
+            bank['ppct'] = copy.deepcopy(self.catalog)
+        elif bank.get('ppct') != self.catalog:
             raise ServiceError('PPCT chỉ đọc; không được thay nguồn qua nhập ngân hàng.')
         result = copy.deepcopy(bank)
         ids, texts = set(), set()
         checked = []
         for raw in bank['questions']:
+            if not isinstance(raw, dict):
+                raise ServiceError('Câu hỏi phải là một đối tượng JSON.')
+            if not raw.get('id'):
+                raw['id'] = f"K{raw.get('grade', 10)}-GV-{uuid.uuid4().hex[:12]}"
+            if not raw.get('origin'):
+                raw['origin'] = 'teacher'
+            if not raw.get('review_status'):
+                raw['review_status'] = 'draft'
             q = self._validate_question(raw)
             ident = self._text(q.get('id'), 'Mã câu')
             if ident in ids:
@@ -560,7 +603,10 @@ class BankService:
         with self.lock:
             if not isinstance(payload, dict):
                 raise ServiceError('Dữ liệu bài học không hợp lệ.')
+            if isinstance(payload.get('lesson'), dict):
+                payload = dict(payload, **payload['lesson'])
             grade = self._grade(payload.get('grade'))
+            subj = normalize_subject_name(payload.get('subject_name') or payload.get('subject') or self.context.get('subject_name') or 'Tin học')
             code = self._text(payload.get('lesson_code'), 'Mã bài học')
             name = self._text(payload.get('lesson_name_source') or payload.get('lesson_name'), 'Tên bài học')
             topic = self._text(payload.get('topic_source') or payload.get('topic') or 'Chủ đề chung', 'Tên chủ đề')
@@ -574,22 +620,28 @@ class BankService:
             periods_raw = str(payload.get('periods_raw') or '1').strip()
             bank = self._load_bank()
             lessons = bank.setdefault('ppct', {}).setdefault('lessons', [])
-            existing = next((x for x in lessons if x.get('grade') == grade and x.get('lesson_code') == code), None)
+            existing = next((x for x in lessons
+                             if normalize_subject_name(x.get('subject_name') or 'Tin học') == subj
+                             and x.get('grade') == grade and x.get('lesson_code') == code), None)
             if existing:
                 old_outcomes = existing.get('outcomes', [])
                 used = {q.get('learning_outcome') for q in bank.get('questions', [])
-                        if q.get('grade') == grade and q.get('lesson_code') == code}
+                        if normalize_subject_name(q.get('subject_name') or 'Tin học') == subj
+                        and q.get('grade') == grade and q.get('lesson_code') == code}
                 if used - set(outcomes):
                     raise ServiceError('Yêu cầu cần đạt đang có câu hỏi sử dụng. Hãy cập nhật các câu hỏi liên quan trước khi bỏ hoặc thay yêu cầu này.', status=409)
                 if outcomes != old_outcomes and any(
-                    m.get('grade') == grade and any(r.get('lesson_code') == code for r in m.get('requirements', []))
+                    normalize_subject_name(m.get('subject_name') or 'Tin học') == subj
+                    and m.get('grade') == grade and any(r.get('lesson_code') == code for r in m.get('requirements', []))
                     for m in self._read_data(self.data_dir/'matrices/records.json', [])):
                     raise ServiceError('Bài đã được liên kết trong ma trận. Giữ nguyên danh sách và thứ tự YCCĐ hoặc điều chỉnh ma trận trước.', status=409)
                 for q in bank.get('questions', []):
-                    if q.get('grade') == grade and q.get('lesson_code') == code:
+                    if normalize_subject_name(q.get('subject_name') or 'Tin học') == subj and q.get('grade') == grade and q.get('lesson_code') == code:
                         q['lesson_name'] = name
                         q['topic_source'] = topic
-                        q['outcome_index'] = outcomes.index(q['learning_outcome'])
+                        if q.get('learning_outcome') in outcomes:
+                            q['outcome_index'] = outcomes.index(q['learning_outcome'])
+                existing['subject_name'] = subj
                 existing['lesson_name_source'] = name
                 existing['topic_source'] = topic
                 existing['outcomes'] = outcomes
@@ -598,6 +650,7 @@ class BankService:
             else:
                 entry = dict(
                     grade=grade,
+                    subject_name=subj,
                     lesson_code=code,
                     lesson_name_source=name,
                     topic_source=topic,
@@ -607,27 +660,43 @@ class BankService:
                 )
                 lessons.append(entry)
             self.catalog = copy.deepcopy(bank['ppct'])
-            self.lessons = {(x['grade'], x['lesson_code']): x for x in self.catalog.get('lessons', [])}
+            self.lessons = {}
+            for x in self.catalog.get('lessons', []):
+                s = normalize_subject_name(x.get('subject_name') or 'Tin học')
+                self.lessons[(s, x['grade'], x['lesson_code'])] = x
+                if s == 'Tin học':
+                    self.lessons[(x['grade'], x['lesson_code'])] = x
             self._atomic_save(self.bank_path, bank)
             return copy.deepcopy(bank)
 
-    def delete_ppct_lesson(self, grade, lesson_code):
+    def delete_ppct_lesson(self, grade, lesson_code, subject_name='Tin học'):
         with self.lock:
             grade = self._grade(grade)
             code = self._text(lesson_code, 'Mã bài học')
+            if subject_name == 'Tin học' and self.context.get('subject_name'):
+                subj = normalize_subject_name(self.context.get('subject_name'))
+            else:
+                subj = normalize_subject_name(subject_name)
             bank = self._load_bank()
-            if any(q.get('grade') == grade and q.get('lesson_code') == code for q in bank.get('questions', [])):
+            if any(normalize_subject_name(q.get('subject_name') or 'Tin học') == subj
+                   and q.get('grade') == grade and q.get('lesson_code') == code for q in bank.get('questions', [])):
                 raise ServiceError('Không thể xóa bài học đang có câu hỏi gắn kèm trong ngân hàng.')
-            if any(m.get('grade') == grade and any(l.get('lesson_code') == code for l in m.get('lessons', []))
+            if any(normalize_subject_name(m.get('subject_name') or 'Tin học') == subj
+                   and m.get('grade') == grade and any(l.get('lesson_code') == code for l in m.get('lessons', []))
                    for m in self._read_data(self.data_dir/'matrices/records.json', [])):
                 raise ServiceError('Không thể xóa bài học đang được dùng trong ma trận.', status=409)
             lessons = bank.setdefault('ppct', {}).setdefault('lessons', [])
             before = len(lessons)
-            bank['ppct']['lessons'] = [x for x in lessons if not (x.get('grade') == grade and x.get('lesson_code') == code)]
+            bank['ppct']['lessons'] = [x for x in lessons if not (normalize_subject_name(x.get('subject_name') or 'Tin học') == subj and x.get('grade') == grade and x.get('lesson_code') == code)]
             if len(bank['ppct']['lessons']) == before:
                 raise ServiceError('Không tìm thấy bài học cần xóa.', status=404)
             self.catalog = copy.deepcopy(bank['ppct'])
-            self.lessons = {(x['grade'], x['lesson_code']): x for x in self.catalog.get('lessons', [])}
+            self.lessons = {}
+            for x in self.catalog.get('lessons', []):
+                s = normalize_subject_name(x.get('subject_name') or 'Tin học')
+                self.lessons[(s, x['grade'], x['lesson_code'])] = x
+                if s == 'Tin học':
+                    self.lessons[(x['grade'], x['lesson_code'])] = x
             self._atomic_save(self.bank_path, bank)
             return copy.deepcopy(bank)
 
@@ -639,6 +708,7 @@ class BankService:
         if not isinstance(payload, dict):
             raise ServiceError('Dữ liệu nhập PPCT không hợp lệ.')
         name = str(payload.get('filename') or '').strip()
+        subj = normalize_subject_name(payload.get('subject_name') or payload.get('subject') or self.context.get('subject_name') or 'Tin học')
         grade = payload.get('grade')
         if isinstance(grade, str) and grade.strip().isdigit():
             grade = int(grade)
@@ -655,39 +725,49 @@ class BankService:
             lessons, issues = parse_docx(raw, grade, name)
         elif payload.get('json') is not None:
             raw = json.dumps(payload['json'], ensure_ascii=False, sort_keys=True).encode('utf-8')
-            lessons, issues = parse_json(payload['json'], grade if grade not in (None, '') else None)
+            lessons, issues = parse_json(payload['json'], grade if grade not in (None, '') else None, subject_name=subj)
             name = name or 'PPCT.json'
         else:
             raise ServiceError('Chọn tệp Word (.docx) hoặc JSON chứa PPCT.')
         for lesson in lessons:
             lesson['grade'] = self._grade(lesson['grade'])
+            lesson['subject_name'] = normalize_subject_name(lesson.get('subject_name') or subj)
             for occurrence in lesson.get('occurrences') or []:
                 occurrence.setdefault('grade', lesson['grade'])
             lesson['source_file'] = lesson.get('source_file') or name
-        return lessons, issues, name, raw
+        return lessons, issues, name, raw, subj
 
-    def _ppct_conflict(self, bank, grade, code, outcomes):
+    def _ppct_conflict(self, bank, grade, code, outcomes, subject_name='Tin học'):
         """Cùng quy tắc với save_ppct_lesson: không bỏ YCCĐ đang có câu dùng; không đổi YCCĐ của bài đã gắn ma trận."""
-        existing = next((x for x in bank['ppct'].get('lessons', []) if x.get('grade') == grade and x.get('lesson_code') == code), None)
+        subj = normalize_subject_name(subject_name)
+        existing = next((x for x in bank['ppct'].get('lessons', [])
+                         if normalize_subject_name(x.get('subject_name') or 'Tin học') == subj
+                         and x.get('grade') == grade and x.get('lesson_code') == code), None)
         if existing is None or existing.get('outcomes', []) == outcomes:
             return None
-        used = {q.get('learning_outcome') for q in bank.get('questions', []) if q.get('grade') == grade and q.get('lesson_code') == code}
+        used = {q.get('learning_outcome') for q in bank.get('questions', [])
+                if normalize_subject_name(q.get('subject_name') or 'Tin học') == subj
+                and q.get('grade') == grade and q.get('lesson_code') == code}
         missing = sorted(x for x in used - set(outcomes) if x)
         if missing:
             return dict(reason='Yêu cầu cần đạt đang có câu hỏi sử dụng sẽ bị bỏ hoặc thay.', outcomes=missing)
-        if any(m.get('grade') == grade and any(r.get('lesson_code') == code for r in m.get('requirements', []))
+        if any(normalize_subject_name(m.get('subject_name') or 'Tin học') == subj
+               and m.get('grade') == grade and any(r.get('lesson_code') == code for r in m.get('requirements', []))
                for m in self._read_data(self.data_dir/'matrices/records.json', [])):
             return dict(reason='Bài đã được liên kết trong ma trận; YCCĐ phải giữ nguyên danh sách và thứ tự.')
         return None
 
-    def _ppct_diff(self, bank, lessons):
+    def _ppct_diff(self, bank, lessons, subject_name='Tin học'):
         from ppct_import import same_name
-        current = {(x.get('grade'), x.get('lesson_code')): x for x in bank['ppct'].get('lessons', [])}
+        current = {(normalize_subject_name(x.get('subject_name') or 'Tin học'), x.get('grade'), x.get('lesson_code')): x
+                   for x in bank['ppct'].get('lessons', [])}
         rows = []
         for lesson in lessons:
-            key = (lesson['grade'], lesson['lesson_code'])
+            subj = normalize_subject_name(lesson.get('subject_name') or subject_name)
+            key = (subj, lesson['grade'], lesson['lesson_code'])
             old = current.get(key)
-            row = dict(grade=lesson['grade'], lesson_code=lesson['lesson_code'], lesson_name=lesson['lesson_name_source'],
+            row = dict(grade=lesson['grade'], lesson_code=lesson['lesson_code'], subject_name=subj,
+                       lesson_name=lesson['lesson_name_source'],
                        topic=lesson['topic_source'], outcomes=lesson['outcomes'], occurrences=len(lesson.get('occurrences') or []))
             if not lesson['outcomes']:
                 row.update(status='conflict', conflict=dict(reason='Bài chưa có yêu cầu cần đạt.'))
@@ -701,7 +781,7 @@ class BankService:
                     changes.append(dict(field='Chủ đề', old=old.get('topic_source', ''), new=lesson['topic_source']))
                 if old.get('outcomes', []) != lesson['outcomes']:
                     changes.append(dict(field='Yêu cầu cần đạt', old=old.get('outcomes', []), new=lesson['outcomes']))
-                conflict = self._ppct_conflict(bank, *key, lesson['outcomes'])
+                conflict = self._ppct_conflict(bank, lesson['grade'], lesson['lesson_code'], lesson['outcomes'], subject_name=subj)
                 row.update(status='conflict' if conflict else ('changed' if changes else 'unchanged'), changes=changes)
                 if conflict:
                     row['conflict'] = conflict
@@ -711,53 +791,60 @@ class BankService:
 
     def inspect_ppct_import(self, payload):
         with self.lock:
-            lessons, issues, name, raw = self._read_ppct_payload(payload)
-            rows, summary = self._ppct_diff(self._load_bank(), lessons)
+            lessons, issues, name, raw, subj = self._read_ppct_payload(payload)
+            rows, summary = self._ppct_diff(self._load_bank(), lessons, subject_name=subj)
             return dict(filename=name, sha256=hashlib.sha256(raw).hexdigest(), lessons=rows, summary=summary, issues=issues,
-                        grades=sorted({x['grade'] for x in lessons}))
+                        grades=sorted({x['grade'] for x in lessons}), subject_name=subj)
 
     def apply_ppct_import(self, payload):
         """Thêm bài mới, cập nhật bài thay đổi; bỏ qua bài xung đột. Bài đang có mà tệp không nhắc tới được giữ nguyên."""
         from ppct_import import same_name
         with self.lock:
-            lessons, issues, name, raw = self._read_ppct_payload(payload)
+            lessons, issues, name, raw, subj = self._read_ppct_payload(payload)
             sha = hashlib.sha256(raw).hexdigest()
             if payload.get('expected_sha256') and payload['expected_sha256'] != sha:
                 raise ServiceError('Tệp đã thay đổi so với lúc đối chiếu. Hãy đọc và đối chiếu lại.', status=409)
             bank = self._load_bank()
-            rows, summary = self._ppct_diff(bank, lessons)
-            status = {(r['grade'], r['lesson_code']): r['status'] for r in rows}
+            rows, summary = self._ppct_diff(bank, lessons, subject_name=subj)
+            status = {(normalize_subject_name(r.get('subject_name') or subj), r['grade'], r['lesson_code']): r['status'] for r in rows}
             if not summary['new'] and not summary['changed']:
                 raise ServiceError('Không có bài mới hoặc bài thay đổi để nhập.', dict(summary=summary), 409)
             catalog = bank.setdefault('ppct', {})
             current = catalog.setdefault('lessons', [])
             for lesson in lessons:
-                key = (lesson['grade'], lesson['lesson_code'])
-                entry = dict(grade=lesson['grade'], lesson_code=lesson['lesson_code'], lesson_name_source=lesson['lesson_name_source'],
+                key = (normalize_subject_name(lesson.get('subject_name') or subj), lesson['grade'], lesson['lesson_code'])
+                entry = dict(grade=lesson['grade'], lesson_code=lesson['lesson_code'], subject_name=key[0],
+                             lesson_name_source=lesson['lesson_name_source'],
                              topic_source=lesson['topic_source'], outcomes=lesson['outcomes'], source_file=lesson['source_file'],
                              occurrences=lesson.get('occurrences') or [dict(table_index=0, row_index=0, week_raw='', periods_raw='')])
                 if status[key] == 'new':
                     current.append(entry)
                 elif status[key] == 'changed':
-                    old = next(x for x in current if (x.get('grade'), x.get('lesson_code')) == key)
+                    old = next(x for x in current
+                               if (normalize_subject_name(x.get('subject_name') or 'Tin học'), x.get('grade'), x.get('lesson_code')) == key)
                     if same_name(old.get('lesson_name_source', ''), entry['lesson_name_source']):
                         entry['lesson_name_source'] = old['lesson_name_source']
                     old.update(entry)
                     for q in bank.get('questions', []):
-                        if (q.get('grade'), q.get('lesson_code')) == key:
+                        if (normalize_subject_name(q.get('subject_name') or 'Tin học'), q.get('grade'), q.get('lesson_code')) == key:
                             q['lesson_name'] = entry['lesson_name_source']
                             q['topic_source'] = entry['topic_source']
                             if q.get('learning_outcome') in entry['outcomes']:
                                 q['outcome_index'] = entry['outcomes'].index(q['learning_outcome'])
             sources = catalog.setdefault('sources', [])
             for grade in sorted({x['grade'] for x in lessons}):
-                if not any(x.get('grade') == grade and x.get('sha256') == sha for x in sources):
-                    sources.append(dict(grade=grade, path=name, sha256=sha, imported_at=now(),
+                if not any(x.get('grade') == grade and normalize_subject_name(x.get('subject_name') or 'Tin học') == subj and x.get('sha256') == sha for x in sources):
+                    sources.append(dict(grade=grade, subject_name=subj, path=name, sha256=sha, imported_at=now(),
                                         approval_status='Nhập qua ứng dụng; giáo viên đối chiếu với bản KHDH đã duyệt.'))
             if name.lower().endswith('.docx'):
                 self.write_source('matrices/sources/ppct-'+sha+'.docx', raw)
             self.catalog = copy.deepcopy(bank['ppct'])
-            self.lessons = {(x['grade'], x['lesson_code']): x for x in self.catalog.get('lessons', [])}
+            self.lessons = {}
+            for x in self.catalog.get('lessons', []):
+                s = normalize_subject_name(x.get('subject_name') or 'Tin học')
+                self.lessons[(s, x['grade'], x['lesson_code'])] = x
+                if s == 'Tin học':
+                    self.lessons[(x['grade'], x['lesson_code'])] = x
             self._atomic_save(self.bank_path, bank)
             return dict(bank=copy.deepcopy(bank), summary=summary, lessons=rows, issues=issues)
 
@@ -892,11 +979,144 @@ class BankService:
                 raise ServiceError('Không tìm thấy bản đã lưu.', {'id': ident}, 404)
             return copy.deepcopy(value)
 
-    def _first_period(self, grade, lesson_code):
+    def _first_period(self, grade, lesson_code, subject_name='Tin học'):
+        subj = normalize_subject_name(subject_name)
+        lesson = self.lessons.get((subj, grade, lesson_code)) or self.lessons.get((grade, lesson_code), {})
         periods = []
-        for occurrence in self.lessons.get((grade, lesson_code), {}).get('occurrences', []):
+        for occurrence in lesson.get('occurrences', []):
             periods.extend(int(x) for x in re.findall(r'\d+', str(occurrence.get('periods_raw', ''))))
         return min(periods) if periods else math.inf
+
+    def _cells_from_matrix(self, m, grade, exam_type):
+        if m.get('grade') != grade or m.get('exam_type') != exam_type:
+            raise ServiceError('Ma trận đã chọn khác khối hoặc kì kiểm tra.', {'matrix_id': m.get('id')})
+        subj = normalize_subject_name(m.get('subject_name') or 'Tin học')
+        reqs = {r['id']: r for r in m.get('requirements', [])}
+        cells, total = {}, Decimal(0)
+        slot_ids = set()
+        for slot in m.get('slots', []):
+            sid = slot.get('id')
+            if not isinstance(sid, str) or not sid or sid in slot_ids or type(slot.get('number')) is not int:
+                raise ServiceError('Ma trận thiếu hoặc trùng mã vị trí nguồn.', {'slot': slot.get('number')})
+            slot_ids.add(sid)
+            parts = [reqs.get(p.get('requirement_id')) for p in slot.get('parts', [])]
+            if not parts or None in parts:
+                raise ServiceError('Ma trận có vị trí câu chưa gắn yêu cầu cần đạt.', {'slot': slot.get('number')})
+            lessons = {r['lesson_code'] for r in parts}; levels = {r['level'] for r in parts}
+            if len(lessons) != 1 or len(levels) != 1:
+                if len(lessons) != 1:
+                    raise ServiceError('Câu gồm nhiều bài chưa tạo tự động được; dùng "Tạo đề riêng" ở Ma trận & đặc tả.',
+                                       {'slot': slot.get('number'), 'kind': slot.get('kind')})
+            lesson = next(iter(lessons))
+            catalog = self.lessons.get((subj, grade, lesson)) or self.lessons.get((grade, lesson)) or {}
+            outcomes = []
+            for r in parts:
+                idx = r.get('ppct_outcome_index')
+                text = catalog.get('outcomes', [])[idx] if isinstance(idx, int) and idx < len(catalog.get('outcomes', [])) else None
+                if text is None:
+                    if catalog.get('outcomes'):
+                        text = catalog['outcomes'][0]
+                    else:
+                        raise ServiceError('Yêu cầu trong ma trận chưa gắn YCCĐ của PPCT.', {'slot': slot.get('number'), 'requirement': r.get('id')})
+                if text not in outcomes:
+                    outcomes.append(text)
+            points = sum((number(p.get('points'), 'Điểm') for p in slot['parts']), Decimal(0))
+            total += points
+            key = (lesson, slot['kind'], next(iter(levels)), tuple(sorted(outcomes)))
+            cell = cells.setdefault(key, {'count': 0, 'points': [], 'source_slots': []})
+            cell['count'] += 1; cell['points'].append(float(points))
+            cell['source_slots'].append(dict(id=sid, number=slot['number']))
+        if total != 10:
+            raise ServiceError('Tổng điểm ma trận phải bằng 10.', {'total_points': str(total)})
+        rows = [dict(lesson_code=k[0], type=k[1], level=k[2], count=c['count'], outcomes=list(k[3]),
+                     points_per_question=c['points'][0] if len(set(c['points'])) == 1 else None, points=c['points'])
+                for k, c in cells.items()]
+        profile = m.get('profile') or (default_profile_for_grade(grade) if self.school_profile else 'GENERAL')
+        return rows, None, cells, profile, allowed_kinds(m)
+
+    def _matrix_cells(self, payload, grade, exam_type):
+        """Đọc ma trận thành các ô đã kiểm tra; dùng chung cho đề, bộ đề và đề cương tự động.
+
+        Nguồn: ma trận đã khóa ở "Ma trận & đặc tả" (`_matrix`, do máy chủ nạp từ `matrix_id`; ô gồm cả YCCĐ),
+        mẫu ma trận khóa (`template_id`) hoặc phân bố tự thiết lập (`blueprint`). Ô = (bài, dạng, mức độ[, YCCĐ]).
+        """
+        if payload.get('_matrix'):
+            return self._cells_from_matrix(payload['_matrix'], grade, exam_type)
+        template = None
+        if payload.get('template_id'):
+            template = next((t for t in self.templates() if t['id'] == payload['template_id']), None)
+            if not template or template.get('grade') != grade or template.get('exam_type') != exam_type:
+                raise ServiceError('Ma trận nguồn không phù hợp khối hoặc kì kiểm tra.')
+            if self.school_profile and grade in (8, 10) and exam_type != 'TX' and not template.get('locked'):
+                raise ServiceError('Chưa có ma trận gốc đã khóa phù hợp khối và kì kiểm tra; không dùng ma trận tùy chỉnh thay thế.')
+            if template.get('unsupported'):
+                raise ServiceError('Ma trận nguồn chưa được hỗ trợ; không tự chuyển dạng câu.',
+                                   {'source_notes': template.get('source_notes'), 'unsupported_sections': template.get('unsupported_sections', [])})
+            if payload.get('blueprint') and payload['blueprint'] != template['rows']:
+                raise ServiceError('Ma trận nguồn đã khóa; không được thay số câu, điểm, bài hoặc mức độ.')
+            rows = copy.deepcopy(template['rows'])
+        else:
+            if self.school_profile and exam_type != 'TX' and grade in (8, 10):
+                raise ServiceError('Chưa có ma trận gốc được chọn cho khối và kì kiểm tra; khối 8/10 phải dùng ma trận nguồn đã khóa.')
+            rows = payload.get('blueprint')
+        if not isinstance(rows, list) or not rows:
+            raise ServiceError('Cần khai báo ít nhất một dòng ma trận.')
+        # B3: dạng câu theo mẫu hồ sơ (THCS: MC, tự luận; THPT theo CV 7991: thêm Đ/S, trả lời ngắn; KTTX: tự chọn).
+        profile = payload.get('profile') or (default_profile_for_grade(grade) if self.school_profile else 'GENERAL')
+        if profile not in PROFILE_KINDS:
+            raise ServiceError('Mẫu hồ sơ kiểm tra không hợp lệ.', {'profile': profile})
+        if payload.get('scoring_policy') is not None:
+            policy_table(payload['scoring_policy'])
+        kinds_allowed = allowed_kinds(dict(profile=profile, **({'allowed_kinds': payload['allowed_kinds']}
+                                                                if payload.get('allowed_kinds') is not None else {})))
+        subj = normalize_subject_name(payload.get('subject_name') or payload.get('subject') or (payload.get('_matrix') or {}).get('subject_name') or self.context.get('subject_name') or 'Tin học')
+        total = Decimal(0)
+        cells = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ServiceError('Dòng ma trận không đúng định dạng.')
+            if row.get('type') not in kinds_allowed:
+                label = KIND_LABELS.get(row.get('type'))
+                raise ServiceError(f'Mẫu hồ sơ {profile} không có dạng {label}.' if label else
+                                   f'Không có dạng câu {row.get("type")}; Đúng/Sai không được đổi thành MC.',
+                                   {'type': row.get('type'), 'allowed_kinds': list(kinds_allowed)})
+            l_code = row.get('lesson_code')
+            has_lesson = (grade, l_code) in self.lessons or (subj, grade, l_code) in self.lessons
+            if not isinstance(l_code, str) or not has_lesson or row.get('level') not in ALLOWED_LEVELS:
+                raise ServiceError('Bài hoặc mức độ ma trận không thuộc danh mục.')
+            count = row.get('count')
+            if type(count) is not int or not 1 <= count <= 500:
+                raise ServiceError('Số câu phải là số nguyên từ 1 đến 500.')
+            points = number(row.get('points_per_question'), 'Điểm mỗi câu')
+            if points <= 0:
+                raise ServiceError('Điểm mỗi câu phải lớn hơn 0.')
+            total += count * points
+            key = (row['lesson_code'], row['type'], row['level'])
+            cell = cells.setdefault(key, {'count': 0, 'points': []})
+            cell['count'] += count; cell['points'].extend([float(points)] * count)
+        if total != 10:
+            raise ServiceError('Tổng điểm ma trận phải bằng 10.', {'total_points': str(total)})
+        return rows, template, cells, profile, kinds_allowed
+
+    def _cell_candidates(self, bank, grade, exam_type, template, key, subject_name='Tin học'):
+        """Câu approved đúng ô (bài, dạng, mức độ), không trùng mã hay nội dung; kèm cờ bài sau mốc kiểm tra."""
+        lesson, kind, level = key[:3]
+        outcomes = set(key[3]) if len(key) > 3 else None
+        subj = normalize_subject_name(subject_name)
+        limits = {'GK1': 20 if grade == 10 else 10, 'CK1': 32 if grade == 10 else 16,
+                  'GK2': 52 if grade == 10 else 26, 'CK2': 62 if grade == 10 else 31}
+        after_exam = self.school_profile and subj == 'Tin học' and exam_type in limits and self._first_period(grade, lesson, subj) >= limits[exam_type]
+        strict = [q for q in bank if normalize_subject_name(q.get('subject_name') or 'Tin học') == subj and
+                  q['grade'] == grade and q['lesson_code'] == lesson and
+                  q['type'] == kind and q['level'] == level and q.get('review_status') in EXAM_ELIGIBLE and
+                  (outcomes is None or q.get('learning_outcome') in outcomes) and
+                  (template is not None or outcomes is not None or not after_exam)]
+        seen_ids, seen_text, unique = set(), set(), []
+        for q in strict:
+            marker = normalized(q['question'])
+            if q['id'] not in seen_ids and marker not in seen_text:
+                seen_ids.add(q['id']); seen_text.add(marker); unique.append(q)
+        return unique, after_exam
 
     def generate_exam(self, payload):
         with self.lock:
@@ -905,108 +1125,66 @@ class BankService:
             if exam_type not in ('TX', 'GK1', 'CK1', 'GK2', 'CK2'):
                 raise ServiceError('Loại kiểm tra không hợp lệ.')
             title = self._text(payload.get('title'), 'Tên đề kiểm tra')
-            duration = payload.get('duration', 45)
+            matrix = payload.get('_matrix')
+            subj = normalize_subject_name((matrix or {}).get('subject_name') or payload.get('subject_name') or self.context.get('subject_name') or 'Tin học')
+            duration = payload.get('duration', (matrix or {}).get('duration') or 45)
             if type(duration) is not int or not 1 <= duration <= 300:
                 raise ServiceError('Thời lượng phải là số nguyên từ 1 đến 300 phút.')
-            template = None
-            if payload.get('template_id'):
-                template = next((t for t in self.templates() if t['id'] == payload['template_id']), None)
-                if not template or template.get('grade') != grade or template.get('exam_type') != exam_type:
-                    raise ServiceError('Ma trận nguồn không phù hợp khối hoặc kì kiểm tra.')
-                if self.school_profile and grade in (8, 10) and exam_type != 'TX' and not template.get('locked'):
-                    raise ServiceError('Chưa có ma trận gốc đã khóa phù hợp khối và kì kiểm tra; không dùng ma trận tùy chỉnh thay thế.')
-                if template.get('unsupported'):
-                    raise ServiceError('Ma trận nguồn chưa được hỗ trợ; không tự chuyển dạng câu.',
-                                       {'source_notes': template.get('source_notes'), 'unsupported_sections': template.get('unsupported_sections', [])})
-                if payload.get('blueprint') and payload['blueprint'] != template['rows']:
-                    raise ServiceError('Ma trận nguồn đã khóa; không được thay số câu, điểm, bài hoặc mức độ.')
-                rows = copy.deepcopy(template['rows'])
-            else:
-                if self.school_profile and exam_type != 'TX' and grade in (8, 10):
-                    raise ServiceError('Chưa có ma trận gốc được chọn cho khối và kì kiểm tra; khối 8/10 phải dùng ma trận nguồn đã khóa.')
-                rows = payload.get('blueprint')
-            if not isinstance(rows, list) or not rows:
-                raise ServiceError('Cần khai báo ít nhất một dòng ma trận.')
-            # B3: dạng câu theo mẫu hồ sơ (THCS: MC, tự luận; THPT theo CV 7991: thêm Đ/S, trả lời ngắn; KTTX: tự chọn).
-            profile = payload.get('profile') or (default_profile_for_grade(grade) if self.school_profile else 'GENERAL')
-            if profile not in PROFILE_KINDS:
-                raise ServiceError('Mẫu hồ sơ kiểm tra không hợp lệ.', {'profile': profile})
-            if payload.get('scoring_policy') is not None:
-                policy_table(payload['scoring_policy'])
-            kinds_allowed = allowed_kinds(dict(profile=profile, **({'allowed_kinds': payload['allowed_kinds']}
-                                                                    if payload.get('allowed_kinds') is not None else {})))
-            total = Decimal(0)
-            cells = {}
-            for row in rows:
-                if not isinstance(row, dict):
-                    raise ServiceError('Dòng ma trận không đúng định dạng.')
-                if row.get('type') not in kinds_allowed:
-                    label = KIND_LABELS.get(row.get('type'))
-                    raise ServiceError(f'Mẫu hồ sơ {profile} không có dạng {label}.' if label else
-                                       f'Không có dạng câu {row.get("type")}; Đúng/Sai không được đổi thành MC.',
-                                       {'type': row.get('type'), 'allowed_kinds': list(kinds_allowed)})
-                if not isinstance(row.get('lesson_code'), str) or (grade, row.get('lesson_code')) not in self.lessons or row.get('level') not in ('Biết', 'Hiểu', 'Vận dụng'):
-                    raise ServiceError('Bài hoặc mức độ ma trận không thuộc danh mục.')
-                count = row.get('count')
-                if type(count) is not int or not 1 <= count <= 500:
-                    raise ServiceError('Số câu phải là số nguyên từ 1 đến 500.')
-                points = number(row.get('points_per_question'), 'Điểm mỗi câu')
-                if points <= 0:
-                    raise ServiceError('Điểm mỗi câu phải lớn hơn 0.')
-                total += count * points
-                key = (row['lesson_code'], row['type'], row['level'])
-                cell = cells.setdefault(key, {'count': 0, 'points': []})
-                cell['count'] += count; cell['points'].extend([float(points)] * count)
-            if total != 10:
-                raise ServiceError('Tổng điểm ma trận phải bằng 10.', {'total_points': str(total)})
-            revision = self.get_record('revisions', payload.get('revision_id'))
-            if revision['grade'] != grade:
+            rows, template, cells, profile, kinds_allowed = self._matrix_cells(payload, grade, exam_type)
+            # Đề cương không bắt buộc khi tạo: đề chưa gắn đề cương vẫn bị chặn ở bước duyệt (rules/01, B6).
+            revision = self.get_record('revisions', payload['revision_id']) if payload.get('revision_id') else None
+            if revision and revision['grade'] != grade:
                 raise ServiceError('Đề cương đối chiếu phải cùng khối với đề kiểm tra.')
             sim_pct = float(resolve_similarity(payload.get('similarity_percent', 90)))
             sim_mode = payload.get('similarity_mode', 'min')
             if sim_mode not in ('min', 'exact'):
                 sim_mode = 'min'
-            revision_hashes = {content_hash(q) for q in revision['questions']}
+            revision_hashes = {content_hash(q) for q in revision['questions']} if revision else set()
             bank = self._load_bank()['questions']
-            limits = {'GK1': 20 if grade == 10 else 10, 'CK1': 32 if grade == 10 else 16,
-                      'GK2': 52 if grade == 10 else 26, 'CK2': 62 if grade == 10 else 31}
             rng = random.Random(str(payload.get('seed', '')))
             total_needed = sum(c['count'] for c in cells.values())
             target_covered_total = math.ceil(Decimal(str(sim_pct)) / Decimal('100') * total_needed)
             outside_budget = max(0, total_needed - target_covered_total) if sim_mode == 'exact' else 0
+            forced = payload.get('question_ids')  # bộ đề: câu đã chia sẵn cho từng ô
+            if forced is not None and (not isinstance(forced, list) or not all(isinstance(x, str) for x in forced)
+                                       or len(forced) != len(set(forced)) or len(forced) != total_needed):
+                raise ServiceError('Danh sách câu chỉ định phải đủ số câu của ma trận, không trùng mã.')
             selected, missing, matched = [], [], 0
+            used_forced_ids = set()
             for key, cell in cells.items():
-                lesson, kind, level = key
-                after_exam = self.school_profile and exam_type in limits and self._first_period(grade, lesson) >= limits[exam_type]
-                eligible = [q for q in bank if q['grade'] == grade and q['lesson_code'] == lesson and
-                            q['type'] == kind and q['level'] == level and q.get('review_status') in EXAM_ELIGIBLE and
-                            (template is not None or not after_exam)]
-                # Never choose duplicate IDs or duplicate prompt text, even from a manually edited file.
-                seen_ids, seen_text, unique = set(), set(), []
-                for q in eligible:
-                    marker = normalized(q['question'])
-                    if q['id'] not in seen_ids and marker not in seen_text:
-                        seen_ids.add(q['id']); seen_text.add(marker); unique.append(q)
-                if len(unique) < cell['count']:
+                lesson, kind, level = key[:3]
+                unique, after_exam = self._cell_candidates(bank, grade, exam_type, template, key, subject_name=subj)
+                if forced is not None:
+                    chosen = [q for q in unique if q['id'] in forced and q['id'] not in used_forced_ids][:cell['count']]
+                    used_forced_ids.update(q['id'] for q in chosen)
+                    if len(chosen) != cell['count']:
+                        raise ServiceError('Câu chỉ định không khớp ô ma trận hoặc chưa được duyệt.',
+                                           {'lesson_code': lesson, 'type': kind, 'level': level,
+                                             'requested': cell['count'], 'matched': len(chosen)})
+                elif len(unique) < cell['count']:
                     missing.append(dict(lesson_code=lesson, type=kind, level=level, requested=cell['count'],
                                         available=len(unique), missing=cell['count']-len(unique),
                                         reason='Bài học sau mốc kiểm tra.' if after_exam and template is None else 'Không đủ câu trong đúng ô.'))
                     continue
-                covered = [q for q in unique if content_hash(q) in revision_hashes]
-                outside = [q for q in unique if content_hash(q) not in revision_hashes]
-                rng.shuffle(covered); rng.shuffle(outside)
-                if sim_mode == 'exact' and outside_budget > 0 and outside:
-                    take_out = min(len(outside), outside_budget, cell['count'])
-                    take_cov = cell['count'] - take_out
-                    if len(covered) < take_cov:
-                        take_cov = len(covered)
-                        take_out = min(len(outside), cell['count'] - take_cov)
-                    chosen = covered[:take_cov] + outside[:take_out]
-                    outside_budget -= take_out
-                else:
-                    chosen = (covered + outside)[:cell['count']]
-                for q, points in zip(chosen, cell['points']):
+                if forced is None:
+                    covered = [q for q in unique if content_hash(q) in revision_hashes]
+                    outside = [q for q in unique if content_hash(q) not in revision_hashes]
+                    rng.shuffle(covered); rng.shuffle(outside)
+                    if sim_mode == 'exact' and outside_budget > 0 and outside:
+                        take_out = min(len(outside), outside_budget, cell['count'])
+                        take_cov = cell['count'] - take_out
+                        if len(covered) < take_cov:
+                            take_cov = len(covered)
+                            take_out = min(len(outside), cell['count'] - take_cov)
+                        chosen = covered[:take_cov] + outside[:take_out]
+                        outside_budget -= take_out
+                    else:
+                        chosen = (covered + outside)[:cell['count']]
+                for index, (q, points) in enumerate(zip(chosen, cell['points'])):
                     snap = copy.deepcopy(q); snap['content_hash'] = content_hash(q); snap['points'] = points
+                    if 'source_slots' in cell:
+                        source_slot = cell['source_slots'][index]
+                        snap.update(slot_id=source_slot['id'], slot_number=source_slot['number'])
                     in_rev = snap['content_hash'] in revision_hashes
                     snap['in_revision'] = in_rev
                     matched += int(in_rev)
@@ -1021,29 +1199,238 @@ class BankService:
                     selected.append(snap)
             if missing:
                 raise ServiceError('Ngân hàng chưa đủ câu theo ma trận.', {'shortages': missing})
-            required = math.ceil((Decimal(str(sim_pct)) / Decimal('100')) * len(selected))
-            if matched < required:
+            required = math.ceil((Decimal(str(sim_pct)) / Decimal('100')) * len(selected)) if revision else None
+            if revision and matched < required:
                 msg = 'Chưa đạt ít nhất 90% nội dung từ phiên bản đề cương.' if sim_pct == 90 else f'Chưa đạt ít nhất {sim_pct:g}% nội dung từ phiên bản đề cương.'
                 raise ServiceError(msg,
                                    {'matched': matched, 'required': required, 'total': len(selected),
                                     'similarity_percent': sim_pct,
                                     'revision_id': revision['id'], 'reason': 'Câu sửa nội dung sau khi lưu đề cương không được tính trùng phiên bản.'})
             exam = dict(id=f'EXAM-{uuid.uuid4().hex[:12]}', title=title, grade=grade, exam_type=exam_type,
+                        subject_name=subj,
                         duration=duration, created_at=now(), seed=payload.get('seed'), blueprint=rows,
+                        status='drafting',
                         template_id=template['id'] if template else None,
                         source_notes=template.get('source_notes', '') if template else '',
                         source_file=template.get('source_file', '') if template else '',
                         source_sha256=template.get('source_sha256', '') if template else '',
-                        revision_id=revision['id'], revision_match_count=matched, revision_required_count=required,
+                        revision_id=revision['id'] if revision else None,
+                        revision_match_count=matched if revision else None, revision_required_count=required,
                         similarity_target_percent=sim_pct, similarity_mode=sim_mode,
                         question_count=len(selected), total_points=10, questions=selected,
                         profile=profile, allowed_kinds=list(kinds_allowed),
-                        scoring_policy=exam_policy(payload.get('scoring_policy'), exam_type),
-                        validation_note='Đã kiểm tra theo bài, dạng và mức độ; giáo viên cần đối chiếu chi tiết từng YCCĐ của bảng đặc tả trước khi phát hành.')
+                        scoring_policy=exam_policy(payload.get('scoring_policy', (matrix or {}).get('scoring_policy')), exam_type),
+                        validation_note='Đã kiểm tra theo bài, dạng và mức độ; giáo viên cần đối chiếu chi tiết từng YCCĐ của bảng đặc tả trước khi phát hành.'
+                                        + ('' if revision else ' Đề chưa gắn đề cương: chưa duyệt được cho đến khi gắn đề cương đạt T ≥ 90%.'))
+            if matrix:  # ô ma trận gồm cả YCCĐ; chụp ma trận để bước duyệt đối chiếu từng ô (B4)
+                exam.update(matrix_id=matrix['id'], matrix_version=matrix.get('version'),
+                            matrix_digest=matrix.get('content_sha256'), matrix_snapshot=copy.deepcopy(matrix),
+                            duration=duration)
             records = self._records('exams'); exam['reuse_check'] = self.reuse_check(exam, records)
             self._refresh_revision_check(exam); records.append(exam)
             self._atomic_save(self.data_dir/'exams.json', records)
             return copy.deepcopy(exam)
+
+    @staticmethod
+    def _cell_key(key):
+        return '|'.join(list(key[:3]) + list(key[3] if len(key) > 3 else ()))
+
+    def _revision_plan(self, cells, candidates, counts=None, total=None, rng=None, lesson_counts=None):
+        """Số câu đề cương từng ô: theo `counts` (khóa ô → số câu), `lesson_counts` (bài → {MC, ES}), hoặc chia `total` theo tỉ lệ số câu của ô,
+        mặc định gấp 1,5 lần số câu một đề; không vượt số câu đã duyệt. Chọn rải đều các YCCĐ trong ô."""
+        rng = rng or random.Random('')
+        keys = list(cells)
+        need = {k: cells[k]['count'] for k in keys}
+        if lesson_counts is not None and isinstance(lesson_counts, dict) and counts is None:
+            counts = {}
+            groups = {}
+            for k in keys:
+                groups.setdefault((k[0], k[1]), []).append(k)
+            for (l_code, q_type), group_keys in groups.items():
+                cfg = lesson_counts.get(l_code, {})
+                target = cfg.get(q_type, 0) if isinstance(cfg, dict) else (cfg if isinstance(cfg, int) else 0)
+                if target > 0:
+                    group_need = sum(need[k] for k in group_keys) or len(group_keys)
+                    raw = {k: Decimal(target) * (need[k] or 1) / group_need for k in group_keys}
+                    want_part = {k: int(raw[k]) for k in group_keys}
+                    for k in sorted(group_keys, key=lambda k: raw[k] - want_part[k], reverse=True)[:target - sum(want_part.values())]:
+                        want_part[k] += 1
+                    for k in group_keys:
+                        counts[self._cell_key(k)] = want_part[k]
+                else:
+                    for k in group_keys:
+                        counts[self._cell_key(k)] = 0
+
+        if counts is not None:
+            if not isinstance(counts, dict) or any(type(v) is not int or v < 0 for v in counts.values()):
+                raise ServiceError('Số câu đề cương từng ô phải là số nguyên không âm.')
+            want = {k: counts.get(self._cell_key(k), 0) for k in keys}
+        elif total is not None:
+            if type(total) is not int or total < 1:
+                raise ServiceError('Tổng số câu đề cương phải là số nguyên dương.')
+            whole = sum(need.values())
+            raw = {k: Decimal(total) * need[k] / whole for k in keys}
+            want = {k: int(raw[k]) for k in keys}
+            for k in sorted(keys, key=lambda k: raw[k] - want[k], reverse=True)[:total - sum(want.values())]:
+                want[k] += 1
+        else:
+            want = {k: math.ceil(Decimal(need[k]) * Decimal('1.5')) for k in keys}
+        plan = []
+        for k in keys:
+            pool = list(candidates[k]); rng.shuffle(pool)
+            by_outcome = {}
+            for q in pool:
+                by_outcome.setdefault(q.get('learning_outcome'), []).append(q)
+            picked, groups = [], list(by_outcome.values())
+            while len(picked) < min(want[k], len(pool)):
+                for g in groups:
+                    if g and len(picked) < want[k]:
+                        picked.append(g.pop(0))
+            plan.append(dict(key=self._cell_key(k), lesson_code=k[0], type=k[1], level=k[2],
+                             outcomes=list(k[3]) if len(k) > 3 else [], need=need[k], points=cells[k]['points'], available=len(pool),
+                             requested=want[k], revision_count=len(picked), question_ids=[q['id'] for q in picked]))
+        return plan
+
+    def _cells_with_candidates(self, payload, grade, exam_type):
+        rows, template, cells, profile, kinds = self._matrix_cells(payload, grade, exam_type)
+        bank = self._load_bank()['questions']
+        subj = normalize_subject_name(payload.get('subject_name') or payload.get('subject') or (payload.get('_matrix') or {}).get('subject_name') or self.context.get('subject_name') or 'Tin học')
+        candidates = {k: self._cell_candidates(bank, grade, exam_type, template, k, subject_name=subj)[0] for k in cells}
+        return rows, template, cells, candidates
+
+    def propose_revision(self, payload):
+        """Đề xuất đề cương theo ma trận (không ghi): số câu từng ô chỉnh được; giáo viên xem, sửa rồi mới lưu."""
+        with self.lock:
+            grade = self._grade(payload.get('grade'))
+            exam_type = payload.get('exam_type')
+            if exam_type not in ('TX', 'GK1', 'CK1', 'GK2', 'CK2'):
+                raise ServiceError('Loại kiểm tra không hợp lệ.')
+            rows, _t, cells, candidates = self._cells_with_candidates(payload, grade, exam_type)
+            plan = self._revision_plan(cells, candidates, payload.get('counts'), payload.get('total'),
+                                       random.Random(str(payload.get('seed', ''))),
+                                       lesson_counts=payload.get('lesson_counts'))
+            ids = [i for c in plan for i in c['question_ids']]
+            short = [c for c in plan if c['revision_count'] < c['requested']]
+            return dict(cells=plan, question_ids=ids, total=len(ids), exam_question_count=sum(c['count'] for c in cells.values()),
+                        warnings=[f"Ô {c['lesson_code']} · {c['type']} · {c['level']}: ngân hàng chỉ có {c['available']} câu đã duyệt "
+                                  f"(muốn {c['requested']})." for c in short])
+
+    def generate_exam_set(self, payload):
+        """Bộ đề: Ma trận → Đề cương → các đề (quyết định của giáo viên 29–30/10/2026).
+
+        Đề cương: dùng bản đã lưu (`revision_id`) hoặc tự lập theo ma trận (`revision_counts` / `revision_total`).
+        Mỗi đề lấy ceil(ngưỡng × N) câu trong đề cương và để ngoài phần còn lại, ưu tiên Vận dụng cao → Vận dụng → Hiểu → Biết,
+        câu không tự luận trước; câu ngoài phải cùng YCCĐ với ít nhất một câu của đề cương (độ phủ 100%, B6).
+        Câu được dùng ít nhất được chọn trước, nên đề cương đủ lớn thì các đề khác câu nhau; nhỏ hơn thì báo số câu dùng chung.
+        Kiểm tra đủ câu cho mọi đề trước khi ghi; ghi lỗi giữa chừng thì khôi phục đề cương và đề như cũ.
+        """
+        with self.lock:
+            grade = self._grade(payload.get('grade'))
+            exam_type = payload.get('exam_type')
+            if exam_type not in ('TX', 'GK1', 'CK1', 'GK2', 'CK2'):
+                raise ServiceError('Loại kiểm tra không hợp lệ.')
+            title = self._text(payload.get('title'), 'Tên bộ đề')
+            count = payload.get('exam_count', 2)
+            if type(count) is not int or not 1 <= count <= 6:
+                raise ServiceError('Số đề trong bộ phải là số nguyên từ 1 đến 6.')
+            sim_pct = Decimal(str(resolve_similarity(payload.get('similarity_percent', 90))))
+            rows, template, cells, candidates = self._cells_with_candidates(payload, grade, exam_type)
+            rng = random.Random(str(payload.get('seed', '')))
+            missing = [dict(lesson_code=k[0], type=k[1], level=k[2], outcomes=list(k[3]) if len(k) > 3 else [],
+                            requested=c['count'], available=len(candidates[k]), missing=c['count'] - len(candidates[k]),
+                            reason='Không đủ câu đã duyệt trong đúng ô.')
+                       for k, c in cells.items() if len(candidates[k]) < c['count']]
+            if missing:
+                raise ServiceError('Ngân hàng chưa đủ câu đã duyệt theo ma trận.', {'shortages': missing})
+            existing = None
+            if payload.get('revision_id'):
+                existing = self.get_record('revisions', payload['revision_id'])
+                if existing['grade'] != grade:
+                    raise ServiceError('Đề cương phải cùng khối với bộ đề.')
+                hashes = {content_hash(q) for q in existing['questions']}
+                rev_ids = {q['id'] for k in cells for q in candidates[k] if content_hash(q) in hashes}
+            else:
+                plan = self._revision_plan(cells, candidates, payload.get('revision_counts'), payload.get('revision_total'), rng)
+                rev_ids = {i for c in plan for i in c['question_ids']}
+            pool = [q for k in cells for q in candidates[k]]
+            rev_outcomes = {(q['lesson_code'], q.get('learning_outcome')) for q in pool if q['id'] in rev_ids}
+            per_exam = sum(c['count'] for c in cells.values())
+            out_quota = per_exam - math.ceil(sim_pct / 100 * per_exam)
+            order = {'Vận dụng cao': -1, 'Vận dụng': 0, 'Hiểu': 1, 'Biết': 2}
+            ranked_cells = sorted(cells, key=lambda k: (order[k[2]], k[1] == 'ES'))
+            usage, exams, warnings = {}, [], []
+            for i in range(count):
+                inside = {k: [q for q in candidates[k] if q['id'] in rev_ids] for k in cells}
+                outside = {k: [q for q in candidates[k] if q['id'] not in rev_ids and
+                               (q['lesson_code'], q.get('learning_outcome')) in rev_outcomes] for k in cells}
+                out_n = {k: max(0, cells[k]['count'] - len(inside[k])) for k in cells}
+                lacking = [k for k in cells if out_n[k] > len(outside[k])]
+                if lacking or sum(out_n.values()) > out_quota:
+                    raise ServiceError('Đề cương chưa đủ câu ở một số ô để mỗi đề có ít nhất '
+                                       f'{math.ceil(sim_pct / 100 * per_exam)}/{per_exam} câu trong đề cương.',
+                                       {'cells': [dict(lesson_code=k[0], type=k[1], level=k[2], need=cells[k]['count'],
+                                                       in_revision=len(inside[k])) for k in cells if out_n[k]]})
+                extra = out_quota - sum(out_n.values())
+                for k in ranked_cells:
+                    take = min(extra, cells[k]['count'] - out_n[k], len(outside[k]) - out_n[k])
+                    if take > 0:
+                        out_n[k] += take; extra -= take
+                if extra:
+                    warnings.append(f'Đề {i + 1}: chỉ để được {out_quota - extra}/{out_quota} câu ngoài đề cương mà vẫn phủ đủ YCCĐ.')
+                chosen = []
+                used_in_exam = set()
+                for k in cells:
+                    least = lambda qs: sorted([q for q in qs if q['id'] not in used_in_exam], key=lambda q: (usage.get(q['id'], 0), rng.random()))
+                    picked_out = least(outside[k])[:out_n[k]]
+                    used_in_exam.update(q['id'] for q in picked_out)
+                    picked_in = least(inside[k])[:cells[k]['count'] - len(picked_out)]
+                    used_in_exam.update(q['id'] for q in picked_in)
+                    chosen += picked_out + picked_in
+                for q in chosen:
+                    usage[q['id']] = usage.get(q['id'], 0) + 1
+                exams.append(chosen)
+            shared = sum(1 for n in usage.values() if n > 1)
+            if shared:
+                warnings.append(f'Các đề dùng chung {shared} câu vì đề cương nhỏ hơn mức cần để các đề khác câu hoàn toàn. '
+                                'Tăng số câu đề cương nếu muốn các đề không trùng câu.')
+            set_id = f'SET-{uuid.uuid4().hex[:12]}'
+            backup = {name: copy.deepcopy(self._records(name)) for name in ('revisions', 'exams')}
+            try:
+                if existing:
+                    revision = existing
+                else:
+                    ordered = list(dict.fromkeys(q['id'] for k in cells for q in candidates[k] if q['id'] in rev_ids))
+                    revision = self.save_revision(dict(title=self._text(payload.get('revision_title') or f'Đề cương {title}', 'Tên đề cương'),
+                                                       grade=grade, question_ids=ordered))
+                made = []
+                for i, questions in enumerate(exams):
+                    req = {k: payload[k] for k in ('template_id', 'blueprint', '_matrix', 'profile', 'allowed_kinds',
+                                                   'scoring_policy', 'duration') if k in payload}
+                    req.update(grade=grade, exam_type=exam_type, title=f'{title} - Đề {i + 1}' if count > 1 else title,
+                               revision_id=revision['id'], similarity_percent=payload.get('similarity_percent', 90),
+                               similarity_mode='exact', seed=f"{payload.get('seed', '')}-{i + 1}",
+                               question_ids=[q['id'] for q in questions])
+                    made.append(self.generate_exam(req))
+                members = [e['id'] for e in made]
+                info = dict(id=set_id, title=title, revision_id=revision['id'], exam_ids=members, created_at=now())
+                records = self._records('exams')
+                for e in records:
+                    if e.get('id') in members:
+                        e['exam_set'] = dict(info, index=members.index(e['id']) + 1)
+                self._atomic_save(self.data_dir/'exams.json', records)
+                if not existing:
+                    revs = self._records('revisions')
+                    for r in revs:
+                        if r.get('id') == revision['id']:
+                            r['exam_set'] = info
+                    self._atomic_save(self.data_dir/'revisions.json', revs)
+            except Exception:
+                self._atomic_save(self.data_dir/'revisions.json', backup['revisions'])
+                self._atomic_save(self.data_dir/'exams.json', backup['exams'])
+                raise
+            return dict(exam_set=info, revision=self.get_record('revisions', revision['id']),
+                        exams=[e for e in self._records('exams') if e.get('id') in members],
+                        outside_per_exam=out_quota, revision_size=len(rev_ids), shared_questions=shared, warnings=warnings)
 
     def update_exam(self, payload):
         with self.lock:
@@ -1207,6 +1594,93 @@ class BankService:
                 problems.append(f'{label}: nội dung trong đề khác phiên bản đã duyệt.')
         return problems
 
+    def _apply_exam_transition(self, exam, records, action, actor='local', reason='', matrix_service=None):
+        status = exam_status(exam)
+        reason = str(reason or '').strip()
+        entry = dict(action=action, at=now(), by=str(actor or 'local'), from_status=status)
+        if reason:
+            entry['reason'] = reason[:1000]
+        if action == 'new_revision':
+            if status not in FROZEN:
+                raise ServiceError('Chỉ tạo bản chỉnh sửa mới từ đề đã duyệt hoặc đã phát hành.', status=409)
+            rev = {k: copy.deepcopy(v) for k, v in exam.items()
+                   if k not in ('status', 'lifecycle', 'approved_hash', 'approved_by', 'approved_at', 'locked_at',
+                                'published_at', 'usage', 'reuse_check', 'revision_check')}
+            rev.update(id=f'EXAM-{uuid.uuid4().hex[:12]}', status='drafting', previous_exam_id=exam['id'],
+                       created_at=now(), lifecycle=[dict(entry, action='new_revision_from', source=exam['id'])])
+            records.append(rev)
+            exam.setdefault('lifecycle', []).append(dict(entry, new_exam_id=rev['id']))
+            return rev
+        if action == 'submit':
+            if status != 'drafting':
+                raise ServiceError(f"Chỉ gửi duyệt được đề đang soạn ({exam.get('title', exam.get('id'))}).",
+                                   {'status': status, 'id': exam.get('id')}, 409)
+            new_status = 'pending_approval'
+        elif action == 'return':
+            if status != 'pending_approval':
+                raise ServiceError(f"Chỉ trả lại được đề đang chờ duyệt ({exam.get('title', exam.get('id'))}).",
+                                   {'status': status, 'id': exam.get('id')}, 409)
+            if not reason:
+                raise ServiceError('Khi trả lại đề phải ghi lý do.')
+            new_status = 'drafting'
+        elif action == 'approve':
+            if status != 'pending_approval':
+                raise ServiceError(f"Chỉ duyệt được đề đang chờ duyệt ({exam.get('title', exam.get('id'))}).",
+                                   {'status': status, 'id': exam.get('id')}, 409)
+            problems = self._exam_question_problems(exam)
+            snapshot = exam.get('matrix_snapshot') or {}
+            if snapshot.get('slots'):
+                cells = cell_check(exam, snapshot, self.catalog)
+                problems += [f"Ô ma trận {c['lesson_code']} · {c['kind']} · {c['level']}: cần {c['expected_questions']} câu/"
+                             f"{c['expected_points']} điểm, đề có {c['actual_questions']} câu/{c['actual_points']} điểm."
+                             for c in cells['cells'] if not c['ok']]
+            revision = self._revision_for(exam)
+            if revision is None:
+                problems.append('Đề chưa gắn phiên bản đề cương còn tồn tại để đối chiếu.')
+            else:
+                crit = revision_report(exam, revision)
+                entry['revision_criterion'] = {k: crit[k] for k in ('mode', 't_percent', 'exact_count', 'close_count',
+                                                                    'total', 'required', 'points_percent')}
+                if not crit['coverage']['ok']:
+                    problems.append(f"Độ bao phủ YCCĐ của đề cương mới {crit['coverage']['percent']}% điểm (cần 100%): "
+                                    + ', '.join(f"câu {m['slot_number']}" for m in crit['coverage']['missing']) + '.')
+                if crit['exact_count'] + crit['close_count'] < crit['required']:
+                    problems.append(f"Tiêu chí đề cương T = {crit['t_percent']}% ({crit['exact_count']} câu trùng + "
+                                    f"{crit['close_count']} câu bám sát đã duyệt / {crit['total']} câu), cần ≥ 90%.")
+            if problems:
+                label = exam.get('title') or exam.get('id')
+                raise ServiceError(f"Đề '{label}' có câu chưa duyệt, khác phiên bản đã duyệt, lệch ma trận hoặc chưa đạt tiêu chí đề cương.",
+                                   {'problems': problems, 'id': exam.get('id')})
+            if matrix_service is not None and not exam.get('matrix_snapshot'):
+                matrix = self._exam_matrix(exam, matrix_service)
+                if matrix:
+                    exam['matrix_snapshot'] = copy.deepcopy(matrix)  # chụp ma trận cùng đề, không tham chiếu
+            exam['reuse_check'] = self.reuse_check(exam, records)
+            exam['approved_hash'] = exam_hash(exam)
+            exam['approved_by'], exam['approved_at'] = entry['by'], entry['at']
+            entry['content_hash'] = exam['approved_hash']
+            new_status = 'locked'
+        elif action == 'publish':
+            if status != 'locked':
+                raise ServiceError(f"Chỉ phát hành được đề đã duyệt & khóa ({exam.get('title', exam.get('id'))}).",
+                                   {'status': status, 'id': exam.get('id')}, 409)
+            current = exam_hash(exam)
+            if current != exam.get('approved_hash'):
+                exam.setdefault('lifecycle', []).append(dict(entry, action='publish_blocked', content_hash=current))
+                raise ServiceError(f"Nội dung đề '{exam.get('title')}' đã thay đổi sau khi duyệt; không được phát hành. "
+                                   'Hãy tạo bản chỉnh sửa mới và duyệt lại.', {'id': exam.get('id')}, 409)
+            exam['published_at'] = entry['at']
+            exam['usage'] = dict(published_at=entry['at'], by=entry['by'], exam_type=exam.get('exam_type'),
+                                 grade=exam.get('grade'), exam_code=exam.get('exam_code'),
+                                 questions=[dict(id=q.get('id'), version=version_hash(q)) for q in exam.get('questions', [])])
+            entry['content_hash'] = current
+            new_status = 'published'
+        else:
+            raise ServiceError('Thao tác với đề không hợp lệ.', {'action': action})
+        exam['status'] = new_status
+        exam.setdefault('lifecycle', []).append(entry)
+        return exam
+
     def exam_transition(self, ident, action, actor='local', reason='', matrix_service=None):
         """submit | approve | return | publish | new_revision. Ghi người thực hiện cho mọi lần chuyển (B2)."""
         with self.lock:
@@ -1215,89 +1689,90 @@ class BankService:
             if idx is None:
                 raise ServiceError('Không tìm thấy đề kiểm tra.', {'id': ident}, 404)
             exam = records[idx]
-            status = exam_status(exam)
-            reason = str(reason or '').strip()
+            history_size = len(exam.get('lifecycle', []))
+            try:
+                result = self._apply_exam_transition(exam, records, action, actor=actor, reason=reason, matrix_service=matrix_service)
+            except ServiceError:
+                added = exam.get('lifecycle', [])[history_size:]
+                if action == 'publish' and added and all(e.get('action') == 'publish_blocked' for e in added):
+                    self._atomic_save(self.data_dir/'exams.json', records)
+                raise
+            self._atomic_save(self.data_dir/'exams.json', records)
+            return copy.deepcopy(result)
+
+    def exam_set_transition(self, set_id, action, actor='local', reason='', matrix_service=None):
+        """submit | return | approve | publish cho toàn bộ các đề trong một bộ đề (Mốc C1).
+
+        Giao dịch nguyên tử: nếu một đề bị lỗi thì khôi phục toàn bộ trạng thái ban đầu và báo lỗi.
+        """
+        with self.lock:
+            records = self._records('exams')
+            members = [e for e in records if (e.get('exam_set') or {}).get('id') == set_id]
+            if not members:
+                raise ServiceError('Không tìm thấy bộ đề kiểm tra.', {'set_id': set_id}, 404)
+            backup = copy.deepcopy(records)
+            try:
+                updated = []
+                for exam in members:
+                    res = self._apply_exam_transition(exam, records, action, actor=actor, reason=reason, matrix_service=matrix_service)
+                    updated.append(copy.deepcopy(res))
+                self._atomic_save(self.data_dir/'exams.json', records)
+                return {'set_id': set_id, 'action': action, 'exams': updated}
+            except Exception as exc:
+                # Hoàn tác cả bộ, chỉ giữ nhật ký từ chối; không giữ publish/usage dở dang.
+                if action == 'publish' and isinstance(exc, ServiceError):
+                    for original, changed in zip(backup, records):
+                        added = changed.get('lifecycle', [])[len(original.get('lifecycle', [])):]
+                        blocked = [e for e in added if e.get('action') == 'publish_blocked']
+                        if blocked:
+                            original.setdefault('lifecycle', []).extend(copy.deepcopy(blocked))
+                self._atomic_save(self.data_dir/'exams.json', backup)
+                raise
+
+    def revision_transition(self, ident, action, actor='local', reason=''):
+        """publish | lock | unlock | drafting cho đề cương (Mốc C1).
+
+        Quy tắc bất biến: CHẶN phát hành đề cương nếu bộ đề (hoặc đề) căn cứ chưa được khóa.
+        """
+        with self.lock:
+            records = self._records('revisions')
+            idx = next((i for i, x in enumerate(records) if x.get('id') == ident), None)
+            if idx is None:
+                raise ServiceError('Không tìm thấy đề cương ôn tập.', {'id': ident}, 404)
+            rev = records[idx]
+            status = rev.get('status', 'drafting')
             entry = dict(action=action, at=now(), by=str(actor or 'local'), from_status=status)
             if reason:
-                entry['reason'] = reason[:1000]
-            if action == 'new_revision':
-                if status not in FROZEN:
-                    raise ServiceError('Chỉ tạo bản chỉnh sửa mới từ đề đã duyệt hoặc đã phát hành.', status=409)
-                rev = {k: copy.deepcopy(v) for k, v in exam.items()
-                       if k not in ('status', 'lifecycle', 'approved_hash', 'approved_by', 'approved_at', 'locked_at',
-                                    'published_at', 'usage', 'reuse_check', 'revision_check')}
-                rev.update(id=f'EXAM-{uuid.uuid4().hex[:12]}', status='drafting', previous_exam_id=exam['id'],
-                           created_at=now(), lifecycle=[dict(entry, action='new_revision_from', source=exam['id'])])
-                records.append(rev)
-                exam.setdefault('lifecycle', []).append(dict(entry, new_exam_id=rev['id']))
-                self._atomic_save(self.data_dir/'exams.json', records)
-                return copy.deepcopy(rev)
-            if action == 'submit':
-                if status != 'drafting':
-                    raise ServiceError('Chỉ gửi duyệt được đề đang soạn.', {'status': status}, 409)
-                new_status = 'pending_approval'
-            elif action == 'return':
-                if status != 'pending_approval':
-                    raise ServiceError('Chỉ trả lại được đề đang chờ duyệt.', {'status': status}, 409)
-                if not reason:
-                    raise ServiceError('Khi trả lại đề phải ghi lý do.')
-                new_status = 'drafting'
-            elif action == 'approve':
-                if status != 'pending_approval':
-                    raise ServiceError('Chỉ duyệt được đề đang chờ duyệt.', {'status': status}, 409)
-                problems = self._exam_question_problems(exam)
-                snapshot = exam.get('matrix_snapshot') or {}
-                if snapshot.get('slots'):
-                    cells = cell_check(exam, snapshot, self.catalog)
-                    problems += [f"Ô ma trận {c['lesson_code']} · {c['kind']} · {c['level']}: cần {c['expected_questions']} câu/"
-                                 f"{c['expected_points']} điểm, đề có {c['actual_questions']} câu/{c['actual_points']} điểm."
-                                 for c in cells['cells'] if not c['ok']]
-                revision = self._revision_for(exam)
-                if revision is None:
-                    problems.append('Đề chưa gắn phiên bản đề cương còn tồn tại để đối chiếu.')
-                else:
-                    crit = revision_report(exam, revision)
-                    entry['revision_criterion'] = {k: crit[k] for k in ('mode', 't_percent', 'exact_count', 'close_count',
-                                                                        'total', 'required', 'points_percent')}
-                    if not crit['coverage']['ok']:
-                        problems.append(f"Độ bao phủ YCCĐ của đề cương mới {crit['coverage']['percent']}% điểm (cần 100%): "
-                                        + ', '.join(f"câu {m['slot_number']}" for m in crit['coverage']['missing']) + '.')
-                    if crit['exact_count'] + crit['close_count'] < crit['required']:
-                        problems.append(f"Tiêu chí đề cương T = {crit['t_percent']}% ({crit['exact_count']} câu trùng + "
-                                        f"{crit['close_count']} câu bám sát đã duyệt / {crit['total']} câu), cần ≥ 90%.")
-                if problems:
-                    raise ServiceError('Đề có câu chưa duyệt, khác phiên bản đã duyệt, lệch ma trận hoặc chưa đạt tiêu chí đề cương.',
-                                       {'problems': problems})
-                if matrix_service is not None and not exam.get('matrix_snapshot'):
-                    matrix = self._exam_matrix(exam, matrix_service)
-                    if matrix:
-                        exam['matrix_snapshot'] = copy.deepcopy(matrix)  # chụp ma trận cùng đề, không tham chiếu
-                exam['reuse_check'] = self.reuse_check(exam, records)
-                exam['approved_hash'] = exam_hash(exam)
-                exam['approved_by'], exam['approved_at'] = entry['by'], entry['at']
-                entry['content_hash'] = exam['approved_hash']
-                new_status = 'locked'
-            elif action == 'publish':
-                if status != 'locked':
-                    raise ServiceError('Chỉ phát hành được đề đã duyệt & khóa.', {'status': status}, 409)
-                current = exam_hash(exam)
-                if current != exam.get('approved_hash'):
-                    exam.setdefault('lifecycle', []).append(dict(entry, action='publish_blocked', content_hash=current))
-                    self._atomic_save(self.data_dir/'exams.json', records)
-                    raise ServiceError('Nội dung đề đã thay đổi sau khi duyệt; không được phát hành. '
-                                       'Hãy tạo bản chỉnh sửa mới và duyệt lại.', {'id': ident}, 409)
-                exam['published_at'] = entry['at']
-                exam['usage'] = dict(published_at=entry['at'], by=entry['by'], exam_type=exam.get('exam_type'),
-                                     grade=exam.get('grade'), exam_code=exam.get('exam_code'),
-                                     questions=[dict(id=q.get('id'), version=version_hash(q)) for q in exam.get('questions', [])])
-                entry['content_hash'] = current
-                new_status = 'published'
+                entry['reason'] = str(reason).strip()[:1000]
+
+            if action == 'publish':
+                exams = self._records('exams')
+                unlocked_exams = [e for e in exams if e.get('revision_id') == ident and exam_status(e) in ('drafting', 'pending_approval')]
+                if unlocked_exams:
+                    titles = ', '.join(f"'{e.get('title') or e.get('id')}'" for e in unlocked_exams[:3])
+                    raise ServiceError('Chưa thể phát hành đề cương vì bộ đề căn cứ (hoặc đề thi) chưa được khóa. '
+                                       f'Các đề chưa khóa: {titles}. Hãy thẩm định và khóa bộ đề trước khi phát hành đề cương cho học sinh.',
+                                       {'unlocked_exams': [e.get('id') for e in unlocked_exams]}, 409)
+                rev['status'] = 'published'
+                rev['published_at'] = entry['at']
+                rev['published_by'] = entry['by']
+            elif action == 'lock':
+                rev['status'] = 'locked'
+                rev['locked_at'] = entry['at']
+                rev['locked_by'] = entry['by']
+            elif action == 'unlock':
+                exams = self._records('exams')
+                frozen_exams = [e for e in exams if e.get('revision_id') == ident and exam_status(e) in FROZEN]
+                if frozen_exams:
+                    raise ServiceError('Không thể mở khóa đề cương vì đã có đề thi được khóa hoặc phát hành căn cứ vào đề cương này.',
+                                       {'frozen_exams': [e.get('id') for e in frozen_exams]}, 409)
+                rev['status'] = 'drafting'
             else:
-                raise ServiceError('Thao tác với đề không hợp lệ.', {'action': action})
-            exam['status'] = new_status
-            exam.setdefault('lifecycle', []).append(entry)
-            self._atomic_save(self.data_dir/'exams.json', records)
-            return copy.deepcopy(exam)
+                raise ServiceError('Thao tác với đề cương không hợp lệ.', {'action': action})
+
+            rev.setdefault('lifecycle', []).append(entry)
+            self._atomic_save(self.data_dir/'revisions.json', records)
+            return copy.deepcopy(rev)
 
     def duplicate_exam(self, ident):
         with self.lock:
@@ -1591,17 +2066,46 @@ class BankService:
         if exam.get('parent_exam_id'):
             from matrices.model import matrix_digest
             slots_by_id = {s['id']: s for s in snapshot['slots']}
-            slots_by_number = {(s['kind'], s['number']): s for s in snapshot['slots']}
-            parent_questions = None
+            parent = self.get_record('exams', exam['parent_exam_id'])
+            parent_questions = {p['id']: p for p in parent.get('questions', [])}
+            source_matrix = parent.get('matrix_snapshot') or {}
+            source_slots = {s['id']: s for s in source_matrix.get('slots', [])}
+            source_numbers = {(s['kind'], s['number']): s for s in source_matrix.get('slots', [])}
+            source_requirements = {r['id']: r for r in source_matrix.get('requirements', [])}
+            source_outcomes = parent.get('matrix_requirement_outcomes')
+            used_slots = set()
+            requirements = {r['id']: r for r in snapshot['requirements']}
             for q in exam.get('questions', []):
+                parent_q = parent_questions.get(q.get('id'), {})
+                # Resolve old missing IDs only from the frozen parent number, never child position.
+                source_slot = (source_slots.get(parent_q.get('slot_id')) if parent_q.get('slot_id')
+                               else source_numbers.get((parent_q.get('type'), parent_q.get('slot_number'))))
                 slot = slots_by_id.get(q.get('slot_id'))
-                if slot is None:
-                    if parent_questions is None:
-                        parent_questions = {p['id']: p for p in self.get_record('exams', exam['parent_exam_id'])['questions']}
-                    parent_q = parent_questions.get(q.get('id'), {})
-                    slot = slots_by_number.get((q['type'], parent_q.get('slot_number')))
-                if slot is None:
+                if slot is None and not q.get('slot_id'):
+                    slot = slots_by_id.get(source_slot['id']) if source_slot else None
+                if (slot is None or source_slot is None or slot.get('kind') != q.get('type')
+                        or source_slot.get('kind') != parent_q.get('type') or slot['id'] != source_slot['id']
+                        or source_slot.get('number') != parent_q.get('slot_number')):
                     raise ServiceError('Thiếu ánh xạ vị trí nguồn để xuất bảng đặc tả của mã đề này.')
+                reqs = [requirements[p['requirement_id']] for p in slot['parts']]
+                source_parts = {p['id']: (p['requirement_id'], number(p['points'], 'Điểm ý')) for p in source_slot['parts']}
+                parts = {p['id']: (p['requirement_id'], number(p['points'], 'Điểm ý')) for p in slot['parts']}
+                # Missing historical classification stays missing; present fields must agree with both
+                # parent and frozen matrix. The live PPCT is not evidence for a persisted variant.
+                if (slot['id'] in used_slots
+                        or parts != source_parts or len(parts) != len(slot['parts'])
+                        or any(r != source_requirements.get(r['id']) for r in reqs)
+                        or number(q.get('points'), 'Điểm câu') != sum((number(p['points'], 'Điểm ý') for p in slot['parts']), Decimal(0))
+                        or number(q.get('points'), 'Điểm câu') != number(parent_q.get('points'), 'Điểm câu nguồn')
+                        or any((field in q) != (field in parent_q) or q.get(field) != parent_q.get(field)
+                               for field in ('lesson_code', 'level', 'learning_outcome'))
+                        or ('lesson_code' in q and q['lesson_code'] not in {r['lesson_code'] for r in reqs})
+                        or ('level' in q and q['level'] not in {r['level'] for r in reqs})
+                        or (isinstance(source_outcomes, dict)
+                            and q.get('learning_outcome') not in {source_outcomes.get(r['id']) for r in reqs})
+                        or exam.get('matrix_requirement_outcomes') != parent.get('matrix_requirement_outcomes')):
+                    raise ServiceError('Câu hỏi không khớp điểm hoặc ô của vị trí ma trận nguồn.')
+                used_slots.add(slot['id'])
                 slot['number'] = q['slot_number']
                 if q['type'] == 'YN' and q.get('statement_part_ids'):
                     parts = {p['id']: p for p in slot['parts']}
@@ -1780,7 +2284,7 @@ class BankService:
 
             return bio.getvalue(), 'application/zip', f"{folder_root}.zip"
 
-    def verify_exam(self, ident, matrix_service, similarity_percent=None, similarity_mode=None):
+    def verify_exam(self, ident, matrix_service, similarity_percent=None, similarity_mode=None, revision_id=None):
         from docx_exam_importer import verify_exam_against_matrix
         with self.lock:
             records = self._records('exams')
@@ -1788,6 +2292,14 @@ class BankService:
             if idx is None:
                 raise ServiceError('Không tìm thấy đề kiểm tra để kiểm định.', {'id': ident}, 404)
             exam = records[idx]
+            if revision_id and revision_id != exam.get('revision_id'):  # gắn đề cương cho đề tạo trước
+                self._assert_exam_editable(exam, 'Đề đã duyệt & khóa hoặc đã phát hành; không đổi được đề cương.')
+                linked = self.get_record('revisions', revision_id)
+                if linked['grade'] != exam.get('grade'):
+                    raise ServiceError('Đề cương phải cùng khối với đề kiểm tra.')
+                exam['revision_id'] = linked['id']
+            if not exam.get('revision_id'):
+                raise ServiceError('Đề chưa gắn đề cương. Chọn đề cương cùng khối rồi bấm Kiểm định.')
             grade = exam.get('grade', 9)
             exam_type = exam.get('exam_type', 'GK1')
             matrix = self._exam_matrix(exam, matrix_service)
@@ -1805,6 +2317,7 @@ class BankService:
             )
             # B4: đối chiếu từng ô (bài × YCCĐ × dạng × mức độ) và cảnh báo tỉ lệ CV 7991 (chỉ cảnh báo).
             self._attach_cell_report(report, exam, matrix)
+            self._refresh_revision_check(exam)
             exam['verification'] = report
             exam['matrix_id'] = matrix.get('id')
             exam['revision_match_count'] = report['revision_check']['matched_questions']

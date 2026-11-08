@@ -160,7 +160,7 @@ def _clean_question_text(text):
         line for line in str(text).splitlines()
         if not re.match(r'^\s*(?:Mã\s+câu(?:\s+gốc)?|Mã\s+ID|Đáp\s+án)\s*:', line, flags=re.IGNORECASE)
     ]
-    return '\n'.join(lines).strip()
+    return '\n'.join(lines).strip('\r\n')
 
 
 # Góp ý nghiệm thu 26/10/2026: ý a), b) của câu tự luận và gạch đầu dòng hướng dẫn chấm phải thụt hàng.
@@ -199,23 +199,130 @@ def _hanging(paragraph, left_cm, hang_cm=0.5):
     paragraph.paragraph_format.first_line_indent = Cm(-hang_cm)
 
 
+def _pipe_cells(line):
+    """Chỉ nhận dòng có ít nhất hai ô, cho phép bỏ dấu | ở hai đầu."""
+    line = line.strip()
+    if '|' not in line:
+        return None
+    if line.startswith('|'):
+        line = line[1:]
+    if line.endswith('|'):
+        line = line[:-1]
+    cells = [cell.strip() for cell in line.split('|')]
+    return cells if len(cells) >= 2 else None
+
+
+def _question_text_blocks(text):
+    """Đọc văn bản, hàng rào ``` và bảng pipe; cú pháp chưa đủ giữ nguyên văn.
+
+    Không diễn giải Markdown nội dòng hay HTML. Bảng cần tiêu đề, hàng phân cách
+    (ít nhất ba dấu - mỗi ô) và ít nhất một hàng dữ liệu có cùng số cột.
+    """
+    lines = str(text).split('\n')
+    blocks, plain = [], []
+
+    def flush():
+        if plain:
+            blocks.append(('text', plain[:]))
+            plain.clear()
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if line.lstrip().startswith('```'):
+            closing = next((j for j in range(i + 1, len(lines)) if lines[j].strip() == '```'), None)
+            valid = re.fullmatch(r'\s*```[\w.+-]*\s*', line)
+            if valid and closing is not None:
+                flush()
+                blocks.append(('code', lines[i + 1:closing]))
+                i = closing + 1
+            else:
+                # Không diễn giải bảng nằm trong một khối mã chưa nhận diện được.
+                stop = len(lines) if closing is None else closing + 1
+                plain.extend(lines[i:stop])
+                i = stop
+            continue
+        header = _pipe_cells(line)
+        separator = _pipe_cells(lines[i + 1]) if i + 1 < len(lines) else None
+        if (header and separator and len(header) == len(separator)
+                and all(re.fullmatch(r':?-{3,}:?', cell) for cell in separator)):
+            stop, rows, valid = i + 2, [header], True
+            while stop < len(lines) and '|' in lines[stop]:
+                cells = _pipe_cells(lines[stop])
+                if cells is None or len(cells) != len(header):
+                    valid = False
+                rows.append(cells)
+                stop += 1
+            if valid and len(rows) > 1:
+                flush()
+                blocks.append(('table', rows))
+            else:
+                plain.extend(lines[i:stop])
+            i = stop
+            continue
+        plain.append(line)
+        i += 1
+    flush()
+    return blocks
+
+
+def _add_question_table(doc, rows, size):
+    from docx.shared import Cm, Pt
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.oxml import OxmlElement
+    table = doc.add_table(rows=0, cols=len(rows[0]))
+    table.style = 'Table Grid'
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+    width = Cm(24) // len(rows[0])
+    for column in table.columns:
+        column.width = width
+    for index, values in enumerate(rows):
+        row = table.add_row()
+        row._tr.get_or_add_trPr().append(OxmlElement('w:cantSplit'))
+        for cell, value in zip(row.cells, values):
+            cell.width = width
+            run = cell.paragraphs[0].add_run(value)
+            run.font.name = 'Times New Roman'
+            run.font.size = Pt(size)
+            run.bold = index == 0
+        if index == 0:
+            row._tr.get_or_add_trPr().append(OxmlElement('w:tblHeader'))
+    return table
+
+
 def _add_text_lines(doc, first_paragraph, text, size=11, keep_with_next=True):
-    """Dòng đầu nối vào đoạn "Câu n."; dòng sau là đoạn riêng; ý a), b) và gạch đầu dòng thụt treo."""
+    """Giữ thụt dòng; mã có hàng rào dùng font đơn cách, bảng pipe thành bảng Word."""
     from docx.shared import Pt
     from docx.enum.text import WD_ALIGN_PARAGRAPH
-    lines = [line for line in str(text).split('\n')]
-    first_paragraph.add_run(lines[0].strip()).font.size = Pt(size)
-    for line in lines[1:]:
-        if not line.strip():
+    first = True
+    for kind, content in _question_text_blocks(text):
+        if kind == 'table':
+            _add_question_table(doc, content, size)
+            first = False
             continue
-        p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        p.paragraph_format.space_before = Pt(0)
-        p.paragraph_format.space_after = Pt(2)
-        p.paragraph_format.keep_with_next = keep_with_next
-        if SUBPART_RE.match(line):
-            _hanging(p, 1.0)
-        p.add_run(line.strip()).font.size = Pt(size)
+        if kind == 'code':
+            p = doc.add_paragraph()
+            p.paragraph_format.space_after = Pt(2)
+            p.paragraph_format.keep_with_next = keep_with_next
+            run = p.add_run('\n'.join(content))
+            run.font.name = 'Courier New'
+            run.font.size = Pt(size)
+            first = False
+            continue
+        for line in content:
+            if first:
+                p = first_paragraph
+                first = False
+            else:
+                p = doc.add_paragraph()
+                p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                p.paragraph_format.space_before = Pt(0)
+                p.paragraph_format.space_after = Pt(2)
+                p.paragraph_format.keep_with_next = keep_with_next
+                if SUBPART_RE.match(line):
+                    _hanging(p, 1.0)
+            p.add_run(line).font.size = Pt(size)
 
 
 def _add_rubric(new_paragraph, criterion, suffix='', marker='– ', base_cm=0.0, size=10.5):
@@ -267,11 +374,26 @@ def _rubric_html(esc, criterion, suffix='', marker='– ', base_em=0.0):
 
 
 def _question_html(esc, text):
-    lines = [line for line in str(text).split('\n') if line.strip()]
-    head = esc(lines[0].strip()) if lines else ''
-    rest = ''.join(f'<p style="margin-left:2em;text-indent:-1.3em">{esc(l.strip())}</p>' if SUBPART_RE.match(l)
-                   else f'<p>{esc(l.strip())}</p>' for l in lines[1:])
-    return head, rest
+    head, rest, first = '', [], True
+    for kind, content in _question_text_blocks(text):
+        if kind == 'code':
+            rest.append('<pre><code>' + esc('\n'.join(content)) + '</code></pre>')
+            first = False
+        elif kind == 'table':
+            rest.append('<table class="question-table"><thead><tr>'
+                        + ''.join('<th>' + esc(cell) + '</th>' for cell in content[0])
+                        + '</tr></thead><tbody>'
+                        + ''.join('<tr>' + ''.join('<td>' + esc(cell) + '</td>' for cell in row) + '</tr>'
+                                  for row in content[1:]) + '</tbody></table>')
+            first = False
+        else:
+            for line in content:
+                if first:
+                    head, first = esc(line), False
+                else:
+                    style = ' style="margin-left:2em;text-indent:-1.3em"' if SUBPART_RE.match(line) else ''
+                    rest.append(f'<p{style}>{esc(line)}</p>')
+    return head, ''.join(rest)
 
 
 def _format_mc_docx(doc, options, keep_with_next=True):
@@ -449,7 +571,51 @@ def _html(record, answers, revision):
         body.append('</div>')
 
     return ('<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            '<title>'+esc(record.get('title',''))+'</title><style>body{font-family:"Times New Roman",serif;font-size:12pt;max-width:21cm;margin:1.5cm auto;line-height:1.4;color:#000}header.doc-head{text-align:center;margin-bottom:1em}h1{font-size:16pt;text-align:center;margin:.2em 0}h2{font-size:13pt;margin-top:1.2em;border-bottom:1px solid #444;padding-bottom:4px}h3{font-size:12pt;margin-top:1em}.question{margin-bottom:1em}.option{margin:.2em 0 .2em .5em}.options-grid.cols-4{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 10px;margin:.2em 0 .4em .5em}.options-grid.cols-2{display:grid;grid-template-columns:repeat(2,1fr);gap:4px 16px;margin:.2em 0 .4em .5em}table{border-collapse:collapse;width:100%;table-layout:fixed;margin:0 auto}th,td{border:1px solid #444;padding:6px;overflow-wrap:anywhere;vertical-align:middle}th,[align="center"]{text-align:center}th:first-child{width:6%}thead{display:table-header-group}p{white-space:pre-wrap}.answer-table{margin:8px auto 14px}.answer-table th,.answer-table td{padding:4px 6px;text-align:center;font-size:11pt}@page{size:A4 portrait;margin:1.5cm 2cm}@media print{body{margin:0;max-width:none}.question>p:first-child{break-after:avoid}.option{break-inside:avoid}h2{break-after:avoid}tr{break-inside:avoid}}</style><body>' + ''.join(body) + '</body></html>').encode()
+            '<title>'+esc(record.get('title',''))+'</title><style>body{font-family:"Times New Roman",serif;font-size:12pt;max-width:21cm;margin:1.5cm auto;line-height:1.4;color:#000}header.doc-head{text-align:center;margin-bottom:1em}h1{font-size:16pt;text-align:center;margin:.2em 0}h2{font-size:13pt;margin-top:1.2em;border-bottom:1px solid #444;padding-bottom:4px}h3{font-size:12pt;margin-top:1em}.question{margin-bottom:1em}.option{margin:.2em 0 .2em .5em}.options-grid.cols-4{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 10px;margin:.2em 0 .4em .5em}.options-grid.cols-2{display:grid;grid-template-columns:repeat(2,1fr);gap:4px 16px;margin:.2em 0 .4em .5em}table{border-collapse:collapse;width:100%;table-layout:fixed;margin:0 auto}th,td{border:1px solid #444;padding:6px;overflow-wrap:anywhere;vertical-align:middle}th,[align="center"]{text-align:center}th:first-child{width:6%}thead{display:table-header-group}p{white-space:pre-wrap}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:"Courier New",monospace}.question-table{max-width:24cm}.question-table th:first-child{width:auto}.question-table th,.question-table td{white-space:pre-wrap}.answer-table{margin:8px auto 14px}.answer-table th,.answer-table td{padding:4px 6px;text-align:center;font-size:11pt}@page{size:A4 portrait;margin:1.5cm 2cm}@media print{body{margin:0;max-width:none}.question>p:first-child{break-after:avoid}.option{break-inside:avoid}h2{break-after:avoid}tr{break-inside:avoid}}</style><body>' + ''.join(body) + '</body></html>').encode()
+
+
+def _apply_school_page_rules(doc):
+    """Một chuẩn trang cho các bản Word; không đổi nội dung hoặc nhánh chuyển PDF."""
+    from docx.shared import Cm
+    from docx.enum.section import WD_ORIENT
+    from docx.enum.text import WD_TAB_ALIGNMENT
+    from docx.table import _Cell
+    # Bỏ các điểm tab giữa/phải kế thừa từ mẫu Footer dọc.
+    doc.styles['Footer'].paragraph_format.tab_stops.clear_all()
+    for section in doc.sections:
+        section.orientation = WD_ORIENT.LANDSCAPE
+        section.page_width, section.page_height = Cm(29.7), Cm(21)
+        section.top_margin = section.bottom_margin = Cm(1)
+        section.left_margin, section.right_margin = Cm(1.5), Cm(1)
+        section.header_distance, section.footer_distance = Cm(.2), Cm(.3)
+        for paragraph in section.footer.paragraphs:
+            if '\t' in paragraph.text:
+                paragraph.paragraph_format.tab_stops.clear_all()
+                paragraph.paragraph_format.tab_stops.add_tab_stop(
+                    section.page_width-section.left_margin-section.right_margin, WD_TAB_ALIGNMENT.RIGHT)
+    for table in doc.tables:
+        columns = list(table.columns)
+        if not columns:
+            continue
+        widths = [int(column.width or Cm(1)) for column in columns]
+        first = list(table.rows[0].cells) if table.rows else []
+        if len(first) == len(columns) and len({id(cell._tc) for cell in first}) == len(columns):
+            declared = [int(cell.width or 0) for cell in first]
+            if all(declared):
+                widths = declared
+        total = sum(widths)
+        limit = min(int(Cm(24)), total)
+        scaled = [max(1, int(width*limit/total)) for width in widths]
+        scaled[-1] = limit-sum(scaled[:-1])
+        table.autofit = False
+        for column, width in zip(columns, scaled):
+            column.width = width
+        for row in table.rows:
+            start = 0
+            for tc in row._tr.tc_lst:
+                span = tc.grid_span
+                _Cell(tc, table).width = sum(scaled[start:start+span])
+                start += span
 
 
 def _docx(record, answers, revision):
@@ -483,8 +649,10 @@ def _docx(record, answers, revision):
     doc.core_properties.title = record.get('title', '')
 
     if revision and record.get('school_profile', True):
-        header = section.header.paragraphs[0]
-        header.text = ''
+        # Banner là đầu trang trực quan của trang đầu, không lặp/cắt ở các trang sau.
+        for paragraph in section.header.paragraphs:
+            paragraph.text = ''
+        header = doc.add_paragraph()
         header.alignment = WD_ALIGN_PARAGRAPH.CENTER
         banner_file = BANNER_PATH if BANNER_PATH.exists() else LOGO_PATH
         img_w = Cm(13.5) if BANNER_PATH.exists() else Cm(4.0)  # góp ý 26/10/2026: logo nhỏ hơn
@@ -1113,6 +1281,7 @@ def _docx(record, answers, revision):
     fld2.set(qn('w:instr'), 'NUMPAGES')
     foot._p.append(fld2)
 
+    _apply_school_page_rules(doc)
     stream = io.BytesIO(); doc.save(stream); return stream.getvalue()
 
 
@@ -1257,6 +1426,7 @@ def _docx_lms(record):
             r_num.bold = True
             p_q.add_run(q_text)
 
+    _apply_school_page_rules(doc)
     stream = io.BytesIO()
     doc.save(stream)
     return stream.getvalue()
@@ -1404,6 +1574,7 @@ def export_mapping_docx(rows, codes, meta=None, problems=None):
                       str(row['question_id']), row['answer'], row['source_answer'], row['points'].replace('.', ',')]
             for cell, text, w in zip(cells, values, widths):
                 cell.text = text; cell.width = Cm(w)
+    _apply_school_page_rules(doc)
     stream = io.BytesIO(); doc.save(stream); return stream.getvalue()
 
 
@@ -1471,6 +1642,7 @@ def export_answer_grid_docx(answer_grid: dict, title: str = "BẢNG ĐÁP ÁN T�
                 for paragraph in cell.paragraphs:
                     paragraph.paragraph_format.space_after = Pt(2)
                     paragraph.paragraph_format.line_spacing = 1
+    _apply_school_page_rules(doc)
     bio = io.BytesIO()
     doc.save(bio)
     return bio.getvalue()

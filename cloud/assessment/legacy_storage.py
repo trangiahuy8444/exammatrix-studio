@@ -108,11 +108,13 @@ def bank_for_user(user, curriculum=None, *, test_mode=False):
 
 
 def _test_documents(workspace, curriculum, documents):
-    """Vùng Test = bản sao PPCT và câu hỏi của ngân hàng thật cùng khóa học; đề, đề cương, ma trận để trống."""
+    """Vùng Test = bản sao PPCT, câu hỏi và ma trận của ngân hàng thật cùng khóa học; đề, đề cương để trống."""
     normal = LegacyState.objects.filter(workspace=workspace, curriculum=curriculum, is_test_mode=False).only('documents').first()
     if normal is not None and (normal.documents or {}).get('bank'):
         documents = copy.deepcopy(documents)
         documents['bank'] = seed_bank(normal.documents['bank'])
+        if (normal.documents or {}).get('matrices'):
+            documents['matrices'] = copy.deepcopy(normal.documents['matrices'])
     return documents
 
 

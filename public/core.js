@@ -2,7 +2,7 @@
   'use strict';
   const normalize=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();
   const jsonHeaders=token=>token?{'Content-Type':'application/json','X-CSRFToken':token}:{'Content-Type':'application/json'};
-  const formatStoragePrefix=scope=>'tin_doc_fmt_v1:'+(scope?encodeURIComponent(scope)+':':'');
+  const formatStoragePrefix=scope=>'tin_doc_fmt_v2:'+(scope?encodeURIComponent(scope)+':':'');
   function courseLessons(stored,context,grade,subject,samples={}){
     if(context?.curriculum_id){
       if(subject!==context.subject_name)return [];
@@ -27,8 +27,147 @@
   function blueprintSummary(rows){return {count:rows.reduce((n,r)=>n+Number(r.count||0),0),points:Math.round(rows.reduce((n,r)=>n+Number(r.count||0)*Number(r.points_per_question||0),0)*10000)/10000};}
   function sourceTemplateRequired(grade,period){return [8,10].includes(Number(grade))&&['GK1','CK1','GK2','CK2'].includes(period);}
   function templateBlocked(t){return Boolean(t?.unsupported);}
+  // Đối chiếu ma trận khi chọn câu: mỗi ô (bài, dạng, mức độ) cần bao nhiêu câu, đã chọn bao nhiêu, ngân hàng còn bao nhiêu câu đã duyệt.
+  function matrixCellCoverage(rows,selected,bank,multiplier){
+    const m=Number(multiplier)||1,cells=new Map(),key=q=>[q.lesson_code,q.type,q.level].join('|');
+    (rows||[]).forEach(r=>{const k=key(r),c=cells.get(k)||{lesson_code:r.lesson_code,type:r.type,level:r.level,need:0,selected:0,available:0};c.need+=Number(r.count||0)*m;cells.set(k,c);});
+    let outside=0;
+    (selected||[]).forEach(q=>{const c=cells.get(key(q));if(c)c.selected+=1;else outside+=1;});
+    (bank||[]).forEach(q=>{const c=cells.get(key(q));if(c&&q.review_status==='approved')c.available+=1;});
+    const list=[...cells.values()].map(c=>({...c,short:Math.max(0,c.need-c.selected),bankShort:Math.max(0,c.need-c.available)}));
+    return {cells:list,outside,need:list.reduce((n,c)=>n+c.need,0),selected:list.reduce((n,c)=>n+c.selected,0)};
+  }
+  // Ô ma trận (bài, dạng, mức độ[, YCCĐ]) có chứa câu q không.
+  function cellMatches(cell,q){return q.lesson_code===cell.lesson_code&&q.type===cell.type&&q.level===cell.level&&(!(cell.outcomes||[]).length||cell.outcomes.includes(q.learning_outcome));}
+  // Chia tổng số câu đề cương cho các ô theo tỉ lệ số câu của ô (phần dư lớn nhất), không vượt số câu ngân hàng có.
+    // Chia số câu đề cương cho các ô theo số câu trắc nghiệm (MC) và tự luận (ES) từng bài.
+  function distributeCountsByLesson(cells, lessonCounts) {
+    const out = {};
+    if (!cells || !cells.length || !lessonCounts) return out;
+    // Nhóm ô theo (lesson_code, type)
+    const groups = {};
+    cells.forEach(c => {
+      const k = c.lesson_code + '::' + c.type;
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(c);
+    });
+    Object.keys(groups).forEach(k => {
+      const [lcode, type] = k.split('::');
+      const gCells = groups[k];
+      const target = Number(lessonCounts[lcode]?.[type] ?? 0);
+      if (target > 0) {
+        const sub = distributeCounts(gCells, target);
+        Object.assign(out, sub);
+      } else if (lessonCounts[lcode] && lessonCounts[lcode][type] === 0) {
+        gCells.forEach(c => { out[c.key] = 0; });
+      }
+    });
+    return out;
+  }
+
+function distributeCounts(cells,total){
+    const whole=cells.reduce((n,c)=>n+Number(c.need||0),0),out={};if(!whole||!(total>0))return out;
+    const raw=cells.map(c=>({c,v:total*Number(c.need||0)/whole}));raw.forEach(r=>{out[r.c.key]=Math.floor(r.v);});
+    let left=total-raw.reduce((n,r)=>n+out[r.c.key],0);
+    raw.slice().sort((a,b)=>(b.v-Math.floor(b.v))-(a.v-Math.floor(a.v))).forEach(r=>{if(left>0){out[r.c.key]+=1;left-=1;}});
+    cells.forEach(c=>{if(c.available!==undefined)out[c.key]=Math.min(out[c.key],Number(c.available));});
+    return out;
+  }
   function revisionIds(questions,ids,grade){const selected=new Set(ids);return questions.filter(q=>selected.has(q.id)&&Number(q.grade)===Number(grade)&&q.review_status!=='archived').map(q=>q.id);}
   function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+  // Keep this deliberately small grammar aligned with exports._question_text_blocks.
+  // HTML, inline Markdown and ordinary pipes are always literal question text.
+  function questionTextBlocks(text){
+    const lines=String(text??'').split('\n'),blocks=[],plain=[];
+    const flush=()=>{if(plain.length){blocks.push(['text',plain.splice(0)]);}};
+    const cells=line=>{
+      let value=line.trim();if(!value.includes('|'))return null;
+      if(value.startsWith('|'))value=value.slice(1);
+      if(value.endsWith('|'))value=value.slice(0,-1);
+      const row=value.split('|').map(c=>c.trim());return row.length>=2?row:null;
+    };
+    let i=0;
+    while(i<lines.length){
+      const line=lines[i];
+      if(line.trimStart().startsWith('```')){
+        const closing=lines.findIndex((s,j)=>j>i&&s.trim()==='```');
+        if(/^\s*```[\p{L}\p{N}_.+-]*\s*$/u.test(line)&&closing>=0){
+          flush();blocks.push(['code',lines.slice(i+1,closing)]);i=closing+1;
+        }else{
+          const stop=closing<0?lines.length:closing+1;
+          plain.push(...lines.slice(i,stop));i=stop;
+        }
+        continue;
+      }
+      const header=cells(line),separator=i+1<lines.length?cells(lines[i+1]):null;
+      if(header&&separator&&header.length===separator.length&&separator.every(c=>/^:?-{3,}:?$/.test(c))){
+        let stop=i+2,valid=true;const rows=[header];
+        while(stop<lines.length&&lines[stop].includes('|')){
+          const row=cells(lines[stop]);if(!row||row.length!==header.length)valid=false;
+          rows.push(row);stop++;
+        }
+        if(valid&&rows.length>1){flush();blocks.push(['table',rows]);}
+        else plain.push(...lines.slice(i,stop));
+        i=stop;continue;
+      }
+      plain.push(line);i++;
+    }
+    flush();return blocks;
+  }
+  function questionTextHtml(text,{editable=false}={}){
+    const blocks=questionTextBlocks(text),rich=blocks.some(([kind])=>kind!=='text');
+    const field=editable?' data-edit-field="question"':'';
+    if(!rich)return `<span${field} style="white-space:pre-wrap">${escapeHtml(text)}</span>`;
+    const cellStyle='border:1px solid #9aa9b7;padding:6px 8px;white-space:pre-wrap;overflow-wrap:anywhere';
+    const html=blocks.map(([kind,content])=>{
+      if(kind==='code')return `<pre style="white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;font-family:Consolas,monospace;padding:10px;border:1px solid #d5dde5;background:#f6f8fa"><code>${escapeHtml(content.join('\n'))}</code></pre>`;
+      if(kind==='table')return `<table class="question-table" style="width:100%;table-layout:fixed;border-collapse:collapse;white-space:normal;margin:10px 0"><thead><tr>${content[0].map(c=>`<th style="${cellStyle}">${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>${content.slice(1).map(row=>`<tr>${row.map(c=>`<td style="${cellStyle}">${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+      return `<div style="white-space:pre-wrap">${escapeHtml(content.join('\n'))}</div>`;
+    }).join('');
+    return `<div${field} data-question-source-preserved="true" contenteditable="false" style="white-space:normal" title="Sửa nội dung mã và bảng bằng nút Sửa câu hỏi">${html}</div>`;
+  }
+  function insertQuestionTemplate(text,start,end,kind){
+    text=String(text??'');start=Math.max(0,Math.min(text.length,Number(start)||0));end=Math.max(start,Math.min(text.length,Number(end)||start));
+    const templates={code:['```python\n    # Viết mã tại đây\n```','    # Viết mã tại đây'],table:['| Đại lượng | Giá trị |\n| --- | --- |\n| Giá trị 1 | Giá trị 2 |','Giá trị 1']};
+    const entry=templates[kind];if(!entry)return {text,selectionStart:start,selectionEnd:end};
+    // Insert without removing selected question text.
+    const before=text.slice(0,start),after=text.slice(start);
+    const prefix=before&&!before.endsWith('\n')?'\n':'';
+    const suffix=after&&!after.startsWith('\n')?'\n':'';
+    const value=prefix+entry[0]+suffix,selectionStart=start+prefix.length+entry[0].indexOf(entry[1]);
+    return {text:before+value+after,selectionStart,selectionEnd:selectionStart+entry[1].length};
+  }
+
+  // Only form choices belong here; never persist bank records, answers or credentials.
+  function examDraftKey(scope){if(!scope||(scope.curriculum&&!scope.workspace))return null;return 'bank_exam_draft_v1:'+JSON.stringify([scope.workspace||'',scope.curriculum||'',scope.subject||'',Boolean(scope.test)]);}
+  function cleanExamDraft(value,context={}){
+    const v=value&&typeof value==='object'&&!Array.isArray(value)?value:{};
+    const number=(x,min,max,fallback)=>typeof x==='number'&&Number.isFinite(x)&&x>=min&&x<=max?x:fallback;
+    const text=(x,max=500)=>typeof x==='string'?x.slice(0,max):'';
+    const grade=(context.grades||[]).includes(v.grade)?v.grade:(context.grades?.[0]||8);
+    const exam_type=['TX','GK1','CK1','GK2','CK2'].includes(v.exam_type)?v.exam_type:'GK1';
+    const compatible=r=>Number(r.grade)===grade&&r.exam_type===exam_type;
+    const revision=id=>(context.revisions||[]).some(r=>r.id===id&&Number(r.grade)===grade)?id:'';
+    const matrix_id=(context.matrices||[]).some(r=>r.id===v.matrix_id&&r.status==='locked'&&compatible(r))?v.matrix_id:'';
+    const template_id=!matrix_id&&(context.templates||[]).some(r=>r.id===v.template_id&&compatible(r))?v.template_id:'';
+    const lessonCodes=new Set((context.lessons||[]).map(l=>l.lesson_code));
+    const validOutcomes=r=>r.outcomes===undefined||(Array.isArray(r.outcomes)&&r.outcomes.every(o=>typeof o==='string'&&(context.lessons||[]).some(l=>l.lesson_code===r.lesson_code&&(l.outcomes||[]).includes(o))));
+    const blueprint=(Array.isArray(v.blueprint)?v.blueprint:[]).slice(0,500).filter(r=>r&&lessonCodes.has(r.lesson_code)&&['MC','ES'].includes(r.type)&&['Biết','Hiểu','Vận dụng','Vận dụng cao'].includes(r.level)&&Number.isInteger(r.count)&&r.count>0&&r.count<=10000&&number(r.points_per_question,.001,100,null)!==null&&validOutcomes(r)).map(r=>({lesson_code:r.lesson_code,type:r.type,level:r.level,count:r.count,points_per_question:r.points_per_question,...(r.outcomes===undefined?{}:{outcomes:[...new Set(r.outcomes)]})}));
+    const set_counts={};if(v.set_counts&&typeof v.set_counts==='object'&&!Array.isArray(v.set_counts))Object.entries(v.set_counts).slice(0,500).forEach(([k,n])=>{if(k.length<=500&&!['__proto__','constructor','prototype'].includes(k)&&Number.isInteger(n)&&n>=0&&n<=10000)set_counts[k]=n;});
+    return {grade,exam_type,title:text(v.title),duration:number(v.duration,1,240,45),seed:text(v.seed,200)||'2026',revision_id:revision(v.revision_id),matrix_id,template_id,blueprint,similarity_percent:number(v.similarity_percent,90,100,90),similarity_mode:v.similarity_mode==='exact'?'exact':'min',set_count:Number.isInteger(v.set_count)?number(v.set_count,1,6,2):2,set_rev:revision(v.set_rev)||'auto',set_counts};
+  }
+  function saveExamDraft(storage,scope,draft){
+    try{
+      const key=examDraftKey(scope);if(!key)return false;
+      const fields=['grade','exam_type','title','duration','seed','revision_id','matrix_id','template_id','similarity_percent','similarity_mode','set_count','set_rev','set_counts'];
+      const value=Object.fromEntries(fields.map(k=>[k,draft[k]]));
+      value.blueprint=(Array.isArray(draft.blueprint)?draft.blueprint:[]).map(r=>r&&Object.fromEntries(['lesson_code','type','level','count','points_per_question','outcomes'].map(k=>[k,r[k]])));
+      value.set_counts=Object.fromEntries(Object.entries(draft.set_counts||{}).slice(0,500).filter(([k,n])=>k.length<=500&&!['__proto__','constructor','prototype'].includes(k)&&Number.isInteger(n)&&n>=0&&n<=10000));
+      storage.setItem(key,JSON.stringify(value));return true;
+    }catch{return false;}
+  }
+  function loadExamDraft(storage,scope,context){try{const key=examDraftKey(scope);if(!key)return null;const raw=storage.getItem(key);if(!raw)return null;const value=JSON.parse(raw);return value&&typeof value==='object'&&!Array.isArray(value)?cleanExamDraft(value,context):null;}catch{return null;}}
 
   const DocFormatter={
     storagePrefix:formatStoragePrefix(typeof document!=='undefined'?document.querySelector('meta[name="workspace-scope"]')?.content:''),
@@ -120,7 +259,28 @@
       if(saved&&!opts.skipRestore){
         sheet.innerHTML=saved;
       }
-      let activeCell=null,activeBlock=null,isEditing=Boolean(opts.startEditing);
+      let activeCell=null,activeBlock=null,isEditing=Boolean(opts.startEditing),sourceFocused=false;
+      const sourceSelector='[data-question-source-preserved="true"]';
+      const inSource=element=>Boolean((element?.nodeType===3?element.parentElement:element)?.closest?.(sourceSelector));
+      const containsSource=element=>inSource(element)||Boolean(element?.querySelector?.(sourceSelector));
+      const protectedSelection=()=>{
+        if(sourceFocused)return true;
+        const selection=window.getSelection?.();
+        if(inSource(selection?.anchorNode)||inSource(selection?.focusNode))return true;
+        if(selection?.rangeCount&&!selection.isCollapsed){
+          const range=selection.getRangeAt(0);
+          return [...sheet.querySelectorAll(sourceSelector)].some(block=>range.intersectsNode(block));
+        }
+        return false;
+      };
+      const clearActiveSource=target=>{
+        sourceFocused=inSource(target);
+        if(!sourceFocused)return false;
+        activeCell=null;activeBlock=null;
+        sheet.querySelectorAll('.fmt-active-cell').forEach(x=>x.classList.remove('fmt-active-cell'));
+        return true;
+      };
+      const explainSourceLock=()=>opts.notify?.('Sửa câu có mã hoặc bảng bằng nút “Sửa câu hỏi”.',true);
       const syncEditState=()=>{
         sheet.contentEditable=isEditing?'true':'false';
         sheet.classList.toggle('fmt-editable',isEditing);
@@ -136,10 +296,12 @@
       syncEditState();
 
       sheet.addEventListener('focusin',ev=>{
+        if(clearActiveSource(ev.target))return;
         const cell=ev.target.closest?.('td,th');if(cell&&sheet.contains(cell))activeCell=cell;
         const blk=ev.target.closest?.('td,th,p,h1,h2,h3,h4,h5,li,article');if(blk&&sheet.contains(blk))activeBlock=blk;
       });
       sheet.addEventListener('click',ev=>{
+        if(clearActiveSource(ev.target))return;
         const cell=ev.target.closest?.('td,th');
         if(cell&&sheet.contains(cell)){
           sheet.querySelectorAll('.fmt-active-cell').forEach(x=>x.classList.remove('fmt-active-cell'));
@@ -162,7 +324,7 @@
           if(activeCell&&sheet.contains(activeCell))found.add(activeCell);
           else if(activeBlock&&sheet.contains(activeBlock))found.add(activeBlock);
         }
-        return [...found];
+        return [...found].filter(el=>!containsSource(el));
       };
 
       const findColumnIndex=cell=>{
@@ -186,6 +348,9 @@
       const bar=hostEl.querySelector('[data-fmt-bar]');
       if(!bar)return;
       bar.addEventListener('click',async ev=>{
+        const command=ev.target.closest('[data-fmt-cmd]')?.dataset.fmtCmd;
+        const mutatesSource=['[data-fmt-exec]','[data-fmt-align]','[data-fmt-valign]','[data-fmt-col]'].some(selector=>ev.target.closest(selector))||['row-add','row-del','auto-center-table'].includes(command);
+        if(mutatesSource&&protectedSelection()){ev.preventDefault();explainSourceLock();return;}
         const execBtn=ev.target.closest('[data-fmt-exec]');
         if(execBtn){
           ev.preventDefault();
@@ -223,6 +388,7 @@
         if(colBtn){
           ev.preventDefault();
           if(!activeCell||!sheet.contains(activeCell)){opts.notify?.('Hãy nhấp vào một ô trong cột cần chỉnh độ rộng.',true);return;}
+          if(inSource(activeCell)){explainSourceLock();return;}
           const table=activeCell.closest('table');if(!table)return;
           const ci=findColumnIndex(activeCell);if(ci<0)return;
           const cols=[...table.querySelectorAll('colgroup col')];
@@ -244,13 +410,14 @@
         }
         if(cmd==='auto-center-table'){
           opts.onAutoFormat?.(sheet);
-          sheet.querySelectorAll('th').forEach(th=>{th.setAttribute('align','center');th.style.textAlign='center';th.classList.add('mx-center');});
+          [...sheet.querySelectorAll('th')].filter(th=>!inSource(th)).forEach(th=>{th.setAttribute('align','center');th.style.textAlign='center';th.classList.add('mx-center');});
           sheet.querySelectorAll(':scope > p, .doc-sheet-head, .doc-sheet-head h3, .doc-sheet-head p').forEach(p=>{p.setAttribute('align','center');p.style.textAlign='center';});
           opts.notify?.('Đã chuẩn hóa căn giữa tiêu đề và các cột dữ liệu trong bảng.');
           return;
         }
         if(cmd==='row-add'){
           if(!activeCell||!sheet.contains(activeCell)){opts.notify?.('Hãy nhấp vào một ô trong bảng để thêm dòng bên dưới.',true);return;}
+          if(inSource(activeCell)){explainSourceLock();return;}
           const tr=activeCell.closest('tr');if(!tr)return;
           const clone=tr.cloneNode(true);
           clone.querySelectorAll('td,th').forEach(c=>{c.removeAttribute('rowspan');c.innerHTML='&nbsp;';c.classList.remove('fmt-active-cell');});
@@ -259,6 +426,7 @@
         }
         if(cmd==='row-del'){
           if(!activeCell||!sheet.contains(activeCell)){opts.notify?.('Hãy nhấp vào một ô trong dòng cần xóa.',true);return;}
+          if(inSource(activeCell)){explainSourceLock();return;}
           const tr=activeCell.closest('tr');if(!tr)return;
           tr.remove();activeCell=null;
           return;
@@ -288,18 +456,19 @@
       });
 
       bar.addEventListener('change',ev=>{
+        if(protectedSelection()){explainSourceLock();return;}
         const fs=ev.target.closest('[data-fmt-fontsize]');
         if(fs&&fs.value){
           const targets=getTargetElements();
           if(targets.length)targets.forEach(el=>el.style.fontSize=fs.value);
-          else{sheet.style.fontSize=fs.value;sheet.querySelectorAll('td,th').forEach(c=>c.style.fontSize=fs.value);}
+          else{sheet.style.fontSize=fs.value;[...sheet.querySelectorAll('td,th')].filter(c=>!inSource(c)).forEach(c=>c.style.fontSize=fs.value);}
           fs.value='';return;
         }
         const lh=ev.target.closest('[data-fmt-lineheight]');
         if(lh&&lh.value){
           const targets=getTargetElements();
           if(targets.length)targets.forEach(el=>el.style.lineHeight=lh.value);
-          else{sheet.style.lineHeight=lh.value;sheet.querySelectorAll('td,th,p').forEach(c=>c.style.lineHeight=lh.value);}
+          else{sheet.style.lineHeight=lh.value;[...sheet.querySelectorAll('td,th,p')].filter(c=>!containsSource(c)).forEach(c=>c.style.lineHeight=lh.value);}
           lh.value='';return;
         }
         const bg=ev.target.closest('[data-fmt-bg]');
@@ -370,7 +539,10 @@ function syncEditedQuestionsFromSheet(sheet,record){
   const qid=art.dataset.editQid;
   const recQ=(record.questions||[]).find(x=>x.id===qid)||record.questions[qIndex];
   const qEl=art.querySelector('[data-edit-field="question"]');
-  const newQText=qEl?qEl.textContent.trim():null;
+  // A rendered table/code block has no faithful textContent round trip. Preserve
+  // record source even when restoring an older saved formatter view.
+  const preserveSource=qEl?.dataset?.questionSourcePreserved==='true'||questionTextBlocks(recQ?.question).some(([kind])=>kind!=='text');
+  const newQText=qEl&&!preserveSource?qEl.textContent.trim():null;
   let dirty=false;
   const applyTo=target=>{
    if(!target)return;
@@ -419,7 +591,11 @@ function syncEditedQuestionsFromSheet(sheet,record){
     return '';
   }
   // B1: hàng đợi duyệt câu hỏi. "content_checked" là tên cũ của "chờ duyệt".
-  const LEVEL_ORDER={'Biết':0,'Hiểu':1,'Vận dụng':2};
+  const COGNITIVE_LEVELS=['Biết','Hiểu','Vận dụng','Vận dụng cao'];
+  function levelAfterTypeChange(level,kind){return kind==='ES'&&level!=='Vận dụng cao'?'Vận dụng':level;}
+  function cognitiveLevels(){return COGNITIVE_LEVELS.slice();}
+  function levelOptions(value){return COGNITIVE_LEVELS.map(level=>`<option value="${escapeHtml(level)}"${level===value?' selected':''}>${escapeHtml(level)}</option>`).join('');}
+  const LEVEL_ORDER=Object.fromEntries(COGNITIVE_LEVELS.map((level,index)=>[level,index]));
   function reviewStatusOf(q){const s=(q&&q.review_status)||'draft';return s==='content_checked'?'pending_review':s;}
   function reviewQueue(questions,f){
     f=f||{};const status=f.status||'pending_review';
@@ -488,8 +664,10 @@ function syncEditedQuestionsFromSheet(sheet,record){
         'Bấm "Xem toàn bộ đang chọn" để rà lại danh sách.',
         'Đặt "Tên phiên bản" rồi "Lưu phiên bản đề cương". Mỗi lần lưu là một bản chụp cố định, không đổi theo ngân hàng.',
         'Muốn chỉnh bản đã lưu: mở bản đó, sửa, rồi "Cập nhật…" hoặc "Lưu thành bản mới".',
-        '"📥 Import Đề cương (.docx / .json)" để nhập đề cương có sẵn.'],
-      tips:['Mục "Giới hạn kiến thức ôn tập" khi xuất có đúng 3 cột: STT, Tên chủ đề, Tên bài.']},
+        '"📥 Import Đề cương (.docx / .json)" để nhập đề cương có sẵn.',
+        '"Tạo đề cương theo ma trận": chọn ma trận, sửa "Số câu đề cương" từng ô (hoặc nhập tổng rồi "Chia theo tỉ lệ"), bấm "Tự chọn…". Cột "Đã chọn" cho biết mỗi ô đang có bao nhiêu câu.'],
+      tips:['Mục "Giới hạn kiến thức ôn tập" khi xuất có đúng 3 cột: STT, Tên chủ đề, Tên bài.',
+        'Muốn tạo luôn đề cương và các đề một lần: dùng "Tạo đề tự động theo ma trận" ở màn hình Tạo đề kiểm tra.']},
     matrices:{title:'Ma trận & đặc tả',purpose:'Lập, nhập, đối chiếu và khóa ma trận – bảng đặc tả; tạo đề theo ma trận.',
       steps:['"Nhập ma trận" → "Chọn Word hoặc gói JSON" để nhận ma trận của tổ (Khối 8, 10); hoặc "+ Tạo ma trận khối…" để tự thiết kế (Khối 9).',
         'Đi lần lượt 5 bước: 1. Thông tin hồ sơ → 2. Bài học & YCCĐ → 3. Phân bố câu hỏi và ý → 4. Đối chiếu & xác nhận → 5. Word & phiên bản dùng chung.',
@@ -499,8 +677,10 @@ function syncEditedQuestionsFromSheet(sheet,record){
         '"Tạo và lưu đề riêng" để sinh đề trực tiếp từ ma trận.'],
       tips:['Giữ nguyên YCCĐ, số câu, số điểm của ma trận gốc.','Đánh số câu dạng (1, 2, 3) hoặc (1a, 1b), không dùng (C1 - C4).']},
     exams:{title:'Tạo đề kiểm tra',purpose:'Sinh đề từ ngân hàng theo ma trận và đề cương, kiểm định, duyệt – khóa, phát hành và xuất hồ sơ.',
-      steps:['Điền tên đề, khối, kì kiểm tra, thời gian; chọn ma trận và "Phiên bản đề cương dùng đối chiếu".',
+      steps:['Điền tên đề, khối, kì kiểm tra, thời gian; chọn ma trận (ma trận đã khóa ở "Ma trận & đặc tả" hiện bảng từng ô kèm YCCĐ) và đề cương nếu đã có.',
         'Bấm "Tạo và lưu đề kiểm tra". Nếu thiếu câu, ứng dụng báo rõ ô thiếu (không tự hạ mức độ hay đổi bài).',
+        'Chưa có đề cương vẫn tạo được đề (chọn "Chưa gắn đề cương"); trước khi gửi duyệt, mở đề → chọn đề cương cạnh nút "Kiểm định lại" rồi kiểm định.',
+        '"Tạo đề tự động theo ma trận": chọn số đề (1–6) và đề cương (tự lập, chỉnh số câu từng ô; hoặc bản đã lưu). Mỗi đề lấy 90% câu từ đề cương, 10% còn lại (ưu tiên Vận dụng) để phân hóa.',
         'Mở đề đã lưu, xem kết quả "Kiểm định": tổng 10 điểm, khớp từng ô ma trận, tiêu chí đề cương T ≥ 90%, bao phủ YCCĐ 100%.',
         'Vòng đời: "Gửi duyệt đề" → "Duyệt & khóa" → "Phát hành". Đề đã khóa không sửa được; muốn sửa tạo bản chỉnh sửa mới và duyệt lại.',
         'Nhập "Mã xáo trộn" để tạo các mã đề hoán vị; tải "Bảng đối chiếu mã đề".',
@@ -520,6 +700,6 @@ function syncEditedQuestionsFromSheet(sheet,record){
     const g=SCREEN_GUIDES[tab]||SCREEN_GUIDES.overview;
     return {...g,tips:(opts&&opts.testMode)?[TEST_MODE_TIP,...g.tips]:g.tips.slice()};
   }
-  const api={screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  const api={questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

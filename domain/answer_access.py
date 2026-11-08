@@ -10,9 +10,6 @@ def redact_answers(value):
         for key, item in value.items():
             if key in ANSWER_KEYS:
                 continue
-            if key == 'statements' and isinstance(item, list):
-                out[key] = [{k: v for k, v in s.items() if k != 'correct'} if isinstance(s, dict) else s for s in item]
-                continue
             out[key] = redact_answers(item)
         return out
     if isinstance(value, list):

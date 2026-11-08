@@ -1,0 +1,7 @@
+{% extends 'base.html' %}{% block content %}
+<section class="intro"><div><h1>Hồ sơ kiểm tra bắt đầu từ môn bạn dạy.</h1>
+<p>Thiết lập môn học và chương trình trong không gian riêng của bạn.</p>
+<p class="muted">Sử dụng giao diện ngân hàng câu hỏi, phân phối chương trình, đề cương, ma trận và tạo đề đã có. Dữ liệu được lưu riêng theo tài khoản.</p>
+<a class="button" href="{% if user.is_authenticated %}{% url 'workspace' %}{% else %}{% url 'signup' %}{% endif %}">Mở không gian giáo viên</a></div>
+<aside class="paper"><h2>Mỗi giáo viên, một không gian riêng</h2><p>Thêm môn học, chọn khối lớp, bộ sách và năm học phù hợp với kế hoạch giảng dạy của bạn.</p><p>Trang web dùng chung; dữ liệu tài khoản không tự công khai.</p></aside></section>
+{% endblock %}

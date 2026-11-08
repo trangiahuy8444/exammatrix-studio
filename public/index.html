@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="vi">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>ExamMatrix Studio · Khảo thí & Đánh giá</title><link rel="stylesheet" href="./styles.css"><script src="./core.js" defer></script><link rel="stylesheet" href="./matrices.css"><script src="./matrices.js" defer></script><script src="./curricula.js" defer></script><script src="./firebase-config.js" defer></script><script src="./firebase-bridge.js" defer></script><script src="./app.js" defer></script></head>
+<body>
+<a class="skip" href="#main">Đến nội dung chính</a>
+<aside class="sidebar">
+  <a class="brand" href="#overview"><span class="brand-mark">EM</span><span>EXAMMATRIX STUDIO<small id="sidebar-subject-caption">Khảo thí & Đánh giá · 2026–2027</small></span></a>
+  <p class="nav-caption">KHÔNG GIAN CHUYÊN MÔN</p>
+  <nav aria-label="Điều hướng chính"><a href="#overview" data-tab="overview">Tổng quan</a><a href="#bank" data-tab="bank">Ngân hàng câu hỏi</a><a href="#review" data-tab="review">Duyệt câu hỏi</a><a href="#ppct" data-tab="ppct">Phân phối chương trình</a><a href="#revisions" data-tab="revisions">Đề cương ôn tập</a><a href="#matrices" data-tab="matrices">Ma trận & đặc tả</a><a href="#exams" data-tab="exams">Tạo đề kiểm tra</a><a href="#kttx" data-tab="kttx">Kiểm tra thường xuyên</a></nav>
+  <div class="sidebar-foot"><span class="local-dot"></span> Làm việc trên máy này<p>Nội dung được lưu tại thư mục ứng dụng. Chỉ truy cập cục bộ.</p></div>
+</aside>
+<div class="workspace">
+<header class="topbar">
+  <div style="display:flex;align-items:center;gap:12px">
+    <span style="font-weight:700;color:var(--navy,#102d4a);letter-spacing:-0.2px">EXAMMATRIX STUDIO</span>
+    <span style="color:var(--line,#ccc)">|</span>
+    <div style="display:flex;align-items:center;gap:6px">
+      <label for="global-subject-select" style="font-size:12px;font-weight:600;color:var(--muted,#666)">Môn học:</label>
+      <select id="global-subject-select" style="padding:4px 10px;font-weight:600;color:var(--navy,#102d4a);border:1px solid #c5d8ea;border-radius:6px;background:#f8fafc;cursor:pointer">
+        <option value="Tin học">Tin học</option>
+        <option value="Toán học">Toán học</option>
+        <option value="Vật lí">Vật lí</option>
+        <option value="Hóa học">Hóa học</option>
+        <option value="Sinh học">Sinh học</option>
+        <option value="Ngữ văn">Ngữ văn</option>
+        <option value="Tiếng Anh">Tiếng Anh</option>
+        <option value="Lịch sử">Lịch sử</option>
+        <option value="Địa lí">Địa lí</option>
+      </select>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button id="btn-toggle-test-mode" class="quiet" type="button" style="font-weight:600;color:#9a6700;border:1px solid #e0c885;border-radius:6px;padding:5px 10px;background:#fffdf5">🧪 Chế độ Test</button>
+    <button id="btn-user-guide" class="quiet" type="button" style="font-weight:600;color:var(--navy,#102d4a)">📖 Hướng dẫn sử dụng</button>
+    <button id="btn-ai-assistant" class="quiet" type="button" style="font-weight:600;color:var(--brand,#0a58ca)">✨ Trợ lý AI (Gemini)</button>
+    <span class="teacher">Không gian giáo viên</span>
+    <button id="refresh" class="quiet" type="button">Tải lại dữ liệu</button>
+  </div>
+</header>
+<main id="main" tabindex="-1">
+  <div id="test-mode-banner" hidden style="background:#fff3cd;border:1px solid #ffeeba;border-radius:8px;color:#856404;padding:12px 18px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;font-size:13px;box-shadow:0 2px 8px rgba(133,100,4,0.08)">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:22px">🧪</span>
+      <div>
+        <strong style="font-size:14px;color:#664d03">ĐANG Ở CHẾ ĐỘ TEST (THỬ NGHIỆM) — BẢN SAO ĐỂ THỬ</strong>
+        <p style="margin:2px 0 0;font-size:12px;color:#856404">Có sẵn bản sao PPCT và câu hỏi của ngân hàng thật (ngân hàng thật chưa có câu thì dùng câu mẫu tự soạn); đề, đề cương và ma trận bắt đầu trống. Mọi thao tác thêm/sửa/xóa chỉ lưu tại vùng thử nghiệm và KHÔNG ảnh hưởng đến dữ liệu thật.</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button type="button" id="btn-reset-test-data" class="button danger" style="padding:5px 12px;font-size:12px;font-weight:600">🔄 Làm mới dữ liệu test</button>
+      <button type="button" id="btn-exit-test-mode" class="button" style="padding:5px 12px;font-size:12px;font-weight:600;background:#fff;border-color:#d0dbe5">↩️ Về Dữ liệu Thật</button>
+    </div>
+  </div>
+  <div id="notice" role="status" aria-live="polite" hidden></div>
+  <div id="loading" class="empty" role="status">Đang mở ngân hàng câu hỏi…</div>
+  <section id="overview" class="view" hidden></section>
+  <section id="bank" class="view" hidden></section>
+  <section id="review" class="view" hidden></section>
+  <section id="ppct" class="view" hidden></section>
+  <section id="revisions" class="view" hidden></section>
+  <section id="matrices" class="view" hidden></section>
+  <section id="exams" class="view" hidden></section>
+  <section id="kttx" class="view" hidden></section>
+</main>
+<footer id="page-footer">Hệ thống Ngân hàng đề & Khảo thí · Môn <span id="footer-subject-name" style="font-weight:bold">Tin học</span> <span>Asian School · Năm học 2026–2027</span></footer>
+</div>
+<dialog id="detail-dialog" aria-labelledby="detail-title"><div id="detail-content"></div></dialog>
+<dialog id="edit-dialog" aria-labelledby="edit-title"><div class="dialog-heading"><h2 id="edit-title">Câu hỏi</h2><button type="button" data-close="edit-dialog" class="quiet">Đóng</button></div><form id="question-form"></form></dialog>
+<dialog id="ai-dialog" aria-labelledby="ai-title" style="max-width:850px;width:92vw;border-radius:10px;padding:24px;border:1px solid var(--line,#ccc);box-shadow:0 8px 30px rgba(0,0,0,0.18)">
+  <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--line,#eee);padding-bottom:12px">
+    <div>
+      <h2 id="ai-title" style="margin:0;font-size:1.3rem">✨ Trợ lý AI Khảo thí (Google Gemini)</h2>
+      <small style="color:var(--muted,#666)">Tạo câu hỏi theo chuẩn GDPT 2018 · Bóc tách đề thô · Sinh biến thể tương đương</small>
+    </div>
+    <button type="button" data-close="ai-dialog" class="quiet" style="font-size:1.2rem;cursor:pointer">✕</button>
+  </div>
+  <div class="ai-tabs" style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--line,#eee);padding-bottom:8px">
+    <button type="button" class="tab-pill active" data-ai-tab="key" style="padding:6px 14px;border-radius:6px;border:1px solid var(--line,#ccc);background:var(--brand,#0a58ca);color:#fff;cursor:pointer">🔑 Trạng thái AI</button>
+    <button type="button" class="tab-pill" data-ai-tab="mode1" style="padding:6px 14px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer">🎯 1. Sinh theo YCCĐ</button>
+    <button type="button" class="tab-pill" data-ai-tab="mode2" style="padding:6px 14px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer">📄 2. Bóc tách đề thô</button>
+    <button type="button" class="tab-pill" data-ai-tab="mode3" style="padding:6px 14px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer">🔀 3. Sinh biến thể</button>
+  </div>
+  <div id="ai-tab-content">
+    <div id="ai-pane-key" class="ai-pane">
+      <p>Trợ lý AI dùng Google Gemini qua khóa đặt <strong>trên máy chủ</strong> (biến môi trường <code>GEMINI_API_KEY</code>). Trình duyệt không nhập, không lưu và không gửi khóa.</p>
+      <p><strong>Trạng thái:</strong> <span id="gemini-key-status">Đang kiểm tra…</span></p>
+      <p style="font-size:0.85rem;color:var(--muted,#666);margin-top:14px"><em>Câu do AI tạo luôn được lưu ở trạng thái nháp và phải được giáo viên duyệt trước khi dùng trong đề. Số lượt gọi AI mỗi ngày có giới hạn (biến <code>AI_DAILY_LIMIT</code>, mặc định 50).</em></p>
+    </div>
+    <div id="ai-pane-mode1" class="ai-pane" hidden>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <label style="display:block;font-weight:600;margin-bottom:4px">Môn học</label>
+          <select id="ai-m1-subject" style="width:100%;padding:8px">
+            <option value="Tin học" selected>Tin học</option>
+            <option value="Toán học">Toán học</option>
+            <option value="Vật lí">Vật lí</option>
+            <option value="Hóa học">Hóa học</option>
+            <option value="Sinh học">Sinh học</option>
+            <option value="Ngữ văn">Ngữ văn</option>
+            <option value="Lịch sử">Lịch sử</option>
+            <option value="Địa lí">Địa lí</option>
+            <option value="Tiếng Anh">Tiếng Anh</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-weight:600;margin-bottom:4px">Khối lớp</label>
+          <select id="ai-m1-grade" style="width:100%;padding:8px">
+            <option value="8">Khối 8</option>
+            <option value="9">Khối 9</option>
+            <option value="10" selected>Khối 10</option>
+            <option value="11">Khối 11</option>
+            <option value="12">Khối 12</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-weight:600;margin-bottom:4px">Mức độ nhận thức</label>
+          <select id="ai-m1-level" style="width:100%;padding:8px">
+            <option value="Biết" selected>Nhận biết</option>
+            <option value="Hiểu">Thông hiểu</option>
+            <option value="Vận dụng">Vận dụng</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <label style="display:block;font-weight:600;margin-bottom:4px">Dạng câu hỏi</label>
+          <select id="ai-m1-type" style="width:100%;padding:8px">
+            <option value="MC" selected>Nhiều lựa chọn (4 lựa chọn A, B, C, D)</option>
+            <option value="YN">Trắc nghiệm Đúng/Sai (4 ý a, b, c, d)</option>
+            <option value="SHORT">Trả lời ngắn</option>
+            <option value="ES">Tự luận kèm Barem</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-weight:600;margin-bottom:4px">Số lượng câu</label>
+          <input type="number" id="ai-m1-count" min="1" max="5" value="3" style="width:100%;padding:8px;box-sizing:border-box">
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-weight:600;margin-bottom:4px">Chọn bài học từ Phân phối chương trình (PPCT)</label>
+        <select id="ai-m1-lesson-select" style="width:100%;padding:8px;box-sizing:border-box">
+          <option value="">— Đang nạp danh mục bài học —</option>
+        </select>
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-weight:600;margin-bottom:4px">Yêu cầu cần đạt (YCCĐ)</label>
+        <select id="ai-m1-outcome-select" style="width:100%;padding:8px;margin-bottom:6px;box-sizing:border-box;display:none">
+          <option value="">— Chọn gợi ý YCCĐ từ bài học —</option>
+        </select>
+        <textarea id="ai-m1-outcome" rows="2" placeholder="Chọn bài học ở trên để nạp gợi ý YCCĐ, hoặc tự nhập YCCĐ tại đây..." style="width:100%;padding:8px;box-sizing:border-box"></textarea>
+      </div>
+      <button type="button" class="primary" id="ai-m1-submit-btn" style="padding:10px 20px;border-radius:6px;background:var(--brand,#0a58ca);color:#fff;border:none;cursor:pointer">✨ Tạo câu hỏi với Gemini</button>
+      <div id="ai-m1-results" style="margin-top:16px;max-height:300px;overflow-y:auto"></div>
+    </div>
+    <div id="ai-pane-mode2" class="ai-pane" hidden>
+      <p>Dán nội dung đề thi thô hoặc đoạn văn bản câu hỏi vào khung bên dưới, AI sẽ bóc tách cấu trúc câu hỏi, phương án và đáp án:</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:12px;margin-bottom:12px">
+        <div>
+          <label style="display:block;font-weight:600;margin-bottom:4px">Môn học đích</label>
+          <select id="ai-m2-subject" style="width:100%;padding:8px">
+            <option value="Tin học" selected>Tin học</option>
+            <option value="Toán học">Toán học</option>
+            <option value="Vật lí">Vật lí</option>
+            <option value="Hóa học">Hóa học</option>
+            <option value="Sinh học">Sinh học</option>
+            <option value="Ngữ văn">Ngữ văn</option>
+            <option value="Lịch sử">Lịch sử</option>
+            <option value="Địa lí">Địa lí</option>
+            <option value="Tiếng Anh">Tiếng Anh</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-weight:600;margin-bottom:4px">Khối lớp đích</label>
+          <select id="ai-m2-grade" style="width:100%;padding:8px">
+            <option value="8">Khối 8</option>
+            <option value="9">Khối 9</option>
+            <option value="10" selected>Khối 10</option>
+            <option value="11">Khối 11</option>
+            <option value="12">Khối 12</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-weight:600;margin-bottom:4px">Gán vào bài học đích</label>
+          <select id="ai-m2-lesson-select" style="width:100%;padding:8px">
+            <option value="">— Đang nạp danh mục bài học —</option>
+          </select>
+        </div>
+      </div>
+      <textarea id="ai-m2-raw-text" rows="8" placeholder="Dán đề thi thô tại đây (ví dụ: Câu 1: ... A. ... B. ... C. ... D. ... Đáp án: ...)" style="width:100%;padding:10px;box-sizing:border-box;font-family:monospace"></textarea>
+      <div style="margin-top:12px">
+        <button type="button" class="primary" id="ai-m2-submit-btn" style="padding:10px 20px;border-radius:6px;background:var(--brand,#0a58ca);color:#fff;border:none;cursor:pointer">✨ Bóc tách & Cấu trúc hóa đề thô</button>
+      </div>
+      <div id="ai-m2-results" style="margin-top:16px;max-height:300px;overflow-y:auto"></div>
+    </div>
+    <div id="ai-pane-mode3" class="ai-pane" hidden>
+      <p>Chọn câu hỏi có sẵn trong ngân hàng hoặc dán câu hỏi để AI sinh biến thể tương đương (đổi số liệu, tham số, ngữ cảnh thực tế):</p>
+      <div style="margin-bottom:10px">
+        <label style="display:block;font-weight:600;margin-bottom:4px">Chọn câu hỏi gốc từ Ngân hàng</label>
+        <select id="ai-m3-select-existing-q" style="width:100%;padding:8px;box-sizing:border-box">
+          <option value="">— Chọn một câu hỏi từ ngân hàng —</option>
+        </select>
+      </div>
+      <textarea id="ai-m3-question-json" rows="6" placeholder='Dán nội dung câu hỏi JSON hoặc mô tả câu hỏi gốc...' style="width:100%;padding:10px;box-sizing:border-box;font-family:monospace"></textarea>
+      <div style="margin-top:12px">
+        <button type="button" class="primary" id="ai-m3-submit-btn" style="padding:10px 20px;border-radius:6px;background:var(--brand,#0a58ca);color:#fff;border:none;cursor:pointer">✨ Sinh biến thể tương đương</button>
+      </div>
+      <div id="ai-m3-results" style="margin-top:16px;max-height:300px;overflow-y:auto"></div>
+    </div>
+  </div>
+</dialog>
+<dialog id="help-dialog" class="wide-dialog" aria-labelledby="help-title" style="max-width:1100px;width:95vw;border-radius:12px;padding:26px;border:1px solid var(--line,#ccc);box-shadow:0 12px 40px rgba(0,0,0,0.2)">
+  <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--line,#eee);padding-bottom:12px">
+    <div>
+      <h2 id="help-title" style="margin:0;font-size:1.35rem;color:var(--navy,#102d4a)">📖 Hướng dẫn sử dụng & Quy chuẩn dữ liệu ExamMatrix Studio</h2>
+      <small style="color:var(--muted,#666)">Hệ thống Khảo thí & Đánh giá chuyên môn · Trường Quốc tế Á Châu (Asian School) · Chuẩn GDPT 2018</small>
+    </div>
+    <button type="button" data-close="help-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer">✕</button>
+  </div>
+  <div class="help-tabs" style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--line,#eee);padding-bottom:8px">
+    <button type="button" class="tab-pill" data-help-tab="current" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer;font-weight:600">📍 Màn hình đang mở</button>
+    <button type="button" class="tab-pill active" data-help-tab="workflows" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:var(--navy,#102d4a);color:#fff;cursor:pointer;font-weight:600">📋 1. Cẩm nang 7 luồng công tác</button>
+    <button type="button" class="tab-pill" data-help-tab="schema" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer;font-weight:600">📐 2. Quy chuẩn dữ liệu & Mẫu đề thô</button>
+    <button type="button" class="tab-pill" data-help-tab="math-code" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer;font-weight:600">🧮 3. Công thức LaTeX & Mã Code</button>
+  </div>
+  <div id="help-tab-content" style="max-height:68vh;overflow-y:auto;padding-right:6px">
+    <!-- Hướng dẫn theo màn hình đang mở (app.js điền nội dung) -->
+    <div id="help-pane-current" class="help-pane" hidden></div>
+    <!-- Tab 1: Workflows -->
+    <div id="help-pane-workflows" class="help-pane">
+      <div style="background:#f8fafc;padding:12px 16px;border-radius:8px;border-left:4px solid var(--blue,#0267b1);margin-bottom:16px">
+        <strong style="color:var(--navy,#102d4a)">Quy trình làm việc chuẩn cho Giáo viên bộ môn & Tổ trưởng chuyên môn:</strong>
+        <p style="margin:4px 0 0;font-size:13px;color:var(--muted,#555)">Theo dõi 7 bước bên dưới để tra cứu PPCT, biên tập câu hỏi, tạo đề hoán vị và xuất trọn bộ hồ sơ kiểm tra.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="ppct-table" style="width:100%;font-size:13px">
+          <thead>
+            <tr>
+              <th style="width:50px;text-align:center">Bước</th>
+              <th style="width:180px">Luồng công tác</th>
+              <th style="width:180px">Vị trí giao diện</th>
+              <th>Thao tác chính</th>
+              <th style="width:220px">Đầu ra / Tiêu chuẩn bắt buộc</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="text-align:center;font-weight:bold">1</td>
+              <td><strong>Tra cứu & Quản lý PPCT</strong></td>
+              <td>Tab <code>Phân phối chương trình</code></td>
+              <td>Chọn Môn học & Khối lớp để xem toàn bộ danh mục bài học, tuần, tiết và YCCĐ chuẩn GDPT 2018. Bấm <code>+ Thêm bài học PPCT</code> hoặc <code>Sửa</code> nếu cần cập nhật KHDH.</td>
+              <td>Bảng PPCT đồng bộ theo môn. Tuân thủ Quy tắc 5 (Rule 5).</td>
+            </tr>
+            <tr>
+              <td style="text-align:center;font-weight:bold">2</td>
+              <td><strong>Quản lý Ngân hàng câu hỏi</strong></td>
+              <td>Tab <code>Ngân hàng câu hỏi</code></td>
+              <td>Lọc theo Môn, Khối, Bài học, Mức độ. Bấm <code>+ Thêm câu hỏi</code> hoặc chỉnh sửa câu có sẵn. Thẩm định và duyệt câu hỏi sang trạng thái <code>Duyệt nội dung</code> hoặc <code>Phê duyệt</code>.</td>
+              <td>Kho câu hỏi chuẩn. <em>Lưu ý: Chỉ câu hỏi đã duyệt mới được đưa vào đề thi.</em></td>
+            </tr>
+            <tr>
+              <td style="text-align:center;font-weight:bold">3</td>
+              <td><strong>Sử dụng Trợ lý AI (Gemini)</strong></td>
+              <td>Nút <code>✨ Trợ lý AI (Gemini)</code></td>
+              <td><strong>Mode 1:</strong> Sinh câu hỏi theo gợi ý YCCĐ.<br><strong>Mode 2:</strong> Dán văn bản đề thô để bóc tách.<br><strong>Mode 3:</strong> Chọn câu trong ngân hàng để sinh biến thể tương đương. Xem trước và chỉnh sửa trước khi lưu.</td>
+              <td>Câu hỏi mới kèm đáp án và lời giải chi tiết. Lưu ở trạng thái Chờ duyệt.</td>
+            </tr>
+            <tr>
+              <td style="text-align:center;font-weight:bold">4</td>
+              <td><strong>Thiết lập Ma trận & Đặc tả</strong></td>
+              <td>Tab <code>Ma trận & đặc tả</code></td>
+              <td>Chọn Khối lớp, Kỳ thi (Giữa kỳ / Cuối kỳ). Phân bổ số lượng câu MC, YN, SHORT, ES vào từng YCCĐ. Kiểm tra tổng điểm tự động cân bằng 10.0 điểm.</td>
+              <td>Bảng Ma trận & Bảng đặc tả chuẩn Rule 1, 2, 3. Số câu dạng thuần số <code>(1, 2, 3)</code>. Khổ ngang &le; 24 cm.</td>
+            </tr>
+            <tr>
+              <td style="text-align:center;font-weight:bold">5</td>
+              <td><strong>Trộn đề thi & Sinh mã đề</strong></td>
+              <td>Tab <code>Tạo đề kiểm tra</code></td>
+              <td>Chọn Ma trận nguồn, chọn số lượng <strong>2 hoặc 4 mã đề hoán vị</strong>. Bấm <code>Sinh đề thi hoán vị</code>. Hệ thống xáo trộn độc lập câu hỏi và các phương án A, B, C, D.</td>
+              <td>2 hoặc 4 mã đề thi riêng biệt + 2 hoặc 4 bản Hướng dẫn chấm + <strong>Bảng đáp án tổng hợp (Master Answer Grid)</strong>. 90% bám sát Đề cương (Rule 1).</td>
+            </tr>
+            <tr>
+              <td style="text-align:center;font-weight:bold">6</td>
+              <td><strong>Xuất bản & Tải Hồ sơ (.zip)</strong></td>
+              <td>Nút <code>Tải gói hồ sơ (.zip)</code></td>
+              <td>Bấm 1-click tải trọn bộ hồ sơ gồm: Đề thi các mã, Đáp án các mã, Master Answer Grid, Ma trận, Bảng đặc tả, Đề cương ôn tập. Có thể tải lẻ file Word hoặc PDF.</td>
+              <td>Đủ bộ cả file <code>.docx</code> và <code>.pdf</code> (Rule 4). Font Times New Roman, lề chuẩn, không tràn viền (Rule 3).</td>
+            </tr>
+            <tr>
+              <td style="text-align:center;font-weight:bold">7</td>
+              <td><strong>Xuất file Trắc nghiệm LMS</strong></td>
+              <td>Nút <code>Xuất file LMS</code></td>
+              <td>Chọn đề thi hoặc đề cương cần đưa lên hệ thống học tập trực tuyến (Canvas / Moodle / Google Form).</td>
+              <td>File văn bản chuẩn Rule 6: <strong>Không có bảng đáp án ở cuối file</strong>. Nhãn đúng dạng <strong><code>[A.] </code></strong> hoặc <strong><code>[a)] [ĐÚNG]</code></strong>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab 2: Schema & Raw Text -->
+    <div id="help-pane-schema" class="help-pane" hidden>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0;color:var(--navy,#102d4a)">Quy chuẩn Cấu trúc Đề thô cho AI Bóc tách (Mode 2)</h3>
+        <button type="button" class="primary" id="btn-copy-sample-raw" style="padding:6px 14px;font-size:12px;cursor:pointer">📋 Sao chép mẫu đề thô chuẩn</button>
+      </div>
+      <p style="font-size:13px;color:var(--muted,#555);margin-top:0">Dán đề thô theo định dạng chuẩn dưới đây để Trợ lý AI nhận diện và trích xuất chính xác 100%:</p>
+      <pre id="sample-raw-text-block" style="background:#f8fafc;padding:14px;border:1px solid #d0dbe5;border-radius:8px;font-family:monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;overflow-x:auto">Câu 1: Thiết bị nào sau đây là thiết bị vào của máy tính?
+A. Màn hình
+B. Máy in
+C. Bàn phím
+D. Loa
+Đáp án: C
+Lời giải: Bàn phím là thiết bị vào dùng để nhập dữ liệu ký tự vào máy tính.
+
+Câu 2: Các nhận định sau đây về an toàn thông tin trên mạng Internet:
+a) Không nên chia sẻ mật khẩu tài khoản cá nhân cho người khác. [ĐÚNG]
+b) Mọi thông tin tìm thấy trên mạng xã hội đều hoàn toàn chính xác. [SAI]
+c) Cần thường xuyên cập nhật phần mềm diệt virus. [ĐÚNG]
+d) Được phép tự ý đăng ảnh chụp thông tin cá nhân của người khác lên mạng. [SAI]
+Lời giải: Cần bảo mật thông tin cá nhân và kiểm chứng thông tin trên mạng xã hội.
+
+Câu 3: Kết quả của biểu thức (17 MOD 5) + (17 DIV 5) trong Pascal bằng bao nhiêu?
+Đáp án: 5
+Lời giải: 17 MOD 5 = 2; 17 DIV 5 = 3. Tổng là 2 + 3 = 5.
+
+Câu 4: Em hãy nêu hai biện pháp phòng chống mã độc bảo vệ máy tính.
+Barem:
+- Cài đặt và cập nhật phần mềm diệt virus định kỳ: 0.5 điểm
+- Không bấm vào đường liên kết hoặc tệp đính kèm lạ: 0.5 điểm</pre>
+
+      <h3 style="color:var(--navy,#102d4a);margin:20px 0 10px">Bảng Quy chuẩn Dữ liệu Câu hỏi Ngân hàng</h3>
+      <div class="table-wrap">
+        <table class="ppct-table" style="width:100%;font-size:12px">
+          <thead>
+            <tr><th>Tên trường</th><th>Kiểu</th><th>Bắt buộc</th><th>Quy định & Ý nghĩa</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>subject_name</code></td><td>Chuỗi</td><td>Có</td><td>Tên môn học chuẩn ("Tin học", "Toán học", "Vật lí", "Hóa học", "Sinh học", "Ngữ văn", "Lịch sử", "Địa lí", "Tiếng Anh").</td></tr>
+            <tr><td><code>grade</code></td><td>Số</td><td>Có</td><td>Khối lớp (8, 9, 10, 11, 12).</td></tr>
+            <tr><td><code>lesson_code</code></td><td>Chuỗi</td><td>Có</td><td>Mã bài học khớp với PPCT ("B1", "B2", "B12", "U1"...).</td></tr>
+            <tr><td><code>type</code></td><td>Chuỗi</td><td>Có</td><td>Dạng câu hỏi: <code>MC</code> (4 lựa chọn), <code>YN</code> (Đúng/Sai), <code>SHORT</code> (Trả lời ngắn), <code>ES</code> (Tự luận).</td></tr>
+            <tr><td><code>level</code></td><td>Chuỗi</td><td>Có</td><td>Mức độ nhận thức: <code>Biết</code>, <code>Hiểu</code>, hoặc <code>Vận dụng</code>.</td></tr>
+            <tr><td><code>learning_outcome</code></td><td>Chuỗi</td><td>Có</td><td>Yêu cầu cần đạt chuẩn theo chương trình GDPT 2018.</td></tr>
+            <tr><td><code>question</code></td><td>Chuỗi</td><td>Có</td><td>Nội dung câu hỏi (chấp nhận văn bản, công thức LaTeX, code block).</td></tr>
+            <tr><td><code>options</code></td><td>Mảng 4</td><td>Với MC</td><td>Mảng 4 phương án A, B, C, D (không được trùng nhau, không để trống).</td></tr>
+            <tr><td><code>correct</code></td><td>Số (0..3)</td><td>Với MC</td><td>Chỉ số đáp án đúng: 0=A, 1=B, 2=C, 3=D.</td></tr>
+            <tr><td><code>statements</code></td><td>Mảng 4</td><td>Với YN</td><td>Mảng 4 mệnh đề a, b, c, d kèm nhãn <code>correct: true/false</code>.</td></tr>
+            <tr><td><code>rubric</code></td><td>Mảng</td><td>Với ES</td><td>Barem điểm từng bước chấm kèm điểm số cụ thể.</td></tr>
+            <tr><td><code>review_status</code></td><td>Chuỗi</td><td>Có</td><td><code>draft</code> (Chờ duyệt), <code>content_checked</code> (Đã kiểm tra), <code>approved</code> (Đã phê duyệt).</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab 3: LaTeX Math & Code -->
+    <div id="help-pane-math-code" class="help-pane" hidden>
+      <h3 style="color:var(--navy,#102d4a);margin-top:0">1. Quy chuẩn Công thức Toán học & Ký hiệu Khoa học ($\LaTeX$)</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+        <div style="background:#f8fafc;padding:12px;border:1px solid #d0dbe5;border-radius:6px">
+          <strong style="color:var(--blue,#0267b1)">Công thức cùng dòng (Inline math):</strong>
+          <p style="font-size:13px;margin:6px 0">Đặt giữa cặp dấu dollar đơn <code>$ ... $</code>:</p>
+          <code style="display:block;background:#fff;padding:8px;border:1px solid #e0e8f0;border-radius:4px;font-size:12px;white-space:pre-wrap">Cho tam giác ABC có $BC = a\sqrt{3}$ và $\widehat{A} = 60^\circ$.
+Phương trình bậc hai: $ax^2 + bx + c = 0$ ($a \ne 0$).</code>
+        </div>
+        <div style="background:#f8fafc;padding:12px;border:1px solid #d0dbe5;border-radius:6px">
+          <strong style="color:var(--blue,#0267b1)">Công thức khối biệt lập (Display math):</strong>
+          <p style="font-size:13px;margin:6px 0">Đặt giữa cặp dấu dollar kép <code>$$ ... $$</code>:</p>
+          <code style="display:block;background:#fff;padding:8px;border:1px solid #e0e8f0;border-radius:4px;font-size:12px;white-space:pre-wrap">$$x = \frac{-b \pm \sqrt{\Delta}}{2a}$$</code>
+        </div>
+      </div>
+      <div style="background:#fff7e6;border-left:4px solid #c58919;padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;color:#725017;margin-bottom:20px">
+        <strong>⚠️ Lưu ý về dấu dollar ($) trong văn bản thường:</strong> Khi viết giá tiền hoặc ký hiệu tiền tệ, hãy gõ <code>\$</code> (ví dụ: <code>Giá bán là \$150</code>) để hệ thống không hiểu nhầm là mở thẻ công thức toán.
+      </div>
+
+      <h3 style="color:var(--navy,#102d4a);margin-top:10px">2. Quy chuẩn Khối Mã Nguồn Lập trình (Code Snippets)</h3>
+      <p style="font-size:13px;color:var(--muted,#555);margin-top:0">Dành cho môn Tin học (Python, C++, Scratch, Pascal, SQL, HTML/CSS). Hệ thống bảo toàn 100% thụt lề (indentation):</p>
+      <pre style="background:#24364a;color:#f0f6fc;padding:14px;border-radius:8px;font-family:monospace;font-size:13px;line-height:1.5;overflow-x:auto">```python
+def kiem_tra_so_nguyen_to(n):
+    if n &lt; 2:
+        return False
+    for i in range(2, int(n**0.5) + 1):
+        if n % i == 0:
+            return False
+    return True
+```</pre>
+
+      <h3 style="color:var(--navy,#102d4a);margin-top:20px">3. Quy chuẩn Định dạng Xuất LMS (Rule 6)</h3>
+      <ul style="font-size:13px;line-height:1.7;color:#333;padding-left:20px">
+        <li><strong>Tuyệt đối không để bảng đáp án</strong> ở cuối file trắc nghiệm LMS.</li>
+        <li><strong>Đáp án đúng:</strong> Nhãn phương án được in đậm và đặt trong ngoặc vuông: <strong><code>[A.] </code></strong>, <strong><code>[B.] </code></strong>, <strong><code>[C.] </code></strong>, <strong><code>[D.] </code></strong>.</li>
+        <li><strong>Phương án sai:</strong> Nhãn viết bình thường: <code>A. </code>, <code>B. </code>, <code>C. </code>, <code>D. </code>.</li>
+        <li><strong>Dạng Đúng/Sai:</strong> Ý đúng đặt <strong><code>[a)] </code></strong> kèm <code>[ĐÚNG]</code>; ý sai để bình thường <code>b) </code> kèm <code>[SAI]</code>.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="dialog-bottom" style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;border-top:1px solid var(--line,#eee);padding-top:14px">
+    <span style="font-size:12px;color:var(--muted,#666)">Tài liệu đầy đủ: <code>docs/HUONG_DAN_SU_DUNG.md</code></span>
+    <button type="button" class="primary" data-close="help-dialog" style="padding:7px 18px">Đã hiểu</button>
+  </div>
+</dialog>
+<noscript><p class="empty">Cần bật JavaScript để mở ngân hàng câu hỏi.</p></noscript>
+</body></html>

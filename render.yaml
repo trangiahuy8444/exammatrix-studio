@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: ngan-hang-de-web
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: bash deploy/build.sh
+    startCommand: bash deploy/start.sh
+    healthCheckPath: /healthz
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_SECRET_KEY_EXTRA
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: TRUST_HTTPS_PROXY
+        value: '1'
+      - key: CLOUD_DATA_DIR
+        value: /tmp/ngan-hang-runtime

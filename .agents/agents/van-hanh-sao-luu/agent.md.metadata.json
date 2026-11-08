@@ -1,0 +1,5 @@
+{
+  "summary": "Dùng khi kiểm tra môi trường chạy, backup/restore, migration, CI hoặc chuẩn bị triển khai.",
+  "updatedAt": "2026-10-29T16:29:32.759111+07:00",
+  "userFacing": true
+}

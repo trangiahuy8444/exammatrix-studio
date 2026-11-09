@@ -1332,24 +1332,79 @@ function initAiAssistant() {
 
   function checkStoredKey() {
     const key = localStorage.getItem('gemini_user_api_key');
+    const quickStatus = $('#ai-quick-status-text');
     if (key && keyInput) {
       keyInput.value = key;
       if (keyStatus) {
-        keyStatus.innerHTML = '<span style="color:#2b8a3e">✓ Đã cấu hình khóa API Gemini (lưu an toàn trên máy Thầy/Cô).</span><br><small style="color:#495057;">Tự động chuyển đổi thông minh: <code>gemini-1.5-flash</code> ➔ <code>gemini-2.0-flash</code> ➔ <code>gemini-1.5-flash-8b</code> ➔ <code>gemini-1.5-pro</code></small>';
+        keyStatus.innerHTML = '<span style="color:#2b8a3e">✓ Đã kết nối chìa khóa Google AI an toàn trên máy Thầy/Cô.</span><br><small style="color:#495057;">Tự động chuyển đổi thông minh: <code>gemini-1.5-flash</code> ➔ <code>gemini-2.0-flash</code> ➔ <code>gemini-1.5-pro</code></small>';
       }
-    } else if (keyStatus) {
-      keyStatus.innerHTML = '<span style="color:#6c757d">Chưa cấu hình API Key. Thầy/Cô dán khóa vào ô trên và bấm Lưu & Kiểm tra.</span>';
+      if (quickStatus) {
+        quickStatus.innerHTML = '<span style="color:#166534;font-weight:600">Đã kết nối và sẵn sàng nhận diện đề thi ✅</span>';
+      }
+    } else {
+      if (keyStatus) {
+        keyStatus.innerHTML = '<span style="color:#b45309">Chưa cài đặt chìa khóa. Thầy/Cô làm theo 3 bước hướng dẫn bên dưới để nhận miễn phí nhé.</span>';
+      }
+      if (quickStatus) {
+        quickStatus.innerHTML = '<span style="color:#b45309;font-weight:600">Chưa gắn chìa khóa AI (Bấm "Đổi chìa khóa AI" bên phải để kết nối trong 1 phút) ⚠️</span>';
+      }
     }
+  }
+
+  // Nút chuyển nhanh sang cài đặt chìa khóa
+  const quickKeyBtn = $('#btn-quick-setup-key');
+  if (quickKeyBtn) {
+    quickKeyBtn.onclick = () => {
+      dialog.querySelector('[data-ai-tab="key"]')?.click();
+    };
+  }
+
+  // Nút Dán câu hỏi mẫu cho giáo viên thử ngay lập tức
+  const sampleRawBtn = $('#btn-fill-sample-raw');
+  if (sampleRawBtn) {
+    sampleRawBtn.onclick = () => {
+      const rawTextarea = $('#ai-parse-raw-text');
+      if (rawTextarea) {
+        rawTextarea.value = `Câu 1: Thiết bị nào sau đây là thiết bị vào của máy tính?
+A. Màn hình
+B. Chuột
+C. Loa
+D. Máy in
+Đáp án: B
+
+Câu 2: Cho các phát biểu sau về an toàn thông tin trên mạng Internet:
+a) Cần đặt mật khẩu mạnh gồm chữ hoa, chữ thường, số và ký tự đặc biệt. [Đúng]
+b) Có thể chia sẻ mật khẩu tài khoản học tập cho bạn bè khi cần nhờ làm bài giúp. [Sai]
+c) Không nên nhấp vào các đường liên kết lạ được gửi qua email hoặc tin nhắn. [Đúng]
+d) Mọi thông tin chia sẻ trên mạng xã hội đều hoàn toàn chính xác và đáng tin cậy. [Sai]
+
+Câu 3: Bộ xử lý trung tâm của máy tính thường được viết tắt là gì?
+Đáp án: CPU`;
+        notify('Đã dán câu hỏi mẫu! Thầy/Cô bấm nút "Bắt đầu nhận diện & Xếp câu hỏi" bên dưới để xem AI làm việc nhé.');
+      }
+    };
+  }
+
+  // Nút Xóa khung soạn thảo
+  const clearRawBtn = $('#btn-clear-raw-text');
+  if (clearRawBtn) {
+    clearRawBtn.onclick = () => {
+      const rawTextarea = $('#ai-parse-raw-text');
+      if (rawTextarea) {
+        rawTextarea.value = '';
+        rawTextarea.focus();
+      }
+    };
   }
 
   if (saveKeyBtn) {
     saveKeyBtn.onclick = async () => {
       const key = (keyInput ? keyInput.value : '').trim();
       if (!key) {
-        if (keyStatus) keyStatus.innerHTML = '<span style="color:#d9534f">⚠️ Vui lòng nhập API Key.</span>';
+        if (keyStatus) keyStatus.innerHTML = '<span style="color:#d9534f">⚠️ Vui lòng nhập Chìa khóa Google AI.</span>';
         return;
       }
-      if (keyStatus) keyStatus.textContent = '⏳ Đang kiểm tra kết nối và khả dụng của các model Gemini...';
+      if (keyStatus) keyStatus.textContent = '⏳ Đang kiểm tra kết nối với Google AI...';
       saveKeyBtn.disabled = true;
       try {
         const result = await callGeminiWithAutoFallback(key, {
@@ -1362,7 +1417,12 @@ function initAiAssistant() {
         if (keyStatus) {
           keyStatus.innerHTML = `<span style="color:#2b8a3e">✓ Kết nối thành công với Google Gemini (Đang dùng: <strong>${esc(result.model)}</strong>)!</span><br><small style="color:#2b8a3e;">Đã kích hoạt cơ chế tự động chuyển model (${GEMINI_MODELS.map(x=>x.id).join(' ➔ ')}) khi gặp lỗi hoặc quá tải.</small>`;
         }
-        notify(`Đã xác thực và lưu Gemini API Key thành công (Model: ${result.model})!`);
+        checkStoredKey();
+        notify(`Đã lưu chìa khóa Google AI thành công! Thầy/Cô có thể bắt đầu dán đề thi rồi nhé.`);
+        // Tự động chuyển về Bước 1 để giáo viên nhập đề ngay
+        setTimeout(() => {
+          dialog.querySelector('[data-ai-tab="parse"]')?.click();
+        }, 1200);
       } catch(err) {
         if (keyStatus) keyStatus.innerHTML = `<span style="color:#d9534f">⚠️ Không thể kết nối Gemini: ${esc(err.message)}</span>`;
       } finally {
@@ -1375,8 +1435,9 @@ function initAiAssistant() {
     clearKeyBtn.onclick = () => {
       localStorage.removeItem('gemini_user_api_key');
       if (keyInput) keyInput.value = '';
-      if (keyStatus) keyStatus.innerHTML = '<span style="color:#6c757d">Đã xóa khóa API.</span>';
-      notify('Đã xóa khóa API Gemini.');
+      if (keyStatus) keyStatus.innerHTML = '<span style="color:#6c757d">Đã xóa chìa khóa.</span>';
+      checkStoredKey();
+      notify('Đã xóa chìa khóa Google AI.');
     };
   }
 
@@ -1385,11 +1446,13 @@ function initAiAssistant() {
     tabBtn.onclick = () => {
       dialog.querySelectorAll('[data-ai-tab]').forEach(b => {
         b.classList.remove('active');
-        b.style.background = '#f5f5f5';
-        b.style.color = '#333';
+        b.style.background = '#f8fafc';
+        b.style.color = '#1e293b';
+        b.style.borderColor = '#dce5ee';
       });
       tabBtn.classList.add('active');
-      tabBtn.style.background = 'var(--brand, #0a58ca)';
+      tabBtn.style.background = '#0267b1';
+      tabBtn.style.borderColor = '#0267b1';
       tabBtn.style.color = '#fff';
 
       const tabId = tabBtn.dataset.aiTab;
@@ -1403,6 +1466,8 @@ function initAiAssistant() {
     checkStoredKey();
     const curSubj = store.selectedSubject || 'Tin học';
     if ($('#ai-parse-subject')) $('#ai-parse-subject').value = curSubj;
+    // Luôn ưu tiên mở thẳng Bước 1: Dán đề thi
+    dialog.querySelector('[data-ai-tab="parse"]')?.click();
     dialog.showModal();
   };
 
@@ -1413,14 +1478,29 @@ function initAiAssistant() {
     const opts = q.options || ['', '', '', ''];
     const corr = q.correct;
 
+    const friendlyTypes = {
+      MC: 'Trắc nghiệm 4 lựa chọn (A-B-C-D)',
+      YN: 'Trắc nghiệm Đúng / Sai (4 ý)',
+      SHORT: 'Trả lời ngắn / Điền khuyết',
+      ES: 'Tự luận'
+    };
+    const friendlyLevels = {
+      'Biết': 'Nhận biết',
+      'Hiểu': 'Thông hiểu',
+      'Vận dụng': 'Vận dụng',
+      'Vận dụng cao': 'Vận dụng cao'
+    };
+
     return `
-      <div class="card" id="card-${cid}" style="margin-bottom:14px;padding:14px;background:#fcfdff;border:1px solid #d0dbe5;border-radius:8px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <label style="font-weight:bold;color:var(--navy,#102d4a);font-size:15px">
-            <input type="checkbox" class="${prefix}-select-chk" data-idx="${idx}" checked style="margin-right:6px">
-            Câu ${idx + 1} (${esc(q.type || 'MC')} - <span id="${cid}-lvl-badge">${esc(q.level || 'Biết')}</span>)
+      <div class="card" id="card-${cid}" style="margin-bottom:14px;padding:16px;background:#ffffff;border:1px solid #dce5ee;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <label style="font-weight:700;color:var(--navy,#102d4a);font-size:15px;display:flex;align-items:center;gap:6px">
+            <input type="checkbox" class="${prefix}-select-chk" data-idx="${idx}" checked>
+            <span>Câu ${idx + 1}</span>
+            <span class="badge" style="background:#eaf3fb;color:#0267b1;font-size:11px;padding:3px 8px">${esc(friendlyTypes[q.type || 'MC'] || q.type)}</span>
+            <span class="badge" style="background:#f1f5f9;color:#475569;font-size:11px;padding:3px 8px">${esc(friendlyLevels[q.level || 'Biết'] || q.level)}</span>
           </label>
-          <button type="button" class="quiet" data-toggle-edit="${cid}" style="font-size:12px;cursor:pointer;color:var(--brand,#0a58ca)">✏️ Chỉnh sửa / Xem lại</button>
+          <button type="button" class="quiet" data-toggle-edit="${cid}" style="font-size:12.5px;cursor:pointer;color:#0267b1;font-weight:600">✏️ Xem chi tiết & Sửa</button>
         </div>
 
         <!-- Preview block -->
@@ -1603,14 +1683,14 @@ function initAiAssistant() {
         if (apiKey) localStorage.setItem('gemini_user_api_key', apiKey);
       }
       if (!apiKey) {
-        notify('Vui lòng nhập Gemini API Key ở thẻ "Khóa API Gemini" trước.', true);
+        notify('Thầy/Cô cần gắn Chìa khóa Google AI (miễn phí) trước để máy tính có thể đọc câu hỏi tự động nhé! Chỉ mất 1 phút làm theo 3 bước.', true);
         dialog.querySelector('[data-ai-tab="key"]')?.click();
         return;
       }
 
       const rawText = ($('#ai-parse-raw-text')?.value || '').trim();
       if (!rawText) {
-        notify('Vui lòng dán nội dung đề thi / câu hỏi thô vào khung.', true);
+        notify('Thầy/Cô vui lòng dán câu hỏi vào khung, hoặc bấm nút "Dán thử câu hỏi mẫu" bên trên để thử nhé.', true);
         return;
       }
 
@@ -1619,7 +1699,7 @@ function initAiAssistant() {
       const msg = $('#ai-parse-msg');
       const resContainer = $('#ai-parsed-results-container');
 
-      if (msg) msg.textContent = '⏳ Gemini đang bóc tách cấu trúc và ánh xạ vào PPCT...';
+      if (msg) msg.textContent = '⏳ AI đang đọc câu hỏi của Thầy/Cô và nhận diện đáp án...';
       parseBtn.disabled = true;
 
       try {
@@ -1696,11 +1776,13 @@ Hãy trả về duy nhất mảng JSON các câu hỏi (không thêm bất kỳ 
         window._aiParsedQuestions = questionsList;
         const reviewCount = $('#ai-review-count');
         if (reviewCount) reviewCount.textContent = questionsList.length;
+        const foundCount = $('#ai-found-count');
+        if (foundCount) foundCount.textContent = questionsList.length;
 
         if (resContainer) {
           resContainer.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 12px;background:#f1f3f5;border-radius:6px;">
-              <span style="font-size:13px;"><strong>Đã bóc tách & phân loại thành công ${questionsList.length} câu hỏi.</strong></span>
+              <span style="font-size:13px;"><strong>Đã nhận diện thành công ${questionsList.length} câu hỏi.</strong></span>
               <div style="display:flex;gap:6px;">
                 <button type="button" class="quiet" id="btn-ai-select-all" style="font-size:11px;">🔘 Chọn tất cả</button>
                 <button type="button" class="quiet" id="btn-ai-deselect-all" style="font-size:11px;">⚪ Bỏ chọn tất cả</button>
@@ -1717,9 +1799,10 @@ Hãy trả về duy nhất mảng JSON các câu hỏi (không thêm bất kỳ 
           if (deselAll) deselAll.onclick = () => resContainer.querySelectorAll('.aiparse-select-chk').forEach(c => c.checked = false);
         }
 
-        const fallbackNote = fallbackTriggered ? ` (Đã tự động chuyển sang ${activeModel})` : ` (${activeModel})`;
-        if (msg) msg.textContent = `✓ Đã bóc tách ${questionsList.length} câu${fallbackNote}. Mời Thầy/Cô sang thẻ Thẩm định.`;
+        const fallbackNote = fallbackTriggered ? ` (Đã tự động đổi sang mô hình ${activeModel})` : '';
+        if (msg) msg.textContent = `✓ Đã tìm thấy ${questionsList.length} câu hỏi${fallbackNote}. Mời Thầy/Cô xem lại ở Bước 2.`;
         dialog.querySelector('[data-ai-tab="results"]')?.click();
+        notify(`🎉 AI đã nhận diện xong ${questionsList.length} câu hỏi! Thầy/Cô kiểm tra lại rồi bấm nút Lưu nhé.`);
       } catch(err) {
         if (msg) msg.innerHTML = `<span style="color:#d9534f">⚠️ Lỗi: ${esc(err.message)}</span>`;
       } finally {

@@ -1,6 +1,27 @@
 /* Saved records live on the server; unfinished exam form choices stay in this browser. */
 'use strict';
 const C=window.BankCore,$=s=>document.querySelector(s),esc=C.escapeHtml;
+
+function renderLatex(element) {
+  if (typeof renderMathInElement === 'function') {
+    try {
+      renderMathInElement(element || document.body, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false },
+          { left: '\\[', right: '\\]', display: true }
+        ],
+        throwOnError: false,
+        ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option']
+      });
+    } catch (err) {
+      console.warn('[KaTeX] Error rendering math:', err);
+    }
+  }
+}
+window.addEventListener('load', () => setTimeout(() => renderLatex(), 100));
+
 const statusNames={draft:'Bản nháp',pending_review:'Chờ duyệt',needs_review:'Cần sửa lại',approved:'Đã duyệt',archived:'Đã lưu trữ'};
 const typeNames={MC:'Trắc nghiệm',ES:'Tự luận / thực hành'};
 const periodNames={TX:'Thường xuyên',GK1:'Giữa học kì I',CK1:'Cuối học kì I',GK2:'Giữa học kì II',CK2:'Cuối học kì II'};
@@ -101,7 +122,10 @@ function switchTab(tab){
  if(store.bank)renderCurrent();
 }
 function render(){switchTab(location.hash.slice(1)||store.tab);}
-function renderCurrent(){({overview:renderOverview,bank:renderBank,review:renderReview,ppct:renderPPCT,revisions:renderRevisions,exams:renderExams,kttx:renderKttx,matrices:renderMatrices}[store.tab])();}
+function renderCurrent(){
+ ({overview:renderOverview,bank:renderBank,review:renderReview,ppct:renderPPCT,revisions:renderRevisions,exams:renderExams,kttx:renderKttx,matrices:renderMatrices}[store.tab])();
+ setTimeout(() => renderLatex(), 40);
+}
 // B1: màn hình duyệt câu hỏi số lượng lớn. Không có nút "duyệt tất cả": mỗi câu phải mở và xác nhận phiếu riêng.
 function renderReview(){
  const f=store.reviewFilters||(store.reviewFilters={status:'pending_review',grade:'',lesson:'',level:'',type:'',origin:''});
@@ -213,12 +237,13 @@ function renderBankList(){
  $('#bank-list').innerHTML=slice.length?slice.map(q=>`<article class="q-card"><input type="checkbox" aria-label="Chọn câu ${esc(q.id)}" data-check="${esc(q.id)}"${store.selected.has(q.id)?' checked':''}><div class="q-card-body"><button class="q-open" data-detail="${esc(q.id)}"><span class="q-meta"><span class="badge">Khối ${q.grade} · ${esc(q.lesson_code)}</span><span class="badge">${esc(q.type)} · ${esc(q.level)}</span>${badge(q)}<span class="q-id">${esc(q.id)}</span></span><div class="q-text">${esc(q.question)}</div></button><div class="q-row-actions"><button type="button" class="export-link" data-detail="${esc(q.id)}">Xem</button><button type="button" class="export-link" data-edit="${esc(q.id)}">Sửa</button><button type="button" class="export-link" data-dup-q="${esc(q.id)}">Nhân bản</button>${q.review_status==='archived'?`<button type="button" class="export-link" data-restore-q="${esc(q.id)}">Khôi phục</button>`:`<button type="button" class="export-link" data-archive="${esc(q.id)}">Lưu trữ</button>`}<button type="button" class="export-link danger" data-del-q="${esc(q.id)}">Xóa</button></div></div></article>`).join(''):empty('Không có câu phù hợp','Thử đổi bài, mức độ hoặc từ khóa tìm kiếm.');
  $('#bank-pagination').innerHTML=`<div class="pagination"><button id="prev-page"${store.page<=1?' disabled':''}>← Trước</button><span>Trang ${store.page} / ${pages}</span><button id="next-page"${store.page>=pages?' disabled':''}>Sau →</button></div>`;
  $('#select-filter').onclick=()=>{result.filter(q=>q.review_status!=='archived').forEach(q=>store.selected.add(q.id));renderBankList();};$('#reset-filter').onclick=()=>{store.filters={grade:'',lesson:'',type:'',level:'',status:'active',search:''};store.page=1;renderBank();};$('#prev-page').onclick=()=>{store.page--;renderBankList();};$('#next-page').onclick=()=>{store.page++;renderBankList();};
+  setTimeout(() => renderLatex($('#bank-list')), 40);
  $('#selection-summary').innerHTML=`<strong style="font-size:28px;color:var(--navy)">${store.selected.size}</strong><span class="muted"> câu được chọn</span><p class="small muted">${grades().map(g=>`Khối ${g}: ${C.revisionIds(questions(),[...store.selected],g).length}`).join(' · ')}</p>`;
 }
 function showDetail(id){
  const q=questions().find(q=>q.id===id);if(!q)return;$('#detail-dialog').classList.remove('wide-dialog');const answer=q.type==='MC'?`<ol class="options">${q.options.map((v,i)=>`<li class="${i===q.correct?'correct':''}">${i===q.correct?'<span class="answer-label">ĐÁP ÁN ĐÚNG</span>':''}<strong>${'ABCD'[i]}.</strong> ${esc(v)}<span class="explanation">${esc(q.option_explanations?.[i]||'Chưa có giải thích.')}</span></li>`).join('')}</ol>`:`<h3>Thang điểm · ${q.max_score||1} điểm</h3><ol class="rubric">${(q.rubric||[]).map(r=>`<li>${esc(r.criterion)} <strong>(${r.points} điểm)</strong></li>`).join('')}</ol><p class="muted">${esc(q.equivalent_answer_policy||'')}</p>`;
  $('#detail-content').innerHTML=`<div class="dialog-heading"><h2 id="detail-title">Chi tiết câu hỏi</h2><button data-close="detail-dialog" class="quiet">Đóng</button></div><div class="q-meta"><span class="badge">Khối ${q.grade} · ${esc(q.lesson_code)} · ${esc(q.level)}</span>${badge(q)}<span class="q-id">${esc(q.id)}</span></div><div class="question-text" style="white-space:normal">${C.questionTextHtml(q.question)}</div>${answer}<div class="callout"><strong>Yêu cầu cần đạt</strong><br>${esc(q.learning_outcome||'Chưa gắn YCCĐ')}</div><p class="small muted">${esc(q.lesson_name||'')} · ${esc(q.response_mode||typeNames[q.type])}</p><details class="detail-source"><summary>Nguồn đối chiếu PPCT</summary><p>${esc(q.source_file||'Theo danh mục PPCT')}</p><p>${(q.source_rows||[]).map(r=>`Tuần ${esc(r.week_raw)} · Tiết ${esc(r.periods_raw)}`).join('<br>')}</p></details><div class="dialog-bottom"><button data-edit="${esc(q.id)}" class="primary">Sửa câu hỏi</button><button data-dup-q="${esc(q.id)}">Nhân bản câu</button>${q.review_status==='archived'?`<button data-restore-q="${esc(q.id)}">Khôi phục sử dụng</button>`:`<button data-archive="${esc(q.id)}">Lưu trữ tạm</button>`}<button data-del-q="${esc(q.id)}" class="danger">Xóa vĩnh viễn</button></div>`;
- $('#detail-dialog').showModal();
+ $('#detail-dialog').showModal(); setTimeout(() => renderLatex($('#detail-dialog')), 40);
 }
 function fmtPts(v){return typeof v==='number'?String(Math.round(v*1000)/1000).replace('.',','):String(v??'');}
 function scaledPolicy(q){
@@ -1359,18 +1384,18 @@ function initAiAssistant() {
     };
   }
 
-  // Nút Dán câu hỏi mẫu cho giáo viên thử ngay lập tức
+  // Nút Dán câu hỏi mẫu cho giáo viên thử ngay lập tức (kèm công thức LaTeX)
   const sampleRawBtn = $('#btn-fill-sample-raw');
   if (sampleRawBtn) {
     sampleRawBtn.onclick = () => {
       const rawTextarea = $('#ai-parse-raw-text');
       if (rawTextarea) {
-        rawTextarea.value = `Câu 1: Thiết bị nào sau đây là thiết bị vào của máy tính?
-A. Màn hình
-B. Chuột
-C. Loa
-D. Máy in
-Đáp án: B
+        rawTextarea.value = `Câu 1: Phương trình bậc hai $x^2 - 3x + 2 = 0$ có tập nghiệm là:
+A. $\\{1; 2\\}$
+B. $\\{-1; -2\\}$
+C. $\\{1; -2\\}$
+D. $\\{-1; 2\\}$
+Đáp án: A
 
 Câu 2: Cho các phát biểu sau về an toàn thông tin trên mạng Internet:
 a) Cần đặt mật khẩu mạnh gồm chữ hoa, chữ thường, số và ký tự đặc biệt. [Đúng]
@@ -1378,9 +1403,9 @@ b) Có thể chia sẻ mật khẩu tài khoản học tập cho bạn bè khi c
 c) Không nên nhấp vào các đường liên kết lạ được gửi qua email hoặc tin nhắn. [Đúng]
 d) Mọi thông tin chia sẻ trên mạng xã hội đều hoàn toàn chính xác và đáng tin cậy. [Sai]
 
-Câu 3: Bộ xử lý trung tâm của máy tính thường được viết tắt là gì?
-Đáp án: CPU`;
-        notify('Đã dán câu hỏi mẫu! Thầy/Cô bấm nút "Bắt đầu nhận diện & Xếp câu hỏi" bên dưới để xem AI làm việc nhé.');
+Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
+Đáp án: Byte`;
+        notify('Đã dán câu hỏi mẫu (kèm công thức toán LaTeX)! Thầy/Cô bấm "Bắt đầu nhận diện & Xếp câu hỏi" để thử nhé.');
       }
     };
   }
@@ -1393,6 +1418,331 @@ Câu 3: Bộ xử lý trung tâm của máy tính thường được viết tắ
       if (rawTextarea) {
         rawTextarea.value = '';
         rawTextarea.focus();
+      }
+    };
+  }
+
+  // Xử lý Tải tệp lên (.json, .md, .txt) & Kéo thả
+  const dropZone = $('#ai-file-dropzone');
+  const fileInput = $('#ai-file-input');
+  const downloadSampleBtn = $('#btn-download-ai-sample');
+  const copyPromptBtn = $('#btn-copy-ai-prompt');
+
+  if (dropZone && fileInput) {
+    dropZone.onclick = () => fileInput.click();
+    dropZone.ondragover = (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#15803d';
+      dropZone.style.background = '#f0fdf4';
+    };
+    dropZone.ondragleave = () => {
+      dropZone.style.borderColor = '#0267b1';
+      dropZone.style.background = '#f0f7ff';
+    };
+    dropZone.ondrop = (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#0267b1';
+      dropZone.style.background = '#f0f7ff';
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        processUploadedAiFile(e.dataTransfer.files[0]);
+      }
+    };
+    fileInput.onchange = () => {
+      if (fileInput.files && fileInput.files[0]) {
+        processUploadedAiFile(fileInput.files[0]);
+      }
+    };
+  }
+
+  function normalizeImportedQuestions(rawItems, grade, subj) {
+    if (!Array.isArray(rawItems)) return [];
+    return rawItems.map((raw) => {
+      const q = { ...raw };
+      q.id = q.id || `K${grade}-GV-${Math.random().toString(36).slice(2, 9)}`;
+      q.grade = Number(q.grade || grade);
+      q.subject_name = q.subject_name || subj;
+      q.lesson_code = q.lesson_code || 'B1';
+      q.review_status = 'draft';
+
+      if (!q.type) {
+        if (q.options && q.options.length) q.type = 'MC';
+        else if (q.statements && q.statements.length) q.type = 'YN';
+        else if (q.short_answer || q.answer) q.type = 'SHORT';
+        else if (q.rubric) q.type = 'ES';
+        else q.type = 'MC';
+      }
+
+      const lvlMap = {
+        'nhận biết': 'Biết', 'b': 'Biết', 'biết': 'Biết', 'knowledge': 'Biết', 'remember': 'Biết',
+        'thông hiểu': 'Hiểu', 'h': 'Hiểu', 'hiểu': 'Hiểu', 'comprehension': 'Hiểu', 'understand': 'Hiểu',
+        'vận dụng': 'Vận dụng', 'vd': 'Vận dụng', 'apply': 'Vận dụng', 'application': 'Vận dụng',
+        'vận dụng cao': 'Vận dụng cao', 'vdc': 'Vận dụng cao', 'analysis': 'Vận dụng cao', 'create': 'Vận dụng cao'
+      };
+      if (q.level) {
+        const lowerLvl = String(q.level).trim().toLowerCase();
+        q.level = lvlMap[lowerLvl] || q.level;
+      } else {
+        q.level = 'Biết';
+      }
+
+      if (q.type === 'MC') {
+        if (q.options && typeof q.options === 'object' && !Array.isArray(q.options)) {
+          q.options = [q.options.A || q.options.a || '', q.options.B || q.options.b || '', q.options.C || q.options.c || '', q.options.D || q.options.d || ''];
+        }
+        if (typeof q.correct === 'string') {
+          const cUpper = q.correct.trim().toUpperCase();
+          q.correct = 'ABCD'.indexOf(cUpper) >= 0 ? 'ABCD'.indexOf(cUpper) : 0;
+        }
+      }
+
+      if (q.type === 'YN' && Array.isArray(q.statements)) {
+        q.statements = q.statements.map((st, si) => ({
+          label: st.label || 'abcd'[si] || 'a',
+          text: st.text || st.content || '',
+          correct: Boolean(st.correct || st.answer === true || String(st.correct).toLowerCase() === 'đúng' || String(st.correct).toLowerCase() === 'true')
+        }));
+      }
+
+      if (q.type === 'SHORT' && !q.short_answer && q.answer) {
+        q.short_answer = String(q.answer);
+      }
+
+      return q;
+    }).filter(q => q && q.question);
+  }
+
+  function parseQuestionsFromRawText(rawText, defaultGrade, defaultSubject) {
+    if (!rawText || typeof rawText !== 'string') return [];
+    const questions = [];
+    const text = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const qSplits = text.split(/\n(?=(?:Câu|Bài|Question|\d+)\s*[\d]+[:.])/i);
+
+    for (const block of qSplits) {
+      const trimmed = block.trim();
+      if (!trimmed) continue;
+      const mHeading = trimmed.match(/^(?:Câu|Bài|Question|\d+)\s*[\d]+[:.]\s*(.*)/i);
+      const content = mHeading ? mHeading[1].trim() : trimmed;
+      if (!content) continue;
+
+      const optMatches = [...trimmed.matchAll(/(?:^|\n)\s*([A-D])[\.\)]\s*(.*?)(?=\n\s*[A-D][\.\)]|\n\s*(?:Đáp án|Đáp án đúng|Answer|Chọn|$))/gis)];
+      const ynMatches = [...trimmed.matchAll(/(?:^|\n)\s*([a-d])[\.\)]\s*(.*?)(?:\[|\()(Đúng|Sai|True|False)(?:\]|\))/gi)];
+
+      if (ynMatches.length >= 2) {
+        const qText = trimmed.split(/(?:^|\n)\s*[a-d][\.\)]/i)[0].replace(/^(?:Câu|Bài|Question|\d+)\s*[\d]+[:.]\s*/i, '').trim();
+        questions.push({
+          id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
+          grade: defaultGrade,
+          subject_name: defaultSubject,
+          lesson_code: 'B1',
+          type: 'YN',
+          level: 'Hiểu',
+          question: qText || 'Cho các mệnh đề sau:',
+          statements: ynMatches.map(m => ({
+            label: m[1].toLowerCase(),
+            text: m[2].trim(),
+            correct: /Đúng|True/i.test(m[3])
+          })),
+          review_status: 'draft'
+        });
+      } else if (optMatches.length >= 2) {
+        const firstOptIndex = trimmed.search(/(?:^|\n)\s*[A-D][\.\)]/i);
+        const qText = trimmed.slice(0, firstOptIndex).replace(/^(?:Câu|Bài|Question|\d+)\s*[\d]+[:.]\s*/i, '').trim();
+        const options = optMatches.slice(0, 4).map(m => m[2].trim());
+        while (options.length < 4) options.push('');
+
+        let correct = 0;
+        const ansMatch = trimmed.match(/(?:Đáp án|Đáp án đúng|Answer|Chọn)\s*[:=]?\s*\[?([A-D])\]?/i);
+        if (ansMatch) {
+          correct = 'ABCD'.indexOf(ansMatch[1].toUpperCase());
+          if (correct < 0) correct = 0;
+        }
+
+        questions.push({
+          id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
+          grade: defaultGrade,
+          subject_name: defaultSubject,
+          lesson_code: 'B1',
+          type: 'MC',
+          level: 'Biết',
+          question: qText,
+          options,
+          correct,
+          review_status: 'draft'
+        });
+      } else {
+        const ansMatch = trimmed.match(/(?:Đáp án|Đáp án đúng|Answer|Trả lời)\s*[:=]\s*(.*)$/im);
+        if (ansMatch) {
+          const qText = trimmed.slice(0, ansMatch.index).replace(/^(?:Câu|Bài|Question|\d+)\s*[\d]+[:.]\s*/i, '').trim();
+          questions.push({
+            id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
+            grade: defaultGrade,
+            subject_name: defaultSubject,
+            lesson_code: 'B1',
+            type: 'SHORT',
+            level: 'Vận dụng',
+            question: qText,
+            short_answer: ansMatch[1].trim(),
+            review_status: 'draft'
+          });
+        }
+      }
+    }
+    return questions;
+  }
+
+  function displayParsedQuestions(questionsList, grade, subj) {
+    window._aiParsedQuestions = questionsList;
+    const reviewCount = $('#ai-review-count');
+    if (reviewCount) reviewCount.textContent = questionsList.length;
+    const foundCount = $('#ai-found-count');
+    if (foundCount) foundCount.textContent = questionsList.length;
+
+    const resContainer = $('#ai-parsed-results-container');
+    if (resContainer) {
+      resContainer.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 12px;background:#f1f3f5;border-radius:6px;">
+          <span style="font-size:13px;"><strong>Đã nhận diện thành công ${questionsList.length} câu hỏi.</strong></span>
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="quiet" id="btn-ai-select-all" style="font-size:11px;">🔘 Chọn tất cả</button>
+            <button type="button" class="quiet" id="btn-ai-deselect-all" style="font-size:11px;">⚪ Bỏ chọn tất cả</button>
+          </div>
+        </div>
+        ${questionsList.map((q, idx) => buildQuestionCardHtml(q, idx, 'aiparse')).join('')}
+      `;
+
+      bindCardEvents(resContainer, questionsList, 'aiparse', grade, questionsList[0]?.lesson_code || 'B1', subj);
+
+      const selAll = $('#btn-ai-select-all');
+      const deselAll = $('#btn-ai-deselect-all');
+      if (selAll) selAll.onclick = () => resContainer.querySelectorAll('.aiparse-select-chk').forEach(c => c.checked = true);
+      if (deselAll) deselAll.onclick = () => resContainer.querySelectorAll('.aiparse-select-chk').forEach(c => c.checked = false);
+
+      setTimeout(() => renderLatex(resContainer), 50);
+    }
+
+    dialog.querySelector('[data-ai-tab="results"]')?.click();
+  }
+
+  async function processUploadedAiFile(file) {
+    if (!file) return;
+    const grade = Number($('#ai-parse-grade')?.value || 10);
+    const subj = $('#ai-parse-subject')?.value || 'Tin học';
+    const filename = file.name.toLowerCase();
+
+    try {
+      const text = await file.text();
+
+      if (filename.endsWith('.json')) {
+        let parsed;
+        try {
+          parsed = JSON.parse(text);
+        } catch (e) {
+          throw new Error('Tệp JSON không hợp lệ hoặc bị lỗi cú pháp: ' + e.message);
+        }
+        const rawItems = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.bank?.questions || parsed.items || []);
+        if (!rawItems.length) {
+          throw new Error('Tệp JSON không chứa danh sách câu hỏi hợp lệ.');
+        }
+        const questionsList = normalizeImportedQuestions(rawItems, grade, subj);
+        displayParsedQuestions(questionsList, grade, subj);
+        notify(`🎉 Đã đọc thành công ${questionsList.length} câu hỏi từ tệp JSON! Thầy/Cô kiểm tra lại rồi bấm nút Lưu nhé.`);
+      } else {
+        const rawTextarea = $('#ai-parse-raw-text');
+        if (rawTextarea) rawTextarea.value = text;
+
+        const localParsed = parseQuestionsFromRawText(text, grade, subj);
+        if (localParsed.length >= 1) {
+          displayParsedQuestions(localParsed, grade, subj);
+          notify(`🎉 Đã tự động nhận diện thành công ${localParsed.length} câu hỏi từ tệp ${file.name}! Thầy/Cô có thể Lưu ngay hoặc bấm "Bắt đầu nhận diện bằng AI" nếu muốn ánh xạ sâu.`);
+        } else {
+          notify(`Đã nạp nội dung tệp ${file.name} vào khung soạn thảo. Thầy/Cô bấm nút "Bắt đầu nhận diện & Xếp câu hỏi" bên dưới nhé.`);
+        }
+      }
+    } catch (err) {
+      notify('Lỗi khi đọc tệp: ' + err.message, true);
+    }
+  }
+
+  if (downloadSampleBtn) {
+    downloadSampleBtn.onclick = () => {
+      const sampleData = [
+        {
+          "type": "MC",
+          "level": "Biết",
+          "lesson_code": "B1",
+          "question": "Phương trình bậc hai $x^2 - 3x + 2 = 0$ có tập nghiệm là:",
+          "options": ["$\\{1; 2\\}$", "$\\{-1; -2\\}$", "$\\{1; -2\\}$", "$\\{-1; 2\\}$"],
+          "correct": 0,
+          "option_explanations": ["Phương trình có hai nghiệm $x_1 = 1, x_2 = 2$", "", "", ""]
+        },
+        {
+          "type": "YN",
+          "level": "Hiểu",
+          "lesson_code": "B1",
+          "question": "Cho các phát biểu sau về an toàn thông tin trên mạng Internet:",
+          "statements": [
+            { "label": "a", "text": "Cần đặt mật khẩu mạnh gồm chữ hoa, chữ thường và số.", "correct": true },
+            { "label": "b", "text": "Có thể chia sẻ mật khẩu tài khoản học tập cho người lạ.", "correct": false },
+            { "label": "c", "text": "Không nên nhấp vào các đường liên kết lạ trong email.", "correct": true },
+            { "label": "d", "text": "Mọi thông tin trên mạng đều hoàn toàn chính xác.", "correct": false }
+          ]
+        },
+        {
+          "type": "SHORT",
+          "level": "Vận dụng",
+          "lesson_code": "B1",
+          "question": "Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?",
+          "short_answer": "Byte"
+        }
+      ];
+      const blob = new Blob([JSON.stringify(sampleData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'exammatrix_mau_cau_hoi.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      notify('Đã tải xuống tệp mẫu exammatrix_mau_cau_hoi.json!');
+    };
+  }
+
+  if (copyPromptBtn) {
+    copyPromptBtn.onclick = async () => {
+      const promptContent = `Hãy chuyển đổi toàn bộ câu hỏi trong đề thi sau thành định dạng JSON chuẩn cho hệ thống ExamMatrix Studio:
+[
+  {
+    "type": "MC",
+    "level": "Biết",
+    "question": "Nội dung câu hỏi (sử dụng công thức LaTeX $...$ nếu có)",
+    "options": ["Phương án A", "Phương án B", "Phương án C", "Phương án D"],
+    "correct": 0,
+    "option_explanations": ["Giải thích đáp án nếu có"]
+  },
+  {
+    "type": "YN",
+    "level": "Hiểu",
+    "question": "Câu dẫn của câu Đúng/Sai...",
+    "statements": [
+      {"label": "a", "text": "Nội dung ý a", "correct": true},
+      {"label": "b", "text": "Nội dung ý b", "correct": false},
+      {"label": "c", "text": "Nội dung ý c", "correct": true},
+      {"label": "d", "text": "Nội dung ý d", "correct": false}
+    ]
+  },
+  {
+    "type": "SHORT",
+    "level": "Vận dụng",
+    "question": "Câu hỏi trả lời ngắn...",
+    "short_answer": "Đáp án trả lời ngắn"
+  }
+]
+Dưới đây là đề thi cần chuyển đổi:
+[DÁN ĐỀ THI CỦA THẦY/CÔ VÀO ĐÂY]`;
+      try {
+        await navigator.clipboard.writeText(promptContent);
+        notify('📋 Đã sao chép câu lệnh mẫu (Prompt) cho ChatGPT vào bộ nhớ đệm!');
+      } catch (e) {
+        notify('Không thể sao chép tự động: ' + e.message, true);
       }
     };
   }
@@ -1773,35 +2123,9 @@ Hãy trả về duy nhất mảng JSON các câu hỏi (không thêm bất kỳ 
           throw new Error('Gemini không bóc tách được câu hỏi nào từ nội dung được cung cấp.');
         }
 
-        window._aiParsedQuestions = questionsList;
-        const reviewCount = $('#ai-review-count');
-        if (reviewCount) reviewCount.textContent = questionsList.length;
-        const foundCount = $('#ai-found-count');
-        if (foundCount) foundCount.textContent = questionsList.length;
-
-        if (resContainer) {
-          resContainer.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 12px;background:#f1f3f5;border-radius:6px;">
-              <span style="font-size:13px;"><strong>Đã nhận diện thành công ${questionsList.length} câu hỏi.</strong></span>
-              <div style="display:flex;gap:6px;">
-                <button type="button" class="quiet" id="btn-ai-select-all" style="font-size:11px;">🔘 Chọn tất cả</button>
-                <button type="button" class="quiet" id="btn-ai-deselect-all" style="font-size:11px;">⚪ Bỏ chọn tất cả</button>
-              </div>
-            </div>
-            ${questionsList.map((q, idx) => buildQuestionCardHtml(q, idx, 'aiparse')).join('')}
-          `;
-
-          bindCardEvents(resContainer, questionsList, 'aiparse', grade, questionsList[0]?.lesson_code || 'B1', subj);
-
-          const selAll = $('#btn-ai-select-all');
-          const deselAll = $('#btn-ai-deselect-all');
-          if (selAll) selAll.onclick = () => resContainer.querySelectorAll('.aiparse-select-chk').forEach(c => c.checked = true);
-          if (deselAll) deselAll.onclick = () => resContainer.querySelectorAll('.aiparse-select-chk').forEach(c => c.checked = false);
-        }
-
+        displayParsedQuestions(questionsList, grade, subj);
         const fallbackNote = fallbackTriggered ? ` (Đã tự động đổi sang mô hình ${activeModel})` : '';
         if (msg) msg.textContent = `✓ Đã tìm thấy ${questionsList.length} câu hỏi${fallbackNote}. Mời Thầy/Cô xem lại ở Bước 2.`;
-        dialog.querySelector('[data-ai-tab="results"]')?.click();
         notify(`🎉 AI đã nhận diện xong ${questionsList.length} câu hỏi! Thầy/Cô kiểm tra lại rồi bấm nút Lưu nhé.`);
       } catch(err) {
         if (msg) msg.innerHTML = `<span style="color:#d9534f">⚠️ Lỗi: ${esc(err.message)}</span>`;

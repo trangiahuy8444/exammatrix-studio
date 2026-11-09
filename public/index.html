@@ -11,12 +11,15 @@
   <meta property="og:type" content="website">
   <title>ExamMatrix Studio · Khảo thí & Đánh giá</title>
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
   <script src="./core.js" defer></script>
   <link rel="stylesheet" href="./matrices.css">
   <script src="./matrices.js" defer></script>
   <script src="./curricula.js" defer></script>
   <script src="./firebase-config.js" defer></script>
   <script src="./firebase-bridge.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" defer></script>
   <script src="./app.js" defer></script>
 </head>
 <body>
@@ -194,11 +197,33 @@
         </div>
       </div>
 
+      <!-- Khung Kéo thả / Chọn tệp (.json, .md, .txt) -->
+      <div id="ai-file-dropzone" style="border:2px dashed #0267b1;border-radius:10px;background:#f0f7ff;padding:16px 20px;text-align:center;margin-bottom:14px;cursor:pointer;transition:all 0.2s ease">
+        <div style="font-size:26px;margin-bottom:4px">📂</div>
+        <strong style="color:#0267b1;font-size:14px">Kéo thả tệp (.json, .md, .txt) vào đây hoặc Bấm để chọn tệp từ máy tính</strong>
+        <p style="margin:4px 0 0;font-size:12px;color:#475569">
+          Thầy/Cô có thể đưa đề thi từ ChatGPT / Claude / Gemini xuất ra dạng tệp JSON hoặc Markdown (.md) rồi tải lên trực tiếp.
+        </p>
+        <input type="file" id="ai-file-input" accept=".json,.md,.txt,.markdown" style="display:none">
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:12px;flex-wrap:wrap;gap:8px">
+        <span style="color:#64748b;font-weight:600">Hoặc dán trực tiếp câu hỏi vào khung bên dưới:</span>
+        <div style="display:flex;gap:12px">
+          <button type="button" id="btn-download-ai-sample" class="button quiet" style="font-size:12px;color:#0267b1;text-decoration:underline;padding:0">
+            📥 Tải tệp mẫu (.json & .md)
+          </button>
+          <button type="button" id="btn-copy-ai-prompt" class="button quiet" style="font-size:12px;color:#0267b1;text-decoration:underline;padding:0">
+            📋 Chép câu lệnh mẫu (Prompt) cho ChatGPT
+          </button>
+        </div>
+      </div>
+
       <!-- Khung dán câu hỏi -->
       <div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
           <label style="font-weight:700;font-size:13px;color:#102d4a">
-            Dán nội dung các câu hỏi từ Word vào khung này:
+            Nội dung câu hỏi (chấp nhận công thức toán LaTeX dạng $...$):
           </label>
           <div style="display:flex;gap:8px">
             <button type="button" id="btn-fill-sample-raw" class="button" style="padding:4px 10px;font-size:12px;font-weight:600;color:#0267b1;border-color:#b8d6f0;background:#f0f7ff">
@@ -210,7 +235,7 @@
           </div>
         </div>
 
-        <textarea id="ai-parse-raw-text" rows="11" placeholder="Thầy/Cô chỉ cần sao chép (Copy) đề thi từ Word rồi dán (Paste) vào đây. Không cần định dạng cầu kỳ!&#10;&#10;Ví dụ:&#10;Câu 1: Thiết bị nào sau đây là thiết bị vào của máy tính?&#10;A. Màn hình&#10;B. Chuột&#10;C. Loa&#10;D. Máy in&#10;Đáp án: B&#10;&#10;Câu 2: Cho các phát biểu sau về bộ nhớ RAM...&#10;a) RAM là bộ nhớ truy xuất ngẫu nhiên. [Đúng]&#10;b) Dữ liệu trong RAM không bị mất khi mất điện. [Sai]" style="width:100%;padding:12px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;font-family:inherit;font-size:13.5px;line-height:1.5;background:#ffffff;"></textarea>
+        <textarea id="ai-parse-raw-text" rows="10" placeholder="Thầy/Cô chỉ cần sao chép (Copy) đề thi từ Word rồi dán (Paste) vào đây. Không cần định dạng cầu kỳ!&#10;&#10;Ví dụ:&#10;Câu 1: Phương trình bậc hai $x^2 - 3x + 2 = 0$ có tập nghiệm là:&#10;A. $\{1; 2\}$&#10;B. $\{-1; -2\}$&#10;C. $\{1; -2\}$&#10;D. $\{-1; 2\}$&#10;Đáp án: A&#10;&#10;Câu 2: Cho các phát biểu sau về bộ nhớ RAM...&#10;a) RAM là bộ nhớ truy xuất ngẫu nhiên. [Đúng]&#10;b) Dữ liệu trong RAM không bị mất khi mất điện. [Sai]" style="width:100%;padding:12px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;font-family:inherit;font-size:13.5px;line-height:1.5;background:#ffffff;"></textarea>
       </div>
 
       <!-- Nút hành động chính -->

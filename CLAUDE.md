@@ -10,30 +10,43 @@ This repo sits inside the teacher's Google Drive workspace. The parent folder ho
 
 UI text, `ServiceError` messages and docs are in Vietnamese. Keep it that way.
 
+## Living state files and agents
+
+Read these at the start of every session; they hold what git history does not:
+- `docs/BOI_CANH.md`: goal, legal basis, the teacher's settled decisions, items awaiting the tổ, glossary.
+- `docs/LO_TRINH.md`: the single to-do list (plan V2.1, milestones A–D). Current position and what the teacher must approve next.
+- `docs/NHAT_KY.md`: session log, newest first. Add an entry at the end of any session that changed code, data or decisions.
+
+Do not tick a milestone in `LO_TRINH.md` until tests pass **and** the teacher has confirmed the output. Milestone stop points (end of A, B, C, before D) need the teacher's approval before moving on.
+
+Agent roles: read `docs/QUY_TRINH_AGENTS.md` for routing, task contracts and safe checks. Ten adapters in `.claude/agents/` read the canonical definitions in `.agents/agents/`: design, backend, frontend, business review, export review acceptance, teacher-flow testing, security, curriculum data and backup operations. Delegate only relevant work and verify returned evidence.
+
 ## Commands
 
 Run from the repo root unless a line says `cd cloud`. CI (`.github/workflows/tests.yml`) runs all of these, and runs the Django suite a second time against Postgres 16.
 
 ```sh
 python3 -m venv .venv && .venv/bin/python -m pip install -r cloud/requirements.lock
-cd cloud && ../.venv/bin/python manage.py migrate
-cd cloud && ../.venv/bin/python manage.py runserver 127.0.0.1:8877        # then /accounts/signup/ → /app/
+(cd cloud && ../.venv/bin/python manage.py migrate)
+(cd cloud && ../.venv/bin/python manage.py runserver 127.0.0.1:8877) # then /accounts/signup/ → /app/
 
-cd cloud && ../.venv/bin/python manage.py test --noinput                  # Django suite (cloud/tests/)
-cd cloud && ../.venv/bin/python manage.py test tests.test_crud            # one module (or tests.test_crud.Class.test_x)
-cd cloud && ../.venv/bin/python manage.py makemigrations --check --dry-run
+(cd cloud && ../.venv/bin/python manage.py test --noinput) # Django suite (cloud/tests/)
+(cd cloud && ../.venv/bin/python manage.py test tests.test_crud) # one module (or tests.test_crud.Class.test_x)
+(cd cloud && ../.venv/bin/python manage.py makemigrations --check --dry-run)
 .venv/bin/python -m unittest discover -s tests                            # engine suite (tests/, no __init__.py)
+.venv/bin/python -m unittest tests/test_exam_set.py                       # Milestone C1 exam set & revision transition suite
+.venv/bin/python -m unittest tests/test_c2_scenarios.py                   # Milestone C2 teacher scenarios suite
 .venv/bin/python -m unittest discover -s tests -p test_backend.py         # one engine module
 node tests/frontend.test.cjs && node tests/matrices_frontend.test.cjs     # frontend logic
 
-cd cloud && ../.venv/bin/python manage.py seed_subject_samples --owner USER --dry-run   # then --apply (Toán10/Vật lí10)
-cd cloud && ../.venv/bin/python manage.py import_legacy --owner USER --dry-run          # copy local JSON bank into an account
-cd cloud && ../.venv/bin/python manage.py backup_local [--out DIR]                    # SQLite snapshot + LegacyState JSON + source files (DB and disk), then verify
-cd cloud && ../.venv/bin/python manage.py verify_backup DIR
-cd cloud && ../.venv/bin/python manage.py restore_local DIR --dry-run                # then --apply (current docs saved to version history first)
+(cd cloud && ../.venv/bin/python manage.py seed_subject_samples --owner USER --dry-run) # then --apply (Toán10/Vật lí10)
+(cd cloud && ../.venv/bin/python manage.py import_legacy --owner USER --dry-run) # copy local JSON bank into an account
+(cd cloud && ../.venv/bin/python manage.py backup_local [--out DIR]) # SQLite snapshot + LegacyState JSON + source files (DB and disk), then verify
+(cd cloud && ../.venv/bin/python manage.py verify_backup DIR)
+(cd cloud && ../.venv/bin/python manage.py restore_local DIR --dry-run) # then --apply (current docs saved to version history first)
 ```
 
-Some engine tests (`test_exam_verification`, `test_matrix_import`, `test_matrix_exports`) call `skipTest` when the teacher's private source files under `../06_Kiem_tra_va_Danh_gia/` are missing. That happens on CI, so a skip is not a pass. `scripts/export_and_verify_samples.py` and `verify_step2_1.py` produce real DOCX/PDF exports (through `/Library/TeX/texbin/xelatex`) so you can inspect the layout by eye.
+Some engine tests (`test_exam_verification`, `test_matrix_import`, `test_matrix_exports`) call `skipTest` when the teacher's private source files under `../06_Kiem_tra_va_Danh_gia/` are missing. That happens on CI, so a skip is not a pass. The old export scripts read private source data and write inside the repo; do not run them automatically. Use synthetic fixtures and a temporary directory; see `docs/QUY_TRINH_AGENTS.md`. XeLaTeX output does not validate the Word-to-PDF path.
 
 ## Architecture
 
@@ -80,6 +93,11 @@ Some engine tests (`test_exam_verification`, `test_matrix_import`, `test_matrix_
 - KTTX (B8, `domain/kttx.py`, TT 22/2021 Điều 6): required ĐĐGtx per semester = `tx_count_per_semester(periods_per_year)` (≤35 → 2, ≤70 → 3, >70 → 4); Tin học periods default to TT 32/2018 (THCS 35, THPT 70), other subjects use `policy.periods_per_year`. Activities (`kttx.json` / LegacyState key `kttx`) are unlimited, with form from Điều 6.1, configurable max score (`convert_to_10` rounds like TX), a `recorded` flag, optional TX exam link, and title `Tin {N}_Kiểm tra thường xuyên {k} - HK {I|II}` (also the bundle folder of a linked exam). Form `cum_chuyen_de` (THPT only) is the study-topic cluster result, counted as one extra ĐGtx (Điều 6.3) and shown separately; more than one per semester warns. The overview only warns.
 - Shortfall (B9, `shortfall_report` in `domain/matrix_checks.py`, `GET /api/matrices/<id>/shortfall`): per cell (lesson × PPCT outcome × type × level) needed slots vs approved questions, with pending/needs-review/draft counts; the matrix screen links each short cell to the review screen filtered by that cell (`core.reviewFiltersForCell`, incl. outcome).
 - PPCT import (`ppct_import.py`, `BankService.inspect_ppct_import` / `apply_ppct_import`, `/api/ppct/inspect-import`, `/api/ppct/apply-import`): reads the KHDH Phụ lục 1 Word table (header Tuần | Bài học | … | Yêu cầu cần đạt; merged "Học kì N" and "Chủ đề …" rows; "Bài N[a]." → code `BN[a]`; "(tt)"/"(tiết k)" rows are extra occurrences; Kiểm tra/Ôn tập rows skipped; "- " lines are YCCĐ) or JSON `{lessons:[…]}` / a bank export. Inspect never writes; apply needs `expected_sha256`, adds new lessons, updates changed ones, skips conflicts (same rules as `save_ppct_lesson`: used YCCĐ removed, or YCCĐ changed on a matrix-linked lesson), keeps lessons absent from the file, records `ppct.sources` with sha256 and stores the Word file as source `matrices/sources/ppct-<sha>.docx`.
+- Matrix → revision → exams (teacher decisions 29–30/10/2026). `_matrix_cells` reads one of three sources into cells: a locked "Ma trận & đặc tả" matrix (`matrix_id`; the route loads it with `matrices.generation._usable` into `payload['_matrix']` and drops any client `_matrix`), a template (`template_id`) or a `blueprint`. Matrix cells are (lesson, kind, level, YCCĐ tuple) and candidates must match the YCCĐ; a slot spanning several lessons/levels is refused. `generate_exam` from a matrix stores `matrix_id`/`matrix_snapshot` so B4 checks every cell at approval.
+  - `revision_id` is optional in `generate_exam` and `/api/exams/from-matrix`: without it no 90% check runs and approval is blocked ("chưa gắn đề cương"). `verify_exam(..., revision_id=)` links a revision to an editable exam.
+  - `propose_revision` (`POST /api/revisions/propose`, no write) returns per-cell `need`, `available`, points and proposed question ids; counts come from `counts` {cell key: n}, `total` (split by cell share, largest remainder) or default ceil(1.5 × need), capped at the bank, spread round-robin over YCCĐ. The UI also uses it to show the matrix table.
+  - `generate_exam_set` (`POST /api/exams/generate-set`): 1–6 exams; revision = `revision_id` or auto (`revision_counts` / `revision_total`). Each exam takes ceil(threshold × N) questions from the revision and leaves the rest outside, ranked Vận dụng → Hiểu → Biết, non-ES first, only with a YCCĐ that the revision covers (B6). Least-used questions go first, so a small revision makes exams share questions (`shared_questions` + warning); too small for 90% → 400, nothing written. A write failure restores `revisions.json`/`exams.json`. `generate_exam` accepts `question_ids` to use exactly those questions per cell.
+  - Test sandboxes copy the live matrices (legacy `setup_test_sandbox`, Django `_test_documents`). The matrix "choice_group" checkbox is hidden (field kept in data).
 - Help (`core.screenGuide(tab)`): the help dialog opens on "Màn hình đang mở", with purpose, steps and tips for the current tab; keep it in sync when a screen's controls change.
 - Answers (B2): every answer-bearing download goes through `Handler._require_answers` (403 + audit when denied; audit when allowed), and `_json` strips answer fields (`domain/answer_access.redact_answers`) for accounts without permission. Django denies accounts in group `khong_xem_dap_an`; denied-access audit events are written after the rolled-back transaction.
 

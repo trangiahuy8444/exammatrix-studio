@@ -1,8 +1,8 @@
 # Triển khai thử nghiệm: Render + Neon PostgreSQL
 
-Bản dùng thử đã triển khai ngày 24/10/2026: https://ngan-hang-de-web.onrender.com/
+Địa chỉ bản dùng thử đã ghi nhận: [Ngân hàng đề](https://ngan-hang-de-web.onrender.com/).
 
-Đã xác minh Render Free, Neon Free ở Singapore, migration thành công, health check 200, trang đăng nhập/đăng ký HTTPS và yêu cầu đăng nhập được xử lý qua database thật. Chưa xác minh toàn bộ thao tác sau đăng nhập trên production; người dùng cần tự tạo mật khẩu/tài khoản đầu tiên.
+Cấu hình triển khai hướng tới Render Free và Neon Free. Trạng thái hiện tại của dịch vụ, migration trên database thật và các luồng nghiệp vụ online cần kiểm tra tại môi trường đích; tài liệu này không xác nhận đã nghiệm thu toàn bộ Mốc B/C. Log kiểm thử cục bộ ngày 29/10/2026 có `No changes detected` khi kiểm tra migration; kết quả đó không chứng minh migration đã áp dụng trên Neon hay CSDL cục bộ thật.
 
 Mã nguồn nằm trong repository GitHub riêng tư. Render chạy Django; Neon giữ tài khoản, dữ liệu của từng giáo viên và tệp nguồn Word/ảnh. Không dùng GitHub Pages cho ứng dụng Django này.
 
@@ -41,7 +41,9 @@ Dữ liệu mẫu Toán/Vật lí có thể nạp cho một tài khoản cụ th
 - Render Free có thể ngủ khi không dùng; lần mở tiếp theo có thể chờ khởi động. Ổ đĩa web là tạm thời.
 - Tệp nguồn được lưu trong PostgreSQL: tối đa 8 MB/tệp và 128 MB/tài khoản. Cần theo dõi dung lượng tổng theo hạn mức Neon trước khi mời thêm người dùng.
 - Cấu hình định dạng lưu trong trình duyệt chưa đồng bộ giữa thiết bị. Dữ liệu câu hỏi, đề và ma trận được lưu trên server.
-- Chưa thiết lập nhà cung cấp email cho khôi phục mật khẩu. Không hứa chức năng gửi email hoạt động trước khi cấu hình và kiểm thử riêng.
+- Email mặc định dùng console: thư chỉ ghi ra đầu ra máy chủ, chưa gửi thư khôi phục mật khẩu thật. Cần cấu hình nhà cung cấp và kiểm thử riêng trước khi sử dụng.
+- Bản online vẫn xuất DOCX. Nhánh chuyển Word sang PDF cần máy cục bộ có Microsoft Word, `osascript` và quyền tự động hóa phù hợp; chưa xác nhận chạy được trên Render.
+- Bộ 1–6 đề theo ma trận và các mã hoán vị 101–104 của từng đề là hai thao tác riêng. ZIP có số tệp thay đổi theo số mã, định dạng và thành phần xuất được; xem báo cáo đóng gói trong ZIP.
 - Cần xuất bản sao lưu PostgreSQL định kỳ và thử phục hồi trước khi dùng cho dữ liệu quan trọng.
 
 Tài liệu nhà cung cấp: [Render Blueprint](https://render.com/docs/blueprint-spec), [Render Free](https://render.com/docs/free), [Neon connections](https://neon.com/docs/connect/connect-from-any-app).

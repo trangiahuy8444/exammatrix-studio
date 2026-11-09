@@ -162,7 +162,17 @@
       // Tuyến Phân phối chương trình (PPCT)
       if (path === '/api/ppct/inspect-import') {
         const fn = body.filename || '';
-        const grade = Number(body.grade || 10);
+        let grade = Number(body.grade || 0);
+        if (!grade && fn) {
+          const m = fn.match(/(?:TIN|KHỐI|KHOI|LỚP|LOP|K)\s*(\d+)/i);
+          if (m) grade = Number(m[1]);
+        }
+        if (!grade && body.extracted_text) {
+          const m = body.extracted_text.match(/(?:KHỐI\s*LỚP|KHỐI|LỚP)\s*(\d+)/i);
+          if (m) grade = Number(m[1]);
+        }
+        if (!grade) grade = (window.store && window.store.ppctGrade) || 9;
+
         let lessons = [];
         let issues = [];
 
@@ -177,7 +187,109 @@
             outcomes: Array.isArray(l.outcomes) ? l.outcomes : [],
             occurrences: (l.occurrences || []).length || 1
           }));
-        } else if (body.extracted_text) {
+        } else if (body.extracted_html) {
+          // Bóc tách bảng HTML từ tệp Word (.docx) chuẩn KHDH Phụ lục 1
+          try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(body.extracted_html, 'text/html');
+            const tables = Array.from(doc.querySelectorAll('table'));
+            let targetTable = null;
+            for (const tbl of tables) {
+              const txt = tbl.textContent.toLowerCase();
+              if (txt.includes('bài học') && (txt.includes('ppct') || txt.includes('yêu cầu cần đạt'))) {
+                targetTable = tbl;
+                break;
+              }
+            }
+
+            if (targetTable) {
+              const rows = Array.from(targetTable.querySelectorAll('tr'));
+              let currentTopic = '';
+              const lessonsMap = new Map();
+
+              for (const r of rows) {
+                const cells = Array.from(r.querySelectorAll('td, th')).map(c => c.textContent.trim());
+                if (!cells.length) continue;
+                if (cells.some(c => /Bài\s*học/i.test(c) && /Tuần/i.test(cells[0] || ''))) continue;
+                if (cells.some(c => /Học\s*kì/i.test(c))) continue;
+
+                if (cells.length === 1 || (cells.length > 1 && !cells[1] && !cells[2])) {
+                  const txt = cells[0];
+                  if (/Chủ\s*đề/i.test(txt)) currentTopic = txt;
+                  continue;
+                }
+
+                if (cells.length >= 2) {
+                  const weekRaw = cells[0] || '';
+                  const lessonRaw = cells[1] || '';
+                  const periodsRaw = cells[2] || '1';
+                  const ppctRaw = cells[3] || '';
+                  const outcomesRaw = cells[4] || '';
+
+                  if (!lessonRaw.trim()) continue;
+
+                  let lessonCode = '';
+                  const mCode = lessonRaw.match(/^(?:Bài|Chủ\s*đề)\s*([0-9]+[a-zA-Z]?)/i);
+                  if (mCode) {
+                    lessonCode = 'B' + mCode[1];
+                  } else if (/Kiểm\s*tra\s*giữa\s*h?k?1/i.test(lessonRaw)) {
+                    lessonCode = 'KTGK1';
+                  } else if (/Kiểm\s*tra\s*h?k?1|Kiểm\s*tra\s*cuối\s*h?k?1/i.test(lessonRaw)) {
+                    lessonCode = 'KTCK1';
+                  } else if (/Kiểm\s*tra\s*giữa\s*h?k?2/i.test(lessonRaw)) {
+                    lessonCode = 'KTGK2';
+                  } else if (/Kiểm\s*tra\s*h?k?2|Kiểm\s*tra\s*cuối\s*h?k?2/i.test(lessonRaw)) {
+                    lessonCode = 'KTCK2';
+                  } else if (/Ôn\s*tập/i.test(lessonRaw)) {
+                    lessonCode = 'OT';
+                  } else {
+                    lessonCode = 'B' + (lessonsMap.size + 1);
+                  }
+
+                  let cleanName = lessonRaw.replace(/^(?:Bài|Chủ\s*đề)\s*[0-9]+[a-zA-Z]?[:.]?\s*/i, '')
+                                           .replace(/\s*\(tiết\s*\d+\)/i, '')
+                                           .trim();
+                  if (!cleanName) cleanName = lessonRaw;
+
+                  const outcomes = outcomesRaw.split(/(?:^|\n|\r|\.)\s*-\s*/)
+                    .map(o => o.trim().replace(/^-\s*/, ''))
+                    .filter(o => o.length > 5);
+
+                  if (lessonsMap.has(lessonCode)) {
+                    const existing = lessonsMap.get(lessonCode);
+                    existing.occurrences.push({ week_raw: weekRaw, periods_raw: periodsRaw, ppct_raw: ppctRaw });
+                    if (outcomes.length > 0 && (!existing.outcomes || !existing.outcomes.length)) {
+                      existing.outcomes = outcomes;
+                    } else if (outcomes.length > 0) {
+                      outcomes.forEach(o => { if (!existing.outcomes.includes(o)) existing.outcomes.push(o); });
+                    }
+                  } else {
+                    lessonsMap.set(lessonCode, {
+                      status: 'new',
+                      grade: grade,
+                      lesson_code: lessonCode,
+                      lesson_name: cleanName,
+                      lesson_name_source: cleanName,
+                      topic: currentTopic || 'Chương trình GDPT',
+                      topic_source: currentTopic || 'Chương trình GDPT',
+                      occurrences: [{ week_raw: weekRaw, periods_raw: periodsRaw, ppct_raw: ppctRaw }],
+                      outcomes: outcomes.length ? outcomes : ['Yêu cầu cần đạt theo chương trình môn học.']
+                    });
+                  }
+                }
+              }
+
+              if (lessonsMap.size > 0) {
+                lessons = Array.from(lessonsMap.values());
+              }
+            }
+          } catch(e) {
+            console.warn('Lỗi phân tích HTML bảng KHDH:', e);
+          }
+        }
+
+        // Dự phòng nếu chưa bóc được từ bảng HTML
+        if (!lessons.length && body.extracted_text) {
           const text = body.extracted_text;
           const isExam = /MA TRẬN|ĐẶC TẢ|ĐỀ KIỂM TRA|BẢNG ĐẶC TẢ|PHẦN I/i.test(text) || /Câu\s*\d+[:.]/i.test(text);
           if (isExam) {
@@ -185,7 +297,7 @@
               message: '⚠️ Nhận diện: Tệp "' + fn + '" là hồ sơ Ma trận & Đề kiểm tra. Mục này dùng để nạp Bảng Kế hoạch dạy học (PPCT Phụ lục 1). Để nạp các câu hỏi trong đề này vào ngân hàng đề, Thầy/Cô vui lòng bấm nút "✨ AI Nhập đề" ở thanh trên cùng!'
             });
           }
-          const matches = [...text.matchAll(/(?:Bài|Chủ đề)\s*(\d+)[:.]\s*([^\n\r]+)/gi)];
+          const matches = [...text.matchAll(/(?:Bài)\s*(\d+)[:.]\s*([^\n\r]+)/gi)];
           if (matches.length > 0) {
             lessons = matches.slice(0, 30).map((m, i) => ({
               status: 'new',
@@ -197,10 +309,6 @@
               occurrences: 1
             }));
           }
-        } else {
-          issues.push({
-            message: 'Chưa trích xuất được nội dung từ tệp Word "' + fn + '". Thầy/Cô có thể dùng nút "✨ AI Nhập đề" trên thanh công cụ để đưa câu hỏi vào hệ thống.'
-          });
         }
 
         return {
@@ -219,9 +327,33 @@
       }
 
       if (path === '/api/ppct/apply-import') {
+        let grade = Number(body.grade || 0);
+        if (!grade && body.filename) {
+          const m = body.filename.match(/(?:TIN|KHỐI|KHOI|LỚP|LOP|K)\s*(\d+)/i);
+          if (m) grade = Number(m[1]);
+        }
+        if (!grade) grade = (window.store && window.store.ppctGrade) || 9;
+
+        const incoming = Array.isArray(body.lessons) ? body.lessons : [];
+        if (incoming.length > 0) {
+          if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [] };
+          const existing = currentWorkspaceData.bank.ppct.lessons || [];
+          const otherLessons = existing.filter(l => Number(l.grade) !== grade);
+          const newLessons = incoming.map(l => ({
+            ...l,
+            grade: grade,
+            subject_name: body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học'
+          }));
+          currentWorkspaceData.bank.ppct.lessons = [...otherLessons, ...newLessons];
+          await syncToFirestore(uid, currentWorkspaceData);
+
+          if (window.store && window.store.bank) {
+            window.store.bank.ppct = currentWorkspaceData.bank.ppct;
+          }
+        }
         return {
           bank: currentWorkspaceData.bank,
-          summary: { new: 0, changed: 0, conflict: 0 }
+          summary: { new: incoming.length, changed: 0, conflict: 0 }
         };
       }
 

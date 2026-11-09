@@ -32,7 +32,8 @@
   <div style="display:flex;align-items:center;gap:8px">
     <button id="btn-toggle-test-mode" class="quiet" type="button" style="font-weight:600;color:#9a6700;border:1px solid #e0c885;border-radius:6px;padding:5px 10px;background:#fffdf5">🧪 Chế độ Test</button>
     <button id="btn-user-guide" class="quiet" type="button" style="font-weight:600;color:var(--navy,#102d4a)">📖 Hướng dẫn sử dụng</button>
-    <button id="btn-ai-assistant" class="quiet" type="button" style="font-weight:600;color:var(--brand,#0a58ca)">✨ Trợ lý AI (Gemini)</button>
+    <button id="btn-ai-assistant" class="quiet" type="button" style="font-weight:600;color:var(--brand,#0a58ca)">✨ Xử lý dữ liệu AI</button>
+    <button id="btn-backup-data" class="quiet" type="button" style="font-weight:600;color:#2b8a3e;border:1px solid #b2f2bb;border-radius:6px;padding:5px 10px;background:#f4fbf6">💾 Sao lưu / Khôi phục</button>
     <span class="teacher">Không gian giáo viên</span>
     <button id="refresh" class="quiet" type="button">Tải lại dữ liệu</button>
   </div>
@@ -66,98 +67,51 @@
 </div>
 <dialog id="detail-dialog" aria-labelledby="detail-title"><div id="detail-content"></div></dialog>
 <dialog id="edit-dialog" aria-labelledby="edit-title"><div class="dialog-heading"><h2 id="edit-title">Câu hỏi</h2><button type="button" data-close="edit-dialog" class="quiet">Đóng</button></div><form id="question-form"></form></dialog>
-<dialog id="ai-dialog" aria-labelledby="ai-title" style="max-width:850px;width:92vw;border-radius:10px;padding:24px;border:1px solid var(--line,#ccc);box-shadow:0 8px 30px rgba(0,0,0,0.18)">
+<dialog id="ai-dialog" aria-labelledby="ai-title" style="max-width:900px;width:94vw;border-radius:12px;padding:24px;border:1px solid var(--line,#ccc);box-shadow:0 12px 36px rgba(0,0,0,0.2)">
   <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--line,#eee);padding-bottom:12px">
-    <div>
-      <h2 id="ai-title" style="margin:0;font-size:1.3rem">✨ Trợ lý AI Khảo thí (Google Gemini)</h2>
-      <small style="color:var(--muted,#666)">Tạo câu hỏi theo chuẩn GDPT 2018 · Bóc tách đề thô · Sinh biến thể tương đương</small>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:26px;">✨</span>
+      <div>
+        <h2 id="ai-title" style="margin:0;font-size:1.3rem;color:var(--navy,#102d4a)">Trợ lý AI Xử lý & Chuẩn hóa Dữ liệu Khảo thí (Google Gemini)</h2>
+        <small style="color:var(--muted,#666)">Bóc tách đề thô/Word · Chuẩn hóa 4 dạng thức · Tự động ánh xạ PPCT & Xếp 4 mức độ nhận thức</small>
+      </div>
     </div>
     <button type="button" data-close="ai-dialog" class="quiet" style="font-size:1.2rem;cursor:pointer">✕</button>
   </div>
   <div class="ai-tabs" style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--line,#eee);padding-bottom:8px">
-    <button type="button" class="tab-pill active" data-ai-tab="key" style="padding:6px 14px;border-radius:6px;border:1px solid var(--line,#ccc);background:var(--brand,#0a58ca);color:#fff;cursor:pointer">🔑 Trạng thái AI</button>
-    <button type="button" class="tab-pill" data-ai-tab="mode1" style="padding:6px 14px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer">🎯 1. Sinh theo YCCĐ</button>
-    <button type="button" class="tab-pill" data-ai-tab="mode2" style="padding:6px 14px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer">📄 2. Bóc tách đề thô</button>
-    <button type="button" class="tab-pill" data-ai-tab="mode3" style="padding:6px 14px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer">🔀 3. Sinh biến thể</button>
+    <button type="button" class="tab-pill active" data-ai-tab="key" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:var(--brand,#0a58ca);color:#fff;cursor:pointer;font-weight:600">🔑 Khóa API Gemini</button>
+    <button type="button" class="tab-pill" data-ai-tab="parse" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer;font-weight:600">📄 1. Bóc tách & Chuẩn hóa đề thô</button>
+    <button type="button" class="tab-pill" data-ai-tab="results" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer;font-weight:600">✅ 2. Thẩm định & Nạp ngân hàng (<span id="ai-review-count">0</span>)</button>
   </div>
   <div id="ai-tab-content">
+    <!-- Tab 1: Cấu hình API Key -->
     <div id="ai-pane-key" class="ai-pane">
-      <p>Trợ lý AI dùng Google Gemini qua khóa đặt <strong>trên máy chủ</strong> (biến môi trường <code>GEMINI_API_KEY</code>). Trình duyệt không nhập, không lưu và không gửi khóa.</p>
-      <p><strong>Trạng thái:</strong> <span id="gemini-key-status">Đang kiểm tra…</span></p>
-      <p style="font-size:0.85rem;color:var(--muted,#666);margin-top:14px"><em>Câu do AI tạo luôn được lưu ở trạng thái nháp và phải được giáo viên duyệt trước khi dùng trong đề. Số lượt gọi AI mỗi ngày có giới hạn (biến <code>AI_DAILY_LIMIT</code>, mặc định 50).</em></p>
+      <div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:16px;margin-bottom:16px;">
+        <h3 style="margin:0 0 8px;font-size:14px;color:#212529;">Cấu hình Gemini API Key cá nhân</h3>
+        <p style="margin:0 0 10px;font-size:13px;color:#495057;line-height:1.5;">
+          Trợ lý AI chạy trực tiếp trên trình duyệt của Thầy/Cô và kết nối an toàn đến Google AI. Khóa API được lưu giữ riêng tư tại máy của Thầy/Cô (không chia sẻ cho ai).
+        </p>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input type="password" id="gemini-user-key" placeholder="Dán Gemini API Key của Thầy/Cô (AIzaSy...)" style="flex:1;padding:9px 12px;border:1px solid #ced4da;border-radius:6px;font-family:monospace;font-size:13px;">
+          <button type="button" id="btn-save-gemini-key" class="button primary" style="padding:9px 16px;font-weight:600;">Lưu & Kiểm tra</button>
+          <button type="button" id="btn-clear-gemini-key" class="button quiet" style="padding:9px;color:#dc3545;">Xóa khóa</button>
+        </div>
+        <div id="gemini-key-status" style="margin-top:10px;font-size:13px;font-weight:600;color:#6c757d;">Chưa cấu hình API Key.</div>
+      </div>
+      <div style="background:#e7f5ff;border:1px solid #a5d8ff;border-radius:8px;padding:14px;font-size:12px;color:#1864ab;line-height:1.6;">
+        💡 <strong>Hướng dẫn nhận khóa API miễn phí từ Google (chỉ mất 1 phút):</strong><br>
+        1. Truy cập <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color:#0a58ca;font-weight:bold;text-decoration:underline;">Google AI Studio (aistudio.google.com)</a> và đăng nhập bằng tài khoản Google.<br>
+        2. Bấm nút <strong>Create API key</strong> $\rightarrow$ Sao chép chuỗi ký tự bắt đầu bằng <code>AIzaSy...</code>.<br>
+        3. Dán vào ô bên trên và bấm <strong>Lưu & Kiểm tra</strong> để kích hoạt trợ lý AI.
+      </div>
     </div>
-    <div id="ai-pane-mode1" class="ai-pane" hidden>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-        <div>
-          <label style="display:block;font-weight:600;margin-bottom:4px">Môn học</label>
-          <select id="ai-m1-subject" style="width:100%;padding:8px">
-            <option value="Tin học" selected>Tin học</option>
-            <option value="Toán học">Toán học</option>
-            <option value="Vật lí">Vật lí</option>
-            <option value="Hóa học">Hóa học</option>
-            <option value="Sinh học">Sinh học</option>
-            <option value="Ngữ văn">Ngữ văn</option>
-            <option value="Lịch sử">Lịch sử</option>
-            <option value="Địa lí">Địa lí</option>
-            <option value="Tiếng Anh">Tiếng Anh</option>
-          </select>
-        </div>
-        <div>
-          <label style="display:block;font-weight:600;margin-bottom:4px">Khối lớp</label>
-          <select id="ai-m1-grade" style="width:100%;padding:8px">
-            <option value="8">Khối 8</option>
-            <option value="9">Khối 9</option>
-            <option value="10" selected>Khối 10</option>
-            <option value="11">Khối 11</option>
-            <option value="12">Khối 12</option>
-          </select>
-        </div>
-        <div>
-          <label style="display:block;font-weight:600;margin-bottom:4px">Mức độ nhận thức</label>
-          <select id="ai-m1-level" style="width:100%;padding:8px">
-            <option value="Biết" selected>Nhận biết</option>
-            <option value="Hiểu">Thông hiểu</option>
-            <option value="Vận dụng">Vận dụng</option>
-          </select>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px">
-        <div>
-          <label style="display:block;font-weight:600;margin-bottom:4px">Dạng câu hỏi</label>
-          <select id="ai-m1-type" style="width:100%;padding:8px">
-            <option value="MC" selected>Nhiều lựa chọn (4 lựa chọn A, B, C, D)</option>
-            <option value="YN">Trắc nghiệm Đúng/Sai (4 ý a, b, c, d)</option>
-            <option value="SHORT">Trả lời ngắn</option>
-            <option value="ES">Tự luận kèm Barem</option>
-          </select>
-        </div>
-        <div>
-          <label style="display:block;font-weight:600;margin-bottom:4px">Số lượng câu</label>
-          <input type="number" id="ai-m1-count" min="1" max="5" value="3" style="width:100%;padding:8px;box-sizing:border-box">
-        </div>
-      </div>
-      <div style="margin-bottom:12px">
-        <label style="display:block;font-weight:600;margin-bottom:4px">Chọn bài học từ Phân phối chương trình (PPCT)</label>
-        <select id="ai-m1-lesson-select" style="width:100%;padding:8px;box-sizing:border-box">
-          <option value="">— Đang nạp danh mục bài học —</option>
-        </select>
-      </div>
-      <div style="margin-bottom:16px">
-        <label style="display:block;font-weight:600;margin-bottom:4px">Yêu cầu cần đạt (YCCĐ)</label>
-        <select id="ai-m1-outcome-select" style="width:100%;padding:8px;margin-bottom:6px;box-sizing:border-box;display:none">
-          <option value="">— Chọn gợi ý YCCĐ từ bài học —</option>
-        </select>
-        <textarea id="ai-m1-outcome" rows="2" placeholder="Chọn bài học ở trên để nạp gợi ý YCCĐ, hoặc tự nhập YCCĐ tại đây..." style="width:100%;padding:8px;box-sizing:border-box"></textarea>
-      </div>
-      <button type="button" class="primary" id="ai-m1-submit-btn" style="padding:10px 20px;border-radius:6px;background:var(--brand,#0a58ca);color:#fff;border:none;cursor:pointer">✨ Tạo câu hỏi với Gemini</button>
-      <div id="ai-m1-results" style="margin-top:16px;max-height:300px;overflow-y:auto"></div>
-    </div>
-    <div id="ai-pane-mode2" class="ai-pane" hidden>
-      <p>Dán nội dung đề thi thô hoặc đoạn văn bản câu hỏi vào khung bên dưới, AI sẽ bóc tách cấu trúc câu hỏi, phương án và đáp án:</p>
+
+    <!-- Tab 2: Bóc tách đề thô -->
+    <div id="ai-pane-parse" class="ai-pane" hidden>
       <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:12px;margin-bottom:12px">
         <div>
-          <label style="display:block;font-weight:600;margin-bottom:4px">Môn học đích</label>
-          <select id="ai-m2-subject" style="width:100%;padding:8px">
+          <label style="display:block;font-weight:600;font-size:12px;margin-bottom:4px">Môn học:</label>
+          <select id="ai-parse-subject" style="width:100%;padding:8px;border:1px solid #ced4da;border-radius:6px;">
             <option value="Tin học" selected>Tin học</option>
             <option value="Toán học">Toán học</option>
             <option value="Vật lí">Vật lí</option>
@@ -170,8 +124,8 @@
           </select>
         </div>
         <div>
-          <label style="display:block;font-weight:600;margin-bottom:4px">Khối lớp đích</label>
-          <select id="ai-m2-grade" style="width:100%;padding:8px">
+          <label style="display:block;font-weight:600;font-size:12px;margin-bottom:4px">Khối lớp:</label>
+          <select id="ai-parse-grade" style="width:100%;padding:8px;border:1px solid #ced4da;border-radius:6px;">
             <option value="8">Khối 8</option>
             <option value="9">Khối 9</option>
             <option value="10" selected>Khối 10</option>
@@ -180,31 +134,74 @@
           </select>
         </div>
         <div>
-          <label style="display:block;font-weight:600;margin-bottom:4px">Gán vào bài học đích</label>
-          <select id="ai-m2-lesson-select" style="width:100%;padding:8px">
-            <option value="">— Đang nạp danh mục bài học —</option>
-          </select>
+          <label style="display:block;font-weight:600;font-size:12px;margin-bottom:4px">Quy tắc khảo thí:</label>
+          <div style="padding:7px 10px;background:#f8f9fa;border-radius:6px;font-size:12px;color:#495057;">
+            🎯 Tự động ánh xạ Bài học (PPCT) & Xếp 4 mức độ nhận thức (Biết - Hiểu - Vận dụng - Vận dụng cao)
+          </div>
         </div>
       </div>
-      <textarea id="ai-m2-raw-text" rows="8" placeholder="Dán đề thi thô tại đây (ví dụ: Câu 1: ... A. ... B. ... C. ... D. ... Đáp án: ...)" style="width:100%;padding:10px;box-sizing:border-box;font-family:monospace"></textarea>
-      <div style="margin-top:12px">
-        <button type="button" class="primary" id="ai-m2-submit-btn" style="padding:10px 20px;border-radius:6px;background:var(--brand,#0a58ca);color:#fff;border:none;cursor:pointer">✨ Bóc tách & Cấu trúc hóa đề thô</button>
+      <div>
+        <label style="display:block;font-weight:600;font-size:12px;margin-bottom:4px">Dán nội dung đề thi / tài liệu câu hỏi thô từ Word/PDF:</label>
+        <textarea id="ai-parse-raw-text" rows="10" placeholder="Thầy/Cô dán nội dung bất kỳ tại đây. Ví dụ:&#10;Câu 1: Thiết bị nào sau đây là thiết bị vào?&#10;A. Màn hình&#10;B. Chuột&#10;C. Loa&#10;D. Máy in&#10;Đáp án: B&#10;&#10;Câu 2 (Đúng/Sai): Cho các phát biểu sau về bộ nhớ RAM...&#10;a) RAM là bộ nhớ truy xuất ngẫu nhiên. [Đúng]&#10;b) Dữ liệu trong RAM không bị mất khi mất điện. [Sai]..." style="width:100%;padding:10px;box-sizing:border-box;border:1px solid #ced4da;border-radius:6px;font-family:inherit;font-size:13px;line-height:1.45;"></textarea>
       </div>
-      <div id="ai-m2-results" style="margin-top:16px;max-height:300px;overflow-y:auto"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
+        <span id="ai-parse-msg" style="font-size:12px;color:#6c757d;"></span>
+        <button type="button" class="button primary" id="btn-start-ai-parse" style="padding:10px 24px;font-size:13px;font-weight:600;">✨ Bắt đầu Bóc tách & Chuẩn hóa với Gemini</button>
+      </div>
     </div>
-    <div id="ai-pane-mode3" class="ai-pane" hidden>
-      <p>Chọn câu hỏi có sẵn trong ngân hàng hoặc dán câu hỏi để AI sinh biến thể tương đương (đổi số liệu, tham số, ngữ cảnh thực tế):</p>
-      <div style="margin-bottom:10px">
-        <label style="display:block;font-weight:600;margin-bottom:4px">Chọn câu hỏi gốc từ Ngân hàng</label>
-        <select id="ai-m3-select-existing-q" style="width:100%;padding:8px;box-sizing:border-box">
-          <option value="">— Chọn một câu hỏi từ ngân hàng —</option>
-        </select>
+
+    <!-- Tab 3: Kết quả & Nạp ngân hàng -->
+    <div id="ai-pane-results" class="ai-pane" hidden>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 12px;background:#e7f5ff;border-radius:6px;">
+        <span style="font-size:13px;font-weight:600;color:#1864ab;">Danh sách câu hỏi đã được AI bóc tách & phân loại</span>
+        <div style="display:flex;gap:8px;">
+          <button type="button" id="btn-export-ai-json" class="button" style="padding:6px 12px;font-size:12px;">💾 Tải file JSON</button>
+          <button type="button" id="btn-import-ai-to-bank" class="button primary" style="padding:6px 16px;font-size:12px;font-weight:600;">📥 Nạp vào Ngân hàng câu hỏi</button>
+        </div>
       </div>
-      <textarea id="ai-m3-question-json" rows="6" placeholder='Dán nội dung câu hỏi JSON hoặc mô tả câu hỏi gốc...' style="width:100%;padding:10px;box-sizing:border-box;font-family:monospace"></textarea>
-      <div style="margin-top:12px">
-        <button type="button" class="primary" id="ai-m3-submit-btn" style="padding:10px 20px;border-radius:6px;background:var(--brand,#0a58ca);color:#fff;border:none;cursor:pointer">✨ Sinh biến thể tương đương</button>
+      <div id="ai-parsed-results-container" style="max-height:420px;overflow-y:auto;padding-right:4px;">
+        <p style="text-align:center;color:#6c757d;margin:30px 0;">Chưa có dữ liệu. Vui lòng dán văn bản ở thẻ "1. Bóc tách & Chuẩn hóa đề thô" và bấm thực hiện.</p>
       </div>
-      <div id="ai-m3-results" style="margin-top:16px;max-height:300px;overflow-y:auto"></div>
+    </div>
+  </div>
+</dialog>
+
+<!-- Backup & Restore Dialog -->
+<dialog id="backup-dialog" style="max-width:550px;width:90vw;border-radius:12px;padding:24px;border:1px solid var(--line,#ccc);box-shadow:0 12px 36px rgba(0,0,0,0.2)">
+  <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--line,#eee);padding-bottom:12px">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:24px">💾</span>
+      <div>
+        <h2 style="margin:0;font-size:1.25rem;color:var(--navy,#102d4a)">Sao lưu & Khôi phục Dữ liệu</h2>
+        <small style="color:var(--muted,#666)">Tự quản lý và cất giữ dữ liệu trên Google Drive cá nhân của Thầy/Cô</small>
+      </div>
+    </div>
+    <button type="button" data-close="backup-dialog" class="quiet" style="font-size:1.2rem;cursor:pointer">✕</button>
+  </div>
+  
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <!-- Phần 1: Sao lưu -->
+    <div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:16px;">
+      <h3 style="margin:0 0 6px;font-size:14px;color:#212529;">1. Tải bản sao lưu về máy (Để cất lên Google Drive)</h3>
+      <p style="margin:0 0 12px;font-size:12px;color:#6c757d;line-height:1.45;">
+        Xuất toàn bộ ngân hàng câu hỏi, đề cương ôn tập, bộ đề thi và ma trận thành một tệp <code>.json</code> hoàn chỉnh. Thầy/Cô có thể lưu vào máy tính hoặc cất giữ trên Google Drive cá nhân để đảm bảo an toàn tuyệt đối.
+      </p>
+      <button type="button" id="btn-export-full-backup" class="button primary" style="width:100%;padding:10px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+        <span>📥</span> Tải tệp sao lưu dữ liệu (.json)
+      </button>
+    </div>
+
+    <!-- Phần 2: Khôi phục -->
+    <div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:16px;">
+      <h3 style="margin:0 0 6px;font-size:14px;color:#212529;">2. Khôi phục từ tệp sao lưu (Từ máy hoặc Google Drive)</h3>
+      <p style="margin:0 0 12px;font-size:12px;color:#6c757d;line-height:1.45;">
+        Chọn tệp sao lưu <code>.json</code> đã tải về trước đó để nạp lại đầy đủ dữ liệu vào tài khoản của Thầy/Cô.
+      </p>
+      <input type="file" id="input-restore-backup" accept=".json" style="display:none;">
+      <button type="button" id="btn-trigger-restore" class="button" style="width:100%;padding:10px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;background:#fff;border:1px solid #ced4da;">
+        <span>📂</span> Chọn tệp JSON để khôi phục
+      </button>
+      <div id="restore-status" style="margin-top:10px;font-size:12px;color:#2b8a3e;display:none;"></div>
     </div>
   </div>
 </dialog>

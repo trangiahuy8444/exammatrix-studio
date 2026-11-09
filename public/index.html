@@ -25,24 +25,28 @@
 </head>
 <body>
 <a class="skip" href="#main">Đến nội dung chính</a>
-<aside class="sidebar">
-  <a class="brand" href="#overview"><span class="brand-mark">EM</span><span>EXAMMATRIX<small id="sidebar-subject-caption">Khảo thí Á Châu · 2026–2027</small></span></a>
+<aside class="sidebar" id="main-sidebar">
+  <a class="brand" href="#overview" title="ExamMatrix Studio"><span class="brand-mark">EM</span><span class="brand-text">EXAMMATRIX<small id="sidebar-subject-caption">Khảo thí Á Châu · 2026–2027</small></span></a>
   <p class="nav-caption">KHÔNG GIAN CHUYÊN MÔN</p>
   <nav aria-label="Điều hướng chính">
-    <a href="#overview" data-tab="overview"><span class="nav-icon">📊</span> Tổng quan</a>
-    <a href="#bank" data-tab="bank"><span class="nav-icon">🗄️</span> Ngân hàng câu hỏi</a>
-    <a href="#review" data-tab="review"><span class="nav-icon">✔️</span> Duyệt câu hỏi</a>
-    <a href="#ppct" data-tab="ppct"><span class="nav-icon">📅</span> Phân phối chương trình</a>
-    <a href="#revisions" data-tab="revisions"><span class="nav-icon">📝</span> Đề cương ôn tập</a>
-    <a href="#matrices" data-tab="matrices"><span class="nav-icon">📐</span> Ma trận & đặc tả</a>
-    <a href="#exams" data-tab="exams"><span class="nav-icon">📑</span> Tạo đề kiểm tra</a>
-    <a href="#kttx" data-tab="kttx"><span class="nav-icon">🎯</span> Kiểm tra thường xuyên</a>
+    <a href="#overview" data-tab="overview" title="Tổng quan"><span class="nav-icon">📊</span><span class="nav-label">Tổng quan</span></a>
+    <a href="#bank" data-tab="bank" title="Ngân hàng câu hỏi"><span class="nav-icon">🗄️</span><span class="nav-label">Ngân hàng câu hỏi</span></a>
+    <a href="#review" data-tab="review" title="Duyệt câu hỏi"><span class="nav-icon">✔️</span><span class="nav-label">Duyệt câu hỏi</span></a>
+    <a href="#ppct" data-tab="ppct" title="Phân phối chương trình"><span class="nav-icon">📅</span><span class="nav-label">Phân phối chương trình</span></a>
+    <a href="#revisions" data-tab="revisions" title="Đề cương ôn tập"><span class="nav-icon">📝</span><span class="nav-label">Đề cương ôn tập</span></a>
+    <a href="#matrices" data-tab="matrices" title="Ma trận & đặc tả"><span class="nav-icon">📐</span><span class="nav-label">Ma trận & đặc tả</span></a>
+    <a href="#exams" data-tab="exams" title="Tạo đề kiểm tra"><span class="nav-icon">📑</span><span class="nav-label">Tạo đề kiểm tra</span></a>
+    <a href="#kttx" data-tab="kttx" title="Kiểm tra thường xuyên"><span class="nav-icon">🎯</span><span class="nav-label">Kiểm tra thường xuyên</span></a>
   </nav>
   <div class="sidebar-foot"><span class="local-dot"></span> Làm việc an toàn<p>Lưu trữ cục bộ & đồng bộ Cloud riêng tư theo chuẩn bảo mật học vụ.</p></div>
 </aside>
+<div id="sidebar-backdrop" class="sidebar-backdrop" aria-hidden="true"></div>
 <div class="workspace">
 <header class="topbar">
   <div class="topbar-left">
+    <button type="button" id="btn-toggle-sidebar" class="sidebar-toggle-btn" aria-label="Thu gọn hoặc mở rộng thanh điều hướng" title="Thu gọn / Mở rộng menu (Phím tắt: Ctrl + B)">
+      <span class="toggle-icon">☰</span>
+    </button>
     <div class="topbar-subject-badge">
       <span class="subject-icon">📚</span>
       <label for="global-subject-select" class="subject-label">Môn</label>

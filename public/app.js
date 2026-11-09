@@ -845,7 +845,7 @@ function ppctImportCard(g){
  const rows=lessonsList.map(x=>{
    const [label,cls]=PPCT_STATUS[x.status]||[x.status,''];
    const detail=x.status==='conflict'?esc(x.conflict?.reason||'')+(x.conflict?.outcomes?`<ul>${x.conflict.outcomes.map(o=>`<li>${esc(o)}</li>`).join('')}</ul>`:'')
-     :(x.changes||[]).map(c=>`<div><strong>${esc(c.field)}:</strong> ${Array.isArray(c.new)?`${c.old.length} → ${c.new.length} YCCĐ<ul>${c.new.filter(o=>!c.old.includes(o)).map(o=>`<li>+ ${esc(o)}</li>`).join('')}${c.old.filter(o=>!c.new.includes(o)).map(o=>`<li>− ${esc(o)}</li>`).join('')}</ul>`:`${esc(c.old)} → ${esc(c.new)}`}</div>`).join('')||(x.status==='new'?`${(x.outcomes||[]).length} YCCĐ · ${x.occurrences||1} lần dạy`:'');
+     :(x.changes||[]).map(c=>`<div><strong>${esc(c.field)}:</strong> ${Array.isArray(c.new)?`${c.old.length} → ${c.new.length} YCCĐ<ul>${c.new.filter(o=>!c.old.includes(o)).map(o=>`<li>+ ${esc(o)}</li>`).join('')}${c.old.filter(o=>!c.new.includes(o)).map(o=>`<li>− ${esc(o)}</li>`).join('')}</ul>`:`${esc(c.old)} → ${esc(c.new)}`}</div>`).join('')||(x.status==='new'?`${(x.outcomes||[]).length} YCCĐ · ${x.occurrences||1} tiết`:'');
    return `<tr><td><span class="badge ${cls}">${esc(label)}</span></td><td>Khối ${esc(x.grade)} · <strong>${esc(x.lesson_code)}</strong></td><td>${esc(x.lesson_name)}<p class="small muted">${esc(x.topic||"")}</p></td><td class="small">${detail}</td></tr>`;
  }).join('');
  return `<div class="card"><h2>Nhập PPCT từ JSON, Markdown hoặc Word</h2>
@@ -3024,3 +3024,67 @@ function initGlobalSubject() {
   if (footSubj) footSubj.textContent = store.selectedSubject || 'Tin học';
 }
 initGlobalSubject();
+
+function initSidebarToggle() {
+  const toggleBtn = document.getElementById('btn-toggle-sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (!toggleBtn) return;
+
+  // Restore collapsed state on desktop
+  try {
+    const isCollapsed = localStorage.getItem('exammatrix_sidebar_collapsed') === '1';
+    if (isCollapsed && window.innerWidth > 768) {
+      document.body.classList.add('sidebar-collapsed');
+      toggleBtn.setAttribute('aria-expanded', 'false');
+    } else {
+      toggleBtn.setAttribute('aria-expanded', 'true');
+    }
+  } catch (e) {}
+
+  const toggle = () => {
+    if (window.innerWidth <= 768) {
+      const open = document.body.classList.toggle('sidebar-mobile-open');
+      toggleBtn.setAttribute('aria-expanded', String(open));
+    } else {
+      const collapsed = document.body.classList.toggle('sidebar-collapsed');
+      try {
+        localStorage.setItem('exammatrix_sidebar_collapsed', collapsed ? '1' : '0');
+      } catch (e) {}
+      toggleBtn.setAttribute('aria-expanded', String(!collapsed));
+    }
+  };
+
+  toggleBtn.onclick = (e) => {
+    e.preventDefault();
+    toggle();
+  };
+
+  if (backdrop) {
+    backdrop.onclick = () => {
+      document.body.classList.remove('sidebar-mobile-open');
+      toggleBtn.setAttribute('aria-expanded', 'false');
+    };
+  }
+
+  // Close mobile drawer when clicking any nav item
+  document.querySelectorAll('.sidebar nav a').forEach(a => {
+    a.addEventListener('click', () => {
+      if (window.innerWidth <= 768) {
+        document.body.classList.remove('sidebar-mobile-open');
+        toggleBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  });
+
+  // Keyboard shortcut: Ctrl + B or Cmd + B
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
+      e.preventDefault();
+      toggle();
+    } else if (e.key === 'Escape' && document.body.classList.contains('sidebar-mobile-open')) {
+      document.body.classList.remove('sidebar-mobile-open');
+      toggleBtn.setAttribute('aria-expanded', 'false');
+    }
+  });
+}
+initSidebarToggle();

@@ -2196,10 +2196,6 @@ Dưới đây là đề thi cần chuyển đổi:
         return;
       }
 
-      const subj = $('#ai-parse-subject')?.value || 'Tin học';
-      const grade = Number($('#ai-parse-grade')?.value || 10);
-      const msg = $('#ai-parse-msg');
-      const resContainer = $('#ai-parsed-results-container');
 
       if (msg) msg.textContent = '⏳ AI đang đọc câu hỏi của Thầy/Cô và nhận diện đáp án...';
       parseBtn.disabled = true;

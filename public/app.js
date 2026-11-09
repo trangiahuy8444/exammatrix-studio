@@ -1283,15 +1283,55 @@ function initAiAssistant() {
   const saveKeyBtn = $('#btn-save-gemini-key');
   const clearKeyBtn = $('#btn-clear-gemini-key');
 
+  const GEMINI_MODELS = [
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Tối ưu tốc độ & chuẩn hóa JSON)' },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Thế hệ mới)' },
+    { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash-8B (Siêu nhẹ dự phòng)' },
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Suy luận sâu dự phòng)' }
+  ];
+
+  async function callGeminiWithAutoFallback(apiKey, requestPayload, onStatusUpdate) {
+    let lastError = null;
+    const attemptedModels = [];
+
+    for (const m of GEMINI_MODELS) {
+      attemptedModels.push(m.id);
+      if (typeof onStatusUpdate === 'function') {
+        onStatusUpdate(m);
+      }
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${m.id}:generateContent?key=${apiKey}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestPayload)
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const errMsg = errData?.error?.message || `HTTP ${res.status}`;
+          throw new Error(`[${m.id}] ${errMsg}`);
+        }
+
+        const data = await res.json();
+        return { data, model: m.id, modelName: m.name, fallbackTriggered: attemptedModels.length > 1 };
+      } catch (err) {
+        console.warn(`[Gemini Auto-Fallback] Model ${m.id} gặp sự cố, tự động chuyển model tiếp theo:`, err.message);
+        lastError = err;
+      }
+    }
+    throw lastError || new Error(`Đã thử các mô hình (${attemptedModels.join(', ')}) nhưng đều gặp sự cố.`);
+  }
+
   function checkStoredKey() {
     const key = localStorage.getItem('gemini_user_api_key');
     if (key && keyInput) {
       keyInput.value = key;
       if (keyStatus) {
-        keyStatus.innerHTML = '<span style="color:#2b8a3e">✓ Đã cấu hình khóa API Gemini (lưu an toàn trên máy Thầy/Cô). Sẵn sàng bóc tách dữ liệu!</span>';
+        keyStatus.innerHTML = '<span style="color:#2b8a3e">✓ Đã cấu hình khóa API Gemini (lưu an toàn trên máy Thầy/Cô).</span><br><small style="color:#495057;">Tự động chuyển đổi thông minh: <code>gemini-1.5-flash</code> ➔ <code>gemini-2.0-flash</code> ➔ <code>gemini-1.5-flash-8b</code> ➔ <code>gemini-1.5-pro</code></small>';
       }
     } else if (keyStatus) {
-      keyStatus.innerHTML = '<span style="color:#6c757d">Chưa cấu hình API Key. Thầy/Cô dán khóa vào ô trên và bấm Lưu.</span>';
+      keyStatus.innerHTML = '<span style="color:#6c757d">Chưa cấu hình API Key. Thầy/Cô dán khóa vào ô trên và bấm Lưu & Kiểm tra.</span>';
     }
   }
 
@@ -1302,24 +1342,22 @@ function initAiAssistant() {
         if (keyStatus) keyStatus.innerHTML = '<span style="color:#d9534f">⚠️ Vui lòng nhập API Key.</span>';
         return;
       }
-      if (keyStatus) keyStatus.textContent = '⏳ Đang kiểm tra kết nối với Google Gemini...';
+      if (keyStatus) keyStatus.textContent = '⏳ Đang kiểm tra kết nối và khả dụng của các model Gemini...';
       saveKeyBtn.disabled = true;
       try {
-        const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
-        const testRes = await fetch(testUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: 'ping' }] }] })
+        const result = await callGeminiWithAutoFallback(key, {
+          contents: [{ parts: [{ text: 'ping' }] }]
+        }, (tryingModel) => {
+          if (keyStatus) keyStatus.textContent = `⏳ Đang thử kết nối mô hình: ${tryingModel.name}...`;
         });
-        if (!testRes.ok) {
-          const errData = await testRes.json().catch(() => ({}));
-          throw new Error(errData?.error?.message || `HTTP ${testRes.status}: Khóa API không hợp lệ hoặc chưa được kích hoạt.`);
-        }
+
         localStorage.setItem('gemini_user_api_key', key);
-        if (keyStatus) keyStatus.innerHTML = '<span style="color:#2b8a3e">✓ Khóa API Gemini hợp lệ! Đã sẵn sàng xử lý dữ liệu.</span>';
-        notify('Đã lưu Gemini API Key thành công!');
+        if (keyStatus) {
+          keyStatus.innerHTML = `<span style="color:#2b8a3e">✓ Kết nối thành công với Google Gemini (Đang dùng: <strong>${esc(result.model)}</strong>)!</span><br><small style="color:#2b8a3e;">Đã kích hoạt cơ chế tự động chuyển model (${GEMINI_MODELS.map(x=>x.id).join(' ➔ ')}) khi gặp lỗi hoặc quá tải.</small>`;
+        }
+        notify(`Đã xác thực và lưu Gemini API Key thành công (Model: ${result.model})!`);
       } catch(err) {
-        if (keyStatus) keyStatus.innerHTML = `<span style="color:#d9534f">⚠️ Lỗi: ${esc(err.message)}</span>`;
+        if (keyStatus) keyStatus.innerHTML = `<span style="color:#d9534f">⚠️ Không thể kết nối Gemini: ${esc(err.message)}</span>`;
       } finally {
         saveKeyBtn.disabled = false;
       }
@@ -1629,25 +1667,16 @@ Hãy trả về duy nhất mảng JSON các câu hỏi (không thêm bất kỳ 
   }
 ]`;
 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: promptText }] }],
-            generationConfig: {
-              temperature: 0.1,
-              responseMimeType: 'application/json'
-            }
-          })
+        const { data, model: activeModel, fallbackTriggered } = await callGeminiWithAutoFallback(apiKey, {
+          contents: [{ role: 'user', parts: [{ text: promptText }] }],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: 'application/json'
+          }
+        }, (m) => {
+          if (msg) msg.textContent = `⏳ Đang bóc tách dữ liệu với mô hình: ${m.name}...`;
         });
 
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({}));
-          throw new Error(err?.error?.message || `HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
         const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
         let questionsList = JSON.parse(content);
         if (!Array.isArray(questionsList) && questionsList.questions) {
@@ -1681,7 +1710,8 @@ Hãy trả về duy nhất mảng JSON các câu hỏi (không thêm bất kỳ 
           if (deselAll) deselAll.onclick = () => resContainer.querySelectorAll('.aiparse-select-chk').forEach(c => c.checked = false);
         }
 
-        if (msg) msg.textContent = `✓ Đã bóc tách ${questionsList.length} câu. Mời Thầy/Cô sang thẻ Thẩm định.`;
+        const fallbackNote = fallbackTriggered ? ` (Đã tự động chuyển sang ${activeModel})` : ` (${activeModel})`;
+        if (msg) msg.textContent = `✓ Đã bóc tách ${questionsList.length} câu${fallbackNote}. Mời Thầy/Cô sang thẻ Thẩm định.`;
         dialog.querySelector('[data-ai-tab="results"]')?.click();
       } catch(err) {
         if (msg) msg.innerHTML = `<span style="color:#d9534f">⚠️ Lỗi: ${esc(err.message)}</span>`;

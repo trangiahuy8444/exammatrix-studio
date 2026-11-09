@@ -729,7 +729,112 @@ function renderPPCT(){
  if(sampleBtn)sampleBtn.onclick=()=>{store.testPpctLoaded=true;renderPPCT();notify(`Đã nạp mẫu PPCT GDPT 2018 cho môn ${s}.`);};
  bindPpctImport(g);
 }
-// Nhập PPCT từ Word (bảng KHDH Phụ lục 1) hoặc JSON: đọc và đối chiếu trước, chỉ ghi khi giáo viên xác nhận.
+// Nhập PPCT từ JSON, Markdown (.md) hoặc Word (bảng KHDH Phụ lục 1)
+function parsePpctFromMarkdown(text, defaultGrade) {
+  if (!text || typeof text !== 'string') return [];
+  const lines = text.split(/\r?\n/);
+  const lessonsMap = new Map();
+  let currentTopic = 'Chương trình GDPT';
+
+  const tableRows = lines.filter(l => l.trim().startsWith('|') && l.trim().endsWith('|'));
+  if (tableRows.length >= 2) {
+    for (const r of tableRows) {
+      const cells = r.split('|').slice(1, -1).map(c => c.trim());
+      if (!cells.length) continue;
+      if (cells.some(c => /Bài\s*học/i.test(c) || /^:?-+:?$/.test(c))) continue;
+      if (cells.some(c => /^Chủ\s*đề/i.test(c))) {
+        currentTopic = cells.find(c => /^Chủ\s*đề/i.test(c)) || currentTopic;
+        continue;
+      }
+      let weekRaw = '', periodsRaw = '', lessonRaw = '', outcomesRaw = '';
+      if (cells.length >= 4) {
+        if (/^\d+/.test(cells[0])) {
+          weekRaw = cells[0];
+          if (/^\d+/.test(cells[1]) && cells[2].length > cells[1].length) {
+            periodsRaw = cells[1];
+            lessonRaw = cells[2];
+            outcomesRaw = cells[3] || '';
+          } else {
+            lessonRaw = cells[1];
+            periodsRaw = cells[2];
+            outcomesRaw = cells[3] || '';
+          }
+        } else {
+          lessonRaw = cells[0];
+          outcomesRaw = cells[1] || '';
+        }
+      } else if (cells.length >= 2) {
+        lessonRaw = cells[0];
+        outcomesRaw = cells[1];
+      }
+      if (!lessonRaw) continue;
+
+      let lessonCode = '';
+      const mCode = lessonRaw.match(/^(?:Bài|Chủ\s*đề)\s*([0-9]+[a-zA-Z]?)/i);
+      if (mCode) lessonCode = 'B' + mCode[1];
+      else if (/Kiểm\s*tra\s*giữa\s*h?k?1/i.test(lessonRaw)) lessonCode = 'KTGK1';
+      else if (/Kiểm\s*tra\s*h?k?1|Kiểm\s*tra\s*cuối\s*h?k?1/i.test(lessonRaw)) lessonCode = 'KTCK1';
+      else if (/Kiểm\s*tra\s*giữa\s*h?k?2/i.test(lessonRaw)) lessonCode = 'KTGK2';
+      else if (/Kiểm\s*tra\s*h?k?2|Kiểm\s*tra\s*cuối\s*h?k?2/i.test(lessonRaw)) lessonCode = 'KTCK2';
+      else if (/Ôn\s*tập/i.test(lessonRaw)) lessonCode = 'OT';
+      else lessonCode = 'B' + (lessonsMap.size + 1);
+
+      let cleanName = lessonRaw.replace(/^(?:Bài|Chủ\s*đề)\s*[0-9]+[a-zA-Z]?[:.]?\s*/i, '')
+                               .replace(/\s*\(tiết\s*\d+\)/i, '')
+                               .trim();
+      if (!cleanName) cleanName = lessonRaw;
+
+      const outcomes = outcomesRaw.split(/(?:<br\s*\/?>|\n|\r|\.)\s*[-*]\s*|\s*<br\s*\/?>\s*/)
+        .map(o => o.trim().replace(/^[-*]\s*/, '').replace(/<[^>]*>/g, ''))
+        .filter(o => o.length > 5);
+
+      if (lessonsMap.has(lessonCode)) {
+        const ex = lessonsMap.get(lessonCode);
+        ex.occurrences.push({ week_raw: weekRaw, periods_raw: periodsRaw });
+        for (const o of outcomes) {
+          if (!ex.outcomes.includes(o)) ex.outcomes.push(o);
+        }
+      } else {
+        lessonsMap.set(lessonCode, {
+          grade: Number(defaultGrade),
+          lesson_code: lessonCode,
+          lesson_name_source: cleanName,
+          topic_source: currentTopic,
+          occurrences: [{ week_raw: weekRaw, periods_raw: periodsRaw }],
+          outcomes
+        });
+      }
+    }
+  } else {
+    const blocks = text.split(/\n(?=#{1,3}\s*|\*\*Bài)/i);
+    for (const b of blocks) {
+      const bTrim = b.trim();
+      if (!bTrim) continue;
+      const mHeader = bTrim.match(/^(?:#{1,3}\s*|\*\*)?(?:Bài\s*([0-9]+[a-zA-Z]?)|KTGK1|KTCK1|KTGK2|KTCK2|Ôn tập)[:.]?\s*([^\n*]+)/i);
+      if (!mHeader) continue;
+      const codeNum = mHeader[1];
+      const lessonCode = codeNum ? ('B' + codeNum) : (bTrim.includes('KTGK1') ? 'KTGK1' : bTrim.includes('KTCK1') ? 'KTCK1' : 'B' + (lessonsMap.size + 1));
+      const cleanName = mHeader[2].trim().replace(/\*\*$/, '');
+      const mTopic = bTrim.match(/(?:Chủ đề|Topic)\s*[:=]\s*([^\n]+)/i);
+      const topic = mTopic ? mTopic[1].trim() : 'Chương trình GDPT';
+      const mWeek = bTrim.match(/(?:Tuần|Week)\s*[:=]\s*([^\n,]+)/i);
+      const mPeriods = bTrim.match(/(?:Tiết|Periods)\s*[:=]\s*([^\n]+)/i);
+      const outcomeMatches = [...bTrim.matchAll(/(?:^|\n)\s*[-*]\s*(?:YCCĐ|Yêu cầu cần đạt)?[:.]?\s*([^\n]+)/gi)];
+      const outcomes = outcomeMatches.map(m => m[1].trim()).filter(o => o.length > 5 && !/^(?:Mã bài|Chủ đề|Tuần|Tiết)/i.test(o));
+
+      lessonsMap.set(lessonCode, {
+        grade: Number(defaultGrade),
+        lesson_code: lessonCode,
+        lesson_name_source: cleanName,
+        topic_source: topic,
+        occurrences: [{ week_raw: mWeek ? mWeek[1].trim() : '1', periods_raw: mPeriods ? mPeriods[1].trim() : '1' }],
+        outcomes
+      });
+    }
+  }
+  return Array.from(lessonsMap.values());
+}
+
 const PPCT_STATUS={new:['Bài mới','approved'],changed:['Có thay đổi','pending_review'],unchanged:['Giữ nguyên','draft'],conflict:['Xung đột — bỏ qua','needs_review']};
 function ppctImportCard(g){
  const imp=store.ppctImport, r=imp&&imp.report;
@@ -743,9 +848,14 @@ function ppctImportCard(g){
      :(x.changes||[]).map(c=>`<div><strong>${esc(c.field)}:</strong> ${Array.isArray(c.new)?`${c.old.length} → ${c.new.length} YCCĐ<ul>${c.new.filter(o=>!c.old.includes(o)).map(o=>`<li>+ ${esc(o)}</li>`).join('')}${c.old.filter(o=>!c.new.includes(o)).map(o=>`<li>− ${esc(o)}</li>`).join('')}</ul>`:`${esc(c.old)} → ${esc(c.new)}`}</div>`).join('')||(x.status==='new'?`${(x.outcomes||[]).length} YCCĐ · ${x.occurrences||1} lần dạy`:'');
    return `<tr><td><span class="badge ${cls}">${esc(label)}</span></td><td>Khối ${esc(x.grade)} · <strong>${esc(x.lesson_code)}</strong></td><td>${esc(x.lesson_name)}<p class="small muted">${esc(x.topic||"")}</p></td><td class="small">${detail}</td></tr>`;
  }).join('');
- return `<div class="card"><h2>Nhập PPCT từ Word hoặc JSON</h2>
-  <p class="muted">Word: tệp KHDH Phụ lục 1 của tổ (bảng có cột Tuần, Bài học, Số tiết, PPCT, Yêu cầu cần đạt…). JSON: <code>{"lessons":[{"grade","lesson_code","lesson_name_source","topic_source","outcomes":[…]}]}</code> hoặc tệp xuất ngân hàng. Khối của tệp Word lấy theo tên tệp (TIN 8…), nếu không có thì lấy khối đang chọn (Khối ${esc(g)}).</p>
-  <div class="actions"><input type="file" id="ppct-import-file" accept=".docx,.json"><button type="button" class="button" id="ppct-import-inspect">Đọc và đối chiếu</button>
+ return `<div class="card"><h2>Nhập PPCT từ JSON, Markdown hoặc Word</h2>
+  <p class="muted">Khuyên dùng <strong>JSON</strong> (chuẩn xác 100%) hoặc <strong>Markdown (.md)</strong> (dễ đọc/sửa) để nạp tức thì và tránh lỗi định dạng ngầm của Word. Vẫn hỗ trợ tệp Word KHDH Phụ lục 1 (.docx). Khối lớp tự động nhận diện theo tên tệp hoặc theo Khối ${esc(g)} đang chọn.</p>
+  <div style="display:flex;gap:10px;margin:10px 0 14px;flex-wrap:wrap">
+    <button type="button" class="button quiet" id="ppct-download-json-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📥 Tải mẫu PPCT (JSON)</button>
+    <button type="button" class="button quiet" id="ppct-download-md-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📝 Tải mẫu PPCT (Markdown)</button>
+    <button type="button" class="button quiet" id="ppct-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI tạo PPCT</button>
+  </div>
+  <div class="actions"><input type="file" id="ppct-import-file" accept=".docx,.json,.md,.txt"><button type="button" class="button" id="ppct-import-inspect">Đọc và đối chiếu</button>
   ${r?`<button type="button" class="primary" id="ppct-import-apply" ${sm.new+sm.changed?'':'disabled'}>Xác nhận nhập (${sm.new} bài mới, ${sm.changed} bài thay đổi)</button><button type="button" class="quiet" id="ppct-import-cancel">Hủy</button>`:''}</div>
   ${r?`<p class="callout">Tệp ${esc(r.filename||'Đã nạp')} · Khối ${gradesList.map(esc).join(', ')} · ${lessonsList.length} bài: ${sm.new} mới, ${sm.changed} thay đổi, ${sm.unchanged} giữ nguyên, ${sm.conflict} xung đột. Bài xung đột được bỏ qua; bài đang có mà tệp không nhắc đến được giữ nguyên.</p>
   ${issuesList.length?`<ul class="mx-errors">${issuesList.map(i=>`<li>${esc(i.message||i)}</li>`).join('')}</ul>`:''}
@@ -755,7 +865,7 @@ function ppctImportCard(g){
 function bindPpctImport(g){
  const read=async()=>{
    const file=$('#ppct-import-file')?.files?.[0];
-   if(!file)throw new Error('Chọn tệp Word (.docx) hoặc JSON trước.');
+   if(!file)throw new Error('Chọn tệp JSON, Markdown (.md) hoặc Word (.docx) trước.');
 
    // Nhận diện Khối lớp tự động từ tên tệp (ví dụ: TIN 9, KHOI 9, LOP 9, K9)
    let detectedGrade = Number(g || store.ppctGrade || 9);
@@ -767,6 +877,16 @@ function bindPpctImport(g){
    if(file.name.toLowerCase().endsWith('.json')) {
      return {filename:file.name,grade:detectedGrade,subject_name:subject(),json:JSON.parse(await file.text())};
    }
+
+   if(file.name.toLowerCase().endsWith('.md') || file.name.toLowerCase().endsWith('.txt')) {
+     const text = await file.text();
+     const parsedLessons = parsePpctFromMarkdown(text, detectedGrade);
+     if (!parsedLessons.length) {
+       throw new Error(`Không tìm thấy cấu trúc bảng hoặc danh sách bài học Markdown hợp lệ trong tệp ${file.name}.`);
+     }
+     return {filename:file.name,grade:detectedGrade,subject_name:subject(),json:{lessons:parsedLessons}};
+   }
+
    if(file.size>8*1024*1024)throw new Error('Tệp Word phải nhỏ hơn 8 MB.');
 
    let extractedText = '';
@@ -821,6 +941,109 @@ function bindPpctImport(g){
  };
  const cancel=$('#ppct-import-cancel');
  if(cancel)cancel.onclick=()=>{store.ppctImport=null;renderPPCT();};
+
+ const dlJson = $('#ppct-download-json-sample');
+ if (dlJson) {
+   dlJson.onclick = () => {
+     const curGrade = Number(g || store.ppctGrade || 9);
+     const sample = {
+       grade: curGrade,
+       subject_name: subject(),
+       lessons: [
+         {
+           grade: curGrade,
+           lesson_code: "B1",
+           lesson_name_source: "Thế giới kĩ thuật số",
+           topic_source: "Chủ đề 1: Máy tính và cộng đồng",
+           occurrences: [{ week_raw: "1", periods_raw: "1, 2" }],
+           outcomes: [
+             "Nhận biết được một số thiết bị số thông dụng.",
+             "Nêu được ví dụ về thông tin trong môi trường số.",
+             "Giải thích được ích lợi của việc sử dụng thiết bị số trong học tập và đời sống."
+           ]
+         },
+         {
+           grade: curGrade,
+           lesson_code: "B2",
+           lesson_name_source: "Thông tin trong giải quyết vấn đề",
+           topic_source: "Chủ đề 2: Tổ chức lưu trữ, tìm kiếm và trao đổi thông tin",
+           occurrences: [{ week_raw: "2", periods_raw: "3, 4" }],
+           outcomes: [
+             "Sử dụng được các công cụ tìm kiếm nâng cao trên Internet.",
+             "Đánh giá được độ tin cậy của thông tin tìm kiếm được."
+           ]
+         },
+         {
+           grade: curGrade,
+           lesson_code: "KTGK1",
+           lesson_name_source: "Kiểm tra giữa học kì 1",
+           topic_source: "Đánh giá định kỳ",
+           occurrences: [{ week_raw: "9", periods_raw: "18" }],
+           outcomes: [
+             "Đánh giá năng lực học sinh nửa đầu học kì 1 theo ma trận và bảng đặc tả."
+           ]
+         }
+       ]
+     };
+     const blob = new Blob([JSON.stringify(sample, null, 2)], { type: 'application/json' });
+     const url = URL.createObjectURL(blob);
+     const a = document.createElement('a');
+     a.href = url;
+     a.download = `mau_ppct_khoi_${curGrade}.json`;
+     a.click();
+     URL.revokeObjectURL(url);
+     notify(`Đã tải xuống tệp mẫu mau_ppct_khoi_${curGrade}.json!`);
+   };
+ }
+
+ const dlMd = $('#ppct-download-md-sample');
+ if (dlMd) {
+   dlMd.onclick = () => {
+     const curGrade = Number(g || store.ppctGrade || 9);
+     const sampleMd = `# Kế hoạch dạy học & PPCT môn ${subject()} Khối ${curGrade} (GDPT 2018)\n\n| Tuần | Tiết | Bài học | Yêu cầu cần đạt |\n|:---:|:---:|---|---|\n| 1 | 1, 2 | Bài 1: Thế giới kĩ thuật số | - Nhận biết được một số thiết bị số thông dụng.<br>- Nêu được ví dụ về thông tin trong môi trường số.<br>- Giải thích được ích lợi của việc sử dụng thiết bị số trong học tập và đời sống. |\n| 2 | 3, 4 | Bài 2: Thông tin trong giải quyết vấn đề | - Sử dụng được các công cụ tìm kiếm nâng cao trên Internet.<br>- Đánh giá được độ tin cậy của thông tin tìm kiếm được. |\n| 9 | 18 | Kiểm tra giữa học kì 1 | - Đánh giá năng lực học sinh nửa đầu học kì 1 theo ma trận và bảng đặc tả. |\n`;
+     const blob = new Blob([sampleMd], { type: 'text/markdown;charset=utf-8' });
+     const url = URL.createObjectURL(blob);
+     const a = document.createElement('a');
+     a.href = url;
+     a.download = `mau_ppct_khoi_${curGrade}.md`;
+     a.click();
+     URL.revokeObjectURL(url);
+     notify(`Đã tải xuống tệp mẫu mau_ppct_khoi_${curGrade}.md!`);
+   };
+ }
+
+ const copyPrompt = $('#ppct-copy-prompt');
+ if (copyPrompt) {
+   copyPrompt.onclick = async () => {
+     const curGrade = Number(g || store.ppctGrade || 9);
+     const promptText = `Hãy đọc nội dung Kế hoạch dạy học (KHDH Phụ lục 1) môn ${subject()} Khối ${curGrade} dưới đây và xuất ra tệp JSON chuẩn cho hệ thống ExamMatrix Studio:
+{
+  "grade": ${curGrade},
+  "subject_name": "${subject()}",
+  "lessons": [
+    {
+      "grade": ${curGrade},
+      "lesson_code": "B1",
+      "lesson_name_source": "Tên bài học",
+      "topic_source": "Tên chủ đề",
+      "occurrences": [{"week_raw": "1", "periods_raw": "1, 2"}],
+      "outcomes": [
+        "Yêu cầu cần đạt 1",
+        "Yêu cầu cần đạt 2"
+      ]
+    }
+  ]
+}
+Dưới đây là nội dung KHDH cần chuyển đổi:
+[DÁN NỘI DUNG KHDH VÀO ĐÂY]`;
+     try {
+       await navigator.clipboard.writeText(promptText);
+       notify('📋 Đã sao chép câu lệnh mẫu (Prompt) tạo PPCT cho ChatGPT/Gemini!');
+     } catch (e) {
+       notify('Không thể sao chép tự động: ' + e.message, true);
+     }
+   };
+ }
 }
 function openPPCTEditor(grade,code='',subj=''){
  const s = subj || store.ppctSubject || 'Tin học';
@@ -1537,6 +1760,8 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
   const dropZone = $('#ai-file-dropzone');
   const fileInput = $('#ai-file-input');
   const downloadSampleBtn = $('#btn-download-ai-sample');
+  const downloadSampleJsonBtn = $('#btn-download-sample-json');
+  const downloadSampleMdBtn = $('#btn-download-sample-md');
   const copyPromptBtn = $('#btn-copy-ai-prompt');
 
   if (dropZone && fileInput) {
@@ -1654,45 +1879,80 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
     const questions = [];
     const text = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const ansMap = extractAnswersFromDocText(text);
-    const qSplits = text.split(/\n(?=(?:Câu|Question)\s*[\d]+[:.])/i);
+    // Hỗ trợ tách câu dạng "Câu 1:", "### Câu 1:", "**Câu 1:**", "- Câu 1:"
+    const qSplits = text.split(/\n(?=(?:[#*\s-]*)(?:Câu|Question)\s*[\d]+[:.])/i);
 
     for (const block of qSplits) {
       const trimmed = block.trim();
       if (!trimmed) continue;
       if (/MA TRẬN|BẢNG ĐẶC TẢ|HƯỚNG DẪN CHẤM|Tỉ lệ % điểm/i.test(trimmed) && !trimmed.includes('A.') && !trimmed.includes('a)')) continue;
 
-      const mHeading = trimmed.match(/^(?:Câu|Question)\s*([\d]+)[:.]\s*(.*)/i);
+      const cleanHeading = trimmed.replace(/^[#*\s-]+/, '');
+      const mHeading = cleanHeading.match(/^(?:Câu|Question)\s*([\d]+)[:.]\s*(.*)/i);
       if (!mHeading) continue;
       const qNum = Number(mHeading[1]);
 
-      const optMatches = [...trimmed.matchAll(/(?:^|\n)\s*([A-D])[\.\)]\s*(.*?)(?=(?:\n\s*[A-D][\.\)]|\n\s*(?:Đáp án|Đáp án đúng|Answer|Chọn)|\s*$))/gs)];
-      const ynMatches = [...trimmed.matchAll(/(?:^|\n)\s*([a-d])[\.\)]\s*(.*?)(?:\[|\()(Đúng|Sai|True|False)(?:\]|\))/gi)];
+      // Trích xuất Mức độ nếu có trong Markdown (ví dụ: *Mức độ:* Thông hiểu, [Mức độ: Vận dụng]...)
+      let extractedLevel = '';
+      const mLevel = trimmed.match(/(?:Mức độ|Level)\s*[:=]?\s*[*_`\[]?\s*(Biết|Hiểu|Thông hiểu|Nhận biết|Vận dụng cao|Vận dụng)/i);
+      if (mLevel) {
+        const lStr = mLevel[1].toLowerCase();
+        if (lStr.includes('cao')) extractedLevel = 'Vận dụng cao';
+        else if (lStr.includes('vận dụng') || lStr.includes('van dung')) extractedLevel = 'Vận dụng';
+        else if (lStr.includes('hiểu') || lStr.includes('hieu')) extractedLevel = 'Hiểu';
+        else if (lStr.includes('biết') || lStr.includes('biet')) extractedLevel = 'Biết';
+      }
+
+      // Trích xuất Bài học nếu có (ví dụ: *Bài học:* B2, *Bài:* 2, [Bài 1]...)
+      let extractedLesson = '';
+      const mLesson = trimmed.match(/(?:Bài học|Bài|Lesson)\s*[:=]?\s*[*_`\[]?\s*(?:B\s*)?(\d+[a-zA-Z]?)/i);
+      if (mLesson) {
+        extractedLesson = 'B' + mLesson[1];
+      }
+
+      // Trích xuất Lời giải / Giải thích nếu có
+      let extractedExplanation = '';
+      const mExp = trimmed.match(/(?:Lời giải|Giải thích|Explanation|Hướng dẫn giải)\s*[:=]?\s*[*_`]?\s*(.*?)(?=\n\s*(?:[*_`]*(?:Mức độ|Bài|YCCĐ)|$))/is);
+      if (mExp) {
+        extractedExplanation = mExp[1].trim();
+      }
+
+      const optMatches = [...trimmed.matchAll(/(?:^|\n)\s*(?:[-*]\s*)?([A-D])[\.\)]\s*(.*?)(?=(?:\n\s*(?:[-*]\s*)?[A-D][\.\)]|\n\s*(?:[-*]\s*)?[*_`]*(?:Đáp án|Đáp án đúng|Answer|Chọn|Lời giải|Giải thích|Mức độ|Bài)|\s*$))/gs)];
+      const ynMatches = [...trimmed.matchAll(/(?:^|\n)\s*(?:[-*]\s*)?([a-d])[\.\)]\s*(.*?)(?:\[|\()([*_`]*)(Đúng|Sai|True|False)([*_`]*)(?:\]|\))/gi)];
 
       if (ynMatches.length >= 2) {
-        const qText = trimmed.split(/(?:^|\n)\s*[a-d][\.\)]/i)[0].replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '').trim();
+        const qText = trimmed.split(/(?:^|\n)\s*(?:[-*]\s*)?[a-d][\.\)]/i)[0]
+          .replace(/^[#*\s-]+/, '')
+          .replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '')
+          .replace(/\*\*$/, '')
+          .trim();
         questions.push({
           id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
           grade: defaultGrade,
           subject_name: defaultSubject,
-          lesson_code: 'B1',
+          lesson_code: extractedLesson || 'B1',
           type: 'YN',
-          level: 'Hiểu',
+          level: extractedLevel || 'Hiểu',
           question: qText || 'Cho các mệnh đề sau:',
           statements: ynMatches.map(m => ({
             label: m[1].toLowerCase(),
-            text: m[2].trim(),
-            correct: /Đúng|True/i.test(m[3])
+            text: m[2].trim().replace(/\*\*$/, ''),
+            correct: /Đúng|True/i.test(m[4])
           })),
           review_status: 'draft'
         });
       } else if (optMatches.length >= 2) {
-        const firstOptIndex = trimmed.search(/(?:^|\n)\s*[A-D][\.\)]/);
-        const qText = trimmed.slice(0, firstOptIndex).replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '').trim();
-        const options = optMatches.slice(0, 4).map(m => m[2].trim());
+        const firstOptIndex = trimmed.search(/(?:^|\n)\s*(?:[-*]\s*)?[A-D][\.\)]/);
+        const qText = trimmed.slice(0, firstOptIndex)
+          .replace(/^[#*\s-]+/, '')
+          .replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '')
+          .replace(/\*\*$/, '')
+          .trim();
+        const options = optMatches.slice(0, 4).map(m => m[2].trim().replace(/\*\*$/, ''));
         while (options.length < 4) options.push('');
 
         let correct = 0;
-        const ansMatch = trimmed.match(/(?:Đáp án|Đáp án đúng|Answer|Chọn)\s*[:=]?\s*\[?([A-D])\]?/i);
+        const ansMatch = trimmed.match(/(?:Đáp án|Đáp án đúng|Answer|Chọn)\s*[:=]?\s*[*_`\[\s]*([A-D])[*_`\]\s]*/i);
         if (ansMatch) {
           correct = 'ABCD'.indexOf(ansMatch[1].toUpperCase());
           if (correct < 0) correct = 0;
@@ -1700,43 +1960,55 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
           correct = ansMap[qNum];
         }
 
+        const expList = ['', '', '', ''];
+        if (extractedExplanation) {
+          expList[correct] = extractedExplanation;
+        }
+
         questions.push({
           id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
           grade: defaultGrade,
           subject_name: defaultSubject,
-          lesson_code: 'B1',
+          lesson_code: extractedLesson || 'B1',
           type: 'MC',
-          level: 'Biết',
+          level: extractedLevel || 'Biết',
           question: qText,
           options,
           correct,
+          option_explanations: expList,
           review_status: 'draft'
         });
       } else {
-        const ansMatch = trimmed.match(/(?:Đáp án|Đáp án đúng|Answer|Trả lời)\s*[:=]\s*(.*)$/im);
+        const ansMatch = trimmed.match(/(?:Đáp án|Đáp án đúng|Answer|Trả lời)\s*[:=]\s*[*_`]?([^\n*_`]+)/i);
         if (ansMatch) {
-          const qText = trimmed.slice(0, ansMatch.index).replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '').trim();
+          const qText = trimmed.slice(0, ansMatch.index)
+            .replace(/^[#*\s-]+/, '')
+            .replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '')
+            .trim();
           questions.push({
             id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
             grade: defaultGrade,
             subject_name: defaultSubject,
-            lesson_code: 'B1',
+            lesson_code: extractedLesson || 'B1',
             type: 'SHORT',
-            level: 'Vận dụng',
+            level: extractedLevel || 'Vận dụng',
             question: qText,
             short_answer: ansMatch[1].trim(),
             review_status: 'draft'
           });
         } else {
-          const qText = trimmed.replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '').trim();
-          if (qText.length > 20) {
+          const qText = trimmed
+            .replace(/^[#*\s-]+/, '')
+            .replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '')
+            .trim();
+          if (qText.length > 15) {
             questions.push({
               id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
               grade: defaultGrade,
               subject_name: defaultSubject,
-              lesson_code: 'B1',
+              lesson_code: extractedLesson || 'B1',
               type: 'ES',
-              level: 'Vận dụng',
+              level: extractedLevel || 'Vận dụng',
               question: qText,
               max_score: 1,
               review_status: 'draft'
@@ -1787,6 +2059,13 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
     const subj = $('#ai-parse-subject')?.value || 'Tin học';
     const filename = file.name.toLowerCase();
 
+    // Tự động nhận diện khối từ tên tệp (ví dụ: TIN 9, KHOI 9, K9)
+    const mGrade = file.name.match(/(?:TIN|KHỐI|KHOI|LỚP|LOP|K)\s*(\d+)/i);
+    const effectiveGrade = mGrade ? Number(mGrade[1]) : grade;
+    if (mGrade && $('#ai-parse-grade')) {
+      $('#ai-parse-grade').value = String(effectiveGrade);
+    }
+
     try {
       let text = '';
       if (filename.endsWith('.docx')) {
@@ -1812,16 +2091,16 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
         if (!rawItems.length) {
           throw new Error('Tệp JSON không chứa danh sách câu hỏi hợp lệ.');
         }
-        const questionsList = normalizeImportedQuestions(rawItems, grade, subj);
-        displayParsedQuestions(questionsList, grade, subj);
+        const questionsList = normalizeImportedQuestions(rawItems, effectiveGrade, subj);
+        displayParsedQuestions(questionsList, effectiveGrade, subj);
         notify(`🎉 Đã đọc thành công ${questionsList.length} câu hỏi từ tệp JSON! Thầy/Cô kiểm tra lại rồi bấm nút Lưu nhé.`);
       } else {
         const rawTextarea = $('#ai-parse-raw-text');
         if (rawTextarea) rawTextarea.value = text;
 
-        const localParsed = parseQuestionsFromRawText(text, grade, subj);
+        const localParsed = parseQuestionsFromRawText(text, effectiveGrade, subj);
         if (localParsed.length >= 1) {
-          displayParsedQuestions(localParsed, grade, subj);
+          displayParsedQuestions(localParsed, effectiveGrade, subj);
           notify(`🎉 Đã tự động nhận diện thành công ${localParsed.length} câu hỏi từ tệp ${file.name}! Thầy/Cô có thể Lưu ngay hoặc bấm "Bắt đầu nhận diện bằng AI" nếu muốn ánh xạ sâu.`);
         } else {
           notify(`Đã nạp nội dung tệp ${file.name} vào khung soạn thảo. Thầy/Cô bấm nút "Bắt đầu nhận diện & Xếp câu hỏi" bên dưới nhé.`);
@@ -1832,64 +2111,119 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
     }
   }
 
-  if (downloadSampleBtn) {
-    downloadSampleBtn.onclick = () => {
-      const sampleData = [
-        {
-          "type": "MC",
-          "level": "Biết",
-          "lesson_code": "B1",
-          "question": "Phương trình bậc hai $x^2 - 3x + 2 = 0$ có tập nghiệm là:",
-          "options": ["$\\{1; 2\\}$", "$\\{-1; -2\\}$", "$\\{1; -2\\}$", "$\\{-1; 2\\}$"],
-          "correct": 0,
-          "option_explanations": ["Phương trình có hai nghiệm $x_1 = 1, x_2 = 2$", "", "", ""]
-        },
-        {
-          "type": "YN",
-          "level": "Hiểu",
-          "lesson_code": "B1",
-          "question": "Cho các phát biểu sau về an toàn thông tin trên mạng Internet:",
-          "statements": [
-            { "label": "a", "text": "Cần đặt mật khẩu mạnh gồm chữ hoa, chữ thường và số.", "correct": true },
-            { "label": "b", "text": "Có thể chia sẻ mật khẩu tài khoản học tập cho người lạ.", "correct": false },
-            { "label": "c", "text": "Không nên nhấp vào các đường liên kết lạ trong email.", "correct": true },
-            { "label": "d", "text": "Mọi thông tin trên mạng đều hoàn toàn chính xác.", "correct": false }
-          ]
-        },
-        {
-          "type": "SHORT",
-          "level": "Vận dụng",
-          "lesson_code": "B1",
-          "question": "Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?",
-          "short_answer": "Byte"
-        }
-      ];
-      const blob = new Blob([JSON.stringify(sampleData, null, 2)], { type: 'application/json' });
+  // Tải mẫu JSON câu hỏi
+  const triggerDownloadSampleJson = () => {
+    const curGrade = Number($('#ai-parse-grade')?.value || 9);
+    const sampleData = [
+      {
+        "type": "MC",
+        "level": "Biết",
+        "lesson_code": "B1",
+        "question": "Thiết bị nào sau đây là thiết bị vào của máy tính?",
+        "options": ["Màn hình", "Chuột", "Máy in", "Loa"],
+        "correct": 1,
+        "option_explanations": ["", "Chuột là thiết bị vào dùng để điều khiển con trỏ và đưa thao tác vào máy tính.", "", ""]
+      },
+      {
+        "type": "YN",
+        "level": "Hiểu",
+        "lesson_code": "B1",
+        "question": "Cho các phát biểu sau về an toàn thông tin trên mạng Internet:",
+        "statements": [
+          { "label": "a", "text": "Cần đặt mật khẩu mạnh gồm chữ hoa, chữ thường, số và ký tự đặc biệt.", "correct": true },
+          { "label": "b", "text": "Có thể chia sẻ mật khẩu tài khoản học tập cho người lạ khi được yêu cầu.", "correct": false },
+          { "label": "c", "text": "Không nên nhấp vào các đường liên kết lạ hoặc tệp đính kèm đáng ngờ.", "correct": true },
+          { "label": "d", "text": "Mọi thông tin chia sẻ trên mạng xã hội đều hoàn toàn chính xác.", "correct": false }
+        ]
+      },
+      {
+        "type": "SHORT",
+        "level": "Vận dụng",
+        "lesson_code": "B1",
+        "question": "Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?",
+        "short_answer": "Byte"
+      }
+    ];
+    const blob = new Blob([JSON.stringify(sampleData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `exammatrix_mau_cau_hoi_khoi_${curGrade}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notify(`Đã tải xuống tệp mẫu exammatrix_mau_cau_hoi_khoi_${curGrade}.json!`);
+  };
+
+  if (downloadSampleBtn) downloadSampleBtn.onclick = triggerDownloadSampleJson;
+  if (downloadSampleJsonBtn) downloadSampleJsonBtn.onclick = triggerDownloadSampleJson;
+
+  // Tải mẫu Markdown (.md) câu hỏi
+  if (downloadSampleMdBtn) {
+    downloadSampleMdBtn.onclick = () => {
+      const curGrade = Number($('#ai-parse-grade')?.value || 9);
+      const sampleMd = `# Ngân hàng câu hỏi Tin học Khối ${curGrade}
+
+### Câu 1: Thiết bị nào sau đây là thiết bị vào của máy tính?
+- A. Màn hình
+- B. Chuột
+- C. Máy in
+- D. Loa
+*Đáp án:* B
+*Mức độ:* Biết
+*Bài học:* B1
+*Lời giải:* Chuột là thiết bị vào dùng để điều khiển và nhập thao tác của người dùng.
+
+### Câu 2: Cho các phát biểu sau về an toàn thông tin trên mạng Internet:
+- a) Cần đặt mật khẩu mạnh gồm chữ hoa, chữ thường, số và ký tự đặc biệt. [Đúng]
+- b) Có thể chia sẻ mật khẩu tài khoản học tập cho người lạ khi được yêu cầu. [Sai]
+- c) Không nên nhấp vào các đường liên kết lạ hoặc tệp đính kèm đáng ngờ. [Đúng]
+- d) Mọi thông tin chia sẻ trên mạng xã hội đều hoàn toàn chính xác. [Sai]
+*Mức độ:* Hiểu
+*Bài học:* B1
+
+### Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
+*Đáp án:* Byte
+*Mức độ:* Vận dụng
+*Bài học:* B1
+
+### Câu 4: Em hãy nêu hai biện pháp phòng chống mã độc bảo vệ máy tính.
+*Mức độ:* Vận dụng
+*Bài học:* B1
+*Barem:*
+- Cài đặt và cập nhật phần mềm diệt virus định kỳ: 0.5 điểm
+- Không bấm vào đường liên kết hoặc tệp đính kèm lạ: 0.5 điểm
+`;
+      const blob = new Blob([sampleMd], { type: 'text/markdown;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'exammatrix_mau_cau_hoi.json';
+      a.download = `exammatrix_mau_cau_hoi_khoi_${curGrade}.md`;
       a.click();
       URL.revokeObjectURL(url);
-      notify('Đã tải xuống tệp mẫu exammatrix_mau_cau_hoi.json!');
+      notify(`Đã tải xuống tệp mẫu exammatrix_mau_cau_hoi_khoi_${curGrade}.md!`);
     };
   }
 
+  // Chép Prompt AI
   if (copyPromptBtn) {
     copyPromptBtn.onclick = async () => {
-      const promptContent = `Hãy chuyển đổi toàn bộ câu hỏi trong đề thi sau thành định dạng JSON chuẩn cho hệ thống ExamMatrix Studio:
+      const curGrade = Number($('#ai-parse-grade')?.value || 9);
+      const curSubj = $('#ai-parse-subject')?.value || 'Tin học';
+      const promptContent = `Hãy chuyển đổi toàn bộ câu hỏi trong đề thi / tài liệu sau thành định dạng JSON chuẩn cho hệ thống ExamMatrix Studio môn ${curSubj} Khối ${curGrade}:
 [
   {
     "type": "MC",
     "level": "Biết",
-    "question": "Nội dung câu hỏi (sử dụng công thức LaTeX $...$ nếu có)",
+    "lesson_code": "B1",
+    "question": "Nội dung câu hỏi (chấp nhận công thức LaTeX $...$ nếu có)",
     "options": ["Phương án A", "Phương án B", "Phương án C", "Phương án D"],
     "correct": 0,
-    "option_explanations": ["Giải thích đáp án nếu có"]
+    "option_explanations": ["Giải thích đáp án đúng nếu có"]
   },
   {
     "type": "YN",
     "level": "Hiểu",
+    "lesson_code": "B1",
     "question": "Câu dẫn của câu Đúng/Sai...",
     "statements": [
       {"label": "a", "text": "Nội dung ý a", "correct": true},
@@ -1901,6 +2235,7 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
   {
     "type": "SHORT",
     "level": "Vận dụng",
+    "lesson_code": "B1",
     "question": "Câu hỏi trả lời ngắn...",
     "short_answer": "Đáp án trả lời ngắn"
   }
@@ -1909,7 +2244,7 @@ Dưới đây là đề thi cần chuyển đổi:
 [DÁN ĐỀ THI CỦA THẦY/CÔ VÀO ĐÂY]`;
       try {
         await navigator.clipboard.writeText(promptContent);
-        notify('📋 Đã sao chép câu lệnh mẫu (Prompt) cho ChatGPT vào bộ nhớ đệm!');
+        notify('📋 Đã sao chép câu lệnh mẫu (Prompt) cho ChatGPT/Gemini vào bộ nhớ đệm!');
       } catch (e) {
         notify('Không thể sao chép tự động: ' + e.message, true);
       }

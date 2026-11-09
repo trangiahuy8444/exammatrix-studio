@@ -22,19 +22,27 @@
 <body>
 <a class="skip" href="#main">Đến nội dung chính</a>
 <aside class="sidebar">
-  <a class="brand" href="#overview"><span class="brand-mark">EM</span><span>EXAMMATRIX STUDIO<small id="sidebar-subject-caption">Khảo thí & Đánh giá · 2026–2027</small></span></a>
+  <a class="brand" href="#overview"><span class="brand-mark">EM</span><span>EXAMMATRIX<small id="sidebar-subject-caption">Khảo thí Á Châu · 2026–2027</small></span></a>
   <p class="nav-caption">KHÔNG GIAN CHUYÊN MÔN</p>
-  <nav aria-label="Điều hướng chính"><a href="#overview" data-tab="overview">Tổng quan</a><a href="#bank" data-tab="bank">Ngân hàng câu hỏi</a><a href="#review" data-tab="review">Duyệt câu hỏi</a><a href="#ppct" data-tab="ppct">Phân phối chương trình</a><a href="#revisions" data-tab="revisions">Đề cương ôn tập</a><a href="#matrices" data-tab="matrices">Ma trận & đặc tả</a><a href="#exams" data-tab="exams">Tạo đề kiểm tra</a><a href="#kttx" data-tab="kttx">Kiểm tra thường xuyên</a></nav>
-  <div class="sidebar-foot"><span class="local-dot"></span> Làm việc trên máy này<p>Nội dung được lưu tại thư mục ứng dụng. Chỉ truy cập cục bộ.</p></div>
+  <nav aria-label="Điều hướng chính">
+    <a href="#overview" data-tab="overview"><span class="nav-icon">📊</span> Tổng quan</a>
+    <a href="#bank" data-tab="bank"><span class="nav-icon">🗄️</span> Ngân hàng câu hỏi</a>
+    <a href="#review" data-tab="review"><span class="nav-icon">✔️</span> Duyệt câu hỏi</a>
+    <a href="#ppct" data-tab="ppct"><span class="nav-icon">📅</span> Phân phối chương trình</a>
+    <a href="#revisions" data-tab="revisions"><span class="nav-icon">📝</span> Đề cương ôn tập</a>
+    <a href="#matrices" data-tab="matrices"><span class="nav-icon">📐</span> Ma trận & đặc tả</a>
+    <a href="#exams" data-tab="exams"><span class="nav-icon">📑</span> Tạo đề kiểm tra</a>
+    <a href="#kttx" data-tab="kttx"><span class="nav-icon">🎯</span> Kiểm tra thường xuyên</a>
+  </nav>
+  <div class="sidebar-foot"><span class="local-dot"></span> Làm việc an toàn<p>Lưu trữ cục bộ & đồng bộ Cloud riêng tư theo chuẩn bảo mật học vụ.</p></div>
 </aside>
 <div class="workspace">
 <header class="topbar">
-  <div style="display:flex;align-items:center;gap:12px">
-    <span style="font-weight:700;color:var(--navy,#102d4a);letter-spacing:-0.2px">EXAMMATRIX STUDIO</span>
-    <span style="color:var(--line,#ccc)">|</span>
-    <div style="display:flex;align-items:center;gap:6px">
-      <label for="global-subject-select" style="font-size:12px;font-weight:600;color:var(--muted,#666)">Môn học:</label>
-      <select id="global-subject-select" style="padding:4px 10px;font-weight:600;color:var(--navy,#102d4a);border:1px solid #c5d8ea;border-radius:6px;background:#f8fafc;cursor:pointer">
+  <div class="topbar-left">
+    <div class="topbar-subject-badge">
+      <span class="subject-icon">📚</span>
+      <label for="global-subject-select" class="subject-label">Môn</label>
+      <select id="global-subject-select" class="topbar-select" aria-label="Chọn môn học">
         <option value="Tin học">Tin học</option>
         <option value="Toán học">Toán học</option>
         <option value="Vật lí">Vật lí</option>
@@ -46,14 +54,44 @@
         <option value="Địa lí">Địa lí</option>
       </select>
     </div>
+    <div class="topbar-page-indicator">
+      <span class="page-crumb">Khảo thí & Đánh giá</span>
+      <span class="page-sep">/</span>
+      <span id="current-tab-label" class="page-current">Tổng quan</span>
+    </div>
   </div>
-  <div style="display:flex;align-items:center;gap:8px">
-    <button id="btn-toggle-test-mode" class="quiet" type="button" style="font-weight:600;color:#9a6700;border:1px solid #e0c885;border-radius:6px;padding:5px 10px;background:#fffdf5">🧪 Chế độ Test</button>
-    <button id="btn-user-guide" class="quiet" type="button" style="font-weight:600;color:var(--navy,#102d4a)">📖 Hướng dẫn sử dụng</button>
-    <button id="btn-ai-assistant" class="quiet" type="button" style="font-weight:600;color:var(--brand,#0a58ca)">✨ Xử lý dữ liệu AI</button>
-    <button id="btn-backup-data" class="quiet" type="button" style="font-weight:600;color:#2b8a3e;border:1px solid #b2f2bb;border-radius:6px;padding:5px 10px;background:#f4fbf6">💾 Sao lưu / Khôi phục</button>
-    <span class="teacher">Không gian giáo viên</span>
-    <button id="refresh" class="quiet" type="button">Tải lại dữ liệu</button>
+  <div class="topbar-right">
+    <!-- Nhóm Công cụ chuyên môn -->
+    <div class="topbar-btn-group">
+      <button id="btn-ai-assistant" class="topbar-btn topbar-btn-primary" type="button" title="Bóc tách đề thô & chuẩn hóa bằng Gemini AI">
+        <span class="btn-icon">✨</span>
+        <span class="btn-text">AI Xử lý</span>
+      </button>
+      <button id="btn-backup-data" class="topbar-btn" type="button" title="Sao lưu / Khôi phục dữ liệu">
+        <span class="btn-icon">💾</span>
+        <span class="btn-text">Sao lưu</span>
+      </button>
+      <button id="btn-user-guide" class="topbar-btn" type="button" title="Quy trình SOP Chuẩn Á Châu & Cẩm nang khảo thí">
+        <span class="btn-icon">📋</span>
+        <span class="btn-text">SOP & Cẩm nang</span>
+      </button>
+    </div>
+
+    <span class="topbar-divider"></span>
+
+    <!-- Nhóm Trạng thái & Tiện ích -->
+    <div class="topbar-btn-group">
+      <button id="btn-toggle-test-mode" class="topbar-btn topbar-btn-test" type="button" title="Chuyển chế độ thử nghiệm an toàn">
+        <span class="btn-icon">🧪</span>
+        <span class="btn-text">Thử nghiệm</span>
+      </button>
+      <button id="refresh" class="topbar-btn icon-only" type="button" title="Tải lại dữ liệu">
+        <span class="btn-icon">🔄</span>
+      </button>
+    </div>
+
+    <!-- Khung tài khoản giáo viên -->
+    <div id="firebase-auth-box" class="auth-pill-container"></div>
   </div>
 </header>
 <main id="main" tabindex="-1">
@@ -236,6 +274,7 @@
     <button type="button" class="tab-pill active" data-help-tab="workflows" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:var(--navy,#102d4a);color:#fff;cursor:pointer;font-weight:600">📋 1. Cẩm nang 7 luồng công tác</button>
     <button type="button" class="tab-pill" data-help-tab="schema" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer;font-weight:600">📐 2. Quy chuẩn dữ liệu & Mẫu đề thô</button>
     <button type="button" class="tab-pill" data-help-tab="math-code" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer;font-weight:600">🧮 3. Công thức LaTeX & Mã Code</button>
+    <button type="button" class="tab-pill" data-help-tab="sop" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer;font-weight:600">🛡️ 4. Quy trình SOP Chuẩn Á Châu</button>
   </div>
   <div id="help-tab-content" style="max-height:68vh;overflow-y:auto;padding-right:6px">
     <!-- Hướng dẫn theo màn hình đang mở (app.js điền nội dung) -->
@@ -406,6 +445,65 @@ def kiem_tra_so_nguyen_to(n):
         <li><strong>Phương án sai:</strong> Nhãn viết bình thường: <code>A. </code>, <code>B. </code>, <code>C. </code>, <code>D. </code>.</li>
         <li><strong>Dạng Đúng/Sai:</strong> Ý đúng đặt <strong><code>[a)] </code></strong> kèm <code>[ĐÚNG]</code>; ý sai để bình thường <code>b) </code> kèm <code>[SAI]</code>.</li>
       </ul>
+    </div>
+
+    <!-- Tab 4: Tam đại Quy trình SOP Chuẩn Á Châu -->
+    <div id="help-pane-sop" class="help-pane" hidden>
+      <div style="background:#eaf3fb;padding:14px 18px;border-radius:8px;border-left:4px solid var(--blue,#0267b1);margin-bottom:18px">
+        <strong style="color:var(--navy,#102d4a);font-size:15px">Hệ Thống Quy Trình Thao Tác Chuẩn (SOP) & Kiểm Định Học Vụ Á Châu</strong>
+        <p style="margin:4px 0 0;font-size:13px;color:#334155;line-height:1.5">Áp dụng bắt buộc cho toàn bộ Tổ Chuyên môn và Giáo viên trong việc xây dựng Ma trận, Bảng đặc tả, Đề cương và Bộ đề kiểm tra theo chuẩn Bộ GD&ĐT (TT 22, TT 32, CV 7991, CV 5512).</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+        <div style="background:#ffffff;border:1px solid #dce5ee;border-radius:8px;padding:16px">
+          <h4 style="margin:0 0 10px;color:var(--navy,#102d4a);font-size:14px">🛡️ SOP 01: Ra Đề 6 Bước Khép Kín</h4>
+          <ol style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.7;color:#334155">
+            <li><strong>Bước 1:</strong> Xác lập PPCT & Yêu cầu cần đạt (YCCĐ).</li>
+            <li><strong>Bước 2:</strong> Lập Ma trận & Bảng đặc tả 4 mức độ nhận thức (CV 7991).</li>
+            <li><strong>Bước 3:</strong> Biên soạn Đề cương ôn tập 3 cột chuẩn (CV 5512).</li>
+            <li><strong>Bước 4:</strong> Kiểm định ràng buộc bao phủ $T \ge 90\%$ (Rule 01).</li>
+            <li><strong>Bước 5:</strong> Sinh Bộ đề & Hoán vị 4 mã đề (101-104) + Barem đáp án.</li>
+            <li><strong>Bước 6:</strong> Xuất bản Word khổ ngang $\le 24\text{ cm}$ & file Aiken LMS.</li>
+          </ol>
+        </div>
+
+        <div style="background:#ffffff;border:1px solid #dce5ee;border-radius:8px;padding:16px">
+          <h4 style="margin:0 0 10px;color:var(--navy,#102d4a);font-size:14px">✨ SOP 02: Bóc Tách & Chuẩn Hóa Bằng AI</h4>
+          <ol style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.7;color:#334155">
+            <li><strong>Bước 1:</strong> Tiếp nhận văn bản đề thô dán từ Word/PDF/Ngân hàng.</li>
+            <li><strong>Bước 2:</strong> AI Gemini bóc tách cấu trúc 4 dạng thức (MC, YN 4 ý, SHORT, ES).</li>
+            <li><strong>Bước 3:</strong> Tự động ánh xạ mã bài <code>lesson_code</code> theo PPCT và xếp bậc Bloom.</li>
+            <li><strong>Bước 4:</strong> Giáo viên thẩm định tại lưới kiểm duyệt và nạp vào ngân hàng ở trạng thái Chờ duyệt (<code>draft</code>).</li>
+          </ol>
+        </div>
+      </div>
+
+      <div style="background:#ffffff;border:1px solid #dce5ee;border-radius:8px;padding:16px;margin-bottom:20px">
+        <h4 style="margin:0 0 10px;color:var(--navy,#102d4a);font-size:14px">💾 SOP 03: Bảo Mật, Cách Ly & Phân Tải Dữ Liệu</h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:12.5px;line-height:1.6;color:#334155">
+          <div>
+            <strong>1. Định danh & Cách ly Multi-tenant:</strong>
+            <p style="margin:4px 0 0">Đăng nhập tài khoản Google/Gmail hoặc Email giáo viên. Dữ liệu mỗi giáo viên được cô lập hoàn toàn tại vùng lưu trữ riêng.</p>
+          </div>
+          <div>
+            <strong>2. Phân tải định kỳ Google Drive:</strong>
+            <p style="margin:4px 0 0">Chủ động bấm <code>💾 Sao lưu</code> $\rightarrow$ <code>Tải bản sao lưu JSON</code> để lưu trữ an toàn trên Google Drive cá nhân, giải phóng quota máy chủ.</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#fffdf5;border:1px solid #fde047;border-radius:8px;padding:16px">
+        <h4 style="margin:0 0 10px;color:#854d0e;font-size:14px">✅ Bảng Kiểm Định 7 Tiêu Chí Chất Lượng Học Vụ (Bắt buộc trước khi in đề)</h4>
+        <ul style="margin:0;padding-left:20px;font-size:12.5px;line-height:1.8;color:#713f12">
+          <li><strong>Điểm số định kỳ:</strong> Làm tròn đúng $0.1$ điểm (Thông tư 22). Điểm kiểm tra thường xuyên làm tròn số nguyên.</li>
+          <li><strong>Câu Đúng/Sai:</strong> Bắt buộc đủ 4 ý khẳng định $a, b, c, d$ và tính điểm bậc thang ($0.1 - 0.25 - 0.5 - 1.0$ điểm).</li>
+          <li><strong>Barem tự luận:</strong> Chia nhỏ đến $0.25$ hoặc $0.5$ điểm cho từng bước suy luận/thao tác.</li>
+          <li><strong>Cấm phương án sai chuẩn:</strong> Tuyệt đối không dùng "Cả A, B, C đều đúng" hoặc "Tất cả đều sai".</li>
+          <li><strong>Tỷ lệ bao phủ đề cương:</strong> Đề thi chính thức đạt $T \ge 90\%$ câu hỏi bám sát đề cương đã phát cho học sinh.</li>
+          <li><strong>Đánh số câu hỏi ma trận:</strong> Ghi rõ danh sách câu rời rạc <code>(1, 2, 3)</code>, cấm ghi khoảng gộp <code>(C1-C4)</code>.</li>
+          <li><strong>Định dạng không tràn viền:</strong> Bảng ma trận & đặc tả khổ Landscape A4 có độ rộng $\le 24.0\text{ cm}$.</li>
+        </ul>
+      </div>
     </div>
   </div>
   <div class="dialog-bottom" style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;border-top:1px solid var(--line,#eee);padding-top:14px">

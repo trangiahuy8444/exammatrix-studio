@@ -159,6 +159,73 @@
         return { bank: currentWorkspaceData.bank };
       }
 
+      // Tuyến Phân phối chương trình (PPCT)
+      if (path === '/api/ppct/inspect-import') {
+        const fn = body.filename || '';
+        const grade = Number(body.grade || 10);
+        let lessons = [];
+        let issues = [];
+
+        if (body.json) {
+          const raw = Array.isArray(body.json) ? body.json : (body.json.lessons || body.json.ppct?.lessons || []);
+          lessons = raw.map((l, i) => ({
+            status: 'new',
+            grade: Number(l.grade || grade),
+            lesson_code: l.lesson_code || ('B' + (i + 1)),
+            lesson_name: l.lesson_name_source || l.lesson_name || l.name || '',
+            topic: l.topic_source || l.topic || '',
+            outcomes: Array.isArray(l.outcomes) ? l.outcomes : [],
+            occurrences: (l.occurrences || []).length || 1
+          }));
+        } else if (body.extracted_text) {
+          const text = body.extracted_text;
+          const isExam = /MA TRẬN|ĐẶC TẢ|ĐỀ KIỂM TRA|BẢNG ĐẶC TẢ|PHẦN I/i.test(text) || /Câu\s*\d+[:.]/i.test(text);
+          if (isExam) {
+            issues.push({
+              message: '⚠️ Nhận diện: Tệp "' + fn + '" là hồ sơ Ma trận & Đề kiểm tra. Mục này dùng để nạp Bảng Kế hoạch dạy học (PPCT Phụ lục 1). Để nạp các câu hỏi trong đề này vào ngân hàng đề, Thầy/Cô vui lòng bấm nút "✨ AI Nhập đề" ở thanh trên cùng!'
+            });
+          }
+          const matches = [...text.matchAll(/(?:Bài|Chủ đề)\s*(\d+)[:.]\s*([^
+]+)/gi)];
+          if (matches.length > 0) {
+            lessons = matches.slice(0, 30).map((m, i) => ({
+              status: 'new',
+              grade: grade,
+              lesson_code: 'B' + (m[1] || (i + 1)),
+              lesson_name: m[2].trim(),
+              topic: 'Chương trình GDPT',
+              outcomes: ['Yêu cầu cần đạt theo chương trình môn học.'],
+              occurrences: 1
+            }));
+          }
+        } else {
+          issues.push({
+            message: 'Chưa trích xuất được nội dung từ tệp Word "' + fn + '". Thầy/Cô có thể dùng nút "✨ AI Nhập đề" trên thanh công cụ để đưa câu hỏi vào hệ thống.'
+          });
+        }
+
+        return {
+          sha256: 'local-' + Date.now(),
+          filename: fn,
+          grades: [grade],
+          lessons: lessons,
+          summary: {
+            new: lessons.length,
+            changed: 0,
+            unchanged: 0,
+            conflict: 0
+          },
+          issues: issues
+        };
+      }
+
+      if (path === '/api/ppct/apply-import') {
+        return {
+          bank: currentWorkspaceData.bank,
+          summary: { new: 0, changed: 0, conflict: 0 }
+        };
+      }
+
       // Tuyến Kiểm tra thường xuyên (KTTX)
       if (path === '/api/kttx') {
         return { assignments: [], submissions: [], stats: { total: 0 } };

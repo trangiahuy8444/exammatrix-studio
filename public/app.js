@@ -1278,108 +1278,62 @@ function initAiAssistant() {
   const dialog = $('#ai-dialog');
   if (!btn || !dialog) return;
 
-  // Mốc A7: khóa Gemini chỉ nằm ở máy chủ (GEMINI_API_KEY); trình duyệt chỉ hỏi trạng thái.
   const keyStatus = $('#gemini-key-status');
-  let aiConfigured = false;
+  const keyInput = $('#gemini-user-key');
+  const saveKeyBtn = $('#btn-save-gemini-key');
+  const clearKeyBtn = $('#btn-clear-gemini-key');
 
-  async function refreshAiStatus() {
-    try {
-      const st = await request('/api/ai/status');
-      aiConfigured = Boolean(st.configured);
-      if (keyStatus) keyStatus.textContent = aiConfigured
-        ? `✓ AI đã được cấu hình. Hôm nay đã dùng ${st.used_today}/${st.daily_limit} lượt.`
-        : 'AI chưa được cấu hình trên máy chủ.';
-    } catch (e) {
-      aiConfigured = false;
-      if (keyStatus) keyStatus.textContent = 'Không kiểm tra được trạng thái AI.';
-    }
-    return aiConfigured;
-  }
-
-  async function ensureAiConfigured() {
-    if (aiConfigured || await refreshAiStatus()) return true;
-    notify('AI chưa được cấu hình. Người quản trị cần đặt biến môi trường GEMINI_API_KEY trên máy chủ.', true);
-    return false;
-  }
-
-  function syncAiLessons(grade, target='m1') {
-    const subj = target === 'm1' ? ($('#ai-m1-subject')?.value || 'Tin học') : ($('#ai-m2-subject')?.value || 'Tin học');
-    const list = lessons(Number(grade), subj);
-    const sel = $(target === 'm1' ? '#ai-m1-lesson-select' : '#ai-m2-lesson-select');
-    if (sel) {
-      sel.innerHTML = opt('', `— Chọn bài học ${subj} khối ${grade} —`, true) +
-        list.map(l => opt(l.lesson_code, `${l.lesson_code} · ${l.lesson_name_source || l.lesson_name || l.name}`)).join('') +
-        (target === 'm1' ? opt('__CUSTOM__', '✏️ Bài học khác (tự nhập)...') : '');
-    }
-    if (target === 'm1') {
-      syncAiOutcomeOptions(list, sel?.value);
-    }
-  }
-
-  function syncAiOutcomeOptions(lessonList, selectedCode) {
-    const outcomeSel = $('#ai-m1-outcome-select');
-    const outcomeText = $('#ai-m1-outcome');
-    if (!outcomeSel) return;
-    const curLesson = (lessonList || []).find(l => l.lesson_code === selectedCode);
-    const outcomes = curLesson?.outcomes || [];
-    if (outcomes.length > 0) {
-      outcomeSel.style.display = 'block';
-      outcomeSel.innerHTML = opt('', `— Gợi ý YCCĐ (${outcomes.length} mục) —`, true) +
-        outcomes.map(o => opt(o, o)).join('');
-      if (outcomeText && (!outcomeText.value || outcomeText.value.trim() === '')) {
-        outcomeText.value = outcomes[0];
+  function checkStoredKey() {
+    const key = localStorage.getItem('gemini_user_api_key');
+    if (key && keyInput) {
+      keyInput.value = key;
+      if (keyStatus) {
+        keyStatus.innerHTML = '<span style="color:#2b8a3e">✓ Đã cấu hình khóa API Gemini (lưu an toàn trên máy Thầy/Cô). Sẵn sàng bóc tách dữ liệu!</span>';
       }
-    } else {
-      outcomeSel.style.display = 'none';
-      outcomeSel.innerHTML = opt('', '— Gợi ý YCCĐ từ bài học —', true);
+    } else if (keyStatus) {
+      keyStatus.innerHTML = '<span style="color:#6c757d">Chưa cấu hình API Key. Thầy/Cô dán khóa vào ô trên và bấm Lưu.</span>';
     }
   }
 
-  function syncAiExistingQuestions() {
-    const sel = $('#ai-m3-select-existing-q');
-    if (!sel) return;
-    const allQs = questions();
-    sel.innerHTML = opt('', '— Chọn một câu hỏi từ ngân hàng —', true) +
-      allQs.slice(0, 100).map(q => opt(q.id, `[Khối ${q.grade} - ${q.lesson_code}] ${esc(q.question.slice(0, 65))}...`)).join('');
+  if (saveKeyBtn) {
+    saveKeyBtn.onclick = async () => {
+      const key = (keyInput ? keyInput.value : '').trim();
+      if (!key) {
+        if (keyStatus) keyStatus.innerHTML = '<span style="color:#d9534f">⚠️ Vui lòng nhập API Key.</span>';
+        return;
+      }
+      if (keyStatus) keyStatus.textContent = '⏳ Đang kiểm tra kết nối với Google Gemini...';
+      saveKeyBtn.disabled = true;
+      try {
+        const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+        const testRes = await fetch(testUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: 'ping' }] }] })
+        });
+        if (!testRes.ok) {
+          const errData = await testRes.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || `HTTP ${testRes.status}: Khóa API không hợp lệ hoặc chưa được kích hoạt.`);
+        }
+        localStorage.setItem('gemini_user_api_key', key);
+        if (keyStatus) keyStatus.innerHTML = '<span style="color:#2b8a3e">✓ Khóa API Gemini hợp lệ! Đã sẵn sàng xử lý dữ liệu.</span>';
+        notify('Đã lưu Gemini API Key thành công!');
+      } catch(err) {
+        if (keyStatus) keyStatus.innerHTML = `<span style="color:#d9534f">⚠️ Lỗi: ${esc(err.message)}</span>`;
+      } finally {
+        saveKeyBtn.disabled = false;
+      }
+    };
   }
 
-  btn.onclick = () => {
-    refreshAiStatus();
-    const curSubj = store.selectedSubject || 'Tin học';
-    if ($('#ai-m1-subject')) $('#ai-m1-subject').value = curSubj;
-    if ($('#ai-m2-subject')) $('#ai-m2-subject').value = curSubj;
-    syncAiLessons($('#ai-m1-grade')?.value || 10, 'm1');
-    syncAiLessons($('#ai-m2-grade')?.value || 10, 'm2');
-    syncAiExistingQuestions();
-    dialog.showModal();
-  };
-
-  $('#ai-m1-subject')?.addEventListener('change', () => syncAiLessons($('#ai-m1-grade')?.value || 10, 'm1'));
-  $('#ai-m1-grade')?.addEventListener('change', () => syncAiLessons($('#ai-m1-grade')?.value || 10, 'm1'));
-  $('#ai-m1-lesson-select')?.addEventListener('change', (e) => {
-    const subj = $('#ai-m1-subject')?.value || 'Tin học';
-    const grd = Number($('#ai-m1-grade')?.value || 10);
-    const list = lessons(grd, subj);
-    syncAiOutcomeOptions(list, e.target.value);
-  });
-  $('#ai-m1-outcome-select')?.addEventListener('change', (e) => {
-    if (e.target.value && $('#ai-m1-outcome')) {
-      $('#ai-m1-outcome').value = e.target.value;
-    }
-  });
-
-  $('#ai-m2-subject')?.addEventListener('change', () => syncAiLessons($('#ai-m2-grade')?.value || 10, 'm2'));
-  $('#ai-m2-grade')?.addEventListener('change', () => syncAiLessons($('#ai-m2-grade')?.value || 10, 'm2'));
-
-  $('#ai-m3-select-existing-q')?.addEventListener('change', (e) => {
-    const qId = e.target.value;
-    if (!qId) return;
-    const qObj = questions().find(q => q.id === qId);
-    if (qObj) {
-      $('#ai-m3-question-json').value = JSON.stringify(qObj, null, 2);
-    }
-  });
-
+  if (clearKeyBtn) {
+    clearKeyBtn.onclick = () => {
+      localStorage.removeItem('gemini_user_api_key');
+      if (keyInput) keyInput.value = '';
+      if (keyStatus) keyStatus.innerHTML = '<span style="color:#6c757d">Đã xóa khóa API.</span>';
+      notify('Đã xóa khóa API Gemini.');
+    };
+  }
 
   // Switch tabs in AI modal
   dialog.querySelectorAll('[data-ai-tab]').forEach(tabBtn => {
@@ -1397,9 +1351,15 @@ function initAiAssistant() {
       dialog.querySelectorAll('.ai-pane').forEach(p => p.hidden = true);
       const pane = $(`#ai-pane-${tabId}`);
       if (pane) pane.hidden = false;
-      if (tabId === 'mode3') syncAiExistingQuestions();
     };
   });
+
+  btn.onclick = () => {
+    checkStoredKey();
+    const curSubj = store.selectedSubject || 'Tin học';
+    if ($('#ai-parse-subject')) $('#ai-parse-subject').value = curSubj;
+    dialog.showModal();
+  };
 
   function buildQuestionCardHtml(q, idx, prefix) {
     const cid = `${prefix}-${idx}`;
@@ -1588,197 +1548,326 @@ function initAiAssistant() {
     });
   }
 
-  // Mode 1: Generate by Learning Outcome
-  const m1Btn = $('#ai-m1-submit-btn');
-  if (m1Btn) {
-    m1Btn.onclick = async () => {
-      if (!(await ensureAiConfigured())) return;
-      const selectedLessonCode = $('#ai-m1-lesson-select')?.value;
-      if (!selectedLessonCode) {
-        notify('Vui lòng chọn bài học từ danh mục PPCT trước khi sinh câu hỏi.', true);
+  // Bóc tách & Chuẩn hóa đề thô trực tiếp bằng Gemini Flash
+  const parseBtn = $('#btn-start-ai-parse');
+  if (parseBtn) {
+    parseBtn.onclick = async () => {
+      let apiKey = localStorage.getItem('gemini_user_api_key');
+      if (!apiKey) {
+        apiKey = ($('#gemini-user-key')?.value || '').trim();
+        if (apiKey) localStorage.setItem('gemini_user_api_key', apiKey);
+      }
+      if (!apiKey) {
+        notify('Vui lòng nhập Gemini API Key ở thẻ "Khóa API Gemini" trước.', true);
+        dialog.querySelector('[data-ai-tab="key"]')?.click();
         return;
       }
-      const outcome = ($('#ai-m1-outcome').value || '').trim();
-      if (!outcome) {
-        notify('Vui lòng nhập Yêu cầu cần đạt (YCCĐ).', true);
+
+      const rawText = ($('#ai-parse-raw-text')?.value || '').trim();
+      if (!rawText) {
+        notify('Vui lòng dán nội dung đề thi / câu hỏi thô vào khung.', true);
         return;
       }
-      const grade = Number($('#ai-m1-grade').value);
-      const subject = $('#ai-m1-subject').value;
-      const lessonObj = lessons(grade, subject).find(l => l.lesson_code === selectedLessonCode);
-      const lessonName = lessonObj ? (lessonObj.lesson_name_source || lessonObj.lesson_name || lessonObj.name) : 'Bài học';
 
-      const payload = {
-        grade: grade,
-        subject: subject,
-        level: $('#ai-m1-level').value,
-        question_type: $('#ai-m1-type').value,
-        count: Number($('#ai-m1-count').value || 3),
-        lesson_name: lessonName,
-        learning_outcome: outcome
-      };
+      const subj = $('#ai-parse-subject')?.value || 'Tin học';
+      const grade = Number($('#ai-parse-grade')?.value || 10);
+      const msg = $('#ai-parse-msg');
+      const resContainer = $('#ai-parsed-results-container');
 
-      const resBox = $('#ai-m1-results');
-      resBox.innerHTML = '<p class="empty">⏳ Đang kết nối Gemini và sinh câu hỏi...</p>';
+      if (msg) msg.textContent = '⏳ Gemini đang bóc tách cấu trúc và ánh xạ vào PPCT...';
+      parseBtn.disabled = true;
 
       try {
-        const res = await request('/api/ai/generate-by-outcome', payload);
-        const qs = res.questions || [];
-        if (!qs.length) {
-          resBox.innerHTML = '<p class="empty">Không sinh được câu hỏi nào.</p>';
-          return;
-        }
+        const listLessons = lessons(grade, subj) || [];
+        const lessonInfo = listLessons.map(l => `${l.lesson_code}: ${l.lesson_name_source || l.lesson_name || l.name}`).join('; ');
 
-        resBox.innerHTML = `<p style="margin-bottom:10px"><strong>Sinh thành công ${qs.length} câu hỏi theo YCCĐ. Vui lòng xem lại và chỉnh sửa trước khi lưu:</strong></p>` +
-          qs.map((q, idx) => buildQuestionCardHtml(q, idx, 'm1')).join('');
+        const promptText = `Bạn là Trợ lý Khảo thí & Chuẩn hóa Ngân hàng đề của Trường Quốc tế Á Châu (Asian School), bám sát chương trình GDPT 2018 và Công văn 7991/BGDĐT.
+Nhiệm vụ của bạn là: Đọc văn bản đề thi thô của môn ${subj} Khối ${grade}, bóc tách và chuẩn hóa từng câu hỏi thành mảng đối tượng JSON chuẩn xác.
 
-        bindCardEvents(resBox, qs, 'm1', grade, selectedLessonCode, subject);
-      } catch (err) {
-        resBox.innerHTML = `<p class="danger" style="color:red">Lỗi: ${esc(err.message || 'Không thể tạo câu hỏi')}</p>`;
-      }
-    };
+Danh mục bài học phân phối chương trình của môn ${subj} Khối ${grade}:
+${lessonInfo || 'B1, B2, B3...'}
+
+Yêu cầu phân loại chuẩn:
+1. Dạng câu hỏi (type):
+   - "MC": Trắc nghiệm nhiều lựa chọn (4 phương án). Trả về:
+     question: nội dung câu hỏi (đã bỏ chữ "Câu 1:").
+     options: mảng 4 chuỗi phương án [A, B, C, D] (đã bỏ tiền tố "A. ", "B. ", "C. ", "D. ").
+     correct: số nguyên chỉ số phương án đúng (0 cho A, 1 cho B, 2 cho C, 3 cho D).
+     option_explanations: mảng 4 chuỗi giải thích cho từng phương án nếu có.
+   - "YN": Trắc nghiệm Đúng/Sai (4 ý a, b, c, d). Trả về:
+     question: câu dẫn ngữ cảnh chung.
+     statements: mảng 4 đối tượng [{label: "a", text: "nội dung ý a", correct: true/false}, {label: "b", text: "nội dung ý b", correct: true/false}, ...].
+   - "SHORT": Trả lời ngắn / Điền khuyết. Trả về:
+     question: nội dung câu hỏi.
+     short_answer: đáp án hoặc từ khóa chấp nhận được.
+   - "ES": Tự luận. Trả về:
+     question: đề bài tự luận.
+     rubric: mảng các tiêu chí chấm điểm và điểm thành phần.
+
+2. Mức độ nhận thức (level):
+   - "Biết": Nhận diện, định nghĩa, nhớ lại kiến thức cơ bản.
+   - "Hiểu": Giải thích, phân biệt, so sánh, minh họa.
+   - "Vận dụng": Áp dụng kiến thức/công thức giải bài toán cụ thể.
+   - "Vận dụng cao": Đánh giá, tối ưu hóa, bài toán liên môn/thực tế phức tạp.
+
+3. Ánh xạ Bài học (lesson_code):
+   - Hãy chọn mã bài học (lesson_code) phù hợp nhất từ danh mục bài học ở trên.
+
+Văn bản đề thi thô cần bóc tách:
+${rawText}
+
+Hãy trả về duy nhất mảng JSON các câu hỏi (không thêm bất kỳ lời dẫn nào ngoài JSON):
+[
+  {
+    "type": "MC",
+    "level": "Biết",
+    "lesson_code": "B1",
+    "learning_outcome": "...",
+    "question": "...",
+    "options": ["...", "...", "...", "..."],
+    "correct": 0
   }
+]`;
 
-  // Mode 2: Parse Raw Text
-  const m2Btn = $('#ai-m2-submit-btn');
-  if (m2Btn) {
-    m2Btn.onclick = async () => {
-      if (!(await ensureAiConfigured())) return;
-      const raw = ($('#ai-m2-raw-text').value || '').trim();
-      if (!raw) {
-        notify('Vui lòng dán đề thô vào khung.', true);
-        return;
-      }
-      const grade = Number($('#ai-m2-grade').value);
-      const subject = $('#ai-m2-subject')?.value || 'Tin học';
-      const targetLesson = $('#ai-m2-lesson-select')?.value;
-      if (!targetLesson) {
-        notify('Vui lòng chọn bài học đích để gán câu hỏi bóc tách.', true);
-        return;
-      }
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: promptText }] }],
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: 'application/json'
+            }
+          })
+        });
 
-      const resBox = $('#ai-m2-results');
-      resBox.innerHTML = '<p class="empty">⏳ Đang phân tích và bóc tách đề thô...</p>';
-
-      try {
-        const res = await request('/api/ai/parse-raw', { raw_text: raw, grade: grade });
-        const qs = res.questions || [];
-        if (!qs.length) {
-          resBox.innerHTML = '<p class="empty">Không bóc tách được câu hỏi nào từ nội dung thô.</p>';
-          return;
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err?.error?.message || `HTTP ${response.status}`);
         }
 
-        resBox.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px;background:#eef4fa;border-radius:6px">
-            <span><strong>Bóc tách thành công ${qs.length} câu hỏi.</strong></span>
-            <div style="display:flex;gap:8px">
-              <button type="button" class="quiet" id="m2-select-all" style="font-size:12px">🔘 Chọn tất cả</button>
-              <button type="button" class="quiet" id="m2-deselect-all" style="font-size:12px">⚪ Bỏ chọn tất cả</button>
-              <button type="button" class="primary" id="m2-bulk-save" style="font-size:12px;padding:6px 12px">💾 Lưu các câu đã chọn (Chờ duyệt)</button>
+        const data = await response.json();
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        let questionsList = JSON.parse(content);
+        if (!Array.isArray(questionsList) && questionsList.questions) {
+          questionsList = questionsList.questions;
+        }
+        if (!Array.isArray(questionsList) || !questionsList.length) {
+          throw new Error('Gemini không bóc tách được câu hỏi nào từ nội dung được cung cấp.');
+        }
+
+        window._aiParsedQuestions = questionsList;
+        const reviewCount = $('#ai-review-count');
+        if (reviewCount) reviewCount.textContent = questionsList.length;
+
+        if (resContainer) {
+          resContainer.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 12px;background:#f1f3f5;border-radius:6px;">
+              <span style="font-size:13px;"><strong>Đã bóc tách & phân loại thành công ${questionsList.length} câu hỏi.</strong></span>
+              <div style="display:flex;gap:6px;">
+                <button type="button" class="quiet" id="btn-ai-select-all" style="font-size:11px;">🔘 Chọn tất cả</button>
+                <button type="button" class="quiet" id="btn-ai-deselect-all" style="font-size:11px;">⚪ Bỏ chọn tất cả</button>
+              </div>
             </div>
-          </div>
-          ${qs.map((q, idx) => buildQuestionCardHtml(q, idx, 'm2')).join('')}
-        `;
+            ${questionsList.map((q, idx) => buildQuestionCardHtml(q, idx, 'aiparse')).join('')}
+          `;
 
-        bindCardEvents(resBox, qs, 'm2', grade, targetLesson, subject);
+          bindCardEvents(resContainer, questionsList, 'aiparse', grade, questionsList[0]?.lesson_code || 'B1', subj);
 
-        const selectAllBtn = $('#m2-select-all');
-        const deselectAllBtn = $('#m2-deselect-all');
-        const bulkSaveBtn = $('#m2-bulk-save');
+          const selAll = $('#btn-ai-select-all');
+          const deselAll = $('#btn-ai-deselect-all');
+          if (selAll) selAll.onclick = () => resContainer.querySelectorAll('.aiparse-select-chk').forEach(c => c.checked = true);
+          if (deselAll) deselAll.onclick = () => resContainer.querySelectorAll('.aiparse-select-chk').forEach(c => c.checked = false);
+        }
 
-        if (selectAllBtn) {
-          selectAllBtn.onclick = () => {
-            resBox.querySelectorAll('.m2-select-chk').forEach(c => c.checked = true);
-          };
-        }
-        if (deselectAllBtn) {
-          deselectAllBtn.onclick = () => {
-            resBox.querySelectorAll('.m2-select-chk').forEach(c => c.checked = false);
-          };
-        }
-        if (bulkSaveBtn) {
-          bulkSaveBtn.onclick = async () => {
-            const selectedChks = Array.from(resBox.querySelectorAll('.m2-select-chk:checked'));
-            if (!selectedChks.length) {
-              notify('Chưa chọn câu hỏi nào để lưu.', true);
-              return;
-            }
-            const batch = [];
-            for (const chk of selectedChks) {
-              const idx = Number(chk.dataset.idx);
-              try {
-                const qData = getQuestionFromCard(`m2-${idx}`, qs[idx]);
-                batch.push({ idx, q: { id: '', grade: grade, subject_name: subject, lesson_code: targetLesson,
-                  review_status: 'draft', ...qData } });
-              } catch (e) {
-                notify(`Lỗi ở Câu ${idx + 1}: ${e.message}`, true);
-                return;
-              }
-            }
-            bulkSaveBtn.disabled = true;
-            bulkSaveBtn.textContent = '⏳ Đang lưu...';
-            // Một yêu cầu cho cả lô: hoặc lưu hết, hoặc không lưu câu nào.
-            const result = await mutate('/api/ai/save-drafts', { questions: batch.map(b => b.q) });
-            if (!result) {
-              bulkSaveBtn.disabled = false;
-              bulkSaveBtn.textContent = '💾 Lưu các câu đã chọn (Chờ duyệt)';
-              return;
-            }
-            batch.forEach(({ idx }) => {
-              const saveBtn = resBox.querySelector(`[data-save-q="m2-${idx}"]`);
-              if (saveBtn) {
-                saveBtn.textContent = '✅ Đã thêm (Chờ duyệt)';
-                saveBtn.disabled = true;
-              }
-            });
-            bulkSaveBtn.textContent = `✅ Đã lưu ${result.saved.length}/${selectedChks.length} câu (Chờ duyệt)`;
-            notify(`Đã lưu ${result.saved.length} câu hỏi nháp vào bài [${targetLesson}]; cần duyệt trước khi dùng trong đề.`);
-          };
-        }
-      } catch (err) {
-        resBox.innerHTML = `<p class="danger" style="color:red">Lỗi: ${esc(err.message)}</p>`;
+        if (msg) msg.textContent = `✓ Đã bóc tách ${questionsList.length} câu. Mời Thầy/Cô sang thẻ Thẩm định.`;
+        dialog.querySelector('[data-ai-tab="results"]')?.click();
+      } catch(err) {
+        if (msg) msg.innerHTML = `<span style="color:#d9534f">⚠️ Lỗi: ${esc(err.message)}</span>`;
+      } finally {
+        parseBtn.disabled = false;
       }
     };
   }
 
-  // Mode 3: Generate Variants
-  const m3Btn = $('#ai-m3-submit-btn');
-  if (m3Btn) {
-    m3Btn.onclick = async () => {
-      if (!(await ensureAiConfigured())) return;
-      const qText = ($('#ai-m3-question-json').value || '').trim();
-      if (!qText) {
-        notify('Vui lòng chọn hoặc nhập câu hỏi gốc.', true);
+  // Nạp câu hỏi đã bóc tách vào Ngân hàng
+  const importBtn = $('#btn-import-ai-to-bank');
+  if (importBtn) {
+    importBtn.onclick = async () => {
+      const resContainer = $('#ai-parsed-results-container');
+      const selectedChks = Array.from(resContainer ? resContainer.querySelectorAll('.aiparse-select-chk:checked') : []);
+      if (!selectedChks.length) {
+        notify('Chưa chọn câu hỏi nào để nạp.', true);
         return;
       }
-      let origObj = null;
-      try { origObj = JSON.parse(qText); } catch(e) {}
-      if (!origObj || !origObj.question) {
-        notify('Định dạng câu hỏi gốc chưa hợp lệ. Vui lòng chọn câu hỏi từ danh sách.', true);
-        return;
-      }
+      const questionsList = window._aiParsedQuestions || [];
+      const grade = Number($('#ai-parse-grade')?.value || 10);
+      const subj = $('#ai-parse-subject')?.value || 'Tin học';
 
-      const resBox = $('#ai-m3-results');
-      resBox.innerHTML = '<p class="empty">⏳ Đang sinh các biến thể tương đương...</p>';
-      try {
-        const res = await request('/api/ai/generate-variants', { question: origObj, count: 2 });
-        const vars = res.variants || [];
-        if (!vars.length) {
-          resBox.innerHTML = '<p class="empty">Không sinh được biến thể nào.</p>';
+      const batch = [];
+      for (const chk of selectedChks) {
+        const idx = Number(chk.dataset.idx);
+        const orig = questionsList[idx];
+        if (!orig) continue;
+        try {
+          const qData = getQuestionFromCard(`aiparse-${idx}`, orig);
+          batch.push({
+            id: `K${grade}-GV-${Math.random().toString(36).slice(2, 10)}`,
+            grade: grade,
+            subject_name: subj,
+            lesson_code: orig.lesson_code || 'B1',
+            review_status: 'draft',
+            origin: 'ai_gemini',
+            ...qData
+          });
+        } catch(e) {
+          notify(`Lỗi ở Câu ${idx + 1}: ${e.message}`, true);
           return;
         }
-
-        resBox.innerHTML = `<p style="margin-bottom:10px"><strong>Sinh thành công ${vars.length} biến thể tương đương từ câu hỏi gốc:</strong></p>` +
-          vars.map((v, idx) => buildQuestionCardHtml(v, idx, 'm3')).join('');
-
-        bindCardEvents(resBox, vars, 'm3', origObj.grade || 10, origObj.lesson_code || 'L1', origObj.subject_name || 'Tin học');
-      } catch (err) {
-        resBox.innerHTML = `<p class="danger" style="color:red">Lỗi: ${esc(err.message)}</p>`;
       }
+
+      importBtn.disabled = true;
+      importBtn.textContent = '⏳ Đang nạp...';
+      try {
+        await mutate('/api/bank/import', { bank: { questions: batch } });
+        notify(`✅ Đã nạp thành công ${batch.length} câu hỏi vào Ngân hàng!`);
+        dialog.close();
+      } catch(err) {
+        notify('Lỗi nạp câu hỏi: ' + err.message, true);
+      } finally {
+        importBtn.disabled = false;
+        importBtn.textContent = '📥 Nạp vào Ngân hàng câu hỏi';
+      }
+    };
+  }
+
+  // Xuất file JSON (dành cho lưu Google Drive)
+  const exportJsonBtn = $('#btn-export-ai-json');
+  if (exportJsonBtn) {
+    exportJsonBtn.onclick = () => {
+      const qs = window._aiParsedQuestions || [];
+      if (!qs.length) {
+        notify('Chưa có câu hỏi nào để xuất.', true);
+        return;
+      }
+      const blob = new Blob([JSON.stringify({ questions: qs }, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `ExamMatrix_AI_Questions_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      notify('Đã tải tệp JSON thành công! Thầy/Cô có thể cất file này lên Google Drive.');
     };
   }
 }
 initAiAssistant();
+
+// Quản lý Sao lưu & Khôi phục Dữ liệu (Google Drive / JSON Backup)
+function initBackupManager() {
+  const btn = $('#btn-backup-data');
+  const dialog = $('#backup-dialog');
+  if (!btn || !dialog) return;
+
+  btn.onclick = () => dialog.showModal();
+
+  // Xuất toàn bộ dữ liệu ra tệp JSON
+  const exportBtn = $('#btn-export-full-backup');
+  if (exportBtn) {
+    exportBtn.onclick = () => {
+      const exportData = {
+        app: 'ExamMatrix Studio',
+        version: '2.0',
+        exported_at: new Date().toISOString(),
+        owner_email: (window.FirebaseState?.user?.email) || 'offline_teacher',
+        bank: store.bank || { questions: [] },
+        revisions: store.revisions || [],
+        exams: store.exams || [],
+        matrices: store.matrixRecords || []
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      const dStr = new Date().toISOString().slice(0, 10);
+      a.href = URL.createObjectURL(blob);
+      a.download = `ExamMatrix_Backup_${dStr}.json`;
+      a.click();
+      notify('Đã xuất toàn bộ dữ liệu ra tệp JSON thành công! Thầy/Cô có thể cất file này lên Google Drive cá nhân.');
+    };
+  }
+
+  // Khôi phục từ tệp JSON
+  const triggerBtn = $('#btn-trigger-restore');
+  const fileInput = $('#input-restore-backup');
+  const statusDiv = $('#restore-status');
+
+  if (triggerBtn && fileInput) {
+    triggerBtn.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const data = JSON.parse(evt.target.result);
+          const bankQs = data.bank?.questions || (Array.isArray(data.bank) ? data.bank : (data.questions || []));
+          const revs = data.revisions || [];
+          const exams = data.exams || [];
+          const mats = data.matrices || [];
+
+          if (!bankQs.length && !revs.length && !exams.length && !mats.length) {
+            alert('Tệp sao lưu rỗng hoặc không đúng định dạng của ExamMatrix Studio.');
+            return;
+          }
+
+          const msg = `Thầy/Cô có muốn khôi phục dữ liệu từ tệp này không?\n\n• ${bankQs.length} câu hỏi ngân hàng\n• ${revs.length} đề cương ôn tập\n• ${exams.length} đề kiểm tra\n• ${mats.length} ma trận & đặc tả\n\nDữ liệu hiện tại sẽ được cập nhật đồng bộ.`;
+          if (!confirm(msg)) return;
+
+          if (store) {
+            store.bank = { ...(store.bank || {}), questions: bankQs };
+            store.revisions = revs;
+            store.exams = exams;
+            store.matrixRecords = mats;
+          }
+
+          if (window.FirebaseState) {
+            window.FirebaseState.currentData = {
+              bank: { ...(window.FirebaseState.currentData?.bank || {}), questions: bankQs },
+              revisions: revs,
+              exams: exams,
+              matrices: mats
+            };
+            const uid = window.FirebaseState.user ? window.FirebaseState.user.uid : 'offline';
+            try {
+              localStorage.setItem('exammatrix_teacher_cache_' + uid, JSON.stringify(window.FirebaseState.currentData));
+              if (window.FirebaseState.user && window.FirebaseState.db && window.FirebaseState._firestoreHelpers) {
+                const { doc, setDoc } = window.FirebaseState._firestoreHelpers;
+                const ref = doc(window.FirebaseState.db, 'workspaces', uid);
+                await setDoc(ref, {
+                  owner_email: window.FirebaseState.user.email,
+                  updated_at: new Date().toISOString(),
+                  ...window.FirebaseState.currentData
+                }, { merge: true });
+              }
+            } catch(syncErr) {
+              console.warn('[Backup] Sync warning:', syncErr);
+            }
+          }
+
+          if (typeof render === 'function') render();
+          if (statusDiv) {
+            statusDiv.textContent = `✓ Đã khôi phục thành công: ${bankQs.length} câu hỏi, ${revs.length} đề cương, ${exams.length} đề kiểm tra.`;
+            statusDiv.style.display = 'block';
+          }
+          notify('Khôi phục dữ liệu từ bản sao lưu thành công!');
+          setTimeout(() => dialog.close(), 1200);
+        } catch(err) {
+          alert('Lỗi phân tích tệp sao lưu: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    };
+  }
+}
+initBackupManager();
 
 // User Guide & Data Specifications Dialog Integration
 function renderScreenGuide() {

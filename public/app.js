@@ -1,6 +1,27 @@
 /* Saved records live on the server; unfinished exam form choices stay in this browser. */
 'use strict';
 const C=window.BankCore,$=s=>document.querySelector(s),esc=C.escapeHtml;
+
+function renderLatex(element) {
+  if (typeof renderMathInElement === 'function') {
+    try {
+      renderMathInElement(element || document.body, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false },
+          { left: '\\[', right: '\\]', display: true }
+        ],
+        throwOnError: false,
+        ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option']
+      });
+    } catch (err) {
+      console.warn('[KaTeX] Error rendering math:', err);
+    }
+  }
+}
+window.addEventListener('load', () => setTimeout(() => renderLatex(), 100));
+
 const statusNames={draft:'Bản nháp',pending_review:'Chờ duyệt',needs_review:'Cần sửa lại',approved:'Đã duyệt',archived:'Đã lưu trữ'};
 const typeNames={MC:'Trắc nghiệm',ES:'Tự luận / thực hành'};
 const periodNames={TX:'Thường xuyên',GK1:'Giữa học kì I',CK1:'Cuối học kì I',GK2:'Giữa học kì II',CK2:'Cuối học kì II'};
@@ -40,6 +61,9 @@ function notify(message,error=false){const el=$('#notice');el.hidden=false;el.cl
 function clearNotice(){$('#notice').hidden=true;}
 function detailError(e){const details=e.details;if(!details)return e.message;return e.message+'\n'+(typeof details==='string'?details:JSON.stringify(details,null,2));}
 async function request(path,body){
+ if (typeof window !== 'undefined' && window.FirebaseClient && window.FirebaseClient.canHandle(path)) {
+   return await window.FirebaseClient.handle(path, body);
+ }
  const h=body===undefined?{}:C.jsonHeaders(document.querySelector('meta[name="csrf-token"]')?.content);
  if(store.isTestMode)h['X-Test-Mode']='1';
  const response=await fetch(apiUrl(path),{method:body===undefined?'GET':'POST',headers:h,body:body===undefined?undefined:JSON.stringify(body)});
@@ -89,9 +113,19 @@ async function load(initial=false){
  catch(e){$('#loading').hidden=true;notify(e.message,true);if(!store.bank)$('#overview').innerHTML=empty('Chưa mở được ngân hàng','Kiểm tra ứng dụng đang chạy rồi bấm Tải lại dữ liệu.');if(!store.bank)$('#overview').hidden=false;}
  finally{$('#refresh').disabled=false;}
 }
-function switchTab(tab){store.tab=['overview','bank','review','ppct','revisions','matrices','exams','kttx'].includes(tab)?tab:'overview';document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==store.tab);document.querySelectorAll('[data-tab]').forEach(a=>{if(a.dataset.tab===store.tab)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});if(store.bank)renderCurrent();}
+function switchTab(tab){
+ store.tab=['overview','bank','review','ppct','revisions','matrices','exams','kttx'].includes(tab)?tab:'overview';
+ document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==store.tab);
+ document.querySelectorAll('[data-tab]').forEach(a=>{if(a.dataset.tab===store.tab)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
+ const tabLabels={overview:'Tổng quan',bank:'Ngân hàng câu hỏi',review:'Duyệt câu hỏi',ppct:'Phân phối chương trình',revisions:'Đề cương ôn tập',matrices:'Ma trận & đặc tả',exams:'Tạo đề kiểm tra',kttx:'Kiểm tra thường xuyên'};
+ const curEl=document.getElementById('current-tab-label');if(curEl)curEl.textContent=tabLabels[store.tab]||'Khảo thí';
+ if(store.bank)renderCurrent();
+}
 function render(){switchTab(location.hash.slice(1)||store.tab);}
-function renderCurrent(){({overview:renderOverview,bank:renderBank,review:renderReview,ppct:renderPPCT,revisions:renderRevisions,exams:renderExams,kttx:renderKttx,matrices:renderMatrices}[store.tab])();}
+function renderCurrent(){
+ ({overview:renderOverview,bank:renderBank,review:renderReview,ppct:renderPPCT,revisions:renderRevisions,exams:renderExams,kttx:renderKttx,matrices:renderMatrices}[store.tab])();
+ setTimeout(() => renderLatex(), 40);
+}
 // B1: màn hình duyệt câu hỏi số lượng lớn. Không có nút "duyệt tất cả": mỗi câu phải mở và xác nhận phiếu riêng.
 function renderReview(){
  const f=store.reviewFilters||(store.reviewFilters={status:'pending_review',grade:'',lesson:'',level:'',type:'',origin:''});
@@ -203,12 +237,13 @@ function renderBankList(){
  $('#bank-list').innerHTML=slice.length?slice.map(q=>`<article class="q-card"><input type="checkbox" aria-label="Chọn câu ${esc(q.id)}" data-check="${esc(q.id)}"${store.selected.has(q.id)?' checked':''}><div class="q-card-body"><button class="q-open" data-detail="${esc(q.id)}"><span class="q-meta"><span class="badge">Khối ${q.grade} · ${esc(q.lesson_code)}</span><span class="badge">${esc(q.type)} · ${esc(q.level)}</span>${badge(q)}<span class="q-id">${esc(q.id)}</span></span><div class="q-text">${esc(q.question)}</div></button><div class="q-row-actions"><button type="button" class="export-link" data-detail="${esc(q.id)}">Xem</button><button type="button" class="export-link" data-edit="${esc(q.id)}">Sửa</button><button type="button" class="export-link" data-dup-q="${esc(q.id)}">Nhân bản</button>${q.review_status==='archived'?`<button type="button" class="export-link" data-restore-q="${esc(q.id)}">Khôi phục</button>`:`<button type="button" class="export-link" data-archive="${esc(q.id)}">Lưu trữ</button>`}<button type="button" class="export-link danger" data-del-q="${esc(q.id)}">Xóa</button></div></div></article>`).join(''):empty('Không có câu phù hợp','Thử đổi bài, mức độ hoặc từ khóa tìm kiếm.');
  $('#bank-pagination').innerHTML=`<div class="pagination"><button id="prev-page"${store.page<=1?' disabled':''}>← Trước</button><span>Trang ${store.page} / ${pages}</span><button id="next-page"${store.page>=pages?' disabled':''}>Sau →</button></div>`;
  $('#select-filter').onclick=()=>{result.filter(q=>q.review_status!=='archived').forEach(q=>store.selected.add(q.id));renderBankList();};$('#reset-filter').onclick=()=>{store.filters={grade:'',lesson:'',type:'',level:'',status:'active',search:''};store.page=1;renderBank();};$('#prev-page').onclick=()=>{store.page--;renderBankList();};$('#next-page').onclick=()=>{store.page++;renderBankList();};
+  setTimeout(() => renderLatex($('#bank-list')), 40);
  $('#selection-summary').innerHTML=`<strong style="font-size:28px;color:var(--navy)">${store.selected.size}</strong><span class="muted"> câu được chọn</span><p class="small muted">${grades().map(g=>`Khối ${g}: ${C.revisionIds(questions(),[...store.selected],g).length}`).join(' · ')}</p>`;
 }
 function showDetail(id){
  const q=questions().find(q=>q.id===id);if(!q)return;$('#detail-dialog').classList.remove('wide-dialog');const answer=q.type==='MC'?`<ol class="options">${q.options.map((v,i)=>`<li class="${i===q.correct?'correct':''}">${i===q.correct?'<span class="answer-label">ĐÁP ÁN ĐÚNG</span>':''}<strong>${'ABCD'[i]}.</strong> ${esc(v)}<span class="explanation">${esc(q.option_explanations?.[i]||'Chưa có giải thích.')}</span></li>`).join('')}</ol>`:`<h3>Thang điểm · ${q.max_score||1} điểm</h3><ol class="rubric">${(q.rubric||[]).map(r=>`<li>${esc(r.criterion)} <strong>(${r.points} điểm)</strong></li>`).join('')}</ol><p class="muted">${esc(q.equivalent_answer_policy||'')}</p>`;
  $('#detail-content').innerHTML=`<div class="dialog-heading"><h2 id="detail-title">Chi tiết câu hỏi</h2><button data-close="detail-dialog" class="quiet">Đóng</button></div><div class="q-meta"><span class="badge">Khối ${q.grade} · ${esc(q.lesson_code)} · ${esc(q.level)}</span>${badge(q)}<span class="q-id">${esc(q.id)}</span></div><div class="question-text" style="white-space:normal">${C.questionTextHtml(q.question)}</div>${answer}<div class="callout"><strong>Yêu cầu cần đạt</strong><br>${esc(q.learning_outcome||'Chưa gắn YCCĐ')}</div><p class="small muted">${esc(q.lesson_name||'')} · ${esc(q.response_mode||typeNames[q.type])}</p><details class="detail-source"><summary>Nguồn đối chiếu PPCT</summary><p>${esc(q.source_file||'Theo danh mục PPCT')}</p><p>${(q.source_rows||[]).map(r=>`Tuần ${esc(r.week_raw)} · Tiết ${esc(r.periods_raw)}`).join('<br>')}</p></details><div class="dialog-bottom"><button data-edit="${esc(q.id)}" class="primary">Sửa câu hỏi</button><button data-dup-q="${esc(q.id)}">Nhân bản câu</button>${q.review_status==='archived'?`<button data-restore-q="${esc(q.id)}">Khôi phục sử dụng</button>`:`<button data-archive="${esc(q.id)}">Lưu trữ tạm</button>`}<button data-del-q="${esc(q.id)}" class="danger">Xóa vĩnh viễn</button></div>`;
- $('#detail-dialog').showModal();
+ $('#detail-dialog').showModal(); setTimeout(() => renderLatex($('#detail-dialog')), 40);
 }
 function fmtPts(v){return typeof v==='number'?String(Math.round(v*1000)/1000).replace('.',','):String(v??'');}
 function scaledPolicy(q){
@@ -694,39 +729,321 @@ function renderPPCT(){
  if(sampleBtn)sampleBtn.onclick=()=>{store.testPpctLoaded=true;renderPPCT();notify(`Đã nạp mẫu PPCT GDPT 2018 cho môn ${s}.`);};
  bindPpctImport(g);
 }
-// Nhập PPCT từ Word (bảng KHDH Phụ lục 1) hoặc JSON: đọc và đối chiếu trước, chỉ ghi khi giáo viên xác nhận.
+// Nhập PPCT từ JSON, Markdown (.md) hoặc Word (bảng KHDH Phụ lục 1)
+function parsePpctFromMarkdown(text, defaultGrade) {
+  if (!text || typeof text !== 'string') return [];
+  const lines = text.split(/\r?\n/);
+  const lessonsMap = new Map();
+  let currentTopic = 'Chương trình GDPT';
+
+  const tableRows = lines.filter(l => l.trim().startsWith('|') && l.trim().endsWith('|'));
+  if (tableRows.length >= 2) {
+    for (const r of tableRows) {
+      const cells = r.split('|').slice(1, -1).map(c => c.trim());
+      if (!cells.length) continue;
+      if (cells.some(c => /Bài\s*học/i.test(c) || /^:?-+:?$/.test(c))) continue;
+      if (cells.some(c => /^Chủ\s*đề/i.test(c))) {
+        currentTopic = cells.find(c => /^Chủ\s*đề/i.test(c)) || currentTopic;
+        continue;
+      }
+      let weekRaw = '', periodsRaw = '', lessonRaw = '', outcomesRaw = '';
+      if (cells.length >= 4) {
+        if (/^\d+/.test(cells[0])) {
+          weekRaw = cells[0];
+          if (/^\d+/.test(cells[1]) && cells[2].length > cells[1].length) {
+            periodsRaw = cells[1];
+            lessonRaw = cells[2];
+            outcomesRaw = cells[3] || '';
+          } else {
+            lessonRaw = cells[1];
+            periodsRaw = cells[2];
+            outcomesRaw = cells[3] || '';
+          }
+        } else {
+          lessonRaw = cells[0];
+          outcomesRaw = cells[1] || '';
+        }
+      } else if (cells.length >= 2) {
+        lessonRaw = cells[0];
+        outcomesRaw = cells[1];
+      }
+      if (!lessonRaw) continue;
+
+      let lessonCode = '';
+      const mCode = lessonRaw.match(/^(?:Bài|Chủ\s*đề)\s*([0-9]+[a-zA-Z]?)/i);
+      if (mCode) lessonCode = 'B' + mCode[1];
+      else if (/Kiểm\s*tra\s*giữa\s*h?k?1/i.test(lessonRaw)) lessonCode = 'KTGK1';
+      else if (/Kiểm\s*tra\s*h?k?1|Kiểm\s*tra\s*cuối\s*h?k?1/i.test(lessonRaw)) lessonCode = 'KTCK1';
+      else if (/Kiểm\s*tra\s*giữa\s*h?k?2/i.test(lessonRaw)) lessonCode = 'KTGK2';
+      else if (/Kiểm\s*tra\s*h?k?2|Kiểm\s*tra\s*cuối\s*h?k?2/i.test(lessonRaw)) lessonCode = 'KTCK2';
+      else if (/Ôn\s*tập/i.test(lessonRaw)) lessonCode = 'OT';
+      else lessonCode = 'B' + (lessonsMap.size + 1);
+
+      let cleanName = lessonRaw.replace(/^(?:Bài|Chủ\s*đề)\s*[0-9]+[a-zA-Z]?[:.]?\s*/i, '')
+                               .replace(/\s*\(tiết\s*\d+\)/i, '')
+                               .trim();
+      if (!cleanName) cleanName = lessonRaw;
+
+      const outcomes = outcomesRaw.split(/(?:<br\s*\/?>|\n|\r|\.)\s*[-*]\s*|\s*<br\s*\/?>\s*/)
+        .map(o => o.trim().replace(/^[-*]\s*/, '').replace(/<[^>]*>/g, ''))
+        .filter(o => o.length > 5);
+
+      if (lessonsMap.has(lessonCode)) {
+        const ex = lessonsMap.get(lessonCode);
+        ex.occurrences.push({ week_raw: weekRaw, periods_raw: periodsRaw });
+        for (const o of outcomes) {
+          if (!ex.outcomes.includes(o)) ex.outcomes.push(o);
+        }
+      } else {
+        lessonsMap.set(lessonCode, {
+          grade: Number(defaultGrade),
+          lesson_code: lessonCode,
+          lesson_name_source: cleanName,
+          topic_source: currentTopic,
+          occurrences: [{ week_raw: weekRaw, periods_raw: periodsRaw }],
+          outcomes
+        });
+      }
+    }
+  } else {
+    const blocks = text.split(/\n(?=#{1,3}\s*|\*\*Bài)/i);
+    for (const b of blocks) {
+      const bTrim = b.trim();
+      if (!bTrim) continue;
+      const mHeader = bTrim.match(/^(?:#{1,3}\s*|\*\*)?(?:Bài\s*([0-9]+[a-zA-Z]?)|KTGK1|KTCK1|KTGK2|KTCK2|Ôn tập)[:.]?\s*([^\n*]+)/i);
+      if (!mHeader) continue;
+      const codeNum = mHeader[1];
+      const lessonCode = codeNum ? ('B' + codeNum) : (bTrim.includes('KTGK1') ? 'KTGK1' : bTrim.includes('KTCK1') ? 'KTCK1' : 'B' + (lessonsMap.size + 1));
+      const cleanName = mHeader[2].trim().replace(/\*\*$/, '');
+      const mTopic = bTrim.match(/(?:Chủ đề|Topic)\s*[:=]\s*([^\n]+)/i);
+      const topic = mTopic ? mTopic[1].trim() : 'Chương trình GDPT';
+      const mWeek = bTrim.match(/(?:Tuần|Week)\s*[:=]\s*([^\n,]+)/i);
+      const mPeriods = bTrim.match(/(?:Tiết|Periods)\s*[:=]\s*([^\n]+)/i);
+      const outcomeMatches = [...bTrim.matchAll(/(?:^|\n)\s*[-*]\s*(?:YCCĐ|Yêu cầu cần đạt)?[:.]?\s*([^\n]+)/gi)];
+      const outcomes = outcomeMatches.map(m => m[1].trim()).filter(o => o.length > 5 && !/^(?:Mã bài|Chủ đề|Tuần|Tiết)/i.test(o));
+
+      lessonsMap.set(lessonCode, {
+        grade: Number(defaultGrade),
+        lesson_code: lessonCode,
+        lesson_name_source: cleanName,
+        topic_source: topic,
+        occurrences: [{ week_raw: mWeek ? mWeek[1].trim() : '1', periods_raw: mPeriods ? mPeriods[1].trim() : '1' }],
+        outcomes
+      });
+    }
+  }
+  return Array.from(lessonsMap.values());
+}
+
 const PPCT_STATUS={new:['Bài mới','approved'],changed:['Có thay đổi','pending_review'],unchanged:['Giữ nguyên','draft'],conflict:['Xung đột — bỏ qua','needs_review']};
 function ppctImportCard(g){
  const imp=store.ppctImport, r=imp&&imp.report;
- const rows=r?r.lessons.map(x=>{const [label,cls]=PPCT_STATUS[x.status]||[x.status,''];
+ const lessonsList=(r&&Array.isArray(r.lessons))?r.lessons:[];
+ const sm=(r&&r.summary)?r.summary:{new:0,changed:0,unchanged:0,conflict:0};
+ const gradesList=(r&&Array.isArray(r.grades))?r.grades:[g];
+ const issuesList=(r&&Array.isArray(r.issues))?r.issues:[];
+ const rows=lessonsList.map(x=>{
+   const [label,cls]=PPCT_STATUS[x.status]||[x.status,''];
    const detail=x.status==='conflict'?esc(x.conflict?.reason||'')+(x.conflict?.outcomes?`<ul>${x.conflict.outcomes.map(o=>`<li>${esc(o)}</li>`).join('')}</ul>`:'')
-     :(x.changes||[]).map(c=>`<div><strong>${esc(c.field)}:</strong> ${Array.isArray(c.new)?`${c.old.length} → ${c.new.length} YCCĐ<ul>${c.new.filter(o=>!c.old.includes(o)).map(o=>`<li>+ ${esc(o)}</li>`).join('')}${c.old.filter(o=>!c.new.includes(o)).map(o=>`<li>− ${esc(o)}</li>`).join('')}</ul>`:`${esc(c.old)} → ${esc(c.new)}`}</div>`).join('')||(x.status==='new'?`${x.outcomes.length} YCCĐ · ${x.occurrences} lần dạy`:'');
-   return `<tr><td><span class="badge ${cls}">${esc(label)}</span></td><td>Khối ${esc(x.grade)} · <strong>${esc(x.lesson_code)}</strong></td><td>${esc(x.lesson_name)}<p class="small muted">${esc(x.topic)}</p></td><td class="small">${detail}</td></tr>`;}).join(''):'';
- const sm=r?r.summary:null;
- return `<div class="card"><h2>Nhập PPCT từ Word hoặc JSON</h2>
-  <p class="muted">Word: tệp KHDH Phụ lục 1 của tổ (bảng có cột Tuần, Bài học, Số tiết, PPCT, Yêu cầu cần đạt…). JSON: <code>{"lessons":[{"grade","lesson_code","lesson_name_source","topic_source","outcomes":[…]}]}</code> hoặc tệp xuất ngân hàng. Khối của tệp Word lấy theo tên tệp (TIN 8…), nếu không có thì lấy khối đang chọn (Khối ${esc(g)}).</p>
-  <div class="actions"><input type="file" id="ppct-import-file" accept=".docx,.json"><button type="button" class="button" id="ppct-import-inspect">Đọc và đối chiếu</button>
+     :(x.changes||[]).map(c=>`<div><strong>${esc(c.field)}:</strong> ${Array.isArray(c.new)?`${c.old.length} → ${c.new.length} YCCĐ<ul>${c.new.filter(o=>!c.old.includes(o)).map(o=>`<li>+ ${esc(o)}</li>`).join('')}${c.old.filter(o=>!c.new.includes(o)).map(o=>`<li>− ${esc(o)}</li>`).join('')}</ul>`:`${esc(c.old)} → ${esc(c.new)}`}</div>`).join('')||(x.status==='new'?`${(x.outcomes||[]).length} YCCĐ · ${x.occurrences||1} lần dạy`:'');
+   return `<tr><td><span class="badge ${cls}">${esc(label)}</span></td><td>Khối ${esc(x.grade)} · <strong>${esc(x.lesson_code)}</strong></td><td>${esc(x.lesson_name)}<p class="small muted">${esc(x.topic||"")}</p></td><td class="small">${detail}</td></tr>`;
+ }).join('');
+ return `<div class="card"><h2>Nhập PPCT từ JSON, Markdown hoặc Word</h2>
+  <p class="muted">Khuyên dùng <strong>JSON</strong> (chuẩn xác 100%) hoặc <strong>Markdown (.md)</strong> (dễ đọc/sửa) để nạp tức thì và tránh lỗi định dạng ngầm của Word. Vẫn hỗ trợ tệp Word KHDH Phụ lục 1 (.docx). Khối lớp tự động nhận diện theo tên tệp hoặc theo Khối ${esc(g)} đang chọn.</p>
+  <div style="display:flex;gap:10px;margin:10px 0 14px;flex-wrap:wrap">
+    <button type="button" class="button quiet" id="ppct-download-json-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📥 Tải mẫu PPCT (JSON)</button>
+    <button type="button" class="button quiet" id="ppct-download-md-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📝 Tải mẫu PPCT (Markdown)</button>
+    <button type="button" class="button quiet" id="ppct-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI tạo PPCT</button>
+  </div>
+  <div class="actions"><input type="file" id="ppct-import-file" accept=".docx,.json,.md,.txt"><button type="button" class="button" id="ppct-import-inspect">Đọc và đối chiếu</button>
   ${r?`<button type="button" class="primary" id="ppct-import-apply" ${sm.new+sm.changed?'':'disabled'}>Xác nhận nhập (${sm.new} bài mới, ${sm.changed} bài thay đổi)</button><button type="button" class="quiet" id="ppct-import-cancel">Hủy</button>`:''}</div>
-  ${r?`<p class="callout">Tệp ${esc(r.filename)} · Khối ${r.grades.map(esc).join(', ')} · ${r.lessons.length} bài: ${sm.new} mới, ${sm.changed} thay đổi, ${sm.unchanged} giữ nguyên, ${sm.conflict} xung đột. Bài xung đột được bỏ qua; bài đang có mà tệp không nhắc đến được giữ nguyên.</p>
-  ${r.issues.length?`<ul class="mx-errors">${r.issues.map(i=>`<li>${esc(i.message)}</li>`).join('')}</ul>`:''}
-  <div class="table-wrap"><table><thead><tr><th>Kết quả</th><th>Mã bài</th><th>Bài / chủ đề</th><th>Chi tiết</th></tr></thead><tbody>${rows}</tbody></table></div>`:''}
+  ${r?`<p class="callout">Tệp ${esc(r.filename||'Đã nạp')} · Khối ${gradesList.map(esc).join(', ')} · ${lessonsList.length} bài: ${sm.new} mới, ${sm.changed} thay đổi, ${sm.unchanged} giữ nguyên, ${sm.conflict} xung đột. Bài xung đột được bỏ qua; bài đang có mà tệp không nhắc đến được giữ nguyên.</p>
+  ${issuesList.length?`<ul class="mx-errors">${issuesList.map(i=>`<li>${esc(i.message||i)}</li>`).join('')}</ul>`:''}
+  <div class="table-wrap"><table><thead><tr><th>Kết quả</th><th>Mã bài</th><th>Bài / chủ đề</th><th>Chi tiết</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="empty" style="text-align:center;padding:16px">Không tìm thấy danh mục bài học PPCT trong tệp này. Nếu đây là tệp Đề thi / Ma trận, thầy/cô vui lòng dùng nút "✨ AI Nhập đề" trên thanh trên cùng để nạp câu hỏi vào ngân hàng.</td></tr>'}</tbody></table></div>`:""}
  </div>`;
 }
 function bindPpctImport(g){
  const read=async()=>{
    const file=$('#ppct-import-file')?.files?.[0];
-   if(!file)throw new Error('Chọn tệp Word (.docx) hoặc JSON trước.');
-   if(file.name.toLowerCase().endsWith('.json'))return {filename:file.name,grade:g,subject_name:subject(),json:JSON.parse(await file.text())};
+   if(!file)throw new Error('Chọn tệp JSON, Markdown (.md) hoặc Word (.docx) trước.');
+
+   // Nhận diện Khối lớp tự động từ tên tệp (ví dụ: TIN 9, KHOI 9, LOP 9, K9)
+   let detectedGrade = Number(g || store.ppctGrade || 9);
+   const mGrade = file.name.match(/(?:TIN|KHỐI|KHOI|LỚP|LOP|K)\s*(\d+)/i);
+   if (mGrade) {
+     detectedGrade = Number(mGrade[1]);
+   }
+
+   if(file.name.toLowerCase().endsWith('.json')) {
+     return {filename:file.name,grade:detectedGrade,subject_name:subject(),json:JSON.parse(await file.text())};
+   }
+
+   if(file.name.toLowerCase().endsWith('.md') || file.name.toLowerCase().endsWith('.txt')) {
+     const text = await file.text();
+     const parsedLessons = parsePpctFromMarkdown(text, detectedGrade);
+     if (!parsedLessons.length) {
+       throw new Error(`Không tìm thấy cấu trúc bảng hoặc danh sách bài học Markdown hợp lệ trong tệp ${file.name}.`);
+     }
+     return {filename:file.name,grade:detectedGrade,subject_name:subject(),json:{lessons:parsedLessons}};
+   }
+
    if(file.size>8*1024*1024)throw new Error('Tệp Word phải nhỏ hơn 8 MB.');
+
+   let extractedText = '';
+   let extractedHtml = '';
+   if (typeof mammoth !== 'undefined' && file.name.toLowerCase().endsWith('.docx')) {
+     try {
+       const ab = await file.arrayBuffer();
+       const resText = await mammoth.extractRawText({ arrayBuffer: ab });
+       extractedText = resText.value || '';
+       const resHtml = await mammoth.convertToHtml({ arrayBuffer: ab });
+       extractedHtml = resHtml.value || '';
+     } catch (e) {
+       console.warn('Lỗi mammoth:', e);
+     }
+   }
+
+   // Nếu tên tệp chưa có, kiểm tra trong nội dung văn bản
+   if (!mGrade && extractedText) {
+     const mTextGrade = extractedText.match(/(?:KHỐI\s*LỚP|KHỐI|LỚP)\s*(\d+)/i);
+     if (mTextGrade) detectedGrade = Number(mTextGrade[1]);
+   }
+
    const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});
-   return {filename:file.name,content_base64:base64,subject_name:subject(),...(/TIN\s*\d/i.test(file.name)?{}:{grade:g})};
+   return {
+     filename: file.name,
+     content_base64: base64,
+     extracted_text: extractedText,
+     extracted_html: extractedHtml,
+     grade: detectedGrade,
+     subject_name: subject()
+   };
  };
  const inspect=$('#ppct-import-inspect');
  if(inspect)inspect.onclick=async()=>{try{const payload=await read();const report=await request('/api/ppct/inspect-import',payload);store.ppctImport={payload,report};renderPPCT();}catch(err){notify(err.message,true);}};
  const apply=$('#ppct-import-apply');
- if(apply)apply.onclick=async()=>{const imp=store.ppctImport;try{const result=await request('/api/ppct/apply-import',{...imp.payload,expected_sha256:imp.report.sha256});store.bank=result.bank;store.ppctImport=null;renderPPCT();notify(`Đã nhập PPCT: ${result.summary.new} bài mới, ${result.summary.changed} bài cập nhật, ${result.summary.conflict} bài xung đột được giữ nguyên.`);}catch(err){notify(err.message,true);}};
+ if(apply)apply.onclick=async()=>{
+   const imp=store.ppctImport;
+   try{
+     const result=await request('/api/ppct/apply-import',{
+       ...imp.payload,
+       lessons: imp.report.lessons,
+       expected_sha256: imp.report.sha256
+     });
+     store.bank=result.bank;
+     store.ppctImport=null;
+     store.ppctGrade=Number(imp.payload.grade || imp.report.grades?.[0] || 9);
+     renderPPCT();
+     notify(`Đã nhập thành công PPCT Khối ${store.ppctGrade} (${imp.report.lessons.length} bài học)!`);
+   }catch(err){
+     notify(err.message,true);
+   }
+ };
  const cancel=$('#ppct-import-cancel');
  if(cancel)cancel.onclick=()=>{store.ppctImport=null;renderPPCT();};
+
+ const dlJson = $('#ppct-download-json-sample');
+ if (dlJson) {
+   dlJson.onclick = () => {
+     const curGrade = Number(g || store.ppctGrade || 9);
+     const sample = {
+       grade: curGrade,
+       subject_name: subject(),
+       lessons: [
+         {
+           grade: curGrade,
+           lesson_code: "B1",
+           lesson_name_source: "Thế giới kĩ thuật số",
+           topic_source: "Chủ đề 1: Máy tính và cộng đồng",
+           occurrences: [{ week_raw: "1", periods_raw: "1, 2" }],
+           outcomes: [
+             "Nhận biết được một số thiết bị số thông dụng.",
+             "Nêu được ví dụ về thông tin trong môi trường số.",
+             "Giải thích được ích lợi của việc sử dụng thiết bị số trong học tập và đời sống."
+           ]
+         },
+         {
+           grade: curGrade,
+           lesson_code: "B2",
+           lesson_name_source: "Thông tin trong giải quyết vấn đề",
+           topic_source: "Chủ đề 2: Tổ chức lưu trữ, tìm kiếm và trao đổi thông tin",
+           occurrences: [{ week_raw: "2", periods_raw: "3, 4" }],
+           outcomes: [
+             "Sử dụng được các công cụ tìm kiếm nâng cao trên Internet.",
+             "Đánh giá được độ tin cậy của thông tin tìm kiếm được."
+           ]
+         },
+         {
+           grade: curGrade,
+           lesson_code: "KTGK1",
+           lesson_name_source: "Kiểm tra giữa học kì 1",
+           topic_source: "Đánh giá định kỳ",
+           occurrences: [{ week_raw: "9", periods_raw: "18" }],
+           outcomes: [
+             "Đánh giá năng lực học sinh nửa đầu học kì 1 theo ma trận và bảng đặc tả."
+           ]
+         }
+       ]
+     };
+     const blob = new Blob([JSON.stringify(sample, null, 2)], { type: 'application/json' });
+     const url = URL.createObjectURL(blob);
+     const a = document.createElement('a');
+     a.href = url;
+     a.download = `mau_ppct_khoi_${curGrade}.json`;
+     a.click();
+     URL.revokeObjectURL(url);
+     notify(`Đã tải xuống tệp mẫu mau_ppct_khoi_${curGrade}.json!`);
+   };
+ }
+
+ const dlMd = $('#ppct-download-md-sample');
+ if (dlMd) {
+   dlMd.onclick = () => {
+     const curGrade = Number(g || store.ppctGrade || 9);
+     const sampleMd = `# Kế hoạch dạy học & PPCT môn ${subject()} Khối ${curGrade} (GDPT 2018)\n\n| Tuần | Tiết | Bài học | Yêu cầu cần đạt |\n|:---:|:---:|---|---|\n| 1 | 1, 2 | Bài 1: Thế giới kĩ thuật số | - Nhận biết được một số thiết bị số thông dụng.<br>- Nêu được ví dụ về thông tin trong môi trường số.<br>- Giải thích được ích lợi của việc sử dụng thiết bị số trong học tập và đời sống. |\n| 2 | 3, 4 | Bài 2: Thông tin trong giải quyết vấn đề | - Sử dụng được các công cụ tìm kiếm nâng cao trên Internet.<br>- Đánh giá được độ tin cậy của thông tin tìm kiếm được. |\n| 9 | 18 | Kiểm tra giữa học kì 1 | - Đánh giá năng lực học sinh nửa đầu học kì 1 theo ma trận và bảng đặc tả. |\n`;
+     const blob = new Blob([sampleMd], { type: 'text/markdown;charset=utf-8' });
+     const url = URL.createObjectURL(blob);
+     const a = document.createElement('a');
+     a.href = url;
+     a.download = `mau_ppct_khoi_${curGrade}.md`;
+     a.click();
+     URL.revokeObjectURL(url);
+     notify(`Đã tải xuống tệp mẫu mau_ppct_khoi_${curGrade}.md!`);
+   };
+ }
+
+ const copyPrompt = $('#ppct-copy-prompt');
+ if (copyPrompt) {
+   copyPrompt.onclick = async () => {
+     const curGrade = Number(g || store.ppctGrade || 9);
+     const promptText = `Hãy đọc nội dung Kế hoạch dạy học (KHDH Phụ lục 1) môn ${subject()} Khối ${curGrade} dưới đây và xuất ra tệp JSON chuẩn cho hệ thống ExamMatrix Studio:
+{
+  "grade": ${curGrade},
+  "subject_name": "${subject()}",
+  "lessons": [
+    {
+      "grade": ${curGrade},
+      "lesson_code": "B1",
+      "lesson_name_source": "Tên bài học",
+      "topic_source": "Tên chủ đề",
+      "occurrences": [{"week_raw": "1", "periods_raw": "1, 2"}],
+      "outcomes": [
+        "Yêu cầu cần đạt 1",
+        "Yêu cầu cần đạt 2"
+      ]
+    }
+  ]
+}
+Dưới đây là nội dung KHDH cần chuyển đổi:
+[DÁN NỘI DUNG KHDH VÀO ĐÂY]`;
+     try {
+       await navigator.clipboard.writeText(promptText);
+       notify('📋 Đã sao chép câu lệnh mẫu (Prompt) tạo PPCT cho ChatGPT/Gemini!');
+     } catch (e) {
+       notify('Không thể sao chép tự động: ' + e.message, true);
+     }
+   };
+ }
 }
 function openPPCTEditor(grade,code='',subj=''){
  const s = subj || store.ppctSubject || 'Tin học';
@@ -1275,128 +1592,752 @@ function initAiAssistant() {
   const dialog = $('#ai-dialog');
   if (!btn || !dialog) return;
 
-  // Mốc A7: khóa Gemini chỉ nằm ở máy chủ (GEMINI_API_KEY); trình duyệt chỉ hỏi trạng thái.
   const keyStatus = $('#gemini-key-status');
-  let aiConfigured = false;
+  const keyInput = $('#gemini-user-key');
+  const saveKeyBtn = $('#btn-save-gemini-key');
+  const clearKeyBtn = $('#btn-clear-gemini-key');
 
-  async function refreshAiStatus() {
+  const DEFAULT_GEMINI_MODELS = [
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-1.5-flash-8b',
+    'gemini-2.0-flash-lite-preview-02-05'
+  ];
+
+  async function discoverAvailableGeminiModels(apiKey) {
     try {
-      const st = await request('/api/ai/status');
-      aiConfigured = Boolean(st.configured);
-      if (keyStatus) keyStatus.textContent = aiConfigured
-        ? `✓ AI đã được cấu hình. Hôm nay đã dùng ${st.used_today}/${st.daily_limit} lượt.`
-        : 'AI chưa được cấu hình trên máy chủ.';
-    } catch (e) {
-      aiConfigured = false;
-      if (keyStatus) keyStatus.textContent = 'Không kiểm tra được trạng thái AI.';
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const msg = errData?.error?.message || `HTTP ${res.status}`;
+        if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid')) {
+          throw new Error('Chìa khóa Google AI không hợp lệ hoặc đã hết hạn. Thầy/Cô vui lòng lấy chìa khóa mới trên aistudio.google.com.');
+        }
+        throw new Error(msg);
+      }
+      const data = await res.json();
+      const list = (data.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map(m => m.name.replace(/^models\//, ''));
+
+      // Sắp xếp ưu tiên các dòng Flash thế hệ mới
+      const preferred = [
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-2.5-flash-lite',
+        'gemini-1.5-flash-8b',
+        'gemini-2.5-pro'
+      ];
+      const result = [];
+      for (const p of preferred) {
+        if (list.includes(p)) result.push(p);
+      }
+      for (const m of list) {
+        if (!result.includes(m) && (m.includes('flash') || m.includes('pro') || m.includes('gemini'))) {
+          result.push(m);
+        }
+      }
+      return result.length ? result : DEFAULT_GEMINI_MODELS;
+    } catch (err) {
+      console.warn('Lỗi khi truy vấn danh sách models:', err.message);
+      return DEFAULT_GEMINI_MODELS;
     }
-    return aiConfigured;
   }
 
-  async function ensureAiConfigured() {
-    if (aiConfigured || await refreshAiStatus()) return true;
-    notify('AI chưa được cấu hình. Người quản trị cần đặt biến môi trường GEMINI_API_KEY trên máy chủ.', true);
-    return false;
+  async function callGeminiWithAutoFallback(apiKey, requestPayload, onStatusUpdate) {
+    let savedModels = [];
+    try {
+      savedModels = JSON.parse(localStorage.getItem('gemini_available_models') || '[]');
+    } catch(e) {}
+    if (!savedModels.length) {
+      savedModels = await discoverAvailableGeminiModels(apiKey);
+      localStorage.setItem('gemini_available_models', JSON.stringify(savedModels));
+    }
+
+    let lastError = null;
+    const attempted = [];
+
+    for (const modelId of savedModels) {
+      attempted.push(modelId);
+      if (typeof onStatusUpdate === 'function') {
+        onStatusUpdate({ id: modelId, name: modelId });
+      }
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestPayload)
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const errMsg = errData?.error?.message || `HTTP ${res.status}`;
+          throw new Error(`[${modelId}] ${errMsg}`);
+        }
+
+        const data = await res.json();
+        return { data, model: modelId, modelName: modelId, fallbackTriggered: attempted.length > 1 };
+      } catch (err) {
+        console.warn(`[Gemini Auto-Fallback] ${modelId} lỗi:`, err.message);
+        lastError = err;
+      }
+    }
+    throw lastError || new Error(`Đã thử các mô hình (${attempted.join(', ')}) nhưng đều gặp sự cố.`);
   }
 
-  function syncAiLessons(grade, target='m1') {
-    const subj = target === 'm1' ? ($('#ai-m1-subject')?.value || 'Tin học') : ($('#ai-m2-subject')?.value || 'Tin học');
-    const list = lessons(Number(grade), subj);
-    const sel = $(target === 'm1' ? '#ai-m1-lesson-select' : '#ai-m2-lesson-select');
-    if (sel) {
-      sel.innerHTML = opt('', `— Chọn bài học ${subj} khối ${grade} —`, true) +
-        list.map(l => opt(l.lesson_code, `${l.lesson_code} · ${l.lesson_name_source || l.lesson_name || l.name}`)).join('') +
-        (target === 'm1' ? opt('__CUSTOM__', '✏️ Bài học khác (tự nhập)...') : '');
-    }
-    if (target === 'm1') {
-      syncAiOutcomeOptions(list, sel?.value);
-    }
-  }
-
-  function syncAiOutcomeOptions(lessonList, selectedCode) {
-    const outcomeSel = $('#ai-m1-outcome-select');
-    const outcomeText = $('#ai-m1-outcome');
-    if (!outcomeSel) return;
-    const curLesson = (lessonList || []).find(l => l.lesson_code === selectedCode);
-    const outcomes = curLesson?.outcomes || [];
-    if (outcomes.length > 0) {
-      outcomeSel.style.display = 'block';
-      outcomeSel.innerHTML = opt('', `— Gợi ý YCCĐ (${outcomes.length} mục) —`, true) +
-        outcomes.map(o => opt(o, o)).join('');
-      if (outcomeText && (!outcomeText.value || outcomeText.value.trim() === '')) {
-        outcomeText.value = outcomes[0];
+  function checkStoredKey() {
+    const key = localStorage.getItem('gemini_user_api_key');
+    const quickStatus = $('#ai-quick-status-text');
+    if (key && keyInput) {
+      keyInput.value = key;
+      if (keyStatus) {
+        keyStatus.innerHTML = '<span style="color:#2b8a3e">✓ Đã kết nối chìa khóa Google AI an toàn trên máy Thầy/Cô.</span><br><small style="color:#495057;">Tự động chuyển đổi thông minh: <code>gemini-1.5-flash</code> ➔ <code>gemini-2.0-flash</code> ➔ <code>gemini-1.5-pro</code></small>';
+      }
+      if (quickStatus) {
+        quickStatus.innerHTML = '<span style="color:#166534;font-weight:600">Đã kết nối và sẵn sàng nhận diện đề thi ✅</span>';
       }
     } else {
-      outcomeSel.style.display = 'none';
-      outcomeSel.innerHTML = opt('', '— Gợi ý YCCĐ từ bài học —', true);
+      if (keyStatus) {
+        keyStatus.innerHTML = '<span style="color:#b45309">Chưa cài đặt chìa khóa. Thầy/Cô làm theo 3 bước hướng dẫn bên dưới để nhận miễn phí nhé.</span>';
+      }
+      if (quickStatus) {
+        quickStatus.innerHTML = '<span style="color:#b45309;font-weight:600">Chưa gắn chìa khóa AI (Bấm "Đổi chìa khóa AI" bên phải để kết nối trong 1 phút) ⚠️</span>';
+      }
     }
   }
 
-  function syncAiExistingQuestions() {
-    const sel = $('#ai-m3-select-existing-q');
-    if (!sel) return;
-    const allQs = questions();
-    sel.innerHTML = opt('', '— Chọn một câu hỏi từ ngân hàng —', true) +
-      allQs.slice(0, 100).map(q => opt(q.id, `[Khối ${q.grade} - ${q.lesson_code}] ${esc(q.question.slice(0, 65))}...`)).join('');
+  // Nút chuyển nhanh sang cài đặt chìa khóa
+  const quickKeyBtn = $('#btn-quick-setup-key');
+  if (quickKeyBtn) {
+    quickKeyBtn.onclick = () => {
+      dialog.querySelector('[data-ai-tab="key"]')?.click();
+    };
   }
 
-  btn.onclick = () => {
-    refreshAiStatus();
-    const curSubj = store.selectedSubject || 'Tin học';
-    if ($('#ai-m1-subject')) $('#ai-m1-subject').value = curSubj;
-    if ($('#ai-m2-subject')) $('#ai-m2-subject').value = curSubj;
-    syncAiLessons($('#ai-m1-grade')?.value || 10, 'm1');
-    syncAiLessons($('#ai-m2-grade')?.value || 10, 'm2');
-    syncAiExistingQuestions();
-    dialog.showModal();
+  // Nút Dán câu hỏi mẫu cho giáo viên thử ngay lập tức (kèm công thức LaTeX)
+  const sampleRawBtn = $('#btn-fill-sample-raw');
+  if (sampleRawBtn) {
+    sampleRawBtn.onclick = () => {
+      const rawTextarea = $('#ai-parse-raw-text');
+      if (rawTextarea) {
+        rawTextarea.value = `Câu 1: Phương trình bậc hai $x^2 - 3x + 2 = 0$ có tập nghiệm là:
+A. $\\{1; 2\\}$
+B. $\\{-1; -2\\}$
+C. $\\{1; -2\\}$
+D. $\\{-1; 2\\}$
+Đáp án: A
+
+Câu 2: Cho các phát biểu sau về an toàn thông tin trên mạng Internet:
+a) Cần đặt mật khẩu mạnh gồm chữ hoa, chữ thường, số và ký tự đặc biệt. [Đúng]
+b) Có thể chia sẻ mật khẩu tài khoản học tập cho bạn bè khi cần nhờ làm bài giúp. [Sai]
+c) Không nên nhấp vào các đường liên kết lạ được gửi qua email hoặc tin nhắn. [Đúng]
+d) Mọi thông tin chia sẻ trên mạng xã hội đều hoàn toàn chính xác và đáng tin cậy. [Sai]
+
+Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
+Đáp án: Byte`;
+        notify('Đã dán câu hỏi mẫu (kèm công thức toán LaTeX)! Thầy/Cô bấm "Bắt đầu nhận diện & Xếp câu hỏi" để thử nhé.');
+      }
+    };
+  }
+
+  // Nút Xóa khung soạn thảo
+  const clearRawBtn = $('#btn-clear-raw-text');
+  if (clearRawBtn) {
+    clearRawBtn.onclick = () => {
+      const rawTextarea = $('#ai-parse-raw-text');
+      if (rawTextarea) {
+        rawTextarea.value = '';
+        rawTextarea.focus();
+      }
+    };
+  }
+
+  // Xử lý Tải tệp lên (.json, .md, .txt) & Kéo thả
+  const dropZone = $('#ai-file-dropzone');
+  const fileInput = $('#ai-file-input');
+  const downloadSampleBtn = $('#btn-download-ai-sample');
+  const downloadSampleJsonBtn = $('#btn-download-sample-json');
+  const downloadSampleMdBtn = $('#btn-download-sample-md');
+  const copyPromptBtn = $('#btn-copy-ai-prompt');
+
+  if (dropZone && fileInput) {
+    dropZone.onclick = () => fileInput.click();
+    dropZone.ondragover = (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#15803d';
+      dropZone.style.background = '#f0fdf4';
+    };
+    dropZone.ondragleave = () => {
+      dropZone.style.borderColor = '#0267b1';
+      dropZone.style.background = '#f0f7ff';
+    };
+    dropZone.ondrop = (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#0267b1';
+      dropZone.style.background = '#f0f7ff';
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        processUploadedAiFile(e.dataTransfer.files[0]);
+      }
+    };
+    fileInput.onchange = () => {
+      if (fileInput.files && fileInput.files[0]) {
+        processUploadedAiFile(fileInput.files[0]);
+      }
+    };
+  }
+
+  function normalizeImportedQuestions(rawItems, grade, subj) {
+    if (!Array.isArray(rawItems)) return [];
+    return rawItems.map((raw) => {
+      const q = { ...raw };
+      q.id = q.id || `K${grade}-GV-${Math.random().toString(36).slice(2, 9)}`;
+      q.grade = Number(q.grade || grade);
+      q.subject_name = q.subject_name || subj;
+      q.lesson_code = q.lesson_code || 'B1';
+      q.review_status = 'draft';
+
+      if (!q.type) {
+        if (q.options && q.options.length) q.type = 'MC';
+        else if (q.statements && q.statements.length) q.type = 'YN';
+        else if (q.short_answer || q.answer) q.type = 'SHORT';
+        else if (q.rubric) q.type = 'ES';
+        else q.type = 'MC';
+      }
+
+      const lvlMap = {
+        'nhận biết': 'Biết', 'b': 'Biết', 'biết': 'Biết', 'knowledge': 'Biết', 'remember': 'Biết',
+        'thông hiểu': 'Hiểu', 'h': 'Hiểu', 'hiểu': 'Hiểu', 'comprehension': 'Hiểu', 'understand': 'Hiểu',
+        'vận dụng': 'Vận dụng', 'vd': 'Vận dụng', 'apply': 'Vận dụng', 'application': 'Vận dụng',
+        'vận dụng cao': 'Vận dụng cao', 'vdc': 'Vận dụng cao', 'analysis': 'Vận dụng cao', 'create': 'Vận dụng cao'
+      };
+      if (q.level) {
+        const lowerLvl = String(q.level).trim().toLowerCase();
+        q.level = lvlMap[lowerLvl] || q.level;
+      } else {
+        q.level = 'Biết';
+      }
+
+      if (q.type === 'MC') {
+        if (q.options && typeof q.options === 'object' && !Array.isArray(q.options)) {
+          q.options = [q.options.A || q.options.a || '', q.options.B || q.options.b || '', q.options.C || q.options.c || '', q.options.D || q.options.d || ''];
+        }
+        if (typeof q.correct === 'string') {
+          const cUpper = q.correct.trim().toUpperCase();
+          q.correct = 'ABCD'.indexOf(cUpper) >= 0 ? 'ABCD'.indexOf(cUpper) : 0;
+        }
+      }
+
+      if (q.type === 'YN' && Array.isArray(q.statements)) {
+        q.statements = q.statements.map((st, si) => ({
+          label: st.label || 'abcd'[si] || 'a',
+          text: st.text || st.content || '',
+          correct: Boolean(st.correct || st.answer === true || String(st.correct).toLowerCase() === 'đúng' || String(st.correct).toLowerCase() === 'true')
+        }));
+      }
+
+      if (q.type === 'SHORT' && !q.short_answer && q.answer) {
+        q.short_answer = String(q.answer);
+      }
+
+      return q;
+    }).filter(q => q && q.question);
+  }
+
+  function extractAnswersFromDocText(text) {
+    const ansMap = {};
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^(?:Câu\s*)?(\d+)[\s.:\-_]+([A-D])$/i);
+      if (m) ansMap[Number(m[1])] = 'ABCD'.indexOf(m[2].toUpperCase());
+      if (lines[i] === 'Câu') {
+        let j = i + 1;
+        const nums = [];
+        while (j < lines.length && /^\d+$/.test(lines[j])) {
+          nums.push(Number(lines[j]));
+          j++;
+        }
+        if (j < lines.length && /^(?:Đáp án|Đáp án đúng)$/i.test(lines[j])) {
+          j++;
+          let k = 0;
+          while (j < lines.length && /^[A-D]$/i.test(lines[j]) && k < nums.length) {
+            ansMap[nums[k]] = 'ABCD'.indexOf(lines[j].toUpperCase());
+            j++;
+            k++;
+          }
+        }
+      }
+    }
+    return ansMap;
+  }
+
+  function parseQuestionsFromRawText(rawText, defaultGrade, defaultSubject) {
+    if (!rawText || typeof rawText !== 'string') return [];
+    const questions = [];
+    const text = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const ansMap = extractAnswersFromDocText(text);
+    // Hỗ trợ tách câu dạng "Câu 1:", "### Câu 1:", "**Câu 1:**", "- Câu 1:"
+    const qSplits = text.split(/\n(?=(?:[#*\s-]*)(?:Câu|Question)\s*[\d]+[:.])/i);
+
+    for (const block of qSplits) {
+      const trimmed = block.trim();
+      if (!trimmed) continue;
+      if (/MA TRẬN|BẢNG ĐẶC TẢ|HƯỚNG DẪN CHẤM|Tỉ lệ % điểm/i.test(trimmed) && !trimmed.includes('A.') && !trimmed.includes('a)')) continue;
+
+      const cleanHeading = trimmed.replace(/^[#*\s-]+/, '');
+      const mHeading = cleanHeading.match(/^(?:Câu|Question)\s*([\d]+)[:.]\s*(.*)/i);
+      if (!mHeading) continue;
+      const qNum = Number(mHeading[1]);
+
+      // Trích xuất Mức độ nếu có trong Markdown (ví dụ: *Mức độ:* Thông hiểu, [Mức độ: Vận dụng]...)
+      let extractedLevel = '';
+      const mLevel = trimmed.match(/(?:Mức độ|Level)\s*[:=]?\s*[*_`\[]?\s*(Biết|Hiểu|Thông hiểu|Nhận biết|Vận dụng cao|Vận dụng)/i);
+      if (mLevel) {
+        const lStr = mLevel[1].toLowerCase();
+        if (lStr.includes('cao')) extractedLevel = 'Vận dụng cao';
+        else if (lStr.includes('vận dụng') || lStr.includes('van dung')) extractedLevel = 'Vận dụng';
+        else if (lStr.includes('hiểu') || lStr.includes('hieu')) extractedLevel = 'Hiểu';
+        else if (lStr.includes('biết') || lStr.includes('biet')) extractedLevel = 'Biết';
+      }
+
+      // Trích xuất Bài học nếu có (ví dụ: *Bài học:* B2, *Bài:* 2, [Bài 1]...)
+      let extractedLesson = '';
+      const mLesson = trimmed.match(/(?:Bài học|Bài|Lesson)\s*[:=]?\s*[*_`\[]?\s*(?:B\s*)?(\d+[a-zA-Z]?)/i);
+      if (mLesson) {
+        extractedLesson = 'B' + mLesson[1];
+      }
+
+      // Trích xuất Lời giải / Giải thích nếu có
+      let extractedExplanation = '';
+      const mExp = trimmed.match(/(?:Lời giải|Giải thích|Explanation|Hướng dẫn giải)\s*[:=]?\s*[*_`]?\s*(.*?)(?=\n\s*(?:[*_`]*(?:Mức độ|Bài|YCCĐ)|$))/is);
+      if (mExp) {
+        extractedExplanation = mExp[1].trim();
+      }
+
+      const optMatches = [...trimmed.matchAll(/(?:^|\n)\s*(?:[-*]\s*)?([A-D])[\.\)]\s*(.*?)(?=(?:\n\s*(?:[-*]\s*)?[A-D][\.\)]|\n\s*(?:[-*]\s*)?[*_`]*(?:Đáp án|Đáp án đúng|Answer|Chọn|Lời giải|Giải thích|Mức độ|Bài)|\s*$))/gs)];
+      const ynMatches = [...trimmed.matchAll(/(?:^|\n)\s*(?:[-*]\s*)?([a-d])[\.\)]\s*(.*?)(?:\[|\()([*_`]*)(Đúng|Sai|True|False)([*_`]*)(?:\]|\))/gi)];
+
+      if (ynMatches.length >= 2) {
+        const qText = trimmed.split(/(?:^|\n)\s*(?:[-*]\s*)?[a-d][\.\)]/i)[0]
+          .replace(/^[#*\s-]+/, '')
+          .replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '')
+          .replace(/\*\*$/, '')
+          .trim();
+        questions.push({
+          id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
+          grade: defaultGrade,
+          subject_name: defaultSubject,
+          lesson_code: extractedLesson || 'B1',
+          type: 'YN',
+          level: extractedLevel || 'Hiểu',
+          question: qText || 'Cho các mệnh đề sau:',
+          statements: ynMatches.map(m => ({
+            label: m[1].toLowerCase(),
+            text: m[2].trim().replace(/\*\*$/, ''),
+            correct: /Đúng|True/i.test(m[4])
+          })),
+          review_status: 'draft'
+        });
+      } else if (optMatches.length >= 2) {
+        const firstOptIndex = trimmed.search(/(?:^|\n)\s*(?:[-*]\s*)?[A-D][\.\)]/);
+        const qText = trimmed.slice(0, firstOptIndex)
+          .replace(/^[#*\s-]+/, '')
+          .replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '')
+          .replace(/\*\*$/, '')
+          .trim();
+        const options = optMatches.slice(0, 4).map(m => m[2].trim().replace(/\*\*$/, ''));
+        while (options.length < 4) options.push('');
+
+        let correct = 0;
+        const ansMatch = trimmed.match(/(?:Đáp án|Đáp án đúng|Answer|Chọn)\s*[:=]?\s*[*_`\[\s]*([A-D])[*_`\]\s]*/i);
+        if (ansMatch) {
+          correct = 'ABCD'.indexOf(ansMatch[1].toUpperCase());
+          if (correct < 0) correct = 0;
+        } else if (ansMap[qNum] !== undefined) {
+          correct = ansMap[qNum];
+        }
+
+        const expList = ['', '', '', ''];
+        if (extractedExplanation) {
+          expList[correct] = extractedExplanation;
+        }
+
+        questions.push({
+          id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
+          grade: defaultGrade,
+          subject_name: defaultSubject,
+          lesson_code: extractedLesson || 'B1',
+          type: 'MC',
+          level: extractedLevel || 'Biết',
+          question: qText,
+          options,
+          correct,
+          option_explanations: expList,
+          review_status: 'draft'
+        });
+      } else {
+        const ansMatch = trimmed.match(/(?:Đáp án|Đáp án đúng|Answer|Trả lời)\s*[:=]\s*[*_`]?([^\n*_`]+)/i);
+        if (ansMatch) {
+          const qText = trimmed.slice(0, ansMatch.index)
+            .replace(/^[#*\s-]+/, '')
+            .replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '')
+            .trim();
+          questions.push({
+            id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
+            grade: defaultGrade,
+            subject_name: defaultSubject,
+            lesson_code: extractedLesson || 'B1',
+            type: 'SHORT',
+            level: extractedLevel || 'Vận dụng',
+            question: qText,
+            short_answer: ansMatch[1].trim(),
+            review_status: 'draft'
+          });
+        } else {
+          const qText = trimmed
+            .replace(/^[#*\s-]+/, '')
+            .replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '')
+            .trim();
+          if (qText.length > 15) {
+            questions.push({
+              id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
+              grade: defaultGrade,
+              subject_name: defaultSubject,
+              lesson_code: extractedLesson || 'B1',
+              type: 'ES',
+              level: extractedLevel || 'Vận dụng',
+              question: qText,
+              max_score: 1,
+              review_status: 'draft'
+            });
+          }
+        }
+      }
+    }
+    return questions;
+  }
+
+  function displayParsedQuestions(questionsList, grade, subj) {
+    window._aiParsedQuestions = questionsList;
+    const reviewCount = $('#ai-review-count');
+    if (reviewCount) reviewCount.textContent = questionsList.length;
+    const foundCount = $('#ai-found-count');
+    if (foundCount) foundCount.textContent = questionsList.length;
+
+    const resContainer = $('#ai-parsed-results-container');
+    if (resContainer) {
+      resContainer.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 12px;background:#f1f3f5;border-radius:6px;">
+          <span style="font-size:13px;"><strong>Đã nhận diện thành công ${questionsList.length} câu hỏi.</strong></span>
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="quiet" id="btn-ai-select-all" style="font-size:11px;">🔘 Chọn tất cả</button>
+            <button type="button" class="quiet" id="btn-ai-deselect-all" style="font-size:11px;">⚪ Bỏ chọn tất cả</button>
+          </div>
+        </div>
+        ${questionsList.map((q, idx) => buildQuestionCardHtml(q, idx, 'aiparse')).join('')}
+      `;
+
+      bindCardEvents(resContainer, questionsList, 'aiparse', grade, questionsList[0]?.lesson_code || 'B1', subj);
+
+      const selAll = $('#btn-ai-select-all');
+      const deselAll = $('#btn-ai-deselect-all');
+      if (selAll) selAll.onclick = () => resContainer.querySelectorAll('.aiparse-select-chk').forEach(c => c.checked = true);
+      if (deselAll) deselAll.onclick = () => resContainer.querySelectorAll('.aiparse-select-chk').forEach(c => c.checked = false);
+
+      setTimeout(() => renderLatex(resContainer), 50);
+    }
+
+    dialog.querySelector('[data-ai-tab="results"]')?.click();
+  }
+
+  async function processUploadedAiFile(file) {
+    if (!file) return;
+    const grade = Number($('#ai-parse-grade')?.value || 10);
+    const subj = $('#ai-parse-subject')?.value || 'Tin học';
+    const filename = file.name.toLowerCase();
+
+    // Tự động nhận diện khối từ tên tệp (ví dụ: TIN 9, KHOI 9, K9)
+    const mGrade = file.name.match(/(?:TIN|KHỐI|KHOI|LỚP|LOP|K)\s*(\d+)/i);
+    const effectiveGrade = mGrade ? Number(mGrade[1]) : grade;
+    if (mGrade && $('#ai-parse-grade')) {
+      $('#ai-parse-grade').value = String(effectiveGrade);
+    }
+
+    try {
+      let text = '';
+      if (filename.endsWith('.docx')) {
+        if (typeof mammoth !== 'undefined') {
+          const ab = await file.arrayBuffer();
+          const res = await mammoth.extractRawText({ arrayBuffer: ab });
+          text = res.value || '';
+        } else {
+          throw new Error('Thư viện đọc Word (.docx) đang nạp, thầy/cô vui lòng thử lại sau 2 giây.');
+        }
+      } else {
+        text = await file.text();
+      }
+
+      if (filename.endsWith('.json')) {
+        let parsed;
+        try {
+          parsed = JSON.parse(text);
+        } catch (e) {
+          throw new Error('Tệp JSON không hợp lệ hoặc bị lỗi cú pháp: ' + e.message);
+        }
+        const rawItems = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.bank?.questions || parsed.items || []);
+        if (!rawItems.length) {
+          throw new Error('Tệp JSON không chứa danh sách câu hỏi hợp lệ.');
+        }
+        const questionsList = normalizeImportedQuestions(rawItems, effectiveGrade, subj);
+        displayParsedQuestions(questionsList, effectiveGrade, subj);
+        notify(`🎉 Đã đọc thành công ${questionsList.length} câu hỏi từ tệp JSON! Thầy/Cô kiểm tra lại rồi bấm nút Lưu nhé.`);
+      } else {
+        const rawTextarea = $('#ai-parse-raw-text');
+        if (rawTextarea) rawTextarea.value = text;
+
+        const localParsed = parseQuestionsFromRawText(text, effectiveGrade, subj);
+        if (localParsed.length >= 1) {
+          displayParsedQuestions(localParsed, effectiveGrade, subj);
+          notify(`🎉 Đã tự động nhận diện thành công ${localParsed.length} câu hỏi từ tệp ${file.name}! Thầy/Cô có thể Lưu ngay hoặc bấm "Bắt đầu nhận diện bằng AI" nếu muốn ánh xạ sâu.`);
+        } else {
+          notify(`Đã nạp nội dung tệp ${file.name} vào khung soạn thảo. Thầy/Cô bấm nút "Bắt đầu nhận diện & Xếp câu hỏi" bên dưới nhé.`);
+        }
+      }
+    } catch (err) {
+      notify('Lỗi khi đọc tệp: ' + err.message, true);
+    }
+  }
+
+  // Tải mẫu JSON câu hỏi
+  const triggerDownloadSampleJson = () => {
+    const curGrade = Number($('#ai-parse-grade')?.value || 9);
+    const sampleData = [
+      {
+        "type": "MC",
+        "level": "Biết",
+        "lesson_code": "B1",
+        "question": "Thiết bị nào sau đây là thiết bị vào của máy tính?",
+        "options": ["Màn hình", "Chuột", "Máy in", "Loa"],
+        "correct": 1,
+        "option_explanations": ["", "Chuột là thiết bị vào dùng để điều khiển con trỏ và đưa thao tác vào máy tính.", "", ""]
+      },
+      {
+        "type": "YN",
+        "level": "Hiểu",
+        "lesson_code": "B1",
+        "question": "Cho các phát biểu sau về an toàn thông tin trên mạng Internet:",
+        "statements": [
+          { "label": "a", "text": "Cần đặt mật khẩu mạnh gồm chữ hoa, chữ thường, số và ký tự đặc biệt.", "correct": true },
+          { "label": "b", "text": "Có thể chia sẻ mật khẩu tài khoản học tập cho người lạ khi được yêu cầu.", "correct": false },
+          { "label": "c", "text": "Không nên nhấp vào các đường liên kết lạ hoặc tệp đính kèm đáng ngờ.", "correct": true },
+          { "label": "d", "text": "Mọi thông tin chia sẻ trên mạng xã hội đều hoàn toàn chính xác.", "correct": false }
+        ]
+      },
+      {
+        "type": "SHORT",
+        "level": "Vận dụng",
+        "lesson_code": "B1",
+        "question": "Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?",
+        "short_answer": "Byte"
+      }
+    ];
+    const blob = new Blob([JSON.stringify(sampleData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `exammatrix_mau_cau_hoi_khoi_${curGrade}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notify(`Đã tải xuống tệp mẫu exammatrix_mau_cau_hoi_khoi_${curGrade}.json!`);
   };
 
-  $('#ai-m1-subject')?.addEventListener('change', () => syncAiLessons($('#ai-m1-grade')?.value || 10, 'm1'));
-  $('#ai-m1-grade')?.addEventListener('change', () => syncAiLessons($('#ai-m1-grade')?.value || 10, 'm1'));
-  $('#ai-m1-lesson-select')?.addEventListener('change', (e) => {
-    const subj = $('#ai-m1-subject')?.value || 'Tin học';
-    const grd = Number($('#ai-m1-grade')?.value || 10);
-    const list = lessons(grd, subj);
-    syncAiOutcomeOptions(list, e.target.value);
-  });
-  $('#ai-m1-outcome-select')?.addEventListener('change', (e) => {
-    if (e.target.value && $('#ai-m1-outcome')) {
-      $('#ai-m1-outcome').value = e.target.value;
-    }
-  });
+  if (downloadSampleBtn) downloadSampleBtn.onclick = triggerDownloadSampleJson;
+  if (downloadSampleJsonBtn) downloadSampleJsonBtn.onclick = triggerDownloadSampleJson;
 
-  $('#ai-m2-subject')?.addEventListener('change', () => syncAiLessons($('#ai-m2-grade')?.value || 10, 'm2'));
-  $('#ai-m2-grade')?.addEventListener('change', () => syncAiLessons($('#ai-m2-grade')?.value || 10, 'm2'));
+  // Tải mẫu Markdown (.md) câu hỏi
+  if (downloadSampleMdBtn) {
+    downloadSampleMdBtn.onclick = () => {
+      const curGrade = Number($('#ai-parse-grade')?.value || 9);
+      const sampleMd = `# Ngân hàng câu hỏi Tin học Khối ${curGrade}
 
-  $('#ai-m3-select-existing-q')?.addEventListener('change', (e) => {
-    const qId = e.target.value;
-    if (!qId) return;
-    const qObj = questions().find(q => q.id === qId);
-    if (qObj) {
-      $('#ai-m3-question-json').value = JSON.stringify(qObj, null, 2);
-    }
-  });
+### Câu 1: Thiết bị nào sau đây là thiết bị vào của máy tính?
+- A. Màn hình
+- B. Chuột
+- C. Máy in
+- D. Loa
+*Đáp án:* B
+*Mức độ:* Biết
+*Bài học:* B1
+*Lời giải:* Chuột là thiết bị vào dùng để điều khiển và nhập thao tác của người dùng.
 
+### Câu 2: Cho các phát biểu sau về an toàn thông tin trên mạng Internet:
+- a) Cần đặt mật khẩu mạnh gồm chữ hoa, chữ thường, số và ký tự đặc biệt. [Đúng]
+- b) Có thể chia sẻ mật khẩu tài khoản học tập cho người lạ khi được yêu cầu. [Sai]
+- c) Không nên nhấp vào các đường liên kết lạ hoặc tệp đính kèm đáng ngờ. [Đúng]
+- d) Mọi thông tin chia sẻ trên mạng xã hội đều hoàn toàn chính xác. [Sai]
+*Mức độ:* Hiểu
+*Bài học:* B1
+
+### Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
+*Đáp án:* Byte
+*Mức độ:* Vận dụng
+*Bài học:* B1
+
+### Câu 4: Em hãy nêu hai biện pháp phòng chống mã độc bảo vệ máy tính.
+*Mức độ:* Vận dụng
+*Bài học:* B1
+*Barem:*
+- Cài đặt và cập nhật phần mềm diệt virus định kỳ: 0.5 điểm
+- Không bấm vào đường liên kết hoặc tệp đính kèm lạ: 0.5 điểm
+`;
+      const blob = new Blob([sampleMd], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `exammatrix_mau_cau_hoi_khoi_${curGrade}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      notify(`Đã tải xuống tệp mẫu exammatrix_mau_cau_hoi_khoi_${curGrade}.md!`);
+    };
+  }
+
+  // Chép Prompt AI
+  if (copyPromptBtn) {
+    copyPromptBtn.onclick = async () => {
+      const curGrade = Number($('#ai-parse-grade')?.value || 9);
+      const curSubj = $('#ai-parse-subject')?.value || 'Tin học';
+      const promptContent = `Hãy chuyển đổi toàn bộ câu hỏi trong đề thi / tài liệu sau thành định dạng JSON chuẩn cho hệ thống ExamMatrix Studio môn ${curSubj} Khối ${curGrade}:
+[
+  {
+    "type": "MC",
+    "level": "Biết",
+    "lesson_code": "B1",
+    "question": "Nội dung câu hỏi (chấp nhận công thức LaTeX $...$ nếu có)",
+    "options": ["Phương án A", "Phương án B", "Phương án C", "Phương án D"],
+    "correct": 0,
+    "option_explanations": ["Giải thích đáp án đúng nếu có"]
+  },
+  {
+    "type": "YN",
+    "level": "Hiểu",
+    "lesson_code": "B1",
+    "question": "Câu dẫn của câu Đúng/Sai...",
+    "statements": [
+      {"label": "a", "text": "Nội dung ý a", "correct": true},
+      {"label": "b", "text": "Nội dung ý b", "correct": false},
+      {"label": "c", "text": "Nội dung ý c", "correct": true},
+      {"label": "d", "text": "Nội dung ý d", "correct": false}
+    ]
+  },
+  {
+    "type": "SHORT",
+    "level": "Vận dụng",
+    "lesson_code": "B1",
+    "question": "Câu hỏi trả lời ngắn...",
+    "short_answer": "Đáp án trả lời ngắn"
+  }
+]
+Dưới đây là đề thi cần chuyển đổi:
+[DÁN ĐỀ THI CỦA THẦY/CÔ VÀO ĐÂY]`;
+      try {
+        await navigator.clipboard.writeText(promptContent);
+        notify('📋 Đã sao chép câu lệnh mẫu (Prompt) cho ChatGPT/Gemini vào bộ nhớ đệm!');
+      } catch (e) {
+        notify('Không thể sao chép tự động: ' + e.message, true);
+      }
+    };
+  }
+
+  if (saveKeyBtn) {
+    saveKeyBtn.onclick = async () => {
+      const key = (keyInput ? keyInput.value : '').trim();
+      if (!key) {
+        if (keyStatus) keyStatus.innerHTML = '<span style="color:#d9534f">⚠️ Vui lòng nhập Chìa khóa Google AI.</span>';
+        return;
+      }
+      if (keyStatus) keyStatus.textContent = '⏳ Đang kiểm tra chìa khóa và tìm kiếm mô hình khả dụng...';
+      saveKeyBtn.disabled = true;
+      try {
+        const models = await discoverAvailableGeminiModels(key);
+        if (!models || !models.length) {
+          throw new Error('Không tìm thấy mô hình generateContent nào được bật cho tài khoản này.');
+        }
+
+        // Thử ping model đầu tiên
+        const topModel = models[0];
+        if (keyStatus) keyStatus.textContent = `⏳ Đang thử kết nối mô hình: ${topModel}...`;
+        const pingUrl = `https://generativelanguage.googleapis.com/v1beta/models/${topModel}:generateContent?key=${key}`;
+        const pingRes = await fetch(pingUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: '1+1=' }] }] })
+        });
+        if (!pingRes.ok) {
+          const errData = await pingRes.json().catch(() => ({}));
+          throw new Error(`[${topModel}] ${errData?.error?.message || 'Không thể tạo nội dung'}`);
+        }
+
+        localStorage.setItem('gemini_user_api_key', key);
+        localStorage.setItem('gemini_available_models', JSON.stringify(models));
+
+        if (keyStatus) {
+          keyStatus.innerHTML = `<span style="color:#2b8a3e;font-weight:700">✓ Kết nối thành công với Google Gemini!</span><br><small style="color:#15803d;">Mô hình tối ưu: <strong>${esc(topModel)}</strong> (Đã kích hoạt tự động chuyển đổi giữa ${models.length} mô hình của tài khoản).</small>`;
+        }
+        checkStoredKey();
+        notify(`🎉 Đã lưu chìa khóa Google AI thành công! Mô hình đang dùng: ${topModel}`);
+        setTimeout(() => {
+          dialog.querySelector('[data-ai-tab="parse"]')?.click();
+        }, 1200);
+      } catch(err) {
+        if (keyStatus) keyStatus.innerHTML = `<span style="color:#d9534f">⚠️ Không thể kết nối Gemini: ${esc(err.message)}</span>`;
+      } finally {
+        saveKeyBtn.disabled = false;
+      }
+    };
+  }
+
+  if (clearKeyBtn) {
+    clearKeyBtn.onclick = () => {
+      localStorage.removeItem('gemini_user_api_key');
+      if (keyInput) keyInput.value = '';
+      if (keyStatus) keyStatus.innerHTML = '<span style="color:#6c757d">Đã xóa chìa khóa.</span>';
+      checkStoredKey();
+      notify('Đã xóa chìa khóa Google AI.');
+    };
+  }
 
   // Switch tabs in AI modal
   dialog.querySelectorAll('[data-ai-tab]').forEach(tabBtn => {
     tabBtn.onclick = () => {
       dialog.querySelectorAll('[data-ai-tab]').forEach(b => {
         b.classList.remove('active');
-        b.style.background = '#f5f5f5';
-        b.style.color = '#333';
+        b.style.background = '#f8fafc';
+        b.style.color = '#1e293b';
+        b.style.borderColor = '#dce5ee';
       });
       tabBtn.classList.add('active');
-      tabBtn.style.background = 'var(--brand, #0a58ca)';
+      tabBtn.style.background = '#0267b1';
+      tabBtn.style.borderColor = '#0267b1';
       tabBtn.style.color = '#fff';
 
       const tabId = tabBtn.dataset.aiTab;
       dialog.querySelectorAll('.ai-pane').forEach(p => p.hidden = true);
       const pane = $(`#ai-pane-${tabId}`);
       if (pane) pane.hidden = false;
-      if (tabId === 'mode3') syncAiExistingQuestions();
     };
   });
+
+  btn.onclick = () => {
+    checkStoredKey();
+    const curSubj = store.selectedSubject || 'Tin học';
+    if ($('#ai-parse-subject')) $('#ai-parse-subject').value = curSubj;
+    // Luôn ưu tiên mở thẳng Bước 1: Dán đề thi
+    dialog.querySelector('[data-ai-tab="parse"]')?.click();
+    dialog.showModal();
+  };
 
   function buildQuestionCardHtml(q, idx, prefix) {
     const cid = `${prefix}-${idx}`;
@@ -1405,14 +2346,29 @@ function initAiAssistant() {
     const opts = q.options || ['', '', '', ''];
     const corr = q.correct;
 
+    const friendlyTypes = {
+      MC: 'Trắc nghiệm 4 lựa chọn (A-B-C-D)',
+      YN: 'Trắc nghiệm Đúng / Sai (4 ý)',
+      SHORT: 'Trả lời ngắn / Điền khuyết',
+      ES: 'Tự luận'
+    };
+    const friendlyLevels = {
+      'Biết': 'Nhận biết',
+      'Hiểu': 'Thông hiểu',
+      'Vận dụng': 'Vận dụng',
+      'Vận dụng cao': 'Vận dụng cao'
+    };
+
     return `
-      <div class="card" id="card-${cid}" style="margin-bottom:14px;padding:14px;background:#fcfdff;border:1px solid #d0dbe5;border-radius:8px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <label style="font-weight:bold;color:var(--navy,#102d4a);font-size:15px">
-            <input type="checkbox" class="${prefix}-select-chk" data-idx="${idx}" checked style="margin-right:6px">
-            Câu ${idx + 1} (${esc(q.type || 'MC')} - <span id="${cid}-lvl-badge">${esc(q.level || 'Biết')}</span>)
+      <div class="card" id="card-${cid}" style="margin-bottom:14px;padding:16px;background:#ffffff;border:1px solid #dce5ee;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <label style="font-weight:700;color:var(--navy,#102d4a);font-size:15px;display:flex;align-items:center;gap:6px">
+            <input type="checkbox" class="${prefix}-select-chk" data-idx="${idx}" checked>
+            <span>Câu ${idx + 1}</span>
+            <span class="badge" style="background:#eaf3fb;color:#0267b1;font-size:11px;padding:3px 8px">${esc(friendlyTypes[q.type || 'MC'] || q.type)}</span>
+            <span class="badge" style="background:#f1f5f9;color:#475569;font-size:11px;padding:3px 8px">${esc(friendlyLevels[q.level || 'Biết'] || q.level)}</span>
           </label>
-          <button type="button" class="quiet" data-toggle-edit="${cid}" style="font-size:12px;cursor:pointer;color:var(--brand,#0a58ca)">✏️ Chỉnh sửa / Xem lại</button>
+          <button type="button" class="quiet" data-toggle-edit="${cid}" style="font-size:12.5px;cursor:pointer;color:#0267b1;font-weight:600">✏️ Xem chi tiết & Sửa</button>
         </div>
 
         <!-- Preview block -->
@@ -1585,197 +2541,313 @@ function initAiAssistant() {
     });
   }
 
-  // Mode 1: Generate by Learning Outcome
-  const m1Btn = $('#ai-m1-submit-btn');
-  if (m1Btn) {
-    m1Btn.onclick = async () => {
-      if (!(await ensureAiConfigured())) return;
-      const selectedLessonCode = $('#ai-m1-lesson-select')?.value;
-      if (!selectedLessonCode) {
-        notify('Vui lòng chọn bài học từ danh mục PPCT trước khi sinh câu hỏi.', true);
+  // Bóc tách & Chuẩn hóa đề thô trực tiếp bằng Gemini Flash
+  const parseBtn = $('#btn-start-ai-parse');
+  if (parseBtn) {
+    parseBtn.onclick = async () => {
+      const rawText = ($('#ai-parse-raw-text')?.value || '').trim();
+      if (!rawText) {
+        notify('Thầy/Cô vui lòng dán câu hỏi hoặc chọn tệp Word/JSON trước nhé.', true);
         return;
       }
-      const outcome = ($('#ai-m1-outcome').value || '').trim();
-      if (!outcome) {
-        notify('Vui lòng nhập Yêu cầu cần đạt (YCCĐ).', true);
-        return;
+
+      const subj = $('#ai-parse-subject')?.value || 'Tin học';
+      const grade = Number($('#ai-parse-grade')?.value || 10);
+      const msg = $('#ai-parse-msg');
+      const resContainer = $('#ai-parsed-results-container');
+
+      let apiKey = localStorage.getItem('gemini_user_api_key');
+      if (!apiKey) {
+        apiKey = ($('#gemini-user-key')?.value || '').trim();
+        if (apiKey) localStorage.setItem('gemini_user_api_key', apiKey);
       }
-      const grade = Number($('#ai-m1-grade').value);
-      const subject = $('#ai-m1-subject').value;
-      const lessonObj = lessons(grade, subject).find(l => l.lesson_code === selectedLessonCode);
-      const lessonName = lessonObj ? (lessonObj.lesson_name_source || lessonObj.lesson_name || lessonObj.name) : 'Bài học';
 
-      const payload = {
-        grade: grade,
-        subject: subject,
-        level: $('#ai-m1-level').value,
-        question_type: $('#ai-m1-type').value,
-        count: Number($('#ai-m1-count').value || 3),
-        lesson_name: lessonName,
-        learning_outcome: outcome
-      };
-
-      const resBox = $('#ai-m1-results');
-      resBox.innerHTML = '<p class="empty">⏳ Đang kết nối Gemini và sinh câu hỏi...</p>';
-
-      try {
-        const res = await request('/api/ai/generate-by-outcome', payload);
-        const qs = res.questions || [];
-        if (!qs.length) {
-          resBox.innerHTML = '<p class="empty">Không sinh được câu hỏi nào.</p>';
+      // Nếu không có API Key, tự động nhận diện ngoại tuyến bằng Regex
+      if (!apiKey) {
+        const localParsed = parseQuestionsFromRawText(rawText, grade, subj);
+        if (localParsed.length >= 1) {
+          displayParsedQuestions(localParsed, grade, subj);
+          notify(`🎉 Đã nhận diện thành công ${localParsed.length} câu hỏi bằng thuật toán thông minh (Không cần Chìa khóa AI)!`);
           return;
         }
+        notify('Không tìm thấy Chìa khóa AI và chưa thể nhận diện định dạng câu hỏi thô. Thầy/Cô vui lòng kết nối Chìa khóa Google AI hoặc nạp tệp Word/JSON nhé.', true);
+        dialog.querySelector('[data-ai-tab="key"]')?.click();
+        return;
+      }
 
-        resBox.innerHTML = `<p style="margin-bottom:10px"><strong>Sinh thành công ${qs.length} câu hỏi theo YCCĐ. Vui lòng xem lại và chỉnh sửa trước khi lưu:</strong></p>` +
-          qs.map((q, idx) => buildQuestionCardHtml(q, idx, 'm1')).join('');
 
-        bindCardEvents(resBox, qs, 'm1', grade, selectedLessonCode, subject);
-      } catch (err) {
-        resBox.innerHTML = `<p class="danger" style="color:red">Lỗi: ${esc(err.message || 'Không thể tạo câu hỏi')}</p>`;
+      if (msg) msg.textContent = '⏳ AI đang đọc câu hỏi của Thầy/Cô và nhận diện đáp án...';
+      parseBtn.disabled = true;
+
+      try {
+        const listLessons = lessons(grade, subj) || [];
+        const lessonInfo = listLessons.map(l => `${l.lesson_code}: ${l.lesson_name_source || l.lesson_name || l.name}`).join('; ');
+
+        const promptText = `Bạn là Trợ lý Khảo thí & Chuẩn hóa Ngân hàng đề của Trường Quốc tế Á Châu (Asian School), bám sát chương trình GDPT 2018 và Công văn 7991/BGDĐT.
+Nhiệm vụ của bạn là: Đọc văn bản đề thi thô của môn ${subj} Khối ${grade}, bóc tách và chuẩn hóa từng câu hỏi thành mảng đối tượng JSON chuẩn xác.
+
+Danh mục bài học phân phối chương trình của môn ${subj} Khối ${grade}:
+${lessonInfo || 'B1, B2, B3...'}
+
+Yêu cầu phân loại chuẩn:
+1. Dạng câu hỏi (type):
+   - "MC": Trắc nghiệm nhiều lựa chọn (4 phương án). Trả về:
+     question: nội dung câu hỏi (đã bỏ chữ "Câu 1:").
+     options: mảng 4 chuỗi phương án [A, B, C, D] (đã bỏ tiền tố "A. ", "B. ", "C. ", "D. ").
+     correct: số nguyên chỉ số phương án đúng (0 cho A, 1 cho B, 2 cho C, 3 cho D).
+     option_explanations: mảng 4 chuỗi giải thích cho từng phương án nếu có.
+   - "YN": Trắc nghiệm Đúng/Sai (4 ý a, b, c, d). Trả về:
+     question: câu dẫn ngữ cảnh chung.
+     statements: mảng 4 đối tượng [{label: "a", text: "nội dung ý a", correct: true/false}, {label: "b", text: "nội dung ý b", correct: true/false}, ...].
+   - "SHORT": Trả lời ngắn / Điền khuyết. Trả về:
+     question: nội dung câu hỏi.
+     short_answer: đáp án hoặc từ khóa chấp nhận được.
+   - "ES": Tự luận. Trả về:
+     question: đề bài tự luận.
+     rubric: mảng các tiêu chí chấm điểm và điểm thành phần.
+
+2. Mức độ nhận thức (level):
+   - "Biết": Nhận diện, định nghĩa, nhớ lại kiến thức cơ bản.
+   - "Hiểu": Giải thích, phân biệt, so sánh, minh họa.
+   - "Vận dụng": Áp dụng kiến thức/công thức giải bài toán cụ thể.
+   - "Vận dụng cao": Đánh giá, tối ưu hóa, bài toán liên môn/thực tế phức tạp.
+
+3. Ánh xạ Bài học (lesson_code):
+   - Hãy chọn mã bài học (lesson_code) phù hợp nhất từ danh mục bài học ở trên.
+
+Văn bản đề thi thô cần bóc tách:
+${rawText}
+
+Hãy trả về duy nhất mảng JSON các câu hỏi (không thêm bất kỳ lời dẫn nào ngoài JSON):
+[
+  {
+    "type": "MC",
+    "level": "Biết",
+    "lesson_code": "B1",
+    "learning_outcome": "...",
+    "question": "...",
+    "options": ["...", "...", "...", "..."],
+    "correct": 0
+  }
+]`;
+
+        const { data, model: activeModel, fallbackTriggered } = await callGeminiWithAutoFallback(apiKey, {
+          contents: [{ role: 'user', parts: [{ text: promptText }] }],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: 'application/json'
+          }
+        }, (m) => {
+          if (msg) msg.textContent = `⏳ Đang bóc tách dữ liệu với mô hình: ${m.name}...`;
+        });
+
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        let questionsList = JSON.parse(content);
+        if (!Array.isArray(questionsList) && questionsList.questions) {
+          questionsList = questionsList.questions;
+        }
+        if (!Array.isArray(questionsList) || !questionsList.length) {
+          throw new Error('Gemini không bóc tách được câu hỏi nào từ nội dung được cung cấp.');
+        }
+
+        displayParsedQuestions(questionsList, grade, subj);
+        const fallbackNote = fallbackTriggered ? ` (Đã tự động đổi sang mô hình ${activeModel})` : '';
+        if (msg) msg.textContent = `✓ Đã tìm thấy ${questionsList.length} câu hỏi${fallbackNote}. Mời Thầy/Cô xem lại ở Bước 2.`;
+        notify(`🎉 AI đã nhận diện xong ${questionsList.length} câu hỏi! Thầy/Cô kiểm tra lại rồi bấm nút Lưu nhé.`);
+      } catch(err) {
+        console.warn('Lỗi khi gọi Gemini AI, chuyển sang giải thuật ngoại tuyến:', err);
+        const localParsed = parseQuestionsFromRawText(rawText, grade, subj);
+        if (localParsed.length >= 1) {
+          displayParsedQuestions(localParsed, grade, subj);
+          if (msg) msg.innerHTML = `<span style="color:#15803d">✓ Đã nhận diện ngoại tuyến ${localParsed.length} câu hỏi (Google AI bận: ${esc(err.message)})</span>`;
+          notify(`⚠️ Google AI phản hồi: ${err.message}. Hệ thống đã tự động chuyển sang chế độ Ngoại tuyến và lấy được ${localParsed.length} câu hỏi!`);
+        } else {
+          if (msg) msg.innerHTML = `<span style="color:#d9534f">⚠️ Lỗi: ${esc(err.message)}</span>`;
+          notify('Lỗi nhận diện: ' + err.message, true);
+        }
+      } finally {
+        parseBtn.disabled = false;
       }
     };
   }
 
-  // Mode 2: Parse Raw Text
-  const m2Btn = $('#ai-m2-submit-btn');
-  if (m2Btn) {
-    m2Btn.onclick = async () => {
-      if (!(await ensureAiConfigured())) return;
-      const raw = ($('#ai-m2-raw-text').value || '').trim();
-      if (!raw) {
-        notify('Vui lòng dán đề thô vào khung.', true);
+  // Nạp câu hỏi đã bóc tách vào Ngân hàng
+  const importBtn = $('#btn-import-ai-to-bank');
+  if (importBtn) {
+    importBtn.onclick = async () => {
+      const resContainer = $('#ai-parsed-results-container');
+      const selectedChks = Array.from(resContainer ? resContainer.querySelectorAll('.aiparse-select-chk:checked') : []);
+      if (!selectedChks.length) {
+        notify('Chưa chọn câu hỏi nào để nạp.', true);
         return;
       }
-      const grade = Number($('#ai-m2-grade').value);
-      const subject = $('#ai-m2-subject')?.value || 'Tin học';
-      const targetLesson = $('#ai-m2-lesson-select')?.value;
-      if (!targetLesson) {
-        notify('Vui lòng chọn bài học đích để gán câu hỏi bóc tách.', true);
-        return;
-      }
+      const questionsList = window._aiParsedQuestions || [];
+      const grade = Number($('#ai-parse-grade')?.value || 10);
+      const subj = $('#ai-parse-subject')?.value || 'Tin học';
 
-      const resBox = $('#ai-m2-results');
-      resBox.innerHTML = '<p class="empty">⏳ Đang phân tích và bóc tách đề thô...</p>';
-
-      try {
-        const res = await request('/api/ai/parse-raw', { raw_text: raw, grade: grade });
-        const qs = res.questions || [];
-        if (!qs.length) {
-          resBox.innerHTML = '<p class="empty">Không bóc tách được câu hỏi nào từ nội dung thô.</p>';
+      const batch = [];
+      for (const chk of selectedChks) {
+        const idx = Number(chk.dataset.idx);
+        const orig = questionsList[idx];
+        if (!orig) continue;
+        try {
+          const qData = getQuestionFromCard(`aiparse-${idx}`, orig);
+          batch.push({
+            id: `K${grade}-GV-${Math.random().toString(36).slice(2, 10)}`,
+            grade: grade,
+            subject_name: subj,
+            lesson_code: orig.lesson_code || 'B1',
+            review_status: 'draft',
+            origin: 'ai_gemini',
+            ...qData
+          });
+        } catch(e) {
+          notify(`Lỗi ở Câu ${idx + 1}: ${e.message}`, true);
           return;
         }
+      }
 
-        resBox.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px;background:#eef4fa;border-radius:6px">
-            <span><strong>Bóc tách thành công ${qs.length} câu hỏi.</strong></span>
-            <div style="display:flex;gap:8px">
-              <button type="button" class="quiet" id="m2-select-all" style="font-size:12px">🔘 Chọn tất cả</button>
-              <button type="button" class="quiet" id="m2-deselect-all" style="font-size:12px">⚪ Bỏ chọn tất cả</button>
-              <button type="button" class="primary" id="m2-bulk-save" style="font-size:12px;padding:6px 12px">💾 Lưu các câu đã chọn (Chờ duyệt)</button>
-            </div>
-          </div>
-          ${qs.map((q, idx) => buildQuestionCardHtml(q, idx, 'm2')).join('')}
-        `;
-
-        bindCardEvents(resBox, qs, 'm2', grade, targetLesson, subject);
-
-        const selectAllBtn = $('#m2-select-all');
-        const deselectAllBtn = $('#m2-deselect-all');
-        const bulkSaveBtn = $('#m2-bulk-save');
-
-        if (selectAllBtn) {
-          selectAllBtn.onclick = () => {
-            resBox.querySelectorAll('.m2-select-chk').forEach(c => c.checked = true);
-          };
-        }
-        if (deselectAllBtn) {
-          deselectAllBtn.onclick = () => {
-            resBox.querySelectorAll('.m2-select-chk').forEach(c => c.checked = false);
-          };
-        }
-        if (bulkSaveBtn) {
-          bulkSaveBtn.onclick = async () => {
-            const selectedChks = Array.from(resBox.querySelectorAll('.m2-select-chk:checked'));
-            if (!selectedChks.length) {
-              notify('Chưa chọn câu hỏi nào để lưu.', true);
-              return;
-            }
-            const batch = [];
-            for (const chk of selectedChks) {
-              const idx = Number(chk.dataset.idx);
-              try {
-                const qData = getQuestionFromCard(`m2-${idx}`, qs[idx]);
-                batch.push({ idx, q: { id: '', grade: grade, subject_name: subject, lesson_code: targetLesson,
-                  review_status: 'draft', ...qData } });
-              } catch (e) {
-                notify(`Lỗi ở Câu ${idx + 1}: ${e.message}`, true);
-                return;
-              }
-            }
-            bulkSaveBtn.disabled = true;
-            bulkSaveBtn.textContent = '⏳ Đang lưu...';
-            // Một yêu cầu cho cả lô: hoặc lưu hết, hoặc không lưu câu nào.
-            const result = await mutate('/api/ai/save-drafts', { questions: batch.map(b => b.q) });
-            if (!result) {
-              bulkSaveBtn.disabled = false;
-              bulkSaveBtn.textContent = '💾 Lưu các câu đã chọn (Chờ duyệt)';
-              return;
-            }
-            batch.forEach(({ idx }) => {
-              const saveBtn = resBox.querySelector(`[data-save-q="m2-${idx}"]`);
-              if (saveBtn) {
-                saveBtn.textContent = '✅ Đã thêm (Chờ duyệt)';
-                saveBtn.disabled = true;
-              }
-            });
-            bulkSaveBtn.textContent = `✅ Đã lưu ${result.saved.length}/${selectedChks.length} câu (Chờ duyệt)`;
-            notify(`Đã lưu ${result.saved.length} câu hỏi nháp vào bài [${targetLesson}]; cần duyệt trước khi dùng trong đề.`);
-          };
-        }
-      } catch (err) {
-        resBox.innerHTML = `<p class="danger" style="color:red">Lỗi: ${esc(err.message)}</p>`;
+      importBtn.disabled = true;
+      importBtn.textContent = '⏳ Đang nạp...';
+      try {
+        await mutate('/api/bank/import', { bank: { questions: batch } });
+        notify(`✅ Đã nạp thành công ${batch.length} câu hỏi vào Ngân hàng!`);
+        dialog.close();
+      } catch(err) {
+        notify('Lỗi nạp câu hỏi: ' + err.message, true);
+      } finally {
+        importBtn.disabled = false;
+        importBtn.textContent = '📥 Nạp vào Ngân hàng câu hỏi';
       }
     };
   }
 
-  // Mode 3: Generate Variants
-  const m3Btn = $('#ai-m3-submit-btn');
-  if (m3Btn) {
-    m3Btn.onclick = async () => {
-      if (!(await ensureAiConfigured())) return;
-      const qText = ($('#ai-m3-question-json').value || '').trim();
-      if (!qText) {
-        notify('Vui lòng chọn hoặc nhập câu hỏi gốc.', true);
+  // Xuất file JSON (dành cho lưu Google Drive)
+  const exportJsonBtn = $('#btn-export-ai-json');
+  if (exportJsonBtn) {
+    exportJsonBtn.onclick = () => {
+      const qs = window._aiParsedQuestions || [];
+      if (!qs.length) {
+        notify('Chưa có câu hỏi nào để xuất.', true);
         return;
       }
-      let origObj = null;
-      try { origObj = JSON.parse(qText); } catch(e) {}
-      if (!origObj || !origObj.question) {
-        notify('Định dạng câu hỏi gốc chưa hợp lệ. Vui lòng chọn câu hỏi từ danh sách.', true);
-        return;
-      }
-
-      const resBox = $('#ai-m3-results');
-      resBox.innerHTML = '<p class="empty">⏳ Đang sinh các biến thể tương đương...</p>';
-      try {
-        const res = await request('/api/ai/generate-variants', { question: origObj, count: 2 });
-        const vars = res.variants || [];
-        if (!vars.length) {
-          resBox.innerHTML = '<p class="empty">Không sinh được biến thể nào.</p>';
-          return;
-        }
-
-        resBox.innerHTML = `<p style="margin-bottom:10px"><strong>Sinh thành công ${vars.length} biến thể tương đương từ câu hỏi gốc:</strong></p>` +
-          vars.map((v, idx) => buildQuestionCardHtml(v, idx, 'm3')).join('');
-
-        bindCardEvents(resBox, vars, 'm3', origObj.grade || 10, origObj.lesson_code || 'L1', origObj.subject_name || 'Tin học');
-      } catch (err) {
-        resBox.innerHTML = `<p class="danger" style="color:red">Lỗi: ${esc(err.message)}</p>`;
-      }
+      const blob = new Blob([JSON.stringify({ questions: qs }, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `ExamMatrix_AI_Questions_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      notify('Đã tải tệp JSON thành công! Thầy/Cô có thể cất file này lên Google Drive.');
     };
   }
 }
 initAiAssistant();
+
+// Quản lý Sao lưu & Khôi phục Dữ liệu (Google Drive / JSON Backup)
+function initBackupManager() {
+  const btn = $('#btn-backup-data');
+  const dialog = $('#backup-dialog');
+  if (!btn || !dialog) return;
+
+  btn.onclick = () => dialog.showModal();
+
+  // Xuất toàn bộ dữ liệu ra tệp JSON
+  const exportBtn = $('#btn-export-full-backup');
+  if (exportBtn) {
+    exportBtn.onclick = () => {
+      const exportData = {
+        app: 'ExamMatrix Studio',
+        version: '2.0',
+        exported_at: new Date().toISOString(),
+        owner_email: (window.FirebaseState?.user?.email) || 'offline_teacher',
+        bank: store.bank || { questions: [] },
+        revisions: store.revisions || [],
+        exams: store.exams || [],
+        matrices: store.matrixRecords || []
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      const dStr = new Date().toISOString().slice(0, 10);
+      a.href = URL.createObjectURL(blob);
+      a.download = `ExamMatrix_Backup_${dStr}.json`;
+      a.click();
+      notify('Đã xuất toàn bộ dữ liệu ra tệp JSON thành công! Thầy/Cô có thể cất file này lên Google Drive cá nhân.');
+    };
+  }
+
+  // Khôi phục từ tệp JSON
+  const triggerBtn = $('#btn-trigger-restore');
+  const fileInput = $('#input-restore-backup');
+  const statusDiv = $('#restore-status');
+
+  if (triggerBtn && fileInput) {
+    triggerBtn.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const data = JSON.parse(evt.target.result);
+          const bankQs = data.bank?.questions || (Array.isArray(data.bank) ? data.bank : (data.questions || []));
+          const revs = data.revisions || [];
+          const exams = data.exams || [];
+          const mats = data.matrices || [];
+
+          if (!bankQs.length && !revs.length && !exams.length && !mats.length) {
+            alert('Tệp sao lưu rỗng hoặc không đúng định dạng của ExamMatrix Studio.');
+            return;
+          }
+
+          const msg = `Thầy/Cô có muốn khôi phục dữ liệu từ tệp này không?\n\n• ${bankQs.length} câu hỏi ngân hàng\n• ${revs.length} đề cương ôn tập\n• ${exams.length} đề kiểm tra\n• ${mats.length} ma trận & đặc tả\n\nDữ liệu hiện tại sẽ được cập nhật đồng bộ.`;
+          if (!confirm(msg)) return;
+
+          if (store) {
+            store.bank = { ...(store.bank || {}), questions: bankQs };
+            store.revisions = revs;
+            store.exams = exams;
+            store.matrixRecords = mats;
+          }
+
+          if (window.FirebaseState) {
+            window.FirebaseState.currentData = {
+              bank: { ...(window.FirebaseState.currentData?.bank || {}), questions: bankQs },
+              revisions: revs,
+              exams: exams,
+              matrices: mats
+            };
+            const uid = window.FirebaseState.user ? window.FirebaseState.user.uid : 'offline';
+            try {
+              localStorage.setItem('exammatrix_teacher_cache_' + uid, JSON.stringify(window.FirebaseState.currentData));
+              if (window.FirebaseState.user && window.FirebaseState.db && window.FirebaseState._firestoreHelpers) {
+                const { doc, setDoc } = window.FirebaseState._firestoreHelpers;
+                const ref = doc(window.FirebaseState.db, 'workspaces', uid);
+                await setDoc(ref, {
+                  owner_email: window.FirebaseState.user.email,
+                  updated_at: new Date().toISOString(),
+                  ...window.FirebaseState.currentData
+                }, { merge: true });
+              }
+            } catch(syncErr) {
+              console.warn('[Backup] Sync warning:', syncErr);
+            }
+          }
+
+          if (typeof render === 'function') render();
+          if (statusDiv) {
+            statusDiv.textContent = `✓ Đã khôi phục thành công: ${bankQs.length} câu hỏi, ${revs.length} đề cương, ${exams.length} đề kiểm tra.`;
+            statusDiv.style.display = 'block';
+          }
+          notify('Khôi phục dữ liệu từ bản sao lưu thành công!');
+          setTimeout(() => dialog.close(), 1200);
+        } catch(err) {
+          alert('Lỗi phân tích tệp sao lưu: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    };
+  }
+}
+initBackupManager();
 
 // User Guide & Data Specifications Dialog Integration
 function renderScreenGuide() {

@@ -20,6 +20,7 @@
   <script src="./firebase-bridge.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" defer></script>
   <script src="./app.js" defer></script>
 </head>
 <body>
@@ -200,11 +201,11 @@
       <!-- Khung Kéo thả / Chọn tệp (.json, .md, .txt) -->
       <div id="ai-file-dropzone" style="border:2px dashed #0267b1;border-radius:10px;background:#f0f7ff;padding:16px 20px;text-align:center;margin-bottom:14px;cursor:pointer;transition:all 0.2s ease">
         <div style="font-size:26px;margin-bottom:4px">📂</div>
-        <strong style="color:#0267b1;font-size:14px">Kéo thả tệp (.json, .md, .txt) vào đây hoặc Bấm để chọn tệp từ máy tính</strong>
+        <strong style="color:#0267b1;font-size:14px">Kéo thả tệp Word (.docx), JSON hoặc Markdown (.md, .txt) vào đây hoặc Bấm để chọn tệp</strong>
         <p style="margin:4px 0 0;font-size:12px;color:#475569">
-          Thầy/Cô có thể đưa đề thi từ ChatGPT / Claude / Gemini xuất ra dạng tệp JSON hoặc Markdown (.md) rồi tải lên trực tiếp.
+          Hỗ trợ đọc trực tiếp tệp Word (.docx) đề thi có sẵn hoặc tệp JSON/Markdown từ ChatGPT/Claude mà không cần sao chép thủ công.
         </p>
-        <input type="file" id="ai-file-input" accept=".json,.md,.txt,.markdown" style="display:none">
+        <input type="file" id="ai-file-input" accept=".docx,.doc,.json,.md,.txt,.markdown" style="display:none">
       </div>
 
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:12px;flex-wrap:wrap;gap:8px">

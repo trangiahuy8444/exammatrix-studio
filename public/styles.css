@@ -366,3 +366,19 @@ nav a[aria-current=page] {
     padding: 6px 9px !important;
   }
 }
+
+/* KaTeX Math Styling & File Dropzone (09/11/2026) */
+.katex {
+  font-size: 1.05em;
+  text-rendering: auto;
+}
+.katex-display {
+  margin: 10px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
+}
+#ai-file-dropzone:hover {
+  border-color: #15803d !important;
+  background: #f0fdf4 !important;
+}

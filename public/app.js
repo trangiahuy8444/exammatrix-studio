@@ -92,7 +92,14 @@ async function load(initial=false){
  catch(e){$('#loading').hidden=true;notify(e.message,true);if(!store.bank)$('#overview').innerHTML=empty('Chưa mở được ngân hàng','Kiểm tra ứng dụng đang chạy rồi bấm Tải lại dữ liệu.');if(!store.bank)$('#overview').hidden=false;}
  finally{$('#refresh').disabled=false;}
 }
-function switchTab(tab){store.tab=['overview','bank','review','ppct','revisions','matrices','exams','kttx'].includes(tab)?tab:'overview';document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==store.tab);document.querySelectorAll('[data-tab]').forEach(a=>{if(a.dataset.tab===store.tab)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});if(store.bank)renderCurrent();}
+function switchTab(tab){
+ store.tab=['overview','bank','review','ppct','revisions','matrices','exams','kttx'].includes(tab)?tab:'overview';
+ document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==store.tab);
+ document.querySelectorAll('[data-tab]').forEach(a=>{if(a.dataset.tab===store.tab)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
+ const tabLabels={overview:'Tổng quan',bank:'Ngân hàng câu hỏi',review:'Duyệt câu hỏi',ppct:'Phân phối chương trình',revisions:'Đề cương ôn tập',matrices:'Ma trận & đặc tả',exams:'Tạo đề kiểm tra',kttx:'Kiểm tra thường xuyên'};
+ const curEl=document.getElementById('current-tab-label');if(curEl)curEl.textContent=tabLabels[store.tab]||'Khảo thí';
+ if(store.bank)renderCurrent();
+}
 function render(){switchTab(location.hash.slice(1)||store.tab);}
 function renderCurrent(){({overview:renderOverview,bank:renderBank,review:renderReview,ppct:renderPPCT,revisions:renderRevisions,exams:renderExams,kttx:renderKttx,matrices:renderMatrices}[store.tab])();}
 // B1: màn hình duyệt câu hỏi số lượng lớn. Không có nút "duyệt tất cả": mỗi câu phải mở và xác nhận phiếu riêng.

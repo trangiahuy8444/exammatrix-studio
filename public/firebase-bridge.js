@@ -242,7 +242,7 @@
   // 2. Khởi tạo Firebase SDK
   const firebaseVersion = '10.13.0';
   import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-app.js`).then(async ({ initializeApp }) => {
-    const { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } =
+    const { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } =
       await import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-auth.js`);
     const { getFirestore, doc, getDoc, setDoc } =
       await import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-firestore.js`);
@@ -258,6 +258,8 @@
     setupAuthUI(auth, db, {
       signInWithEmailAndPassword,
       createUserWithEmailAndPassword,
+      signInWithPopup,
+      GoogleAuthProvider,
       signOut,
       doc,
       getDoc,
@@ -278,6 +280,47 @@
     console.warn('[Firebase Bridge] Lỗi tải SDK:', err);
   });
 
+  // Thông báo Toast trang nhã (thay thế popup alert)
+  function showToast(message, type = 'success') {
+    let toast = document.getElementById('fb-toast-notification');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'fb-toast-notification';
+      toast.style.cssText = [
+        'position: fixed',
+        'top: 24px',
+        'right: 24px',
+        'z-index: 10000',
+        'padding: 12px 20px',
+        'border-radius: 8px',
+        'font-size: 14px',
+        'font-weight: 600',
+        'box-shadow: 0 8px 24px rgba(0,0,0,0.14)',
+        'transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+        'opacity: 0',
+        'transform: translateY(-12px)',
+        'pointer-events: none',
+        'display: flex',
+        'align-items: center',
+        'gap: 10px',
+        'font-family: inherit'
+      ].join(';');
+      document.body.appendChild(toast);
+    }
+    const isOk = type === 'success';
+    toast.style.background = isOk ? '#e6fcf5' : '#fff5f5';
+    toast.style.color = isOk ? '#0ca678' : '#e03131';
+    toast.style.border = isOk ? '1px solid #63e6be' : '1px solid #ffa8a8';
+    toast.innerHTML = `<span>${isOk ? '✅' : '⚠️'}</span> <span>${message}</span>`;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0)';
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(-12px)';
+    }, 3500);
+  }
+
   // UI Setup
   function setupAuthUI(auth, db, helpers) {
     const topbarRight = document.querySelector('.topbar > div:last-child');
@@ -291,10 +334,11 @@
       `;
       topbarRight.appendChild(authBox);
 
-      authBox.querySelector('#fb-auth-btn').onclick = () => {
+      authBox.querySelector('#fb-auth-btn').onclick = async () => {
         if (window.FirebaseState.user) {
-          if (confirm('Thầy/Cô có chắc muốn đăng xuất khỏi tài khoản này?')) {
-            helpers.signOut(auth);
+          if (confirm('Thầy/Cô có muốn đăng xuất khỏi tài khoản này?')) {
+            await helpers.signOut(auth);
+            showToast('Đã đăng xuất tài khoản.');
           }
         } else {
           showLoginModal(true);
@@ -325,32 +369,48 @@
     if (document.getElementById('firebase-login-modal')) return;
     const modal = document.createElement('dialog');
     modal.id = 'firebase-login-modal';
-    modal.style.cssText = 'border:1px solid #c5d8ea;border-radius:12px;padding:24px;max-width:400px;width:90%;box-shadow:0 12px 32px rgba(0,0,0,0.18);z-index:9999;';
+    modal.style.cssText = 'border:1px solid #c5d8ea;border-radius:12px;padding:24px;max-width:420px;width:92%;box-shadow:0 12px 32px rgba(0,0,0,0.18);z-index:9999;';
     modal.innerHTML = `
-      <form id="fb-login-form" method="dialog" style="display:flex;flex-direction:column;gap:12px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:24px;">🔐</span>
+      <form id="fb-login-form" method="dialog" style="display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:40px;height:40px;border-radius:10px;background:#e7f5ff;display:flex;align-items:center;justify-content:center;font-size:20px;">
+            👨‍🏫
+          </div>
           <div>
-            <h3 style="margin:0;font-size:16px;color:#102d4a;">TÀI KHOẢN GIÁO VIÊN</h3>
-            <p style="margin:2px 0 0;font-size:12px;color:#666;">Dữ liệu câu hỏi & đề thi lưu riêng cho từng thầy/cô</p>
+            <h3 style="margin:0;font-size:16px;font-weight:700;color:#102d4a;">CỔNG ĐĂNG NHẬP GIÁO VIÊN</h3>
+            <p style="margin:2px 0 0;font-size:12px;color:#666;">Hệ thống Khảo thí & Ngân hàng đề ExamMatrix Studio</p>
           </div>
         </div>
-        <hr style="border:none;border-top:1px solid #eee;margin:4px 0;">
-        <div id="fb-auth-error" style="color:#c92a2a;background:#fff5f5;padding:8px 12px;border-radius:6px;font-size:12px;display:none;line-height:1.4;"></div>
+
+        <div id="fb-auth-error" style="color:#c92a2a;background:#fff5f5;padding:10px 14px;border-radius:8px;font-size:12px;display:none;line-height:1.45;border:1px solid #ffc9c9;"></div>
+
+        <!-- Đăng nhập Google / Gmail -->
+        <button type="button" id="fb-btn-google" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:10px 16px;background:#ffffff;border:1px solid #cfd8dc;border-radius:8px;font-size:13px;font-weight:600;color:#37474f;cursor:pointer;transition:all 0.2s ease;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.347 2.825.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
+          <span>Đăng nhập bằng tài khoản Google (Gmail)</span>
+        </button>
+
+        <div style="display:flex;align-items:center;text-align:center;color:#8a99a8;font-size:11px;margin:2px 0;">
+          <span style="flex:1;border-bottom:1px solid #e2e8f0;"></span>
+          <span style="padding:0 10px;text-transform:uppercase;letter-spacing:0.5px;">Hoặc dùng Email giáo viên</span>
+          <span style="flex:1;border-bottom:1px solid #e2e8f0;"></span>
+        </div>
+
         <div>
-          <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;" for="fb-email">Email giáo viên:</label>
-          <input type="email" id="fb-email" required placeholder="thayco@truong.edu.vn" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #c5d8ea;border-radius:6px;">
+          <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#2d3748;" for="fb-email">Email giáo viên:</label>
+          <input type="email" id="fb-email" placeholder="thayco@truong.edu.vn" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #c5d8ea;border-radius:6px;font-size:13px;">
         </div>
         <div>
-          <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;" for="fb-password">Mật khẩu:</label>
-          <input type="password" id="fb-password" required placeholder="••••••••" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #c5d8ea;border-radius:6px;">
+          <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#2d3748;" for="fb-password">Mật khẩu:</label>
+          <input type="password" id="fb-password" placeholder="••••••••" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #c5d8ea;border-radius:6px;font-size:13px;">
         </div>
-        <div style="display:flex;gap:8px;margin-top:8px;">
-          <button type="submit" id="fb-btn-login-submit" class="button primary" style="flex:1;padding:8px;font-weight:600;">Đăng nhập</button>
-          <button type="button" id="fb-btn-register-submit" class="button" style="flex:1;padding:8px;font-weight:600;">Tạo tài khoản</button>
+
+        <div style="display:flex;gap:10px;margin-top:6px;">
+          <button type="submit" id="fb-btn-login-submit" class="button primary" style="flex:1;padding:9px;font-weight:600;">Đăng nhập</button>
+          <button type="button" id="fb-btn-register-submit" class="button" style="flex:1;padding:9px;font-weight:600;border:1px solid #c5d8ea;">Tạo tài khoản mới</button>
         </div>
-        <div style="text-align:center;margin-top:4px;">
-          <button type="button" id="fb-btn-close-modal" class="button quiet" style="font-size:11px;color:#888;">Đóng (Dùng thử ngoại tuyến)</button>
+        <div style="text-align:center;margin-top:2px;">
+          <button type="button" id="fb-btn-close-modal" class="button quiet" style="font-size:11px;color:#718096;text-decoration:underline;cursor:pointer;">Đóng (Dùng thử ngoại tuyến)</button>
         </div>
       </form>
     `;
@@ -360,17 +420,24 @@
     const errBox = modal.querySelector('#fb-auth-error');
     const emailInput = modal.querySelector('#fb-email');
     const passInput = modal.querySelector('#fb-password');
+    const googleBtn = modal.querySelector('#fb-btn-google');
 
     function friendlyAuthError(err) {
       const code = err.code || '';
       if (code.includes('operation-not-allowed')) {
-        return 'Chưa bật tính năng Đăng nhập bằng Email/Password trong Firebase Console. Thầy vui lòng vào Firebase Console > Authentication > Sign-in method > Bật Email/Password.';
+        return 'Chưa bật phương thức này trong Firebase Console. Thầy vui lòng vào Firebase Console > Authentication > Sign-in method và Bật (Enable) Email/Password hoặc Google.';
+      }
+      if (code.includes('popup-closed-by-user')) {
+        return 'Cửa sổ đăng nhập Google đã đóng.';
+      }
+      if (code.includes('popup-blocked')) {
+        return 'Trình duyệt chặn popup. Thầy vui lòng cho phép cửa sổ bật lên để đăng nhập Google.';
       }
       if (code.includes('user-not-found') || code.includes('invalid-credential') || code.includes('wrong-password')) {
-        return 'Email hoặc mật khẩu không chính xác. Nếu chưa có tài khoản, vui lòng bấm nút "Tạo tài khoản".';
+        return 'Email hoặc mật khẩu không chính xác. Nếu chưa có tài khoản, vui lòng bấm nút "Tạo tài khoản mới".';
       }
       if (code.includes('email-already-in-use')) {
-        return 'Email này đã được đăng ký. Vui lòng bấm nút "Đăng nhập".';
+        return 'Email này đã được đăng ký. Thầy vui lòng bấm nút "Đăng nhập".';
       }
       if (code.includes('weak-password')) {
         return 'Mật khẩu quá ngắn. Vui lòng đặt mật khẩu từ 6 ký tự trở lên.';
@@ -378,11 +445,33 @@
       return 'Lỗi: ' + (err.message || code);
     }
 
+    if (googleBtn) {
+      googleBtn.onclick = async () => {
+        errBox.style.display = 'none';
+        try {
+          const provider = new helpers.GoogleAuthProvider();
+          await helpers.signInWithPopup(auth, provider);
+          showToast('Đăng nhập bằng tài khoản Google thành công!');
+          modal.close();
+        } catch (err) {
+          if (err.code === 'auth/popup-closed-by-user') return;
+          errBox.textContent = friendlyAuthError(err);
+          errBox.style.display = 'block';
+        }
+      };
+    }
+
     form.onsubmit = async (e) => {
       e.preventDefault();
       errBox.style.display = 'none';
+      if (!emailInput.value || !passInput.value) {
+        errBox.textContent = 'Vui lòng nhập đầy đủ email và mật khẩu.';
+        errBox.style.display = 'block';
+        return;
+      }
       try {
         await helpers.signInWithEmailAndPassword(auth, emailInput.value.trim(), passInput.value);
+        showToast('Đăng nhập thành công!');
         modal.close();
       } catch (err) {
         errBox.textContent = friendlyAuthError(err);
@@ -399,7 +488,7 @@
       }
       try {
         await helpers.createUserWithEmailAndPassword(auth, emailInput.value.trim(), passInput.value);
-        alert('Tạo tài khoản giáo viên thành công! Dữ liệu của Thầy/Cô được khởi tạo riêng biệt.');
+        showToast('Tạo tài khoản giáo viên thành công!');
         modal.close();
       } catch (err) {
         errBox.textContent = friendlyAuthError(err);

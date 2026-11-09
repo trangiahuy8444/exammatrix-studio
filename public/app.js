@@ -1330,24 +1330,76 @@ function initAiAssistant() {
   const saveKeyBtn = $('#btn-save-gemini-key');
   const clearKeyBtn = $('#btn-clear-gemini-key');
 
-  const GEMINI_MODELS = [
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Tối ưu tốc độ & chuẩn hóa JSON)' },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Thế hệ mới)' },
-    { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash-8B (Siêu nhẹ dự phòng)' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Suy luận sâu dự phòng)' }
+  const DEFAULT_GEMINI_MODELS = [
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-1.5-flash-8b',
+    'gemini-2.0-flash-lite-preview-02-05'
   ];
 
-  async function callGeminiWithAutoFallback(apiKey, requestPayload, onStatusUpdate) {
-    let lastError = null;
-    const attemptedModels = [];
+  async function discoverAvailableGeminiModels(apiKey) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const msg = errData?.error?.message || `HTTP ${res.status}`;
+        if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid')) {
+          throw new Error('Chìa khóa Google AI không hợp lệ hoặc đã hết hạn. Thầy/Cô vui lòng lấy chìa khóa mới trên aistudio.google.com.');
+        }
+        throw new Error(msg);
+      }
+      const data = await res.json();
+      const list = (data.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map(m => m.name.replace(/^models\//, ''));
 
-    for (const m of GEMINI_MODELS) {
-      attemptedModels.push(m.id);
+      // Sắp xếp ưu tiên các dòng Flash thế hệ mới
+      const preferred = [
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-2.5-flash-lite',
+        'gemini-1.5-flash-8b',
+        'gemini-2.5-pro'
+      ];
+      const result = [];
+      for (const p of preferred) {
+        if (list.includes(p)) result.push(p);
+      }
+      for (const m of list) {
+        if (!result.includes(m) && (m.includes('flash') || m.includes('pro') || m.includes('gemini'))) {
+          result.push(m);
+        }
+      }
+      return result.length ? result : DEFAULT_GEMINI_MODELS;
+    } catch (err) {
+      console.warn('Lỗi khi truy vấn danh sách models:', err.message);
+      return DEFAULT_GEMINI_MODELS;
+    }
+  }
+
+  async function callGeminiWithAutoFallback(apiKey, requestPayload, onStatusUpdate) {
+    let savedModels = [];
+    try {
+      savedModels = JSON.parse(localStorage.getItem('gemini_available_models') || '[]');
+    } catch(e) {}
+    if (!savedModels.length) {
+      savedModels = await discoverAvailableGeminiModels(apiKey);
+      localStorage.setItem('gemini_available_models', JSON.stringify(savedModels));
+    }
+
+    let lastError = null;
+    const attempted = [];
+
+    for (const modelId of savedModels) {
+      attempted.push(modelId);
       if (typeof onStatusUpdate === 'function') {
-        onStatusUpdate(m);
+        onStatusUpdate({ id: modelId, name: modelId });
       }
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${m.id}:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1357,17 +1409,17 @@ function initAiAssistant() {
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
           const errMsg = errData?.error?.message || `HTTP ${res.status}`;
-          throw new Error(`[${m.id}] ${errMsg}`);
+          throw new Error(`[${modelId}] ${errMsg}`);
         }
 
         const data = await res.json();
-        return { data, model: m.id, modelName: m.name, fallbackTriggered: attemptedModels.length > 1 };
+        return { data, model: modelId, modelName: modelId, fallbackTriggered: attempted.length > 1 };
       } catch (err) {
-        console.warn(`[Gemini Auto-Fallback] Model ${m.id} gặp sự cố, tự động chuyển model tiếp theo:`, err.message);
+        console.warn(`[Gemini Auto-Fallback] ${modelId} lỗi:`, err.message);
         lastError = err;
       }
     }
-    throw lastError || new Error(`Đã thử các mô hình (${attemptedModels.join(', ')}) nhưng đều gặp sự cố.`);
+    throw lastError || new Error(`Đã thử các mô hình (${attempted.join(', ')}) nhưng đều gặp sự cố.`);
   }
 
   function checkStoredKey() {
@@ -1827,22 +1879,36 @@ Dưới đây là đề thi cần chuyển đổi:
         if (keyStatus) keyStatus.innerHTML = '<span style="color:#d9534f">⚠️ Vui lòng nhập Chìa khóa Google AI.</span>';
         return;
       }
-      if (keyStatus) keyStatus.textContent = '⏳ Đang kiểm tra kết nối với Google AI...';
+      if (keyStatus) keyStatus.textContent = '⏳ Đang kiểm tra chìa khóa và tìm kiếm mô hình khả dụng...';
       saveKeyBtn.disabled = true;
       try {
-        const result = await callGeminiWithAutoFallback(key, {
-          contents: [{ parts: [{ text: 'ping' }] }]
-        }, (tryingModel) => {
-          if (keyStatus) keyStatus.textContent = `⏳ Đang thử kết nối mô hình: ${tryingModel.name}...`;
+        const models = await discoverAvailableGeminiModels(key);
+        if (!models || !models.length) {
+          throw new Error('Không tìm thấy mô hình generateContent nào được bật cho tài khoản này.');
+        }
+
+        // Thử ping model đầu tiên
+        const topModel = models[0];
+        if (keyStatus) keyStatus.textContent = `⏳ Đang thử kết nối mô hình: ${topModel}...`;
+        const pingUrl = `https://generativelanguage.googleapis.com/v1beta/models/${topModel}:generateContent?key=${key}`;
+        const pingRes = await fetch(pingUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: '1+1=' }] }] })
         });
+        if (!pingRes.ok) {
+          const errData = await pingRes.json().catch(() => ({}));
+          throw new Error(`[${topModel}] ${errData?.error?.message || 'Không thể tạo nội dung'}`);
+        }
 
         localStorage.setItem('gemini_user_api_key', key);
+        localStorage.setItem('gemini_available_models', JSON.stringify(models));
+
         if (keyStatus) {
-          keyStatus.innerHTML = `<span style="color:#2b8a3e">✓ Kết nối thành công với Google Gemini (Đang dùng: <strong>${esc(result.model)}</strong>)!</span><br><small style="color:#2b8a3e;">Đã kích hoạt cơ chế tự động chuyển model (${GEMINI_MODELS.map(x=>x.id).join(' ➔ ')}) khi gặp lỗi hoặc quá tải.</small>`;
+          keyStatus.innerHTML = `<span style="color:#2b8a3e;font-weight:700">✓ Kết nối thành công với Google Gemini!</span><br><small style="color:#15803d;">Mô hình tối ưu: <strong>${esc(topModel)}</strong> (Đã kích hoạt tự động chuyển đổi giữa ${models.length} mô hình của tài khoản).</small>`;
         }
         checkStoredKey();
-        notify(`Đã lưu chìa khóa Google AI thành công! Thầy/Cô có thể bắt đầu dán đề thi rồi nhé.`);
-        // Tự động chuyển về Bước 1 để giáo viên nhập đề ngay
+        notify(`🎉 Đã lưu chìa khóa Google AI thành công! Mô hình đang dùng: ${topModel}`);
         setTimeout(() => {
           dialog.querySelector('[data-ai-tab="parse"]')?.click();
         }, 1200);
@@ -2100,20 +2166,33 @@ Dưới đây là đề thi cần chuyển đổi:
   const parseBtn = $('#btn-start-ai-parse');
   if (parseBtn) {
     parseBtn.onclick = async () => {
+      const rawText = ($('#ai-parse-raw-text')?.value || '').trim();
+      if (!rawText) {
+        notify('Thầy/Cô vui lòng dán câu hỏi hoặc chọn tệp Word/JSON trước nhé.', true);
+        return;
+      }
+
+      const subj = $('#ai-parse-subject')?.value || 'Tin học';
+      const grade = Number($('#ai-parse-grade')?.value || 10);
+      const msg = $('#ai-parse-msg');
+      const resContainer = $('#ai-parsed-results-container');
+
       let apiKey = localStorage.getItem('gemini_user_api_key');
       if (!apiKey) {
         apiKey = ($('#gemini-user-key')?.value || '').trim();
         if (apiKey) localStorage.setItem('gemini_user_api_key', apiKey);
       }
-      if (!apiKey) {
-        notify('Thầy/Cô cần gắn Chìa khóa Google AI (miễn phí) trước để máy tính có thể đọc câu hỏi tự động nhé! Chỉ mất 1 phút làm theo 3 bước.', true);
-        dialog.querySelector('[data-ai-tab="key"]')?.click();
-        return;
-      }
 
-      const rawText = ($('#ai-parse-raw-text')?.value || '').trim();
-      if (!rawText) {
-        notify('Thầy/Cô vui lòng dán câu hỏi vào khung, hoặc bấm nút "Dán thử câu hỏi mẫu" bên trên để thử nhé.', true);
+      // Nếu không có API Key, tự động nhận diện ngoại tuyến bằng Regex
+      if (!apiKey) {
+        const localParsed = parseQuestionsFromRawText(rawText, grade, subj);
+        if (localParsed.length >= 1) {
+          displayParsedQuestions(localParsed, grade, subj);
+          notify(`🎉 Đã nhận diện thành công ${localParsed.length} câu hỏi bằng thuật toán thông minh (Không cần Chìa khóa AI)!`);
+          return;
+        }
+        notify('Không tìm thấy Chìa khóa AI và chưa thể nhận diện định dạng câu hỏi thô. Thầy/Cô vui lòng kết nối Chìa khóa Google AI hoặc nạp tệp Word/JSON nhé.', true);
+        dialog.querySelector('[data-ai-tab="key"]')?.click();
         return;
       }
 
@@ -2201,7 +2280,16 @@ Hãy trả về duy nhất mảng JSON các câu hỏi (không thêm bất kỳ 
         if (msg) msg.textContent = `✓ Đã tìm thấy ${questionsList.length} câu hỏi${fallbackNote}. Mời Thầy/Cô xem lại ở Bước 2.`;
         notify(`🎉 AI đã nhận diện xong ${questionsList.length} câu hỏi! Thầy/Cô kiểm tra lại rồi bấm nút Lưu nhé.`);
       } catch(err) {
-        if (msg) msg.innerHTML = `<span style="color:#d9534f">⚠️ Lỗi: ${esc(err.message)}</span>`;
+        console.warn('Lỗi khi gọi Gemini AI, chuyển sang giải thuật ngoại tuyến:', err);
+        const localParsed = parseQuestionsFromRawText(rawText, grade, subj);
+        if (localParsed.length >= 1) {
+          displayParsedQuestions(localParsed, grade, subj);
+          if (msg) msg.innerHTML = `<span style="color:#15803d">✓ Đã nhận diện ngoại tuyến ${localParsed.length} câu hỏi (Google AI bận: ${esc(err.message)})</span>`;
+          notify(`⚠️ Google AI phản hồi: ${err.message}. Hệ thống đã tự động chuyển sang chế độ Ngoại tuyến và lấy được ${localParsed.length} câu hỏi!`);
+        } else {
+          if (msg) msg.innerHTML = `<span style="color:#d9534f">⚠️ Lỗi: ${esc(err.message)}</span>`;
+          notify('Lỗi nhận diện: ' + err.message, true);
+        }
       } finally {
         parseBtn.disabled = false;
       }

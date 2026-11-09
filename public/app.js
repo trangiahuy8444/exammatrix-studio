@@ -756,25 +756,69 @@ function bindPpctImport(g){
  const read=async()=>{
    const file=$('#ppct-import-file')?.files?.[0];
    if(!file)throw new Error('Chọn tệp Word (.docx) hoặc JSON trước.');
-   if(file.name.toLowerCase().endsWith('.json'))return {filename:file.name,grade:g,subject_name:subject(),json:JSON.parse(await file.text())};
+
+   // Nhận diện Khối lớp tự động từ tên tệp (ví dụ: TIN 9, KHOI 9, LOP 9, K9)
+   let detectedGrade = Number(g || store.ppctGrade || 9);
+   const mGrade = file.name.match(/(?:TIN|KHỐI|KHOI|LỚP|LOP|K)\s*(\d+)/i);
+   if (mGrade) {
+     detectedGrade = Number(mGrade[1]);
+   }
+
+   if(file.name.toLowerCase().endsWith('.json')) {
+     return {filename:file.name,grade:detectedGrade,subject_name:subject(),json:JSON.parse(await file.text())};
+   }
    if(file.size>8*1024*1024)throw new Error('Tệp Word phải nhỏ hơn 8 MB.');
+
    let extractedText = '';
+   let extractedHtml = '';
    if (typeof mammoth !== 'undefined' && file.name.toLowerCase().endsWith('.docx')) {
      try {
        const ab = await file.arrayBuffer();
-       const res = await mammoth.extractRawText({ arrayBuffer: ab });
-       extractedText = res.value || '';
+       const resText = await mammoth.extractRawText({ arrayBuffer: ab });
+       extractedText = resText.value || '';
+       const resHtml = await mammoth.convertToHtml({ arrayBuffer: ab });
+       extractedHtml = resHtml.value || '';
      } catch (e) {
        console.warn('Lỗi mammoth:', e);
      }
    }
+
+   // Nếu tên tệp chưa có, kiểm tra trong nội dung văn bản
+   if (!mGrade && extractedText) {
+     const mTextGrade = extractedText.match(/(?:KHỐI\s*LỚP|KHỐI|LỚP)\s*(\d+)/i);
+     if (mTextGrade) detectedGrade = Number(mTextGrade[1]);
+   }
+
    const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});
-   return {filename:file.name,content_base64:base64,extracted_text:extractedText,subject_name:subject(),...(/TIN\s*\d/i.test(file.name)?{}:{grade:g})};
+   return {
+     filename: file.name,
+     content_base64: base64,
+     extracted_text: extractedText,
+     extracted_html: extractedHtml,
+     grade: detectedGrade,
+     subject_name: subject()
+   };
  };
  const inspect=$('#ppct-import-inspect');
  if(inspect)inspect.onclick=async()=>{try{const payload=await read();const report=await request('/api/ppct/inspect-import',payload);store.ppctImport={payload,report};renderPPCT();}catch(err){notify(err.message,true);}};
  const apply=$('#ppct-import-apply');
- if(apply)apply.onclick=async()=>{const imp=store.ppctImport;try{const result=await request('/api/ppct/apply-import',{...imp.payload,expected_sha256:imp.report.sha256});store.bank=result.bank;store.ppctImport=null;renderPPCT();notify(`Đã nhập PPCT: ${result.summary.new} bài mới, ${result.summary.changed} bài cập nhật, ${result.summary.conflict} bài xung đột được giữ nguyên.`);}catch(err){notify(err.message,true);}};
+ if(apply)apply.onclick=async()=>{
+   const imp=store.ppctImport;
+   try{
+     const result=await request('/api/ppct/apply-import',{
+       ...imp.payload,
+       lessons: imp.report.lessons,
+       expected_sha256: imp.report.sha256
+     });
+     store.bank=result.bank;
+     store.ppctImport=null;
+     store.ppctGrade=Number(imp.payload.grade || imp.report.grades?.[0] || 9);
+     renderPPCT();
+     notify(`Đã nhập thành công PPCT Khối ${store.ppctGrade} (${imp.report.lessons.length} bài học)!`);
+   }catch(err){
+     notify(err.message,true);
+   }
+ };
  const cancel=$('#ppct-import-cancel');
  if(cancel)cancel.onclick=()=>{store.ppctImport=null;renderPPCT();};
 }

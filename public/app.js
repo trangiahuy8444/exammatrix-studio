@@ -733,18 +733,23 @@ function renderPPCT(){
 const PPCT_STATUS={new:['Bài mới','approved'],changed:['Có thay đổi','pending_review'],unchanged:['Giữ nguyên','draft'],conflict:['Xung đột — bỏ qua','needs_review']};
 function ppctImportCard(g){
  const imp=store.ppctImport, r=imp&&imp.report;
- const rows=r?r.lessons.map(x=>{const [label,cls]=PPCT_STATUS[x.status]||[x.status,''];
+ const lessonsList=(r&&Array.isArray(r.lessons))?r.lessons:[];
+ const sm=(r&&r.summary)?r.summary:{new:0,changed:0,unchanged:0,conflict:0};
+ const gradesList=(r&&Array.isArray(r.grades))?r.grades:[g];
+ const issuesList=(r&&Array.isArray(r.issues))?r.issues:[];
+ const rows=lessonsList.map(x=>{
+   const [label,cls]=PPCT_STATUS[x.status]||[x.status,''];
    const detail=x.status==='conflict'?esc(x.conflict?.reason||'')+(x.conflict?.outcomes?`<ul>${x.conflict.outcomes.map(o=>`<li>${esc(o)}</li>`).join('')}</ul>`:'')
-     :(x.changes||[]).map(c=>`<div><strong>${esc(c.field)}:</strong> ${Array.isArray(c.new)?`${c.old.length} → ${c.new.length} YCCĐ<ul>${c.new.filter(o=>!c.old.includes(o)).map(o=>`<li>+ ${esc(o)}</li>`).join('')}${c.old.filter(o=>!c.new.includes(o)).map(o=>`<li>− ${esc(o)}</li>`).join('')}</ul>`:`${esc(c.old)} → ${esc(c.new)}`}</div>`).join('')||(x.status==='new'?`${x.outcomes.length} YCCĐ · ${x.occurrences} lần dạy`:'');
-   return `<tr><td><span class="badge ${cls}">${esc(label)}</span></td><td>Khối ${esc(x.grade)} · <strong>${esc(x.lesson_code)}</strong></td><td>${esc(x.lesson_name)}<p class="small muted">${esc(x.topic)}</p></td><td class="small">${detail}</td></tr>`;}).join(''):'';
- const sm=r?r.summary:null;
+     :(x.changes||[]).map(c=>`<div><strong>${esc(c.field)}:</strong> ${Array.isArray(c.new)?`${c.old.length} → ${c.new.length} YCCĐ<ul>${c.new.filter(o=>!c.old.includes(o)).map(o=>`<li>+ ${esc(o)}</li>`).join('')}${c.old.filter(o=>!c.new.includes(o)).map(o=>`<li>− ${esc(o)}</li>`).join('')}</ul>`:`${esc(c.old)} → ${esc(c.new)}`}</div>`).join('')||(x.status==='new'?`${(x.outcomes||[]).length} YCCĐ · ${x.occurrences||1} lần dạy`:'');
+   return `<tr><td><span class="badge ${cls}">${esc(label)}</span></td><td>Khối ${esc(x.grade)} · <strong>${esc(x.lesson_code)}</strong></td><td>${esc(x.lesson_name)}<p class="small muted">${esc(x.topic||"")}</p></td><td class="small">${detail}</td></tr>`;
+ }).join('');
  return `<div class="card"><h2>Nhập PPCT từ Word hoặc JSON</h2>
   <p class="muted">Word: tệp KHDH Phụ lục 1 của tổ (bảng có cột Tuần, Bài học, Số tiết, PPCT, Yêu cầu cần đạt…). JSON: <code>{"lessons":[{"grade","lesson_code","lesson_name_source","topic_source","outcomes":[…]}]}</code> hoặc tệp xuất ngân hàng. Khối của tệp Word lấy theo tên tệp (TIN 8…), nếu không có thì lấy khối đang chọn (Khối ${esc(g)}).</p>
   <div class="actions"><input type="file" id="ppct-import-file" accept=".docx,.json"><button type="button" class="button" id="ppct-import-inspect">Đọc và đối chiếu</button>
   ${r?`<button type="button" class="primary" id="ppct-import-apply" ${sm.new+sm.changed?'':'disabled'}>Xác nhận nhập (${sm.new} bài mới, ${sm.changed} bài thay đổi)</button><button type="button" class="quiet" id="ppct-import-cancel">Hủy</button>`:''}</div>
-  ${r?`<p class="callout">Tệp ${esc(r.filename)} · Khối ${r.grades.map(esc).join(', ')} · ${r.lessons.length} bài: ${sm.new} mới, ${sm.changed} thay đổi, ${sm.unchanged} giữ nguyên, ${sm.conflict} xung đột. Bài xung đột được bỏ qua; bài đang có mà tệp không nhắc đến được giữ nguyên.</p>
-  ${r.issues.length?`<ul class="mx-errors">${r.issues.map(i=>`<li>${esc(i.message)}</li>`).join('')}</ul>`:''}
-  <div class="table-wrap"><table><thead><tr><th>Kết quả</th><th>Mã bài</th><th>Bài / chủ đề</th><th>Chi tiết</th></tr></thead><tbody>${rows}</tbody></table></div>`:''}
+  ${r?`<p class="callout">Tệp ${esc(r.filename||'Đã nạp')} · Khối ${gradesList.map(esc).join(', ')} · ${lessonsList.length} bài: ${sm.new} mới, ${sm.changed} thay đổi, ${sm.unchanged} giữ nguyên, ${sm.conflict} xung đột. Bài xung đột được bỏ qua; bài đang có mà tệp không nhắc đến được giữ nguyên.</p>
+  ${issuesList.length?`<ul class="mx-errors">${issuesList.map(i=>`<li>${esc(i.message||i)}</li>`).join('')}</ul>`:''}
+  <div class="table-wrap"><table><thead><tr><th>Kết quả</th><th>Mã bài</th><th>Bài / chủ đề</th><th>Chi tiết</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="empty" style="text-align:center;padding:16px">Không tìm thấy danh mục bài học PPCT trong tệp này. Nếu đây là tệp Đề thi / Ma trận, thầy/cô vui lòng dùng nút "✨ AI Nhập đề" trên thanh trên cùng để nạp câu hỏi vào ngân hàng.</td></tr>'}</tbody></table></div>`:""}
  </div>`;
 }
 function bindPpctImport(g){
@@ -753,8 +758,18 @@ function bindPpctImport(g){
    if(!file)throw new Error('Chọn tệp Word (.docx) hoặc JSON trước.');
    if(file.name.toLowerCase().endsWith('.json'))return {filename:file.name,grade:g,subject_name:subject(),json:JSON.parse(await file.text())};
    if(file.size>8*1024*1024)throw new Error('Tệp Word phải nhỏ hơn 8 MB.');
+   let extractedText = '';
+   if (typeof mammoth !== 'undefined' && file.name.toLowerCase().endsWith('.docx')) {
+     try {
+       const ab = await file.arrayBuffer();
+       const res = await mammoth.extractRawText({ arrayBuffer: ab });
+       extractedText = res.value || '';
+     } catch (e) {
+       console.warn('Lỗi mammoth:', e);
+     }
+   }
    const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});
-   return {filename:file.name,content_base64:base64,subject_name:subject(),...(/TIN\s*\d/i.test(file.name)?{}:{grade:g})};
+   return {filename:file.name,content_base64:base64,extracted_text:extractedText,subject_name:subject(),...(/TIN\s*\d/i.test(file.name)?{}:{grade:g})};
  };
  const inspect=$('#ppct-import-inspect');
  if(inspect)inspect.onclick=async()=>{try{const payload=await read();const report=await request('/api/ppct/inspect-import',payload);store.ppctImport={payload,report};renderPPCT();}catch(err){notify(err.message,true);}};
@@ -1511,24 +1526,54 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
     }).filter(q => q && q.question);
   }
 
+  function extractAnswersFromDocText(text) {
+    const ansMap = {};
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^(?:Câu\s*)?(\d+)[\s.:\-_]+([A-D])$/i);
+      if (m) ansMap[Number(m[1])] = 'ABCD'.indexOf(m[2].toUpperCase());
+      if (lines[i] === 'Câu') {
+        let j = i + 1;
+        const nums = [];
+        while (j < lines.length && /^\d+$/.test(lines[j])) {
+          nums.push(Number(lines[j]));
+          j++;
+        }
+        if (j < lines.length && /^(?:Đáp án|Đáp án đúng)$/i.test(lines[j])) {
+          j++;
+          let k = 0;
+          while (j < lines.length && /^[A-D]$/i.test(lines[j]) && k < nums.length) {
+            ansMap[nums[k]] = 'ABCD'.indexOf(lines[j].toUpperCase());
+            j++;
+            k++;
+          }
+        }
+      }
+    }
+    return ansMap;
+  }
+
   function parseQuestionsFromRawText(rawText, defaultGrade, defaultSubject) {
     if (!rawText || typeof rawText !== 'string') return [];
     const questions = [];
     const text = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const qSplits = text.split(/\n(?=(?:Câu|Bài|Question|\d+)\s*[\d]+[:.])/i);
+    const ansMap = extractAnswersFromDocText(text);
+    const qSplits = text.split(/\n(?=(?:Câu|Question)\s*[\d]+[:.])/i);
 
     for (const block of qSplits) {
       const trimmed = block.trim();
       if (!trimmed) continue;
-      const mHeading = trimmed.match(/^(?:Câu|Bài|Question|\d+)\s*[\d]+[:.]\s*(.*)/i);
-      const content = mHeading ? mHeading[1].trim() : trimmed;
-      if (!content) continue;
+      if (/MA TRẬN|BẢNG ĐẶC TẢ|HƯỚNG DẪN CHẤM|Tỉ lệ % điểm/i.test(trimmed) && !trimmed.includes('A.') && !trimmed.includes('a)')) continue;
 
-      const optMatches = [...trimmed.matchAll(/(?:^|\n)\s*([A-D])[\.\)]\s*(.*?)(?=\n\s*[A-D][\.\)]|\n\s*(?:Đáp án|Đáp án đúng|Answer|Chọn|$))/gis)];
+      const mHeading = trimmed.match(/^(?:Câu|Question)\s*([\d]+)[:.]\s*(.*)/i);
+      if (!mHeading) continue;
+      const qNum = Number(mHeading[1]);
+
+      const optMatches = [...trimmed.matchAll(/(?:^|\n)\s*([A-D])[\.\)]\s*(.*?)(?=(?:\n\s*[A-D][\.\)]|\n\s*(?:Đáp án|Đáp án đúng|Answer|Chọn)|\s*$))/gs)];
       const ynMatches = [...trimmed.matchAll(/(?:^|\n)\s*([a-d])[\.\)]\s*(.*?)(?:\[|\()(Đúng|Sai|True|False)(?:\]|\))/gi)];
 
       if (ynMatches.length >= 2) {
-        const qText = trimmed.split(/(?:^|\n)\s*[a-d][\.\)]/i)[0].replace(/^(?:Câu|Bài|Question|\d+)\s*[\d]+[:.]\s*/i, '').trim();
+        const qText = trimmed.split(/(?:^|\n)\s*[a-d][\.\)]/i)[0].replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '').trim();
         questions.push({
           id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
           grade: defaultGrade,
@@ -1545,8 +1590,8 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
           review_status: 'draft'
         });
       } else if (optMatches.length >= 2) {
-        const firstOptIndex = trimmed.search(/(?:^|\n)\s*[A-D][\.\)]/i);
-        const qText = trimmed.slice(0, firstOptIndex).replace(/^(?:Câu|Bài|Question|\d+)\s*[\d]+[:.]\s*/i, '').trim();
+        const firstOptIndex = trimmed.search(/(?:^|\n)\s*[A-D][\.\)]/);
+        const qText = trimmed.slice(0, firstOptIndex).replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '').trim();
         const options = optMatches.slice(0, 4).map(m => m[2].trim());
         while (options.length < 4) options.push('');
 
@@ -1555,6 +1600,8 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
         if (ansMatch) {
           correct = 'ABCD'.indexOf(ansMatch[1].toUpperCase());
           if (correct < 0) correct = 0;
+        } else if (ansMap[qNum] !== undefined) {
+          correct = ansMap[qNum];
         }
 
         questions.push({
@@ -1572,7 +1619,7 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
       } else {
         const ansMatch = trimmed.match(/(?:Đáp án|Đáp án đúng|Answer|Trả lời)\s*[:=]\s*(.*)$/im);
         if (ansMatch) {
-          const qText = trimmed.slice(0, ansMatch.index).replace(/^(?:Câu|Bài|Question|\d+)\s*[\d]+[:.]\s*/i, '').trim();
+          const qText = trimmed.slice(0, ansMatch.index).replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '').trim();
           questions.push({
             id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
             grade: defaultGrade,
@@ -1584,6 +1631,21 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
             short_answer: ansMatch[1].trim(),
             review_status: 'draft'
           });
+        } else {
+          const qText = trimmed.replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '').trim();
+          if (qText.length > 20) {
+            questions.push({
+              id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,
+              grade: defaultGrade,
+              subject_name: defaultSubject,
+              lesson_code: 'B1',
+              type: 'ES',
+              level: 'Vận dụng',
+              question: qText,
+              max_score: 1,
+              review_status: 'draft'
+            });
+          }
         }
       }
     }
@@ -1630,7 +1692,18 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
     const filename = file.name.toLowerCase();
 
     try {
-      const text = await file.text();
+      let text = '';
+      if (filename.endsWith('.docx')) {
+        if (typeof mammoth !== 'undefined') {
+          const ab = await file.arrayBuffer();
+          const res = await mammoth.extractRawText({ arrayBuffer: ab });
+          text = res.value || '';
+        } else {
+          throw new Error('Thư viện đọc Word (.docx) đang nạp, thầy/cô vui lòng thử lại sau 2 giây.');
+        }
+      } else {
+        text = await file.text();
+      }
 
       if (filename.endsWith('.json')) {
         let parsed;

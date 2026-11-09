@@ -40,6 +40,9 @@ function notify(message,error=false){const el=$('#notice');el.hidden=false;el.cl
 function clearNotice(){$('#notice').hidden=true;}
 function detailError(e){const details=e.details;if(!details)return e.message;return e.message+'\n'+(typeof details==='string'?details:JSON.stringify(details,null,2));}
 async function request(path,body){
+ if (typeof window !== 'undefined' && window.FirebaseClient && window.FirebaseClient.canHandle(path)) {
+   return await window.FirebaseClient.handle(path, body);
+ }
  const h=body===undefined?{}:C.jsonHeaders(document.querySelector('meta[name="csrf-token"]')?.content);
  if(store.isTestMode)h['X-Test-Mode']='1';
  const response=await fetch(apiUrl(path),{method:body===undefined?'GET':'POST',headers:h,body:body===undefined?undefined:JSON.stringify(body)});

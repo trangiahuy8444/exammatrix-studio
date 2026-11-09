@@ -68,7 +68,7 @@
   // ===========================================================================
   window.FirebaseClient = {
     canHandle(path) {
-      return isStaticHost && isConfigured;
+      return isStaticHost;
     },
 
     async handle(path, body) {
@@ -95,9 +95,9 @@
         };
       }
 
-      // 2. Lưu câu hỏi vào ngân hàng
-      if (path === '/api/bank/save-question') {
-        const q = { ...body };
+      // 2. Lưu câu hỏi vào ngân hàng (hỗ trợ cả 2 route)
+      if (path === '/api/bank/save-question' || path === '/api/questions/save') {
+        const q = { ...(body.question || body) };
         if (!q.id) {
           q.id = `K${q.grade || 10}-GV-${Math.random().toString(36).slice(2, 10)}`;
         }
@@ -128,12 +128,45 @@
         return { bank: currentWorkspaceData.bank };
       }
 
-      // 4. Xóa câu hỏi
-      if (path === '/api/bank/delete-question') {
+      // 4. Xóa câu hỏi (hỗ trợ cả 2 route)
+      if (path === '/api/bank/delete-question' || path === '/api/questions/delete') {
         const id = body.id;
         currentWorkspaceData.bank.questions = (currentWorkspaceData.bank.questions || []).filter(q => q.id !== id);
         await syncToFirestore(uid, currentWorkspaceData);
         return { bank: currentWorkspaceData.bank };
+      }
+
+      // Khôi phục câu hỏi
+      if (path === '/api/questions/restore') {
+        const id = body.id;
+        const qs = currentWorkspaceData.bank.questions || [];
+        const target = qs.find(q => q.id === id);
+        if (target) target.review_status = body.status || 'approved';
+        await syncToFirestore(uid, currentWorkspaceData);
+        return { question: target, bank: currentWorkspaceData.bank };
+      }
+
+      // Thao tác hàng loạt (Bulk)
+      if (path === '/api/questions/bulk') {
+        const ids = new Set(body.ids || []);
+        const qs = currentWorkspaceData.bank.questions || [];
+        qs.forEach(q => {
+          if (ids.has(q.id)) {
+            if (body.status) q.review_status = body.status;
+          }
+        });
+        await syncToFirestore(uid, currentWorkspaceData);
+        return { bank: currentWorkspaceData.bank };
+      }
+
+      // Tuyến Kiểm tra thường xuyên (KTTX)
+      if (path === '/api/kttx') {
+        return { assignments: [], submissions: [], stats: { total: 0 } };
+      }
+
+      // Đặt lại dữ liệu test
+      if (path === '/api/test/reset') {
+        return { success: true };
       }
 
       // 5. Đề cương (Revisions)
@@ -323,16 +356,22 @@
 
   // UI Setup
   function setupAuthUI(auth, db, helpers) {
-    const topbarRight = document.querySelector('.topbar > div:last-child');
-    if (topbarRight && !document.getElementById('firebase-auth-box')) {
-      const authBox = document.createElement('div');
-      authBox.id = 'firebase-auth-box';
-      authBox.style.cssText = 'display:flex;align-items:center;gap:8px;margin-left:8px;padding-left:8px;border-left:1px solid #c5d8ea;font-size:12px;';
+    let authBox = document.getElementById('firebase-auth-box');
+    if (!authBox) {
+      const topbarRight = document.querySelector('.topbar-right') || document.querySelector('.topbar > div:last-child');
+      if (topbarRight) {
+        authBox = document.createElement('div');
+        authBox.id = 'firebase-auth-box';
+        authBox.className = 'auth-pill-container';
+        topbarRight.appendChild(authBox);
+      }
+    }
+    if (authBox) {
+      authBox.className = 'auth-pill-container';
       authBox.innerHTML = `
-        <span id="fb-user-badge" style="font-weight:600;color:var(--navy,#102d4a);">Đang kết nối Firebase…</span>
-        <button id="fb-auth-btn" class="button" type="button" style="padding:4px 8px;font-size:11px;font-weight:600;">Đăng nhập</button>
+        <span id="fb-user-badge" class="auth-pill-badge"><span class="auth-offline-dot"></span><span class="auth-status-text">Đang kết nối…</span></span>
+        <button id="fb-auth-btn" class="topbar-btn auth-login-btn" type="button">Đăng nhập</button>
       `;
-      topbarRight.appendChild(authBox);
 
       authBox.querySelector('#fb-auth-btn').onclick = async () => {
         if (window.FirebaseState.user) {
@@ -353,15 +392,16 @@
     const btn = document.getElementById('fb-auth-btn');
     if (!badge || !btn) return;
     if (user) {
-      badge.innerHTML = `👤 <strong title="${user.email}">${user.email.split('@')[0]}</strong>`;
-      badge.style.color = '#0267B1';
+      const name = user.displayName || user.email.split('@')[0];
+      const initial = name.charAt(0).toUpperCase();
+      badge.innerHTML = `<span class="auth-avatar">${initial}</span><strong class="auth-name" title="${user.email}">${name}</strong>`;
       btn.textContent = 'Đăng xuất';
-      btn.className = 'button quiet';
+      btn.className = 'topbar-btn auth-logout-btn';
       showLoginModal(false);
     } else {
-      badge.innerHTML = `⚠️ <span style="color:#d9534f">Chưa đăng nhập</span>`;
+      badge.innerHTML = `<span class="auth-offline-dot"></span><span class="auth-status-text">Chưa đăng nhập</span>`;
       btn.textContent = 'Đăng nhập';
-      btn.className = 'button primary';
+      btn.className = 'topbar-btn topbar-btn-primary auth-login-btn';
     }
   }
 

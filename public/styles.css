@@ -116,3 +116,253 @@ dialog.wide-dialog{width:min(1320px,96vw);max-height:92vh;padding:24px 28px}
 .small-input{width:5.5em}
 .plan-table td.small{max-width:28em}
 .plan-table tfoot th{text-align:left}
+
+/* ==========================================================================
+   STREAMLINED ASIAN SCHOOL THEME & MINIMALIST TOPBAR (09/11/2026)
+   ========================================================================== */
+.brand-mark {
+  background: var(--blue, #0267b1) !important;
+  box-shadow: 0 2px 6px rgba(2, 103, 177, 0.4);
+}
+.sidebar {
+  background: #0f1e2f !important;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
+}
+nav a {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+nav a .nav-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+nav a[aria-current=page] {
+  background: #0267b1 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(2, 103, 177, 0.35) !important;
+}
+
+.topbar {
+  height: 62px !important;
+  padding: 0 28px !important;
+  background: #ffffff !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.topbar-subject-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 20px;
+  padding: 4px 10px;
+}
+.topbar-subject-badge .subject-icon {
+  font-size: 14px;
+}
+.topbar-subject-badge .subject-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.topbar-select {
+  border: none !important;
+  background: transparent !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #102d4a !important;
+  padding: 0 4px !important;
+  min-height: auto !important;
+  cursor: pointer;
+  outline: none;
+}
+.topbar-page-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.page-crumb {
+  color: #64748b;
+  font-weight: 500;
+}
+.page-sep {
+  color: #cbd5e1;
+}
+.page-current {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.topbar-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px !important;
+  padding: 6px 12px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  background: #ffffff !important;
+  color: #1e293b !important;
+  border: 1px solid #dce5ee !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer;
+}
+.topbar-btn:hover {
+  background: #f0f7ff !important;
+  border-color: #0267b1 !important;
+  color: #0267b1 !important;
+}
+.topbar-btn-primary {
+  background: #0267b1 !important;
+  color: #ffffff !important;
+  border-color: #0267b1 !important;
+  box-shadow: 0 1px 3px rgba(2, 103, 177, 0.25);
+}
+.topbar-btn-primary:hover {
+  background: #005391 !important;
+  border-color: #005391 !important;
+  color: #ffffff !important;
+}
+.topbar-btn-test {
+  background: #fefce8 !important;
+  border-color: #fde047 !important;
+  color: #854d0e !important;
+}
+.topbar-btn-test:hover {
+  background: #fef08a !important;
+  border-color: #eab308 !important;
+}
+.topbar-btn.icon-only {
+  width: 34px;
+  min-width: 34px;
+  padding: 0 !important;
+}
+.topbar-divider {
+  width: 1px;
+  height: 22px;
+  background: #e2e8f0;
+  margin: 0 2px;
+}
+
+/* Teacher Auth Pill */
+.auth-pill-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #dce5ee;
+  border-radius: 20px;
+  padding: 3px 6px 3px 10px;
+  font-size: 12px;
+}
+.auth-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: #102d4a;
+}
+.auth-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #0267b1;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+.auth-name {
+  font-size: 12.5px;
+  color: #0f172a;
+}
+.auth-offline-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+.auth-status-text {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+.auth-login-btn {
+  padding: 4px 10px !important;
+  min-height: 28px !important;
+  font-size: 12px !important;
+  border-radius: 14px !important;
+}
+.auth-logout-btn {
+  padding: 4px 8px !important;
+  min-height: 28px !important;
+  font-size: 11px !important;
+  border-radius: 14px !important;
+  color: #64748b !important;
+  border: none !important;
+  background: transparent !important;
+}
+.auth-logout-btn:hover {
+  color: #dc2626 !important;
+  background: #fee2e2 !important;
+}
+
+/* Refined alerts & cards */
+#notice {
+  padding: 12px 18px !important;
+  border-radius: 8px !important;
+  font-size: 13.5px !important;
+  line-height: 1.5 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+#notice:not(.error) {
+  background: #f0fdf4 !important;
+  border: 1px solid #bbf7d0 !important;
+  color: #166534 !important;
+}
+#notice.error {
+  background: #fef2f2 !important;
+  border: 1px solid #fecaca !important;
+  color: #991b1b !important;
+}
+
+@media (max-width: 900px) {
+  .topbar-page-indicator {
+    display: none;
+  }
+  .topbar-btn .btn-text {
+    display: none;
+  }
+  .topbar-btn {
+    padding: 6px 9px !important;
+  }
+}

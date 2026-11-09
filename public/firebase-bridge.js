@@ -185,8 +185,7 @@
               message: '⚠️ Nhận diện: Tệp "' + fn + '" là hồ sơ Ma trận & Đề kiểm tra. Mục này dùng để nạp Bảng Kế hoạch dạy học (PPCT Phụ lục 1). Để nạp các câu hỏi trong đề này vào ngân hàng đề, Thầy/Cô vui lòng bấm nút "✨ AI Nhập đề" ở thanh trên cùng!'
             });
           }
-          const matches = [...text.matchAll(/(?:Bài|Chủ đề)\s*(\d+)[:.]\s*([^
-]+)/gi)];
+          const matches = [...text.matchAll(/(?:Bài|Chủ đề)\s*(\d+)[:.]\s*([^\n\r]+)/gi)];
           if (matches.length > 0) {
             lessons = matches.slice(0, 30).map((m, i) => ({
               status: 'new',

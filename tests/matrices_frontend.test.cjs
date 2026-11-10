@@ -154,4 +154,53 @@ Khối: 9
   const htmlSame = ui.generateMatrixWordHtml(parsedSame.matrix, 'all');
   assert.ok(htmlSame.includes('rowspan="2"'), 'Cả Khung Ma trận và Bản đặc tả phải gộp ô TT và Chủ đề (rowspan=2)');
   console.log('PASS matrix UI: buildMatrixView & generateMatrixWordHtml xuất chuẩn bố cục Word 2 bảng và tự động gộp ô theo chủ đề');
+
+  // Test web-native matrix creation & presets
+  assert.ok(ui.STANDARD_PRESETS, 'STANDARD_PRESETS must exist');
+  assert.ok(ui.STANDARD_PRESETS['8'], 'Preset for grade 8 must exist');
+  assert.ok(ui.STANDARD_PRESETS['9'], 'Preset for grade 9 must exist');
+  assert.ok(ui.STANDARD_PRESETS['10'], 'Preset for grade 10 must exist');
+
+  // Test newDraft for Grade 8
+  const draft8 = ui.newDraft(8);
+  assert.equal(draft8.grade, 8);
+  assert.equal(draft8.profile, 'THCS');
+  assert.equal(draft8.total_points, 10);
+  assert.equal(draft8.lessons.length, 5);
+  assert.equal(draft8.slots.length, 31);
+  const total8 = draft8.slots.flatMap(s => s.parts).reduce((sum, p) => sum + Number(p.points), 0);
+  assert.equal(total8, 10, 'Grade 8 preset must equal 10.0 points');
+
+  // Test newDraft for Grade 9
+  const draft9 = ui.newDraft(9);
+  assert.equal(draft9.grade, 9);
+  assert.equal(draft9.profile, 'THCS');
+  assert.equal(draft9.total_points, 10);
+  assert.equal(draft9.lessons.length, 5);
+  assert.equal(draft9.slots.length, 31);
+  const total9 = draft9.slots.flatMap(s => s.parts).reduce((sum, p) => sum + Number(p.points), 0);
+  assert.equal(total9, 10, 'Grade 9 preset must equal 10.0 points');
+
+  // Test newDraft for Grade 10
+  const draft10 = ui.newDraft(10);
+  assert.equal(draft10.grade, 10);
+  assert.equal(draft10.profile, 'THPT');
+  assert.equal(draft10.total_points, 10);
+  assert.equal(draft10.lessons.length, 8);
+  assert.equal(draft10.slots.length, 25);
+  const total10 = draft10.slots.flatMap(s => s.parts).reduce((sum, p) => sum + Number(p.points), 0);
+  assert.equal(total10, 10, 'Grade 10 preset must equal 10.0 points');
+
+  // Test updateSlotsFromGrid interactive adjustments
+  const testMatrix = ui.newDraft(8);
+  const initialSlots = testMatrix.slots.length;
+  // Reduce MC_B for B1 from 4 to 2
+  ui.updateSlotsFromGrid(testMatrix, 'B1', 'MC_B', 2);
+  assert.equal(testMatrix.slots.length, initialSlots - 2, 'Slots count should decrease by 2');
+  // Increase MC_B for B1 back to 4
+  ui.updateSlotsFromGrid(testMatrix, 'B1', 'MC_B', 4);
+  assert.equal(testMatrix.slots.length, initialSlots, 'Slots count should restore to initial count');
+  assert.equal(testMatrix.slots[0].id, 'S1');
+  assert.equal(testMatrix.slots[0].number, 1);
+  console.log('PASS matrix UI: web-native matrix creation, Asian School presets & 2D grid updates passed');
 }

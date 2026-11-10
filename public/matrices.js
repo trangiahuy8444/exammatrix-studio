@@ -29,6 +29,268 @@
   const periods={TX:'Thường xuyên',GK1:'Giữa học kì I',CK1:'Cuối học kì I',GK2:'Giữa học kì II',CK2:'Cuối học kì II'};
   const levels=['Biết','Hiểu','Vận dụng','Vận dụng cao'];
   function requirementLevelOptions(value){return levels.map(l=>opt(l,l,l===value)).join('');}
+    const STANDARD_PRESETS = JSON.parse("{\"8\":{\"profile\":\"THCS\",\"grade\":8,\"exam_type\":\"GK1\",\"duration\":45,\"school_year\":\"2026-2027\",\"title\":\"Ma trận & đặc tả Kiểm tra Giữa HK1 · Môn Tin học Khối 8\",\"owner_name\":\"Tổ Tin học Á Châu\",\"campus\":\"Cao Thắng\",\"total_points\":10,\"lessons\":[{\"lesson_code\":\"B1\",\"title\":\"Lược sử công cụ tính toán\",\"topic\":\"Chủ đề 1: Máy tính và cộng đồng\"},{\"lesson_code\":\"B2\",\"title\":\"Thông tin trong môi trường số\",\"topic\":\"Chủ đề 2: Tổ chức lưu trữ, tìm kiếm và trao đổi thông tin\"},{\"lesson_code\":\"B3\",\"title\":\"Thực hành: Khai thác thông tin số\",\"topic\":\"Chủ đề 2: Tổ chức lưu trữ, tìm kiếm và trao đổi thông tin\"},{\"lesson_code\":\"B4\",\"title\":\"Đạo đức và văn hóa trong sử dụng kĩ thuật số\",\"topic\":\"Chủ đề 3: Đạo đức, pháp luật và văn hóa trong môi trường số\"},{\"lesson_code\":\"B12\",\"title\":\"Từ thuật toán đến chương trình\",\"topic\":\"Chủ đề 5: Giải quyết vấn đề với sự trợ giúp của máy tính\"}],\"requirements\":[{\"id\":\"R1\",\"lesson_code\":\"B1\",\"level\":\"Biết\",\"text\":\"Biết được sự ra đời của những chiếc máy tính đầu tiên và người đặt nền móng cho sự phát triển của máy tính; biết được các công nghệ sử dụng trong từng thế hệ máy tính.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R2\",\"lesson_code\":\"B1\",\"level\":\"Hiểu\",\"text\":\"Hiểu được đặc điểm của các máy tính trong cùng một giai đoạn; giải thích được sự phát triển của máy tính qua các thế hệ.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R3\",\"lesson_code\":\"B2\",\"level\":\"Biết\",\"text\":\"Biết được đặc điểm của thông tin số và phần mở rộng của các loại tập tin khác nhau.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R4\",\"lesson_code\":\"B2\",\"level\":\"Hiểu\",\"text\":\"Giải thích được vì sao thông tin số chiếm tỉ lệ rất lớn.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R5\",\"lesson_code\":\"B2\",\"level\":\"Vận dụng\",\"text\":\"Hiểu được đặc điểm của thông tin số, từ đó vận dụng vào thực tiễn để nâng cao chất lượng cuộc sống.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R6\",\"lesson_code\":\"B3\",\"level\":\"Biết\",\"text\":\"Nhận biết được thông tin nào đáng tin cậy và không đáng tin cậy.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R7\",\"lesson_code\":\"B3\",\"level\":\"Hiểu\",\"text\":\"Hiểu được thông tin có giá trị về mặt pháp lý.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R8\",\"lesson_code\":\"B3\",\"level\":\"Vận dụng\",\"text\":\"Tìm kiếm và cho ví dụ về thông tin hợp lý, đáng tin cậy.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R9\",\"lesson_code\":\"B4\",\"level\":\"Biết\",\"text\":\"Biết một số biểu hiện vi phạm đạo đức và pháp luật, biểu hiện thiếu văn hóa khi sử dụng công nghệ kĩ thuật số.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R10\",\"lesson_code\":\"B4\",\"level\":\"Hiểu\",\"text\":\"Giải thích được một số biểu hiện vi phạm đạo đức và pháp luật, biểu hiện thiếu văn hóa khi sử dụng công nghệ kĩ thuật số.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R11\",\"lesson_code\":\"B4\",\"level\":\"Vận dụng\",\"text\":\"Đảm bảo các sản phẩm số do bản thân tạo ra thể hiện đạo đức, tính văn hóa, không vi phạm pháp luật và vận dụng vào cuộc sống thực tiễn.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R12\",\"lesson_code\":\"B12\",\"level\":\"Biết\",\"text\":\"Nhận biết được khái niệm thuật toán, chương trình và mối quan hệ giữa thuật toán và chương trình.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R13\",\"lesson_code\":\"B12\",\"level\":\"Hiểu\",\"text\":\"Giải thích được mối quan hệ giữa thuật toán và chương trình; mô tả được cách chuyển một thuật toán đơn giản thành chương trình.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"}],\"slots\":[{\"id\":\"S1\",\"kind\":\"MC\",\"number\":1,\"parts\":[{\"id\":\"P1\",\"label\":\"\",\"requirement_id\":\"R1\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S2\",\"kind\":\"MC\",\"number\":2,\"parts\":[{\"id\":\"P2\",\"label\":\"\",\"requirement_id\":\"R1\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S3\",\"kind\":\"MC\",\"number\":3,\"parts\":[{\"id\":\"P3\",\"label\":\"\",\"requirement_id\":\"R1\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S4\",\"kind\":\"MC\",\"number\":4,\"parts\":[{\"id\":\"P4\",\"label\":\"\",\"requirement_id\":\"R1\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S5\",\"kind\":\"MC\",\"number\":5,\"parts\":[{\"id\":\"P5\",\"label\":\"\",\"requirement_id\":\"R2\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S6\",\"kind\":\"MC\",\"number\":6,\"parts\":[{\"id\":\"P6\",\"label\":\"\",\"requirement_id\":\"R2\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S7\",\"kind\":\"MC\",\"number\":7,\"parts\":[{\"id\":\"P7\",\"label\":\"\",\"requirement_id\":\"R2\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S8\",\"kind\":\"MC\",\"number\":8,\"parts\":[{\"id\":\"P8\",\"label\":\"\",\"requirement_id\":\"R3\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S9\",\"kind\":\"MC\",\"number\":9,\"parts\":[{\"id\":\"P9\",\"label\":\"\",\"requirement_id\":\"R3\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S10\",\"kind\":\"MC\",\"number\":10,\"parts\":[{\"id\":\"P10\",\"label\":\"\",\"requirement_id\":\"R3\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S11\",\"kind\":\"MC\",\"number\":11,\"parts\":[{\"id\":\"P11\",\"label\":\"\",\"requirement_id\":\"R4\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S12\",\"kind\":\"MC\",\"number\":12,\"parts\":[{\"id\":\"P12\",\"label\":\"\",\"requirement_id\":\"R4\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S13\",\"kind\":\"MC\",\"number\":13,\"parts\":[{\"id\":\"P13\",\"label\":\"\",\"requirement_id\":\"R4\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S14\",\"kind\":\"MC\",\"number\":14,\"parts\":[{\"id\":\"P14\",\"label\":\"\",\"requirement_id\":\"R6\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S15\",\"kind\":\"MC\",\"number\":15,\"parts\":[{\"id\":\"P15\",\"label\":\"\",\"requirement_id\":\"R6\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S16\",\"kind\":\"MC\",\"number\":16,\"parts\":[{\"id\":\"P16\",\"label\":\"\",\"requirement_id\":\"R6\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S17\",\"kind\":\"MC\",\"number\":17,\"parts\":[{\"id\":\"P17\",\"label\":\"\",\"requirement_id\":\"R7\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S18\",\"kind\":\"MC\",\"number\":18,\"parts\":[{\"id\":\"P18\",\"label\":\"\",\"requirement_id\":\"R7\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S19\",\"kind\":\"MC\",\"number\":19,\"parts\":[{\"id\":\"P19\",\"label\":\"\",\"requirement_id\":\"R9\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S20\",\"kind\":\"MC\",\"number\":20,\"parts\":[{\"id\":\"P20\",\"label\":\"\",\"requirement_id\":\"R9\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S21\",\"kind\":\"MC\",\"number\":21,\"parts\":[{\"id\":\"P21\",\"label\":\"\",\"requirement_id\":\"R9\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S22\",\"kind\":\"MC\",\"number\":22,\"parts\":[{\"id\":\"P22\",\"label\":\"\",\"requirement_id\":\"R9\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S23\",\"kind\":\"MC\",\"number\":23,\"parts\":[{\"id\":\"P23\",\"label\":\"\",\"requirement_id\":\"R10\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S24\",\"kind\":\"MC\",\"number\":24,\"parts\":[{\"id\":\"P24\",\"label\":\"\",\"requirement_id\":\"R10\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S25\",\"kind\":\"MC\",\"number\":25,\"parts\":[{\"id\":\"P25\",\"label\":\"\",\"requirement_id\":\"R10\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S26\",\"kind\":\"MC\",\"number\":26,\"parts\":[{\"id\":\"P26\",\"label\":\"\",\"requirement_id\":\"R12\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S27\",\"kind\":\"MC\",\"number\":27,\"parts\":[{\"id\":\"P27\",\"label\":\"\",\"requirement_id\":\"R12\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S28\",\"kind\":\"MC\",\"number\":28,\"parts\":[{\"id\":\"P28\",\"label\":\"\",\"requirement_id\":\"R13\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S29\",\"kind\":\"ES\",\"number\":29,\"parts\":[{\"id\":\"P29\",\"label\":\"\",\"requirement_id\":\"R5\",\"points\":1,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S30\",\"kind\":\"ES\",\"number\":30,\"parts\":[{\"id\":\"P30\",\"label\":\"\",\"requirement_id\":\"R8\",\"points\":1,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S31\",\"kind\":\"ES\",\"number\":31,\"parts\":[{\"id\":\"P31\",\"label\":\"\",\"requirement_id\":\"R11\",\"points\":1,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}}]},\"9\":{\"profile\":\"THCS\",\"grade\":9,\"exam_type\":\"GK1\",\"duration\":45,\"school_year\":\"2026-2027\",\"title\":\"Ma trận & đặc tả Kiểm tra Giữa HK1 · Môn Tin học Khối 9\",\"owner_name\":\"Tổ Tin học Á Châu\",\"campus\":\"Cao Thắng\",\"total_points\":10,\"lessons\":[{\"lesson_code\":\"B1\",\"title\":\"Thế giới kĩ thuật số\",\"topic\":\"Chủ đề 1: Máy tính và cộng đồng\"},{\"lesson_code\":\"B2\",\"title\":\"Thông tin trong giải quyết vấn đề\",\"topic\":\"Chủ đề 2: Tổ chức lưu trữ, tìm kiếm và trao đổi thông tin\"},{\"lesson_code\":\"B3\",\"title\":\"Thực hành: Đánh giá chất lượng thông tin\",\"topic\":\"Chủ đề 2: Tổ chức lưu trữ, tìm kiếm và trao đổi thông tin\"},{\"lesson_code\":\"B4\",\"title\":\"Một số vấn đề pháp lý về sử dụng dịch vụ Internet\",\"topic\":\"Chủ đề 3: Đạo đức, pháp luật và văn hóa số\"},{\"lesson_code\":\"B5\",\"title\":\"Tìm hiểu phần mềm mô phỏng\",\"topic\":\"Chủ đề 4: Ứng dụng tin học\"}],\"requirements\":[{\"id\":\"R1\",\"lesson_code\":\"B1\",\"level\":\"Biết\",\"text\":\"Nhận biết được các thiết bị có tích hợp bộ xử lí thông tin trong đời sống, thương mại; nhận biết thành phần cốt lõi và chức năng của CPU.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R2\",\"lesson_code\":\"B1\",\"level\":\"Hiểu\",\"text\":\"Hiểu yêu cầu số hóa dữ liệu thành dãy bit; phân tích ưu thế của máy tính về dung lượng lưu trữ và truyền thông tin tốc độ cao toàn cầu.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R3\",\"lesson_code\":\"B2\",\"level\":\"Biết\",\"text\":\"Nhận biết bốn tiêu chí đánh giá chất lượng thông tin, tiêu chí quan trọng hàng đầu, vai trò của chất lượng thông tin và tính sử dụng được.\",\"ppct_outcome_index\":0,\"competency\":\"NLc\"},{\"id\":\"R4\",\"lesson_code\":\"B2\",\"level\":\"Hiểu\",\"text\":\"Giải thích sự cần thiết của việc kiểm tra chất lượng thông tin trên Internet; phân tích thông tin sai lệch hoặc thiếu sót theo tiêu chí tính mới, đầy đủ, chính xác.\",\"ppct_outcome_index\":0,\"competency\":\"NLc\"},{\"id\":\"R5\",\"lesson_code\":\"B3\",\"level\":\"Vận dụng\",\"text\":\"Vận dụng tiêu chí tính mới, chính xác, đầy đủ, sử dụng được để đánh giá thông tin; xác định thông tin cần thu thập và nguồn tin cậy khi lập kế hoạch hoạt động dã ngoại học tập.\",\"ppct_outcome_index\":0,\"competency\":\"NLc\"},{\"id\":\"R6\",\"lesson_code\":\"B4\",\"level\":\"Biết\",\"text\":\"Nhận diện tác động tiêu cực do lạm dụng thiết bị số, rác thải điện tử; hành vi xâm phạm quyền riêng tư và quy tắc ứng xử trên mạng xã hội.\",\"ppct_outcome_index\":0,\"competency\":\"NLb\"},{\"id\":\"R7\",\"lesson_code\":\"B4\",\"level\":\"Hiểu\",\"text\":\"Hiểu trách nhiệm pháp lý trên không gian mạng, chế tài đối với tin giả và chuẩn mực tôn trọng bản quyền, trích dẫn nguồn tài nguyên số.\",\"ppct_outcome_index\":0,\"competency\":\"NLb\"},{\"id\":\"R8\",\"lesson_code\":\"B4\",\"level\":\"Vận dụng\",\"text\":\"Ứng xử có văn hóa, tôn trọng quyền riêng tư đối với tài khoản chưa đăng xuất; phân tích hậu quả tâm lý và pháp lý của bạo lực mạng.\",\"ppct_outcome_index\":0,\"competency\":\"NLb\"},{\"id\":\"R9\",\"lesson_code\":\"B5\",\"level\":\"Biết\",\"text\":\"Nhận biết khái niệm, ví dụ và mục đích sử dụng phần mềm mô phỏng PhET; xác định lĩnh vực khoa học của mô phỏng.\",\"ppct_outcome_index\":0,\"competency\":\"NLd\"},{\"id\":\"R10\",\"lesson_code\":\"B5\",\"level\":\"Hiểu\",\"text\":\"Phân tích lợi ích của mô phỏng thí nghiệm ảo đối với hiện tượng nguy hiểm, vi mô hoặc tốn kém; hiểu ứng dụng mô phỏng giao thông trong quy hoạch đô thị.\",\"ppct_outcome_index\":0,\"competency\":\"NLd\"},{\"id\":\"R11\",\"lesson_code\":\"B5\",\"level\":\"Vận dụng\",\"text\":\"Giải thích ưu thế mô phỏng mạch điện một chiều so với thí nghiệm thật; mô tả thao tác lắp mạch, đóng công tắc và đo cường độ dòng điện trên PhET.\",\"ppct_outcome_index\":0,\"competency\":\"NLd\"}],\"slots\":[{\"id\":\"S1\",\"kind\":\"MC\",\"number\":1,\"parts\":[{\"id\":\"P1\",\"label\":\"\",\"requirement_id\":\"R1\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S2\",\"kind\":\"MC\",\"number\":2,\"parts\":[{\"id\":\"P2\",\"label\":\"\",\"requirement_id\":\"R1\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S3\",\"kind\":\"MC\",\"number\":3,\"parts\":[{\"id\":\"P3\",\"label\":\"\",\"requirement_id\":\"R1\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S4\",\"kind\":\"MC\",\"number\":4,\"parts\":[{\"id\":\"P4\",\"label\":\"\",\"requirement_id\":\"R1\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S5\",\"kind\":\"MC\",\"number\":5,\"parts\":[{\"id\":\"P5\",\"label\":\"\",\"requirement_id\":\"R2\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S6\",\"kind\":\"MC\",\"number\":6,\"parts\":[{\"id\":\"P6\",\"label\":\"\",\"requirement_id\":\"R2\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S7\",\"kind\":\"MC\",\"number\":7,\"parts\":[{\"id\":\"P7\",\"label\":\"\",\"requirement_id\":\"R2\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S8\",\"kind\":\"MC\",\"number\":8,\"parts\":[{\"id\":\"P8\",\"label\":\"\",\"requirement_id\":\"R3\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S9\",\"kind\":\"MC\",\"number\":9,\"parts\":[{\"id\":\"P9\",\"label\":\"\",\"requirement_id\":\"R3\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S10\",\"kind\":\"MC\",\"number\":10,\"parts\":[{\"id\":\"P10\",\"label\":\"\",\"requirement_id\":\"R3\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S11\",\"kind\":\"MC\",\"number\":11,\"parts\":[{\"id\":\"P11\",\"label\":\"\",\"requirement_id\":\"R3\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S12\",\"kind\":\"MC\",\"number\":12,\"parts\":[{\"id\":\"P12\",\"label\":\"\",\"requirement_id\":\"R4\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S13\",\"kind\":\"MC\",\"number\":13,\"parts\":[{\"id\":\"P13\",\"label\":\"\",\"requirement_id\":\"R4\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S14\",\"kind\":\"MC\",\"number\":14,\"parts\":[{\"id\":\"P14\",\"label\":\"\",\"requirement_id\":\"R4\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S15\",\"kind\":\"MC\",\"number\":15,\"parts\":[{\"id\":\"P15\",\"label\":\"\",\"requirement_id\":\"R4\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S16\",\"kind\":\"MC\",\"number\":16,\"parts\":[{\"id\":\"P16\",\"label\":\"\",\"requirement_id\":\"R6\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S17\",\"kind\":\"MC\",\"number\":17,\"parts\":[{\"id\":\"P17\",\"label\":\"\",\"requirement_id\":\"R6\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S18\",\"kind\":\"MC\",\"number\":18,\"parts\":[{\"id\":\"P18\",\"label\":\"\",\"requirement_id\":\"R6\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S19\",\"kind\":\"MC\",\"number\":19,\"parts\":[{\"id\":\"P19\",\"label\":\"\",\"requirement_id\":\"R6\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S20\",\"kind\":\"MC\",\"number\":20,\"parts\":[{\"id\":\"P20\",\"label\":\"\",\"requirement_id\":\"R7\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S21\",\"kind\":\"MC\",\"number\":21,\"parts\":[{\"id\":\"P21\",\"label\":\"\",\"requirement_id\":\"R7\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S22\",\"kind\":\"MC\",\"number\":22,\"parts\":[{\"id\":\"P22\",\"label\":\"\",\"requirement_id\":\"R7\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S23\",\"kind\":\"MC\",\"number\":23,\"parts\":[{\"id\":\"P23\",\"label\":\"\",\"requirement_id\":\"R9\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S24\",\"kind\":\"MC\",\"number\":24,\"parts\":[{\"id\":\"P24\",\"label\":\"\",\"requirement_id\":\"R9\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S25\",\"kind\":\"MC\",\"number\":25,\"parts\":[{\"id\":\"P25\",\"label\":\"\",\"requirement_id\":\"R9\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S26\",\"kind\":\"MC\",\"number\":26,\"parts\":[{\"id\":\"P26\",\"label\":\"\",\"requirement_id\":\"R9\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S27\",\"kind\":\"MC\",\"number\":27,\"parts\":[{\"id\":\"P27\",\"label\":\"\",\"requirement_id\":\"R10\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S28\",\"kind\":\"MC\",\"number\":28,\"parts\":[{\"id\":\"P28\",\"label\":\"\",\"requirement_id\":\"R10\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S29\",\"kind\":\"ES\",\"number\":1,\"parts\":[{\"id\":\"P29\",\"label\":\"\",\"requirement_id\":\"R5\",\"points\":1,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S30\",\"kind\":\"ES\",\"number\":2,\"parts\":[{\"id\":\"P30\",\"label\":\"\",\"requirement_id\":\"R8\",\"points\":1,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S31\",\"kind\":\"ES\",\"number\":3,\"parts\":[{\"id\":\"P31\",\"label\":\"\",\"requirement_id\":\"R11\",\"points\":1,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}}]},\"10\":{\"profile\":\"THPT\",\"grade\":10,\"exam_type\":\"GK1\",\"duration\":45,\"school_year\":\"2026-2027\",\"title\":\"Ma trận & đặc tả Kiểm tra Giữa HK1 · Môn Tin học Khối 10\",\"owner_name\":\"Tổ Tin học Á Châu\",\"campus\":\"Cao Thắng\",\"total_points\":10,\"lessons\":[{\"lesson_code\":\"B1\",\"title\":\"Thông tin và xử lí thông tin\",\"topic\":\"Chủ đề 1: Máy tính và xã hội tri thức\"},{\"lesson_code\":\"B2\",\"title\":\"Vai trò của thiết bị thông minh và tin học đối với xã hội\",\"topic\":\"Chủ đề 1: Máy tính và xã hội tri thức\"},{\"lesson_code\":\"B3\",\"title\":\"Thực hành sử dụng thiết bị thông dụng\",\"topic\":\"Chủ đề 1: Máy tính và xã hội tri thức\"},{\"lesson_code\":\"B4\",\"title\":\"Mạng máy tính trong cuộc sống hiện đại\",\"topic\":\"Chủ đề 2: Mạng máy tính và Internet\"},{\"lesson_code\":\"B5\",\"title\":\"An toàn trên không gian mạng\",\"topic\":\"Chủ đề 2: Mạng máy tính và Internet\"},{\"lesson_code\":\"B6\",\"title\":\"Thực hành khai thác tài nguyên trên Internet\",\"topic\":\"Chủ đề 2: Mạng máy tính và Internet\"},{\"lesson_code\":\"B7\",\"title\":\"Ứng xử trên môi trường số. Nghĩa vụ tôn trọng bản quyền\",\"topic\":\"Chủ đề 3: Đạo đức, pháp luật và văn hóa trong môi trường số\"},{\"lesson_code\":\"B8\",\"title\":\"Phần mềm thiết kế đồ họa\",\"topic\":\"Chủ đề 4: Ứng dụng tin học\"}],\"requirements\":[{\"id\":\"R1\",\"lesson_code\":\"B1\",\"level\":\"Biết\",\"text\":\"Biết được thông tin, dữ liệu và các bước cơ bản trong xử lí thông tin.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R2\",\"lesson_code\":\"B1\",\"level\":\"Hiểu\",\"text\":\"Hiểu được ưu điểm của thiết bị số.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R3\",\"lesson_code\":\"B1\",\"level\":\"Vận dụng\",\"text\":\"Giải thích các tình huống liên quan đến việc lưu trữ thông tin.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R4\",\"lesson_code\":\"B2\",\"level\":\"Biết\",\"text\":\"Nhận biết thiết bị thông minh; nêu được vai trò của thiết bị thông minh trong cuộc cách mạng công nghiệp lần thứ tư.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R5\",\"lesson_code\":\"B2\",\"level\":\"Hiểu\",\"text\":\"Hiểu được đặc điểm của Internet vạn vật (IoT) trong hệ thống.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R6\",\"lesson_code\":\"B3\",\"level\":\"Biết\",\"text\":\"Biết được một số ứng dụng trên điện thoại thông minh.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R7\",\"lesson_code\":\"B3\",\"level\":\"Hiểu\",\"text\":\"Hiểu được lợi ích của việc lưu trữ đám mây.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R8\",\"lesson_code\":\"B3\",\"level\":\"Vận dụng\",\"text\":\"Áp dụng được việc lưu trữ dữ liệu trên Internet.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R9\",\"lesson_code\":\"B4\",\"level\":\"Biết\",\"text\":\"Biết được mạng LAN, Internet và các loại dịch vụ đám mây cơ bản.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R10\",\"lesson_code\":\"B4\",\"level\":\"Hiểu\",\"text\":\"Hiểu được lợi ích của việc tự đọc dữ liệu của các thiết bị.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R11\",\"lesson_code\":\"B4\",\"level\":\"Vận dụng\",\"text\":\"Vận dụng kiến thức trong các tình huống liên quan đến lưu trữ dữ liệu đám mây.\",\"ppct_outcome_index\":0,\"competency\":\"NLa\"},{\"id\":\"R12\",\"lesson_code\":\"B5\",\"level\":\"Biết\",\"text\":\"Biết nguy cơ khi tải phần mềm bẻ khóa, khả năng lây nhiễm của virus và cách lựa chọn quét virus.\",\"ppct_outcome_index\":0,\"competency\":\"NLb\"},{\"id\":\"R13\",\"lesson_code\":\"B5\",\"level\":\"Hiểu\",\"text\":\"Hiểu tầm quan trọng của việc xác minh thông tin và khả năng lây nhiễm virus.\",\"ppct_outcome_index\":0,\"competency\":\"NLb\"},{\"id\":\"R14\",\"lesson_code\":\"B5\",\"level\":\"Vận dụng\",\"text\":\"Vận dụng cách quét virus phù hợp trong thực tế.\",\"ppct_outcome_index\":0,\"competency\":\"NLb\"},{\"id\":\"R15\",\"lesson_code\":\"B6\",\"level\":\"Hiểu\",\"text\":\"Hiểu cách thức hoạt động của Google Translate và bố cục tổ chức kho dữ liệu số.\",\"ppct_outcome_index\":0,\"competency\":\"NLc\"},{\"id\":\"R16\",\"lesson_code\":\"B7\",\"level\":\"Biết\",\"text\":\"Biết quyền khi mua bản quyền phần mềm, quyền tác giả và điều kiện trở thành chủ sở hữu bản quyền phần mềm.\",\"ppct_outcome_index\":0,\"competency\":\"NLb\"},{\"id\":\"R17\",\"lesson_code\":\"B7\",\"level\":\"Hiểu\",\"text\":\"Hiểu các hành vi, trường hợp vi phạm bản quyền.\",\"ppct_outcome_index\":0,\"competency\":\"NLb\"},{\"id\":\"R18\",\"lesson_code\":\"B7\",\"level\":\"Vận dụng\",\"text\":\"Vận dụng hiểu biết về giấy phép bản quyền khi sử dụng tài nguyên số.\",\"ppct_outcome_index\":0,\"competency\":\"NLb\"},{\"id\":\"R19\",\"lesson_code\":\"B8\",\"level\":\"Biết\",\"text\":\"Biết hình ảnh đồ họa được tạo thành từ điểm ảnh và phần mở rộng tệp của Inkscape.\",\"ppct_outcome_index\":0,\"competency\":\"NLc\"},{\"id\":\"R20\",\"lesson_code\":\"B8\",\"level\":\"Hiểu\",\"text\":\"Hiểu tính năng của một số lệnh cơ bản trong Inkscape.\",\"ppct_outcome_index\":0,\"competency\":\"NLc\"},{\"id\":\"R21\",\"lesson_code\":\"B8\",\"level\":\"Vận dụng\",\"text\":\"Vẽ được một số hình đơn giản trong phần mềm Inkscape.\",\"ppct_outcome_index\":0,\"competency\":\"NLc\"}],\"slots\":[{\"id\":\"S1\",\"kind\":\"MC\",\"number\":1,\"parts\":[{\"id\":\"P1\",\"label\":\"\",\"requirement_id\":\"R1\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S2\",\"kind\":\"MC\",\"number\":2,\"parts\":[{\"id\":\"P2\",\"label\":\"\",\"requirement_id\":\"R1\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S3\",\"kind\":\"MC\",\"number\":3,\"parts\":[{\"id\":\"P3\",\"label\":\"\",\"requirement_id\":\"R2\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S4\",\"kind\":\"MC\",\"number\":4,\"parts\":[{\"id\":\"P4\",\"label\":\"\",\"requirement_id\":\"R4\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S5\",\"kind\":\"MC\",\"number\":5,\"parts\":[{\"id\":\"P5\",\"label\":\"\",\"requirement_id\":\"R4\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S6\",\"kind\":\"MC\",\"number\":6,\"parts\":[{\"id\":\"P6\",\"label\":\"\",\"requirement_id\":\"R5\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S7\",\"kind\":\"MC\",\"number\":7,\"parts\":[{\"id\":\"P7\",\"label\":\"\",\"requirement_id\":\"R7\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S8\",\"kind\":\"MC\",\"number\":8,\"parts\":[{\"id\":\"P8\",\"label\":\"\",\"requirement_id\":\"R9\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S9\",\"kind\":\"MC\",\"number\":9,\"parts\":[{\"id\":\"P9\",\"label\":\"\",\"requirement_id\":\"R9\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S10\",\"kind\":\"MC\",\"number\":10,\"parts\":[{\"id\":\"P10\",\"label\":\"\",\"requirement_id\":\"R10\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S11\",\"kind\":\"MC\",\"number\":11,\"parts\":[{\"id\":\"P11\",\"label\":\"\",\"requirement_id\":\"R12\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S12\",\"kind\":\"MC\",\"number\":12,\"parts\":[{\"id\":\"P12\",\"label\":\"\",\"requirement_id\":\"R13\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S13\",\"kind\":\"MC\",\"number\":13,\"parts\":[{\"id\":\"P13\",\"label\":\"\",\"requirement_id\":\"R15\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S14\",\"kind\":\"MC\",\"number\":14,\"parts\":[{\"id\":\"P14\",\"label\":\"\",\"requirement_id\":\"R15\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S15\",\"kind\":\"MC\",\"number\":15,\"parts\":[{\"id\":\"P15\",\"label\":\"\",\"requirement_id\":\"R16\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S16\",\"kind\":\"MC\",\"number\":16,\"parts\":[{\"id\":\"P16\",\"label\":\"\",\"requirement_id\":\"R17\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S17\",\"kind\":\"MC\",\"number\":17,\"parts\":[{\"id\":\"P17\",\"label\":\"\",\"requirement_id\":\"R19\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S18\",\"kind\":\"MC\",\"number\":18,\"parts\":[{\"id\":\"P18\",\"label\":\"\",\"requirement_id\":\"R19\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S19\",\"kind\":\"MC\",\"number\":19,\"parts\":[{\"id\":\"P19\",\"label\":\"\",\"requirement_id\":\"R20\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S20\",\"kind\":\"YN\",\"number\":1,\"parts\":[{\"id\":\"P20\",\"label\":\"a\",\"requirement_id\":\"R6\",\"points\":0.25,\"indicator\":\"\"},{\"id\":\"P21\",\"label\":\"b\",\"requirement_id\":\"R6\",\"points\":0.25,\"indicator\":\"\"},{\"id\":\"P22\",\"label\":\"c\",\"requirement_id\":\"R7\",\"points\":0.25,\"indicator\":\"\"},{\"id\":\"P23\",\"label\":\"d\",\"requirement_id\":\"R8\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S21\",\"kind\":\"YN\",\"number\":2,\"parts\":[{\"id\":\"P24\",\"label\":\"a\",\"requirement_id\":\"R12\",\"points\":0.25,\"indicator\":\"\"},{\"id\":\"P25\",\"label\":\"b\",\"requirement_id\":\"R12\",\"points\":0.25,\"indicator\":\"\"},{\"id\":\"P26\",\"label\":\"c\",\"requirement_id\":\"R13\",\"points\":0.25,\"indicator\":\"\"},{\"id\":\"P27\",\"label\":\"d\",\"requirement_id\":\"R14\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S22\",\"kind\":\"YN\",\"number\":3,\"parts\":[{\"id\":\"P28\",\"label\":\"a\",\"requirement_id\":\"R16\",\"points\":0.25,\"indicator\":\"\"},{\"id\":\"P29\",\"label\":\"b\",\"requirement_id\":\"R16\",\"points\":0.25,\"indicator\":\"\"},{\"id\":\"P30\",\"label\":\"c\",\"requirement_id\":\"R17\",\"points\":0.25,\"indicator\":\"\"},{\"id\":\"P31\",\"label\":\"d\",\"requirement_id\":\"R18\",\"points\":0.25,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S23\",\"kind\":\"ES\",\"number\":1,\"parts\":[{\"id\":\"P32\",\"label\":\"\",\"requirement_id\":\"R3\",\"points\":0.75,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S24\",\"kind\":\"ES\",\"number\":2,\"parts\":[{\"id\":\"P33\",\"label\":\"\",\"requirement_id\":\"R11\",\"points\":0.75,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}},{\"id\":\"S25\",\"kind\":\"ES\",\"number\":3,\"parts\":[{\"id\":\"P34\",\"label\":\"\",\"requirement_id\":\"R21\",\"points\":0.75,\"indicator\":\"\"}],\"scoring\":{\"mode\":\"sum_parts\"}}]}}");
+
+  function renumberAllSlots(m) {
+    if (!m || !m.slots) return;
+    const kindOrder = { MC: 1, YN: 2, SHORT: 3, ES: 4 };
+    m.slots.sort((a, b) => (kindOrder[a.kind] || 9) - (kindOrder[b.kind] || 9));
+
+    let mcCount = 0, ynCount = 0, shortCount = 0, esCount = 0;
+    m.slots.forEach((s, idx) => {
+      s.id = 'S' + (idx + 1);
+      if (s.kind === 'MC') {
+        s.number = ++mcCount;
+      } else if (s.kind === 'YN') {
+        s.number = ++ynCount;
+      } else if (s.kind === 'SHORT') {
+        s.number = ++shortCount;
+      } else if (s.kind === 'ES') {
+        s.number = (Number(m.grade) === 8 ? (mcCount + ++esCount) : ++esCount);
+      } else {
+        s.number = idx + 1;
+      }
+      s.parts.forEach((p, pIdx) => {
+        p.id = 'P' + (idx + 1) + (s.parts.length > 1 ? String.fromCharCode(97 + pIdx) : '');
+      });
+    });
+  }
+
+  function updateSlotsFromGrid(m, lessonCode, gridType, newCount) {
+    if (!m) return;
+    newCount = Math.max(0, parseInt(newCount, 10) || 0);
+
+    let targetKind = 'MC';
+    let targetLevel = 'Biết';
+    let isYN = false;
+    let defaultPts = 0.25;
+
+    if (gridType === 'MC_B') {
+      targetKind = 'MC'; targetLevel = 'Biết'; defaultPts = 0.25;
+    } else if (gridType === 'MC_H') {
+      targetKind = 'MC'; targetLevel = 'Hiểu'; defaultPts = 0.25;
+    } else if (gridType === 'YN') {
+      targetKind = 'YN'; targetLevel = 'Hiểu'; isYN = true; defaultPts = 0.25;
+    } else if (gridType === 'ES_VD') {
+      targetKind = 'ES'; targetLevel = 'Vận dụng'; defaultPts = Number(m.grade) === 10 ? 0.75 : 1.0;
+    } else if (gridType === 'ES_VDC') {
+      targetKind = 'ES'; targetLevel = 'Vận dụng cao'; defaultPts = Number(m.grade) === 10 ? 0.75 : 1.0;
+    }
+
+    const reqMap = new Map((m.requirements || []).map(r => [r.id, r]));
+    const matchingSlotIndices = [];
+
+    (m.slots || []).forEach((s, idx) => {
+      const partReqId = s.parts[0]?.requirement_id;
+      const r = reqMap.get(partReqId);
+      if (!r || r.lesson_code !== lessonCode) return;
+
+      if (gridType === 'MC_B' && s.kind === 'MC' && r.level === 'Biết') matchingSlotIndices.push(idx);
+      else if (gridType === 'MC_H' && s.kind === 'MC' && r.level === 'Hiểu') matchingSlotIndices.push(idx);
+      else if (gridType === 'YN' && s.kind === 'YN') matchingSlotIndices.push(idx);
+      else if (gridType === 'ES_VD' && s.kind === 'ES' && (r.level === 'Vận dụng' || r.level === 'Vận dụng thấp')) matchingSlotIndices.push(idx);
+      else if (gridType === 'ES_VDC' && s.kind === 'ES' && r.level === 'Vận dụng cao') matchingSlotIndices.push(idx);
+    });
+
+    const curCount = matchingSlotIndices.length;
+    if (newCount === curCount) return;
+
+    if (newCount < curCount) {
+      const toRemoveIndices = matchingSlotIndices.slice(newCount).sort((a, b) => b - a);
+      toRemoveIndices.forEach(idx => {
+        m.slots.splice(idx, 1);
+      });
+    } else {
+      const toAdd = newCount - curCount;
+      let req = (m.requirements || []).find(r => r.lesson_code === lessonCode && (r.level === targetLevel || (targetLevel === 'Vận dụng' && r.level === 'Vận dụng thấp')));
+      if (!req) {
+        const lesson = (m.lessons || []).find(l => l.lesson_code === lessonCode);
+        const lessonTitle = lesson ? lesson.title : lessonCode;
+        req = {
+          id: uid('R'),
+          lesson_code: lessonCode,
+          level: targetLevel,
+          text: targetLevel + ': Yêu cầu cần đạt về ' + lessonTitle + '.',
+          competency: m.profile === 'THPT' ? 'NLa' : 'TDLL',
+          ppct_outcome_index: null,
+          choice_group: null
+        };
+        m.requirements.push(req);
+      }
+
+      for (let i = 0; i < toAdd; i++) {
+        if (isYN) {
+          m.slots.push({
+            id: uid('S'),
+            kind: 'YN',
+            number: 0,
+            scoring: { mode: 'sum_parts' },
+            parts: ['a', 'b', 'c', 'd'].map(label => ({
+              id: uid('P'),
+              label,
+              requirement_id: req.id,
+              points: 0.25,
+              indicator: ''
+            }))
+          });
+        } else {
+          m.slots.push({
+            id: uid('S'),
+            kind: targetKind,
+            number: 0,
+            scoring: { mode: 'sum_parts' },
+            parts: [{ id: uid('P'), label: '', requirement_id: req.id, points: defaultPts, indicator: '' }]
+          });
+        }
+      }
+    }
+
+    renumberAllSlots(m);
+  }
+
+  function matrixGridHtml(m, locked, received) {
+    const reqMap = new Map((m.requirements || []).map(r => [r.id, r]));
+    const isTHPT = m.profile === 'THPT';
+
+    const lessonRows = (m.lessons || []).map((lesson, idx) => {
+      let mc_b = 0, mc_h = 0, yn = 0, es_vd = 0, es_vdc = 0;
+      let lessonPts = 0;
+
+      (m.slots || []).forEach(s => {
+        const partReqId = s.parts[0]?.requirement_id;
+        const r = reqMap.get(partReqId);
+        if (!r || r.lesson_code !== lesson.lesson_code) return;
+
+        const sPts = s.parts.reduce((sum, p) => sum + Number(p.points || 0), 0);
+        lessonPts += sPts;
+
+        if (s.kind === 'MC') {
+          if (r.level === 'Biết') mc_b++;
+          else if (r.level === 'Hiểu') mc_h++;
+        } else if (s.kind === 'YN') {
+          yn++;
+        } else if (s.kind === 'ES') {
+          if (r.level === 'Vận dụng' || r.level === 'Vận dụng thấp') es_vd++;
+          else if (r.level === 'Vận dụng cao') es_vdc++;
+        }
+      });
+
+      const totalQ = mc_b + mc_h + yn + es_vd + es_vdc;
+      const dis = (locked || received) ? ' disabled' : '';
+
+      return `
+        <tr>
+          <td style="text-align:center;font-weight:600">${idx + 1}</td>
+          <td>
+            <strong>${E(lesson.title)}</strong>
+            <small style="display:block;color:var(--muted)">${E(lesson.lesson_code)}${lesson.topic ? ' · ' + E(lesson.topic) : ''}</small>
+          </td>
+          <td style="text-align:center">
+            <input type="number" min="0" max="30" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="MC_B" value="${mc_b}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>
+          </td>
+          <td style="text-align:center">
+            <input type="number" min="0" max="30" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="MC_H" value="${mc_h}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>
+          </td>
+          ${isTHPT ? `
+          <td style="text-align:center">
+            <input type="number" min="0" max="10" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="YN" value="${yn}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>
+          </td>` : ''}
+          <td style="text-align:center">
+            <input type="number" min="0" max="10" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="ES_VD" value="${es_vd}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>
+          </td>
+          <td style="text-align:center">
+            <input type="number" min="0" max="10" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="ES_VDC" value="${es_vdc}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>
+          </td>
+          <td style="text-align:center;font-weight:600">${totalQ} câu</td>
+          <td style="text-align:center;font-weight:700;color:var(--blue)">${Math.round(lessonPts * 100) / 100}đ</td>
+        </tr>
+      `;
+    }).join('');
+
+    let tot_mc_b = 0, tot_mc_h = 0, tot_yn = 0, tot_es_vd = 0, tot_es_vdc = 0;
+    (m.slots || []).forEach(s => {
+      const r = reqMap.get(s.parts[0]?.requirement_id);
+      if (!r) return;
+      if (s.kind === 'MC') {
+        if (r.level === 'Biết') tot_mc_b++;
+        else if (r.level === 'Hiểu') tot_mc_h++;
+      } else if (s.kind === 'YN') {
+        tot_yn++;
+      } else if (s.kind === 'ES') {
+        if (r.level === 'Vận dụng' || r.level === 'Vận dụng thấp') tot_es_vd++;
+        else if (r.level === 'Vận dụng cao') tot_es_vdc++;
+      }
+    });
+
+    const totalQuestions = tot_mc_b + tot_mc_h + tot_yn + tot_es_vd + tot_es_vdc;
+    const parts = (m.slots || []).flatMap(s => s.parts || []);
+    const totalScore = Math.round(parts.reduce((sum, p) => sum + Number(p.points || 0), 0) * 100) / 100;
+    const isPerfect10 = totalScore === 10;
+
+    return `
+      <div class="card" style="border:1px solid #c2dbf1;background:#fafdff;margin-bottom:20px;padding:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+          <div>
+            <h3 style="margin:0 0 4px;color:var(--navy);font-size:17px">📊 Bảng ma trận 2D trực quan (Chỉnh sửa số câu trực tiếp trên web)</h3>
+            <p style="margin:0;font-size:13px;color:var(--muted)">Nhập trực tiếp số câu vào từng ô theo từng mức độ nhận thức. Hệ thống tự động tính điểm và đồng bộ vào danh sách câu hỏi chi tiết.</p>
+          </div>
+          <div class="actions">
+            <button type="button" class="primary" data-action="apply-preset" title="Nạp mẫu chuẩn 10.0 điểm đã tối ưu cho Khối này">⚡ Nạp mẫu chuẩn Á Châu (10.0đ)</button>
+            <button type="button" data-action="load-ppct-lessons" title="Kéo tất cả các bài học từ Phân phối chương trình sang">📚 Nạp bài học từ PPCT</button>
+            <button type="button" class="danger quiet" data-action="clear-slots" title="Xóa toàn bộ câu hỏi để phân bố lại từ đầu">🗑️ Xóa phân bố</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="matrix-grid-table" style="width:100%;border-collapse:collapse;font-size:13px;background:white">
+            <thead>
+              <tr style="background:#0267B1;color:white;text-align:center">
+                <th rowspan="2" style="width:40px;padding:8px;border:1px solid #7ab6e2">TT</th>
+                <th rowspan="2" style="padding:8px;border:1px solid #7ab6e2;text-align:left">Bài học / Nội dung</th>
+                <th colspan="2" style="padding:6px;border:1px solid #7ab6e2">Phần I: TN nhiều lựa chọn (0.25đ/câu)</th>
+                ${isTHPT ? `<th rowspan="2" style="padding:6px;border:1px solid #7ab6e2">Phần II: Đúng/Sai (1.0đ/câu - 4 ý)</th>` : ''}
+                <th colspan="2" style="padding:6px;border:1px solid #7ab6e2">Phần ${isTHPT ? 'III' : 'II'}: Tự luận</th>
+                <th rowspan="2" style="width:80px;padding:8px;border:1px solid #7ab6e2">Tổng câu</th>
+                <th rowspan="2" style="width:80px;padding:8px;border:1px solid #7ab6e2">Điểm số</th>
+              </tr>
+              <tr style="background:#005896;color:white;text-align:center">
+                <th style="width:75px;padding:6px;border:1px solid #7ab6e2">Biết</th>
+                <th style="width:75px;padding:6px;border:1px solid #7ab6e2">Hiểu</th>
+                <th style="width:75px;padding:6px;border:1px solid #7ab6e2">Vận dụng</th>
+                <th style="width:75px;padding:6px;border:1px solid #7ab6e2">Vận dụng cao</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${lessonRows || '<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--muted)">Chưa có bài học nào. Bấm "+ Thêm bài" hoặc "📚 Nạp bài học từ PPCT" để bắt đầu.</td></tr>'}
+            </tbody>
+            <tfoot>
+              <tr style="background:#eaf3fb;font-weight:700">
+                <td colspan="2" style="text-align:right;padding:10px 12px;color:var(--navy)">TỔNG CỘNG TOÀN BÀI:</td>
+                <td style="text-align:center;color:var(--navy)">${tot_mc_b} câu<br><small style="font-weight:400;color:var(--muted)">${(tot_mc_b * 0.25).toFixed(2)}đ</small></td>
+                <td style="text-align:center;color:var(--navy)">${tot_mc_h} câu<br><small style="font-weight:400;color:var(--muted)">${(tot_mc_h * 0.25).toFixed(2)}đ</small></td>
+                ${isTHPT ? `<td style="text-align:center;color:var(--navy)">${tot_yn} câu<br><small style="font-weight:400;color:var(--muted)">${(tot_yn * 1.0).toFixed(2)}đ</small></td>` : ''}
+                <td style="text-align:center;color:var(--navy)">${tot_es_vd} câu<br><small style="font-weight:400;color:var(--muted)">${(tot_es_vd * (isTHPT ? 0.75 : 1.0)).toFixed(2)}đ</small></td>
+                <td style="text-align:center;color:var(--navy)">${tot_es_vdc} câu<br><small style="font-weight:400;color:var(--muted)">${(tot_es_vdc * (isTHPT ? 0.75 : 1.0)).toFixed(2)}đ</small></td>
+                <td style="text-align:center;font-size:14px;color:var(--navy)">${totalQuestions} câu</td>
+                <td style="text-align:center;font-size:15px;color:${isPerfect10 ? '#1d7058' : '#bd2336'}">${totalScore}đ</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div style="font-size:13px;color:var(--ink)">
+            ${isPerfect10
+              ? `<span style="display:inline-flex;align-items:center;gap:6px;background:#e6f4ea;color:#137333;padding:5px 12px;border-radius:20px;font-weight:700">✓ Ma trận đã cân đối chính xác 10.0 / 10.0 điểm</span>`
+              : `<span style="display:inline-flex;align-items:center;gap:6px;background:#fce8e6;color:#c5221f;padding:5px 12px;border-radius:20px;font-weight:700">⚠️ Tổng điểm hiện tại: ${totalScore} / 10.0 điểm (${totalScore < 10 ? 'Thiếu ' + (10 - totalScore).toFixed(2) + 'đ' : 'Vượt ' + (totalScore - 10).toFixed(2) + 'đ'})</span>`
+            }
+          </div>
+          <div style="font-size:12px;color:var(--muted)">
+            Phân bố tỉ lệ: <strong>Nhận biết ${(tot_mc_b*0.25*10).toFixed(0)}%</strong> · <strong>Thông hiểu ${(tot_mc_h*0.25*10).toFixed(0)}%</strong> · <strong>Vận dụng + VDC ${((10 - (tot_mc_b+tot_mc_h)*0.25)*10).toFixed(0)}%</strong>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   const ui={container:null,ctx:null,records:[],editing:null,dirty:false,report:null,busy:false,filter:{},importing:null,generation:null,comparison:null,previewState:null};
   const clone=v=>JSON.parse(JSON.stringify(v));
   const opt=(v,text,selected)=>`<option value="${E(v)}"${selected?' selected':''}>${E(text)}</option>`;
@@ -75,19 +337,41 @@
     <div class="mx-records">${filterRecords(ui.records,f).length?filterRecords(ui.records,f).slice().reverse().map(m=>{const issues=m.reconciliation?.issues||[];return `<article class="mx-record-card${ui.editing?.id===m.id?' active':''}"><div class="mx-record-main"><button class="mx-record" data-open="${E(m.id)}"><span><strong>${E(m.title)}</strong><small>Khối ${m.grade} · ${E(profileLabel(m.profile))} · ${E(m.school_year)} · ${E(m.campus||'Chưa ghi cơ sở')} · ${m.mode==='received'?'Bản nhận từ tệp Word gốc':'Phụ trách biên soạn'}${m.source?.name?` (${E(m.source.name)})`:''}</small>${issues.length?`<span class="mx-inline-issues">${issues.map(x=>E(x.message)).join(' • ')}</span>`:''}</span><span class="mx-record-meta">${recordBadges(m)}</span></button></div><div class="mx-record-actions"><button type="button" data-open="${E(m.id)}">Mở & biên tập</button><button type="button" class="primary" data-action="preview-id" data-id="${E(m.id)}">Xem toàn bộ</button><button type="button" data-action="compare-id" data-id="${E(m.id)}">Đối chiếu bản gốc (2 cột)</button><button type="button" data-action="duplicate-id" data-id="${E(m.id)}">Nhân bản</button><button type="button" class="danger" data-action="delete-id" data-id="${E(m.id)}">Xóa</button></div></article>`;}).join(''):'<div class="empty"><h3>Chưa có hồ sơ ma trận</h3><p>Tạo ma trận cho chương trình đang mở hoặc nhập gói dữ liệu phù hợp.</p></div>'}</div></div>
     <div id="mx-preview" class="card mx-preview" hidden></div><div id="mx-work"></div>`;
     ui.container.onclick=click;ui.container.onchange=change;ui.container.oninput=input;
+    ui.container.onkeydown=function(e){if(e.key==='Enter'&&e.target.matches('.mx-grid-input')){e.preventDefault();e.target.blur();}};
     if(ui.editing)renderEditor();else if(ui.generation)renderGeneration();else if(ui.importing)renderImport();
     if(ui.comparison)renderComparisonBox();else if(ui.previewState)renderPreviewBox();
   }
   function field(label,path,value,type='text',disabled=false){const id='mx-'+path.replaceAll('.','-');return `<div class="field"><label for="${id}">${E(label)}</label><input id="${id}" data-field="${E(path)}" type="${type}" value="${E(value??'')}"${disabled?' disabled':''}></div>`;}
   function select(label,path,options,disabled=false){const id='mx-'+path.replaceAll('.','-');return `<div class="field"><label for="${id}">${E(label)}</label><select id="${id}" data-field="${E(path)}"${disabled?' disabled':''}>${options}</select></div>`;}
-  function newDraft(grade){const g=Number(grade)||grades()[0];return {id:'',family_id:'',version:1,revision:0,status:'draft',mode:'authored',profile:generic()?'GENERAL':g===10?'THPT':'THCS',grade:g,school_year:ui.ctx.context?.school_year||'2026-2027',subject_name:subject(),exam_type:'GK1',duration:45,title:`Ma trận Giữa HK1 ${subject()} ${g}`,owner_name:'',campus:generic()?'':'Cao Thắng',total_points:10,lessons:[],requirements:[],slots:[],indicator_catalog:[],source:null,reconciliation:{confirmed:true,issues:[]},audit:[],allow_custom_override:true};}
+  function newDraft(grade, usePreset=true){
+    const g=Number(grade)||grades()[0];
+    const preset=(usePreset&&STANDARD_PRESETS&&STANDARD_PRESETS[String(g)])?clone(STANDARD_PRESETS[String(g)]):null;
+    if(preset){
+      preset.id='';
+      preset.family_id='';
+      preset.version=1;
+      preset.revision=0;
+      preset.status='draft';
+      preset.mode='authored';
+      preset.owner_name=preset.owner_name||'Tổ Tin học Á Châu';
+      preset.campus=preset.campus||(generic()?'':'Cao Thắng');
+      preset.school_year=ui.ctx?.context?.school_year||preset.school_year||'2026-2027';
+      preset.subject_name=subject();
+      preset.allow_custom_override=true;
+      preset.reconciliation={confirmed:true,issues:[]};
+      preset.audit=[{at:new Date().toISOString(),action:'create_preset'}];
+      return preset;
+    }
+    return {id:'',family_id:'',version:1,revision:0,status:'draft',mode:'authored',profile:generic()?'GENERAL':g===10?'THPT':'THCS',grade:g,school_year:ui.ctx?.context?.school_year||'2026-2027',subject_name:subject(),exam_type:'GK1',duration:45,title:`Ma trận Giữa HK1 ${subject()} ${g}`,owner_name:'',campus:generic()?'':'Cao Thắng',total_points:10,lessons:[],requirements:[],slots:[],indicator_catalog:[],source:null,reconciliation:{confirmed:true,issues:[]},audit:[],allow_custom_override:true};
+  }
   function renderEditor(){
     const m=ui.editing,custom=Boolean(m.allow_custom_override),locked=!custom&&['locked','archived'].includes(m.status),received=!custom&&m.mode==='received',protectedFields=locked||received;
     qs('#mx-work').innerHTML=`<section class="card mx-editor"><div class="mx-editor-head"><div><p class="eyebrow">${custom?'CHẾ ĐỘ SỬA TOÀN DIỆN (TÙY CHỈNH)':received?'NHẬN NGUỒN · BẢO TOÀN CHỈ TIÊU':'PHỤ TRÁCH BIÊN SOẠN'}</p><h2>${E(m.title)} <span class="badge">V${m.version}</span></h2><p>${E(states[m.status])}${custom?' · Đang mở khóa tùy chỉnh toàn diện':''}<span id="mx-dirty">${ui.dirty?' · Có thay đổi chưa lưu':''}</span></p></div><div class="actions"><button data-action="preview">Xem toàn bộ bảng</button>${m.mode==='received'||m.source?`<button data-action="compare">Đối chiếu bản gốc (2 cột)</button>`:''}${(locked||received)?`<button type="button" data-action="unlock-custom">🔓 Bật sửa toàn diện</button>`:''}${m.id?`<button type="button" data-action="duplicate-id" data-id="${E(m.id)}">Nhân bản</button><button type="button" class="danger" data-action="delete-id" data-id="${E(m.id)}">Xóa hồ sơ</button>`:''}<button data-action="save" class="primary">Lưu bản nháp</button><button data-action="discard">${ui.dirty?'Bỏ thay đổi / tải bản đã lưu':'Đóng hồ sơ'}</button></div></div>
-    <div class="mx-section-nav"><button type="button" data-scroll="mx-information">Thông tin</button><button type="button" data-scroll="mx-lessons">Bài & YCCĐ</button><button type="button" data-scroll="mx-slots">Phân bố câu / ý</button><button type="button" data-scroll="mx-validation">Đối chiếu</button><button type="button" data-scroll="mx-output">Word & phiên bản</button></div>
+    <div class="mx-section-nav"><button type="button" data-scroll="mx-information">Thông tin</button><button type="button" data-scroll="mx-grid">Ma trận 2D</button><button type="button" data-scroll="mx-lessons">Bài & YCCĐ</button><button type="button" data-scroll="mx-slots">Phân bố câu / ý</button><button type="button" data-scroll="mx-validation">Đối chiếu</button><button type="button" data-scroll="mx-output">Word & phiên bản</button></div>
     ${received?'<div class="callout">Đang ở chế độ bảo toàn chỉ tiêu nguồn (chỉ bổ sung ánh xạ PPCT và số câu). Nếu bạn muốn thêm/sửa/xóa bài học, YCCĐ hoặc phân bố câu hỏi trực tiếp, hãy bấm nút <strong>"🔓 Bật sửa toàn diện"</strong> ở góc phải phía trên.</div>':''}
     <h3 id="mx-information">1. Thông tin hồ sơ</h3><div class="form-grid">${field('Tên hồ sơ','title',m.title,'text',locked)}${select('Khối lớp','grade',grades().map(g=>opt(g,'Khối '+g,Number(m.grade)===g)).join(),protectedFields)}${field('Người phụ trách biên soạn','owner_name',m.owner_name,'text',locked)}${field('Cơ sở của người phụ trách','campus',m.campus,'text',locked)}${field('Năm học','school_year',m.school_year,'text',protectedFields)}${select('Kỳ kiểm tra','exam_type',Object.entries(periods).map(([k,v])=>opt(k,v,k===m.exam_type)).join(''),protectedFields)}${field('Thời gian (phút)','duration',m.duration,'number',protectedFields)}${select('Kiểu mẫu','profile',(generic()?['GENERAL']:['THCS','THPT']).map(k=>opt(k,profileLabel(k),k===m.profile)).join(''),protectedFields)}</div>
     ${profileOptionsHtml(m,locked)}
+    <div id="mx-grid">${matrixGridHtml(m, locked, received)}</div>
     <h3 id="mx-lessons">2. Bài học & yêu cầu cần đạt</h3><p class="muted">Khối ${m.grade}. Nội dung cụ thể liên kết với yêu cầu cần đạt nguồn của PPCT. Các chỉ báo có thể được chọn thay thế theo quy định của mẫu.</p>
     ${!protectedFields?`<div class="actions"><label for="mx-add-lesson">Bài cần thêm</label><select id="mx-add-lesson">${lessons(m.grade).filter(l=>!m.lessons.some(x=>x.lesson_code===l.lesson_code)).map(l=>opt(l.lesson_code,l.lesson_name_source,false)).join('')}</select><button data-action="add-lesson">+ Thêm bài</button></div>`:''}
     ${m.lessons.map((lesson,i)=>`<article class="mx-lesson"><div class="dialog-heading" style="margin-bottom:8px"><h4>${E(lesson.title)}</h4>${!protectedFields?`<button type="button" class="quiet danger" data-action="remove-lesson" data-index="${i}">Xóa bài này</button>`:''}</div>${select('Đối chiếu bài PPCT '+(i+1),`lessons.${i}.lesson_code`,opt('','Chọn bài đối chiếu',!lesson.lesson_code)+lessons(m.grade).map(l=>opt(l.lesson_code,l.lesson_name_source,l.lesson_code===lesson.lesson_code)).join(''),locked)}${!received?`<div class="form-grid">${field('Tên bài hiển thị '+(i+1),`lessons.${i}.title`,lesson.title,'text',locked)}${field('Tên chủ đề '+(i+1),`lessons.${i}.topic`,lesson.topic,'text',locked)}</div>`:`<p class="muted">Nguồn: ${E(lesson.topic)}</p>`}
@@ -193,7 +477,19 @@
   }
   function captureGeneration(){if(!ui.generation||!qs('#mx-exam-title'))return;const values={};ui.container.querySelectorAll('[id^=mx-exam-],[data-choice],[data-review-slot]').forEach(el=>{const key=el.dataset.reviewSlot?'review:'+el.dataset.reviewSlot+':'+el.value:el.id;values[key]=el.type==='checkbox'?el.checked:el.value;});ui.generation.formValues=values;}
   function input(event){captureGeneration();if(event.target.matches('[data-field]')&&event.target.tagName!=='SELECT'&&event.target.type!=='checkbox')assign(event.target);if(event.target.id==='mx-confirm-agreement')restoreButtons();}
-  async function change(event){const el=event.target;if(el.matches('[data-field]')&&(el.tagName==='SELECT'||el.type==='checkbox'))assign(el);if(el.matches('[data-allow-kind],[data-yn-coef]'))assign(el);if(el.dataset.filter){ui.filter[el.dataset.filter]=el.value;render();}if(el.id==='mx-file')await readImport(el.files[0]);if(el.id==='mx-confirm-agreement'||el.dataset.field==='reconciliation.confirmed')restoreButtons();if(el.dataset.choice){const id=el.dataset.choice;ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===id)c.checked=false;});showChoice(id);coverage();}if(el.id==='mx-exam-revision')coverage();captureGeneration();}
+  async function change(event){
+    const el=event.target;
+    if(el.matches('.mx-grid-input')){
+      const lessonCode=el.dataset.lessonCode;
+      const gridType=el.dataset.gridType;
+      const val=Math.max(0,parseInt(el.value,10)||0);
+      updateSlotsFromGrid(ui.editing,lessonCode,gridType,val);
+      changed();renderEditor();
+      const nextInput=qs('.mx-grid-input[data-lesson-code="' + lessonCode + '"][data-grid-type="' + gridType + '"]');
+      if(nextInput){nextInput.focus();nextInput.select();}
+      return;
+    }
+    if(el.matches('[data-field]')&&(el.tagName==='SELECT'||el.type==='checkbox'))assign(el);if(el.matches('[data-allow-kind],[data-yn-coef]'))assign(el);if(el.dataset.filter){ui.filter[el.dataset.filter]=el.value;render();}if(el.id==='mx-file')await readImport(el.files[0]);if(el.id==='mx-confirm-agreement'||el.dataset.field==='reconciliation.confirmed')restoreButtons();if(el.dataset.choice){const id=el.dataset.choice;ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===id)c.checked=false;});showChoice(id);coverage();}if(el.id==='mx-exam-revision')coverage();captureGeneration();}
   function guard(){if(ui.dirty){message('Có thay đổi chưa lưu. Hãy lưu hoặc bấm “Bỏ thay đổi / tải bản đã lưu” trước khi mở hồ sơ khác.',true);return false;}return true;}
   async function openRecord(id,discard=false){if(!discard&&!guard())return;const d=await ui.ctx.request('/api/matrices/'+encodeURIComponent(id));ui.editing=d.matrix;ui.report=d.validation;ui.dirty=false;ui.importing=null;ui.generation=null;render();}
   async function save(){const result=await ui.ctx.request('/api/matrices/save',{matrix:ui.editing,expected_revision:ui.editing.revision,allow_custom_override:Boolean(ui.editing.allow_custom_override)});ui.editing=result.matrix;ui.report=result.validation;ui.dirty=false;await refresh();render();message('Đã lưu bản nháp; nguồn và lịch sử cũ được giữ nguyên.');}
@@ -1044,6 +1340,50 @@
     if(action==='new'){if(!guard())return;ui.editing=newDraft(b.dataset.grade);ui.report=null;ui.importing=null;ui.generation=null;render();return;}
     if(action==='import'){if(!guard())return;ui.editing=null;ui.generation=null;ui.importing={grade:grades()[0]};render();return;}
     if(action==='discard'){await run(async()=>{if(ui.dirty&&ui.editing.id)await openRecord(ui.editing.id,true);else{ui.editing=null;ui.dirty=false;render();}});return;}
+    if(action==='apply-preset'&&ui.editing){
+      const g=Number(ui.editing.grade)||8;
+      const p=STANDARD_PRESETS[String(g)];
+      if(!p){message('Chưa có mẫu cho khối '+g,true);return;}
+      const copy=clone(p);
+      ui.editing.lessons=copy.lessons;
+      ui.editing.requirements=copy.requirements;
+      ui.editing.slots=copy.slots;
+      ui.editing.indicator_catalog=copy.indicator_catalog||[];
+      ui.editing.total_points=copy.total_points||10;
+      if(copy.scoring_policy)ui.editing.scoring_policy=copy.scoring_policy;
+      changed();renderEditor();
+      message('Đã nạp lại mẫu chuẩn Á Châu 10.0 điểm cho Khối ' + g + '!');
+      return;
+    }
+    if(action==='load-ppct-lessons'&&ui.editing){
+      const g=Number(ui.editing.grade)||8;
+      const ppctLessons=lessons(g);
+      if(!ppctLessons.length){
+        message('Chưa có danh sách bài học PPCT cho Khối '+g+'. Hãy nạp PPCT trước.',true);
+        return;
+      }
+      let added=0;
+      ppctLessons.forEach(pl=>{
+        if(!ui.editing.lessons.some(l=>l.lesson_code===pl.lesson_code)){
+          ui.editing.lessons.push({
+            lesson_code:pl.lesson_code,
+            title:pl.lesson_name_source||pl.lesson_code,
+            topic:pl.topic_source||''
+          });
+          added++;
+        }
+      });
+      changed();renderEditor();
+      message('Đã đồng bộ ' + added + ' bài học mới từ Phân phối chương trình Khối ' + g + '!');
+      return;
+    }
+    if(action==='clear-slots'&&ui.editing){
+      if(!confirm('Bạn có chắc chắn muốn xóa toàn bộ câu hỏi phân bố để tự nhập lại từ đầu?'))return;
+      ui.editing.slots=[];
+      changed();renderEditor();
+      message('Đã xóa toàn bộ câu hỏi phân bố.');
+      return;
+    }
     if(action==='unlock-custom'&&ui.editing){
       ui.editing.allow_custom_override=true;
       ui.editing.status='draft';
@@ -1652,6 +1992,6 @@ Quy ước:
   function coverage(){if(!ui.generation||!qs('#mx-coverage'))return;const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));let count=0,matched=0;for(const e of ui.generation.slots){const q=e.candidates.find(q=>q.id===qs('#mx-choice-'+e.slot.id).value);if(q){count++;if(hashes.has(q.content_hash))matched++;}}qs('#mx-coverage').textContent=`Đã chọn ${count}/${ui.generation.slots.length} câu · Khớp nội dung đề cương ${matched} câu. Máy chủ sẽ kiểm tra lại khi tạo đề.`;}
   function suggest(){const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));const used=new Set();for(const e of ui.generation.slots){const pool=e.candidates.slice().sort((a,b)=>Number(hashes.has(b.content_hash))-Number(hashes.has(a.content_hash)));const q=pool.find(q=>!used.has(q.id));qs('#mx-choice-'+e.slot.id).value=q?.id||'';if(q)used.add(q.id);ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===e.slot.id)c.checked=false;});showChoice(e.slot.id);}captureGeneration();coverage();message('Đã gợi ý câu. Thầy cần xem nội dung và đánh dấu đối chiếu từng chỉ báo trước khi lưu đề.');}
   async function generate(){const g=ui.generation;const placements=g.slots.map(e=>({slot_id:e.slot.id,question_id:qs('#mx-choice-'+e.slot.id).value,reviewed_part_ids:[...ui.container.querySelectorAll('[data-review-slot]')].filter(x=>x.dataset.reviewSlot===e.slot.id&&x.checked).map(x=>x.value)}));const result=await ui.ctx.request('/api/exams/from-matrix',{matrix_id:g.matrix.id,revision_id:qs('#mx-exam-revision').value,title:qs('#mx-exam-title').value,campus:qs('#mx-exam-campus').value,exam_code:qs('#mx-exam-code').value,seed:qs('#mx-exam-seed').value,placements});const e=result.exam,base='/api/exams/'+encodeURIComponent(e.id)+'/export';qs('#mx-created-exam').innerHTML=`<div class="callout"><h3>Đã lưu đề ${E(e.exam_code)} · ${E(e.campus)}</h3><p>${e.question_count} câu · 10 điểm · Khớp đề cương ${e.revision_match_count}/${e.question_count} câu · Ma trận V${e.matrix_version}</p><div class="actions"><button type="button" class="primary" data-view-exam="${E(e.id)}" data-mode="student">Xem đề học sinh</button><button type="button" data-view-exam="${E(e.id)}" data-mode="answers">Xem đáp án & HDC</button><a class="button" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button" href="${base}?format=docx&answers=1">Word đáp án</a></div></div>`;ui.ctx.onExamCreated?.(e);message('Đã tạo đề riêng và lưu phiên bản ma trận dùng chung cùng đề.');}
-  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson};
+  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,STANDARD_PRESETS,newDraft,updateSlotsFromGrid,renumberAllSlots};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

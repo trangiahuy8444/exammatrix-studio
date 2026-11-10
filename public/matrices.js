@@ -146,20 +146,27 @@
       });
     } else {
       const toAdd = newCount - curCount;
+      const lesson = (m.lessons || []).find(l => l.lesson_code === lessonCode);
+      const lessonTitle = lesson ? lesson.title : lessonCode;
+      const ppctLesson = typeof lessons === 'function' ? lessons(m.grade).find(l => l.lesson_code === lessonCode) : null;
+      const ppctOutcomes = Array.isArray(ppctLesson?.outcomes) ? ppctLesson.outcomes.filter(Boolean) : [];
+      const realOutcomeText = ppctOutcomes.length ? ppctOutcomes.join('\n') : (targetLevel + ': Yêu cầu cần đạt về ' + lessonTitle + '.');
+
       let req = (m.requirements || []).find(r => r.lesson_code === lessonCode && (r.level === targetLevel || (targetLevel === 'Vận dụng' && r.level === 'Vận dụng thấp')));
       if (!req) {
-        const lesson = (m.lessons || []).find(l => l.lesson_code === lessonCode);
-        const lessonTitle = lesson ? lesson.title : lessonCode;
         req = {
           id: uid('R'),
           lesson_code: lessonCode,
           level: targetLevel,
-          text: targetLevel + ': Yêu cầu cần đạt về ' + lessonTitle + '.',
+          text: realOutcomeText,
           competency: m.profile === 'THPT' ? 'NLa' : 'TDLL',
-          ppct_outcome_index: null,
+          ppct_outcome_index: ppctOutcomes.length ? 0 : null,
           choice_group: null
         };
         m.requirements.push(req);
+      } else if (ppctOutcomes.length && /^(Biết|Hiểu|Vận dụng|Vận dụng cao):\s*Yêu cầu cần đạt về/i.test(String(req.text || '').trim())) {
+        req.text = realOutcomeText;
+        req.ppct_outcome_index = 0;
       }
 
       for (let i = 0; i < toAdd; i++) {
@@ -223,6 +230,11 @@
       const dis = (locked || received) ? ' disabled' : '';
 
       const totalLessonsCount = (m.lessons || []).length;
+      const ppctLesson = lessons(m.grade).find(l => l.lesson_code === lesson.lesson_code);
+      const yccdList = Array.isArray(ppctLesson?.outcomes) && ppctLesson.outcomes.length
+        ? ppctLesson.outcomes
+        : (m.requirements || []).filter(r => r.lesson_code === lesson.lesson_code && r.text && !/^(Biết|Hiểu|Vận dụng|Vận dụng cao):\s*Yêu cầu cần đạt về/i.test(r.text)).map(r => r.text);
+      const yccdPreview = yccdList.length ? yccdList.slice(0, 2).join(' • ') : '';
       return `
         <tr>
           <td style="text-align:center;font-weight:600">${idx + 1}</td>
@@ -231,6 +243,7 @@
               <div>
                 <strong>${E(lesson.title)}</strong>
                 <small style="display:block;color:var(--muted)">${E(lesson.lesson_code)}${lesson.topic ? ' · ' + E(lesson.topic) : ''}</small>
+                ${yccdPreview ? `<small style="display:block;color:#334155;margin-top:3px;line-height:1.35">📌 <em>YCCĐ:</em> ${E(yccdPreview)}</small>` : ''}
               </div>
               ${!(locked || received) ? `
               <div style="display:inline-flex;align-items:center;gap:3px;flex-shrink:0">
@@ -295,8 +308,7 @@
             <p style="margin:0;font-size:13px;color:var(--muted)">Nhập trực tiếp số câu vào từng ô theo từng mức độ nhận thức. Hệ thống tự động tính điểm và đồng bộ vào danh sách câu hỏi chi tiết.</p>
           </div>
           <div class="actions">
-            <button type="button" class="primary" data-action="apply-preset" title="Nạp mẫu chuẩn 10.0 điểm đã tối ưu cho Khối này">⚡ Nạp mẫu chuẩn Á Châu (10.0đ)</button>
-            <button type="button" data-action="load-ppct-lessons" title="Kéo tất cả các bài học từ Phân phối chương trình sang">📚 Nạp toàn bộ bài từ PPCT</button>
+            <button type="button" data-action="apply-preset" title="Điền nhanh mẫu 5 bài đầu học kì (28 câu TN + 3 câu TL = 10.0 điểm) chuẩn Trường Quốc tế Á Châu để tham khảo hoặc sửa nhanh">⚡ Điền mẫu tham khảo Giữa kì (5 bài · 10đ)</button>
             <button type="button" data-action="sort-lessons-ppct" title="Tự động sắp xếp lại các bài học theo đúng thứ tự B1, B2, B3... của PPCT">⇅ Sắp xếp đúng thứ tự bài</button>
             <button type="button" class="danger quiet" data-action="clear-slots" title="Xóa trắng bài học và câu hỏi phân bố để làm lại từ đầu">🗑️ Làm trống ma trận</button>
           </div>
@@ -336,7 +348,7 @@
               </tr>
             </thead>
             <tbody>
-              ${lessonRows || `<tr><td colspan="${isTHPT ? 8 : 7}" style="text-align:center;padding:24px;color:var(--muted)">Ma trận đang trống. Hãy chọn bài học ở thanh phía trên (<strong>+ Thêm bài đã chọn</strong> / <strong>+ Tự nhập bài mới</strong>), hoặc bấm <strong>📚 Nạp toàn bộ bài từ PPCT</strong> / <strong>⚡ Nạp mẫu chuẩn Á Châu (10.0đ)</strong>.</td></tr>`}
+              ${lessonRows || `<tr><td colspan="${isTHPT ? 8 : 7}" style="text-align:center;padding:24px;color:var(--muted)">Ma trận đang trống. Hãy chọn từng bài học ở thanh phía trên rồi bấm <strong>+ Thêm bài đã chọn</strong> (hoặc bấm <strong>⚡ Điền mẫu tham khảo Giữa kì</strong>).</td></tr>`}
             </tbody>
             <tfoot>
               <tr style="background:#eaf3fb;font-weight:700">
@@ -363,6 +375,15 @@
             Phân bố tỉ lệ: <strong>Nhận biết ${(tot_mc_b*0.25*10).toFixed(0)}%</strong> · <strong>Thông hiểu ${(tot_mc_h*0.25*10).toFixed(0)}%</strong> · <strong>Vận dụng + VDC ${(vdVdcPts*10).toFixed(0)}%</strong>
           </div>
         </div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px dashed #c2dbf1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="primary" data-action="save-and-lock" style="background:#137333;border-color:#137333;font-weight:700">✅ Lưu & Chốt ma trận (Khóa phiên bản)</button>
+            <button type="button" class="primary" data-action="save">💾 Lưu bản nháp</button>
+            <button type="button" data-action="preview">👁️ Xem bảng chuẩn Word (Ma trận + Đặc tả)</button>
+            <button type="button" data-action="quick-export-doc">📄 Xuất Word trọn bộ (.doc)</button>
+          </div>
+          <small style="color:var(--muted)">${m.status === 'locked' ? '🔒 Hồ sơ này đã được chốt & khóa phiên bản.' : (ui.dirty || !m.id ? '● Đang có thay đổi chưa lưu — bấm "Lưu bản nháp" hoặc "Lưu & Chốt ma trận"' : '✓ Đã lưu vào hệ thống')}</small>
+        </div>
       </div>
     `;
   }
@@ -378,13 +399,12 @@
   async function run(work){if(ui.busy)return;ui.busy=true;ui.container.querySelectorAll('button').forEach(b=>b.disabled=true);try{await work();}catch(e){message(detail(e),true);if(e.details?.errors){ui.report=e.details;renderReport();}}finally{ui.busy=false;ui.container.querySelectorAll('button').forEach(b=>b.disabled=false);restoreButtons();}}
   function restoreButtons(){
     if(!ui.editing)return;
-    const actions=visibleActions(ui.editing);
-    const canLock=Boolean(ui.report?.valid || ui.report?.ok || ui.editing?.reconciliation?.confirmed || qs('#mx-confirm-agreement')?.checked);
+    const isArchived = ui.editing.status === 'archived';
     ui.container.querySelectorAll('[data-action]').forEach(b=>{
       const a=b.dataset.action;
-      if(['save','review','preview','lock','export'].includes(a))
-        b.disabled=!actions.includes(a)||((a!=='save')&&(!ui.editing.id||ui.dirty))||(a==='lock'&&!canLock);
-      if(a==='compare')b.disabled=!ui.editing.id||ui.dirty;
+      if(['save','save-and-lock','review','preview','lock','export','quick-export-doc'].includes(a))
+        b.disabled=isArchived;
+      if(a==='compare')b.disabled=!ui.editing.id;
     });
     ui.container.querySelectorAll('button:not([data-action])').forEach(b=>b.disabled=false);
   }
@@ -476,18 +496,22 @@
     <h3 id="mx-information">1. Thông tin hồ sơ</h3><div class="form-grid">${field('Tên hồ sơ','title',m.title,'text',locked)}${select('Khối lớp','grade',grades().map(g=>opt(g,'Khối '+g,Number(m.grade)===g)).join(),protectedFields)}${field('Người phụ trách biên soạn','owner_name',m.owner_name,'text',locked)}${field('Cơ sở của người phụ trách','campus',m.campus,'text',locked)}${field('Năm học','school_year',m.school_year,'text',protectedFields)}${select('Kỳ kiểm tra','exam_type',Object.entries(periods).map(([k,v])=>opt(k,v,k===m.exam_type)).join(''),protectedFields)}${field('Thời gian (phút)','duration',m.duration,'number',protectedFields)}${select('Kiểu mẫu','profile',(generic()?['GENERAL']:['THCS','THPT']).map(k=>opt(k,profileLabel(k),k===m.profile)).join(''),protectedFields)}</div>
     ${profileOptionsHtml(m,locked)}
     <div id="mx-grid">${matrixGridHtml(m, locked, received)}</div>
-    <h3 id="mx-lessons">2. Bài học & yêu cầu cần đạt</h3><p class="muted">Khối ${m.grade}. Nội dung cụ thể liên kết với yêu cầu cần đạt nguồn của PPCT. Các chỉ báo có thể được chọn thay thế theo quy định của mẫu.</p>
-    ${!protectedFields?`<div class="actions"><label for="mx-add-lesson">Bài cần thêm</label><select id="mx-add-lesson">${lessons(m.grade).filter(l=>!m.lessons.some(x=>x.lesson_code===l.lesson_code)).map(l=>opt(l.lesson_code,l.lesson_name_source,false)).join('')}</select><button data-action="add-lesson">+ Thêm bài</button></div>`:''}
-    ${m.lessons.map((lesson,i)=>`<article class="mx-lesson"><div class="dialog-heading" style="margin-bottom:8px"><h4>${E(lesson.title)}</h4>${!protectedFields?`<button type="button" class="quiet danger" data-action="remove-lesson" data-index="${i}">Xóa bài này</button>`:''}</div>${select('Đối chiếu bài PPCT '+(i+1),`lessons.${i}.lesson_code`,opt('','Chọn bài đối chiếu',!lesson.lesson_code)+lessons(m.grade).map(l=>opt(l.lesson_code,l.lesson_name_source,l.lesson_code===lesson.lesson_code)).join(''),locked)}${!received?`<div class="form-grid">${field('Tên bài hiển thị '+(i+1),`lessons.${i}.title`,lesson.title,'text',locked)}${field('Tên chủ đề '+(i+1),`lessons.${i}.topic`,lesson.topic,'text',locked)}</div>`:`<p class="muted">Nguồn: ${E(lesson.topic)}</p>`}
-    ${m.requirements.map((r,ri)=>r.lesson_code===lesson.lesson_code&&(!received||r.source_index===lesson.source_index)?requirementEditor(r,ri,locked,received):'').join('')}
-    ${!protectedFields?`<button data-action="add-requirement" data-index="${i}">+ Thêm yêu cầu / chỉ báo kiểm tra</button>`:''}</article>`).join('')}
-    ${m.profile==='THPT'?`<h3>Danh mục chỉ báo năng lực</h3><p class="muted">Giữ nguyên mã và mô tả chỉ báo của nguồn. Bảng phân bố năng lực được dựng từ các vị trí đã gắn mã.</p>${m.indicator_catalog.map((c,i)=>`<div class="form-grid mx-indicator">${field('Mã chỉ báo '+(i+1),`indicator_catalog.${i}.code`,c.code,'text',protectedFields)}${select('Năng lực của mã '+(i+1),`indicator_catalog.${i}.competency`,['NLa','NLb','NLc'].map(k=>opt(k,k,k===c.competency)).join(''),protectedFields)}${field('Mô tả chỉ báo '+(i+1),`indicator_catalog.${i}.text`,c.text,'text',protectedFields)}${!protectedFields?`<div class="field" style="justify-content:flex-end"><button type="button" class="quiet danger" data-action="remove-indicator" data-index="${i}">Xóa mã</button></div>`:''}</div>`).join('')}${!protectedFields?'<button data-action="add-indicator">+ Thêm mã chỉ báo</button>':''}`:''}
-    <h3 id="mx-slots">3. Phân bố câu hỏi và ý</h3>${!protectedFields?bulkEditor():''}<div id="mx-summary" class="mx-totals"></div>
-    <div class="table-wrap"><table class="mx-slots-table"><thead><tr><th>Câu / dạng</th><th>Ý</th><th>Yêu cầu cần đạt cụ thể</th><th>Điểm</th>${m.profile==='THPT'?'<th>Mã chỉ báo</th>':''}${!protectedFields?'<th>Thao tác</th>':''}</tr></thead><tbody>${m.slots.map((s,si)=>s.parts.map((p,pi)=>slotEditor(s,si,p,pi,locked,received)).join('')).join('')}</tbody></table></div>
-    <h3 id="mx-validation">4. Đối chiếu & xác nhận</h3>${m.mode==='received'?`<p class="small">Tệp nguồn: ${E(m.source?.name||'Gói dữ liệu')} · Dữ liệu gốc được lưu riêng.</p><label class="mx-checkbox"><input type="checkbox" data-field="reconciliation.confirmed"${m.reconciliation.confirmed?' checked':''}${locked?' disabled':''}>Tôi đã đối chiếu các ánh xạ PPCT, vị trí câu và cách tính điểm với bản nguồn.</label>`:''}<div id="mx-report"></div><div id="mx-shortfall"></div><div class="actions"><button data-action="review">Kiểm tra hồ sơ đã lưu</button><button data-action="shortfall">Báo cáo thiếu câu theo ô</button><button data-action="preview" class="primary">Xem toàn bộ bảng</button>${m.mode==='received'||m.source?`<button data-action="compare">Đối chiếu bản gốc (2 cột)</button>`:''}</div>
-    <div id="mx-output"><h3>5. Word & phiên bản dùng chung</h3><p class="muted">Gói dùng chung chỉ có ma trận, đặc tả và chỉ báo; không có câu hỏi, đáp án hoặc lịch sử đề riêng.</p><div id="mx-export-links"></div>
-    ${!locked?`<details><summary>Xác nhận bản đã thống nhất để khóa</summary><p class="small muted">Thao tác này ghi nhận xác nhận của thầy, không thay chữ ký hay quyết định thực tế của tổ trưởng.</p><div class="form-grid"><div class="field"><label for="mx-confirm-name">Người xác nhận</label><input id="mx-confirm-name"></div><div class="field"><label for="mx-confirm-date">Ngày xác nhận</label><input id="mx-confirm-date" type="date" value="${new Date().toLocaleDateString('sv-SE')}"></div><div class="field full"><label for="mx-confirm-basis">Căn cứ bản đã thống nhất</label><textarea id="mx-confirm-basis" rows="2"></textarea></div></div><label class="mx-checkbox"><input id="mx-confirm-agreement" type="checkbox">Tôi xác nhận đây là bản đã được thống nhất bên ngoài ứng dụng.</label><button class="primary" data-action="lock">Khóa phiên bản này</button></details>`:`<p class="callout">Bản này đang khóa hoặc lưu trữ. Bạn có thể tạo phiên bản mới hoặc mở khóa về bản nháp.</p><div class="actions"><button data-action="new-version">Tạo phiên bản mới</button><button data-action="unlock">Mở khóa về bản nháp</button>${m.status==='locked'?'<button class="primary" data-action="use">Dùng tạo đề riêng</button>':''}</div>`}
-    <details><summary>Lịch sử thao tác</summary><ul>${(m.audit||[]).map(a=>`<li>${E(a.at)} · ${E(({save:'Lưu nháp',lock:'Khóa bản thống nhất',archive:'Lưu trữ',new_version:'Tạo phiên bản tiếp theo',import_source:'Nhập nguồn',unlock:'Mở khóa về nháp',duplicate:'Nhân bản hồ sơ'})[a.action]||a.action)}</li>`).join('')}</ul></details><label for="mx-archive-reason">Lý do lưu trữ</label><input id="mx-archive-reason" placeholder="Không dùng bản này để tạo đề mới"><button class="quiet" data-action="archive">Lưu trữ hồ sơ</button></div></section>`;
+    <details style="margin:16px 0;border:1px solid var(--line);border-radius:10px;background:#f8fafc;padding:10px 16px">
+      <summary style="cursor:pointer;font-weight:700;color:var(--navy);font-size:14px">⚙️ Tùy chỉnh nâng cao: Yêu cầu cần đạt (YCCĐ) & Chi tiết từng câu hỏi (Hệ thống đã tự động đồng bộ từ Bảng 2D & PPCT)</summary>
+      <div style="margin-top:14px">
+        <h3 id="mx-lessons">2. Bài học & yêu cầu cần đạt</h3><p class="muted">Khối ${m.grade}. Nội dung cụ thể tự động lấy từ yêu cầu cần đạt nguồn của PPCT. Bạn chỉ cần mở mục này nếu muốn sửa câu chữ YCCĐ riêng.</p>
+        ${!protectedFields?`<div class="actions"><label for="mx-add-lesson">Bài cần thêm</label><select id="mx-add-lesson">${lessons(m.grade).filter(l=>!m.lessons.some(x=>x.lesson_code===l.lesson_code)).map(l=>opt(l.lesson_code,l.lesson_name_source,false)).join('')}</select><button data-action="add-lesson">+ Thêm bài</button></div>`:''}
+        ${m.lessons.map((lesson,i)=>`<article class="mx-lesson"><div class="dialog-heading" style="margin-bottom:8px"><h4>${E(lesson.title)}</h4>${!protectedFields?`<button type="button" class="quiet danger" data-action="remove-lesson" data-index="${i}">Xóa bài này</button>`:''}</div>${select('Đối chiếu bài PPCT '+(i+1),`lessons.${i}.lesson_code`,opt('','Chọn bài đối chiếu',!lesson.lesson_code)+lessons(m.grade).map(l=>opt(l.lesson_code,l.lesson_name_source,l.lesson_code===lesson.lesson_code)).join(''),locked)}${!received?`<div class="form-grid">${field('Tên bài hiển thị '+(i+1),`lessons.${i}.title`,lesson.title,'text',locked)}${field('Tên chủ đề '+(i+1),`lessons.${i}.topic`,lesson.topic,'text',locked)}</div>`:`<p class="muted">Nguồn: ${E(lesson.topic)}</p>`}
+        ${m.requirements.map((r,ri)=>r.lesson_code===lesson.lesson_code&&(!received||r.source_index===lesson.source_index)?requirementEditor(r,ri,locked,received):'').join('')}
+        ${!protectedFields?`<button data-action="add-requirement" data-index="${i}">+ Thêm yêu cầu / chỉ báo kiểm tra</button>`:''}</article>`).join('')}
+        ${m.profile==='THPT'?`<h3>Danh mục chỉ báo năng lực</h3><p class="muted">Giữ nguyên mã và mô tả chỉ báo của nguồn. Bảng phân bố năng lực được dựng từ các vị trí đã gắn mã.</p>${m.indicator_catalog.map((c,i)=>`<div class="form-grid mx-indicator">${field('Mã chỉ báo '+(i+1),`indicator_catalog.${i}.code`,c.code,'text',protectedFields)}${select('Năng lực của mã '+(i+1),`indicator_catalog.${i}.competency`,['NLa','NLb','NLc'].map(k=>opt(k,k,k===c.competency)).join(''),protectedFields)}${field('Mô tả chỉ báo '+(i+1),`indicator_catalog.${i}.text`,c.text,'text',protectedFields)}${!protectedFields?`<div class="field" style="justify-content:flex-end"><button type="button" class="quiet danger" data-action="remove-indicator" data-index="${i}">Xóa mã</button></div>`:''}</div>`).join('')}${!protectedFields?'<button data-action="add-indicator">+ Thêm mã chỉ báo</button>':''}`:''}
+        <h3 id="mx-slots">3. Phân bố câu hỏi và ý chi tiết</h3>${!protectedFields?bulkEditor():''}<div id="mx-summary" class="mx-totals"></div>
+        <div class="table-wrap"><table class="mx-slots-table"><thead><tr><th>Câu / dạng</th><th>Ý</th><th>Yêu cầu cần đạt cụ thể</th><th>Điểm</th>${m.profile==='THPT'?'<th>Mã chỉ báo</th>':''}${!protectedFields?'<th>Thao tác</th>':''}</tr></thead><tbody>${m.slots.map((s,si)=>s.parts.map((p,pi)=>slotEditor(s,si,p,pi,locked,received)).join('')).join('')}</tbody></table></div>
+      </div>
+    </details>
+    <div id="mx-output"><h3>2. Xuất file Word, Đối chiếu & Chốt phiên bản</h3><p class="muted">Xem trực tiếp bảng Ma trận & Đặc tả chuẩn Word (có gộp ô tự động), tải file Word/PDF hoặc chốt phiên bản để tạo đề kiểm tra.</p><div id="mx-report"></div><div id="mx-shortfall"></div><div id="mx-export-links" style="margin-bottom:12px"></div>
+    ${m.status!=='locked'?`<div class="card" style="background:#f0fdf4;border:1px solid #bbf7d0;padding:16px;margin-bottom:14px"><h4 style="margin:0 0 8px;color:#14532d">✅ Xác nhận & Chốt phiên bản Ma trận</h4><p class="small muted" style="margin:0 0 12px">Sau khi chốt (khóa phiên bản), ma trận này sẽ sẵn sàng để chọn trong mục <strong>Tạo đề kiểm tra</strong> và <strong>Đề cương ôn tập</strong>.</p><div class="form-grid"><div class="field"><label for="mx-confirm-name">Người xác nhận</label><input id="mx-confirm-name" value="${E(m.owner_name||'Trần Gia Huy')}"></div><div class="field"><label for="mx-confirm-date">Ngày xác nhận</label><input id="mx-confirm-date" type="date" value="${new Date().toLocaleDateString('sv-SE')}"></div><div class="field full"><label for="mx-confirm-basis">Ghi chú xác nhận (tùy chọn)</label><input id="mx-confirm-basis" value="Đã thống nhất ma trận và đặc tả"></div></div><label class="mx-checkbox" style="margin:8px 0"><input id="mx-confirm-agreement" type="checkbox" checked> Tôi xác nhận chốt phiên bản ma trận & đặc tả này.</label><div class="actions"><button class="primary" data-action="save-and-lock" style="background:#137333;border-color:#137333;font-weight:700">✅ Lưu & Chốt phiên bản này</button><button data-action="save" class="primary">💾 Chỉ lưu bản nháp</button><button data-action="preview">👁️ Xem toàn bộ bảng chuẩn Word</button></div></div>`:`<div class="callout" style="background:#e6f4ea;border-color:#a8dab5;color:#137333"><strong>🔒 Phiên bản ma trận này đã được chốt và khóa thành công!</strong><p style="margin:6px 0 0">Bạn có thể dùng ma trận này để tạo đề kiểm tra ngay hoặc mở khóa nếu cần chỉnh sửa lại.</p><div class="actions" style="margin-top:10px"><button class="primary" data-action="use">📝 Dùng tạo đề kiểm tra ngay</button><button data-action="unlock">🔓 Mở khóa về bản nháp để sửa</button><button data-action="new-version">Tạo phiên bản V${(m.version||1)+1}</button></div></div>`}
+    <details style="margin-top:10px"><summary style="cursor:pointer;color:var(--muted);font-size:13px">Lịch sử thao tác & Lưu trữ hồ sơ</summary><ul style="font-size:13px">${(m.audit||[]).map(a=>`<li>${E(a.at)} · ${E(({save:'Lưu nháp',lock:'Khóa bản thống nhất',archive:'Lưu trữ',new_version:'Tạo phiên bản tiếp theo',import_source:'Nhập nguồn',unlock:'Mở khóa về nháp',duplicate:'Nhân bản hồ sơ'})[a.action]||a.action)}</li>`).join('')}</ul><div class="actions"><input id="mx-archive-reason" placeholder="Lý do lưu trữ (nếu không dùng nữa)" style="max-width:280px"><button class="quiet" data-action="archive">Lưu trữ hồ sơ</button><button data-action="shortfall" class="quiet">Báo cáo thiếu câu theo ô</button></div></details></div></section>`;
     updateSummary();renderReport();renderLinks();restoreButtons();
   }
   function requirementEditor(r,i,locked,received){
@@ -622,7 +646,21 @@
     return true;
   }
   async function openRecord(id,discard=false){if(!discard&&!guard())return;const d=await ui.ctx.request('/api/matrices/'+encodeURIComponent(id));ui.editing=d.matrix;ui.report=d.validation;ui.dirty=false;ui.importing=null;ui.generation=null;render();}
-  async function save(){const result=await ui.ctx.request('/api/matrices/save',{matrix:ui.editing,expected_revision:ui.editing.revision,allow_custom_override:Boolean(ui.editing.allow_custom_override)});ui.editing=result.matrix;ui.report=result.validation;ui.dirty=false;await refresh();render();message('Đã lưu bản nháp; nguồn và lịch sử cũ được giữ nguyên.');}
+  async function save(silent=false){
+    (ui.editing.requirements||[]).forEach(r=>{
+      if(/^(Biết|Hiểu|Vận dụng|Vận dụng cao):\s*Yêu cầu cần đạt về/i.test(String(r.text||'').trim())){
+        const pl=lessons(ui.editing.grade).find(l=>l.lesson_code===r.lesson_code);
+        if(pl?.outcomes?.length){r.text=pl.outcomes.join('\n');r.ppct_outcome_index=0;}
+      }
+    });
+    const result=await ui.ctx.request('/api/matrices/save',{matrix:ui.editing,expected_revision:ui.editing.revision,allow_custom_override:Boolean(ui.editing.allow_custom_override)});
+    ui.editing=result.matrix;
+    ui.report=result.validation;
+    ui.dirty=false;
+    await refresh();
+    render();
+    if(!silent)message('Đã lưu bản nháp ma trận thành công!');
+  }
   function rawCellCenter(ri,headers,cols,start,firstText){
     if(ri<headers)return true;
     const f=String(firstText||'').trim().toLowerCase();
@@ -1629,10 +1667,47 @@
     if(action==='remove-slot'){const kind=ui.editing.slots[Number(b.dataset.index)].kind;ui.editing.slots.splice(Number(b.dataset.index),1);ui.editing.slots.filter(s=>s.kind===kind).forEach((s,i)=>s.number=i+1);changed();renderEditor();return;}
     await run(async()=>{
       if(action==='save')await save();
-      else if(action==='shortfall'){if(!ui.editing.id||ui.dirty){ui.ctx.notify('Lưu ma trận trước khi xem báo cáo thiếu câu.',true);}else{ui.shortfall=await ui.ctx.request('/api/matrices/'+encodeURIComponent(ui.editing.id)+'/shortfall');renderShortfall();}restoreButtons();}
-      else if(action==='review'){ui.report=(await ui.ctx.request('/api/matrices/review',{id:ui.editing.id})).validation;renderReport();restoreButtons();}
-      else if(action==='preview'){await openPreview(ui.editing.id,'all','web');}
-      else if(action==='compare'){await openComparison(ui.editing.id);}
+      else if(action==='save-and-lock'){
+        await save(true);
+        const confirmation={
+          confirmed_by:qs('#mx-confirm-name')?.value||ui.editing.owner_name||'Trần Gia Huy',
+          confirmed_at:qs('#mx-confirm-date')?.value||new Date().toLocaleDateString('sv-SE'),
+          basis:qs('#mx-confirm-basis')?.value||'Đã thống nhất ma trận và đặc tả',
+          external_agreement:true
+        };
+        const result=await ui.ctx.request('/api/matrices/lock',{id:ui.editing.id,expected_revision:ui.editing.revision,confirmation});
+        ui.editing=result.matrix;
+        ui.report=result.validation;
+        ui.dirty=false;
+        await refresh();
+        render();
+        await openPreview(ui.editing.id,'all','web');
+        message('Đã lưu và chốt (khóa) phiên bản ma trận thành công! Bạn có thể xuất Word hoặc dùng tạo đề kiểm tra ngay.');
+      }
+      else if(action==='quick-export-doc'){
+        if(!ui.editing.id||ui.dirty)await save(true);
+        downloadMatrixWord(ui.editing,'all');
+      }
+      else if(action==='shortfall'){
+        if(!ui.editing.id||ui.dirty)await save(true);
+        ui.shortfall=await ui.ctx.request('/api/matrices/'+encodeURIComponent(ui.editing.id)+'/shortfall');
+        renderShortfall();
+        restoreButtons();
+      }
+      else if(action==='review'){
+        if(!ui.editing.id||ui.dirty)await save(true);
+        ui.report=(await ui.ctx.request('/api/matrices/review',{id:ui.editing.id})).validation;
+        renderReport();
+        restoreButtons();
+      }
+      else if(action==='preview'){
+        if(!ui.editing.id||ui.dirty)await save(true);
+        await openPreview(ui.editing.id,'all','web');
+      }
+      else if(action==='compare'){
+        if(!ui.editing.id||ui.dirty)await save(true);
+        await openComparison(ui.editing.id);
+      }
       else if(action==='duplicate-id'){
         const id=b.dataset.id||ui.editing?.id;if(!id)return;
         const result=await ui.ctx.request('/api/matrices/duplicate',{id});
@@ -1651,8 +1726,14 @@
         ui.editing=result.matrix;ui.report=result.validation;ui.dirty=false;await refresh();render();
         message('Đã mở khóa hồ sơ về trạng thái Bản nháp.');
       }else if(action==='lock'){
-        const confirmation={confirmed_by:qs('#mx-confirm-name').value,confirmed_at:qs('#mx-confirm-date').value,basis:qs('#mx-confirm-basis').value,external_agreement:qs('#mx-confirm-agreement').checked};
-        const result=await ui.ctx.request('/api/matrices/lock',{id:ui.editing.id,expected_revision:ui.editing.revision,confirmation});ui.editing=result.matrix;ui.report=result.validation;await refresh();render();message('Đã khóa phiên bản. Đề tạo sau này sẽ lưu dấu phiên bản ma trận này.');
+        if(!ui.editing.id||ui.dirty)await save(true);
+        const confirmation={
+          confirmed_by:qs('#mx-confirm-name')?.value||ui.editing.owner_name||'Trần Gia Huy',
+          confirmed_at:qs('#mx-confirm-date')?.value||new Date().toLocaleDateString('sv-SE'),
+          basis:qs('#mx-confirm-basis')?.value||'Đã thống nhất ma trận và đặc tả',
+          external_agreement:true
+        };
+        const result=await ui.ctx.request('/api/matrices/lock',{id:ui.editing.id,expected_revision:ui.editing.revision,confirmation});ui.editing=result.matrix;ui.report=result.validation;ui.dirty=false;await refresh();render();message('Đã khóa phiên bản. Đề tạo sau này sẽ lưu dấu phiên bản ma trận này.');
       }else if(action==='new-version'){
         const result=await ui.ctx.request('/api/matrices/new-version',{id:ui.editing.id});ui.editing=result.matrix;ui.report=result.validation;ui.dirty=false;await refresh();render();
       }else if(action==='archive'){

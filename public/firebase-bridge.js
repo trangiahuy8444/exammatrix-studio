@@ -57,18 +57,25 @@
       if (!cached) cached = getStorageData('offline');
       if (cached) {
         if (cached.bank?.questions) currentWorkspaceData.bank.questions = cached.bank.questions;
-        if (cached.bank?.ppct?.lessons?.length) currentWorkspaceData.bank.ppct = cached.bank.ppct;
+        if (cached.bank?.ppct) currentWorkspaceData.bank.ppct = cached.bank.ppct;
         if (cached.exams) currentWorkspaceData.exams = cached.exams;
         if (cached.revisions) currentWorkspaceData.revisions = cached.revisions;
         if (cached.matrices) currentWorkspaceData.matrices = cached.matrices;
       }
     } catch(e) {}
+    const cleared = currentWorkspaceData.bank.ppct?.cleared_grades || [];
+    if (currentWorkspaceData.bank.ppct?.lessons?.length) {
+      currentWorkspaceData.bank.ppct.lessons = cleanPpctLessons(currentWorkspaceData.bank.ppct.lessons, cleared);
+    }
     if (!currentWorkspaceData.bank.ppct?.lessons?.length) {
-      currentWorkspaceData.bank.ppct = { lessons: buildDefaultLessons('Tin học') };
+      currentWorkspaceData.bank.ppct = {
+        lessons: buildDefaultLessons('Tin học', [8, 9, 10].filter(g => !cleared.includes(g))),
+        cleared_grades: cleared
+      };
     }
   }
 
-  // Khởi tạo danh mục PPCT chuẩn từ curricula.js
+  // Khởi tạo danh mục PPCT chuẩn từ curricula.js (chỉ nạp sẵn Khối 8, 9, 10 đã được giáo viên upload)
   function normalizeOccurrences(occ) {
     if (Array.isArray(occ) && occ.length > 0) {
       return occ.map(o => {
@@ -95,12 +102,26 @@
     return [{ week_raw: 'Tuần 1', periods_raw: '1', ppct_raw: '' }];
   }
 
-  function buildDefaultLessons(subject) {
+  function cleanPpctLessons(lessons, clearedGrades = []) {
+    if (!Array.isArray(lessons)) return [];
+    const uploadedDefaultGrades = [8, 9, 10];
+    return lessons.filter(l => {
+      const g = Number(l.grade);
+      if (clearedGrades.includes(g) && !l.user_uploaded) return false;
+      // Chỉ giữ các khối 8, 9, 10 đã nạp trước đó hoặc các khối mà giáo viên chủ động upload (user_uploaded: true)
+      return uploadedDefaultGrades.includes(g) || Boolean(l.user_uploaded);
+    }).map(l => ({
+      ...l,
+      occurrences: normalizeOccurrences(l.occurrences)
+    }));
+  }
+
+  function buildDefaultLessons(subject, allowedGrades = [8, 9, 10]) {
     const curricula = window.SUBJECT_CURRICULA || {};
     const subjData = curricula[subject] || curricula['Tin học'] || {};
     const lessons = [];
-    Object.keys(subjData).forEach(grade => {
-      (subjData[grade] || []).forEach(l => {
+    allowedGrades.forEach(grade => {
+      (subjData[grade] || subjData[String(grade)] || []).forEach(l => {
         lessons.push({
           ...l,
           grade: Number(grade),
@@ -136,19 +157,18 @@
 
       // 1. Lấy trạng thái hệ thống
       if (path === '/api/state') {
-        const storedLessons = (currentWorkspaceData.bank?.ppct?.lessons || []);
-        const defaultLessons = buildDefaultLessons(subj);
+        const cleared = currentWorkspaceData.bank?.ppct?.cleared_grades || [];
+        const storedLessons = cleanPpctLessons(currentWorkspaceData.bank?.ppct?.lessons || [], cleared);
+        const defaultLessons = buildDefaultLessons(subj, [8, 9, 10].filter(g => !cleared.includes(g)));
         let finalLessons = storedLessons.length > 0 ? storedLessons : defaultLessons;
-        if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [] };
-        if (!currentWorkspaceData.bank.ppct.lessons.length) {
-          currentWorkspaceData.bank.ppct.lessons = defaultLessons;
-        }
+        if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: cleared };
+        currentWorkspaceData.bank.ppct.lessons = finalLessons;
         const questions = currentWorkspaceData.bank.questions || [];
         return {
           context: { subject_name: subj },
           bank: {
             questions: questions,
-            ppct: { lessons: finalLessons }
+            ppct: { lessons: finalLessons, cleared_grades: cleared }
           },
           review_checklist: [],
           can_view_answers: true,
@@ -405,15 +425,15 @@
 
         const incoming = Array.isArray(body.lessons) ? body.lessons : [];
         if (incoming.length > 0) {
-          if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [] };
-          const existing = (currentWorkspaceData.bank.ppct.lessons || []).map(l => ({
-            ...l,
-            occurrences: normalizeOccurrences(l.occurrences)
-          }));
+          if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: [] };
+          const cleared = (currentWorkspaceData.bank.ppct.cleared_grades || []).filter(g => Number(g) !== grade);
+          currentWorkspaceData.bank.ppct.cleared_grades = cleared;
+          const existing = cleanPpctLessons(currentWorkspaceData.bank.ppct.lessons || [], cleared);
           const otherLessons = existing.filter(l => Number(l.grade) !== grade);
           const newLessons = incoming.map(l => ({
             ...l,
             grade: grade,
+            user_uploaded: true,
             subject_name: body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học',
             occurrences: normalizeOccurrences(l.occurrences)
           }));
@@ -428,6 +448,58 @@
           bank: currentWorkspaceData.bank,
           summary: { new: incoming.length, changed: 0, conflict: 0 }
         };
+      }
+
+      if (path === '/api/ppct/save-lesson') {
+        const l = body.lesson || body;
+        const grade = Number(l.grade || 9);
+        if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: [] };
+        const cleared = (currentWorkspaceData.bank.ppct.cleared_grades || []).filter(g => Number(g) !== grade);
+        currentWorkspaceData.bank.ppct.cleared_grades = cleared;
+        const existing = cleanPpctLessons(currentWorkspaceData.bank.ppct.lessons || [], cleared);
+        const lessonObj = {
+          grade: grade,
+          lesson_code: l.lesson_code,
+          lesson_name_source: l.lesson_name_source || l.lesson_name || '',
+          topic_source: l.topic_source || l.topic || 'Chương trình GDPT',
+          subject_name: l.subject_name || (window.store && window.store.selectedSubject) || 'Tin học',
+          user_uploaded: true,
+          occurrences: normalizeOccurrences(l.occurrences || [{ week_raw: l.week_raw || 'Tuần 1', periods_raw: l.periods_raw || '1' }]),
+          outcomes: Array.isArray(l.outcomes) ? l.outcomes : []
+        };
+        const idx = existing.findIndex(x => Number(x.grade) === grade && x.lesson_code === lessonObj.lesson_code);
+        if (idx >= 0) existing[idx] = lessonObj;
+        else existing.push(lessonObj);
+        currentWorkspaceData.bank.ppct.lessons = existing;
+        await syncToFirestore(uid, currentWorkspaceData);
+        if (window.store && window.store.bank) window.store.bank.ppct = currentWorkspaceData.bank.ppct;
+        return { bank: currentWorkspaceData.bank, lesson: lessonObj };
+      }
+
+      if (path === '/api/ppct/delete-lesson') {
+        const grade = Number(body.grade || 9);
+        const code = body.lesson_code;
+        if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: [] };
+        currentWorkspaceData.bank.ppct.lessons = (currentWorkspaceData.bank.ppct.lessons || []).filter(
+          l => !(Number(l.grade) === grade && l.lesson_code === code)
+        );
+        await syncToFirestore(uid, currentWorkspaceData);
+        if (window.store && window.store.bank) window.store.bank.ppct = currentWorkspaceData.bank.ppct;
+        return { bank: currentWorkspaceData.bank };
+      }
+
+      if (path === '/api/ppct/clear-grade') {
+        const grade = Number(body.grade || 0);
+        if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: [] };
+        const cleared = new Set(currentWorkspaceData.bank.ppct.cleared_grades || []);
+        cleared.add(grade);
+        currentWorkspaceData.bank.ppct.cleared_grades = [...cleared];
+        currentWorkspaceData.bank.ppct.lessons = (currentWorkspaceData.bank.ppct.lessons || []).filter(
+          l => Number(l.grade) !== grade
+        );
+        await syncToFirestore(uid, currentWorkspaceData);
+        if (window.store && window.store.bank) window.store.bank.ppct = currentWorkspaceData.bank.ppct;
+        return { bank: currentWorkspaceData.bank };
       }
 
       // Tuyến Kiểm tra thường xuyên (KTTX)
@@ -771,32 +843,50 @@
       if (snap.exists()) {
         const remote = snap.data();
         currentWorkspaceData.bank.questions = remote.bank?.questions || [];
+        const cleared = remote.bank?.ppct?.cleared_grades || currentWorkspaceData.bank?.ppct?.cleared_grades || [];
         if (remote.bank?.ppct?.lessons?.length) {
-          currentWorkspaceData.bank.ppct = remote.bank.ppct;
+          const rawLessons = remote.bank.ppct.lessons;
+          const cleaned = cleanPpctLessons(rawLessons, cleared);
+          currentWorkspaceData.bank.ppct = { lessons: cleaned, cleared_grades: cleared };
+          if (cleaned.length !== rawLessons.length) {
+            await helpers.setDoc(ref, {
+              bank: {
+                questions: currentWorkspaceData.bank.questions,
+                ppct: currentWorkspaceData.bank.ppct
+              }
+            }, { merge: true });
+          }
         } else {
           const cached = getStorageData(user.uid) || getStorageData('offline');
           if (cached?.bank?.ppct?.lessons?.length) {
-            currentWorkspaceData.bank.ppct = cached.bank.ppct;
+            currentWorkspaceData.bank.ppct = {
+              lessons: cleanPpctLessons(cached.bank.ppct.lessons, cleared),
+              cleared_grades: cleared
+            };
           } else if (!currentWorkspaceData.bank.ppct?.lessons?.length) {
-            currentWorkspaceData.bank.ppct = { lessons: buildDefaultLessons('Tin học') };
+            currentWorkspaceData.bank.ppct = {
+              lessons: buildDefaultLessons('Tin học', [8, 9, 10].filter(g => !cleared.includes(g))),
+              cleared_grades: cleared
+            };
           }
         }
         currentWorkspaceData.exams = remote.exams || [];
         currentWorkspaceData.revisions = remote.revisions || [];
         currentWorkspaceData.matrices = remote.matrices || [];
       } else {
+        const defaultPpct = { lessons: buildDefaultLessons('Tin học', [8, 9, 10]), cleared_grades: [] };
         await helpers.setDoc(ref, {
           owner_email: user.email,
           created_at: new Date().toISOString(),
           bank: { 
             questions: [],
-            ppct: { lessons: buildDefaultLessons('Tin học') }
+            ppct: defaultPpct
           },
           exams: [],
           revisions: [],
           matrices: []
         });
-        currentWorkspaceData.bank.ppct = { lessons: buildDefaultLessons('Tin học') };
+        currentWorkspaceData.bank.ppct = defaultPpct;
       }
       saveStorageData(user.uid, currentWorkspaceData);
       if (window.store) {

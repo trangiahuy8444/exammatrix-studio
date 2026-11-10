@@ -291,12 +291,12 @@
     `;
   }
 
-  const ui={container:null,ctx:null,records:[],editing:null,dirty:false,report:null,busy:false,filter:{},importing:null,generation:null,comparison:null,previewState:null};
+  const ui={container:null,ctx:null,records:[],editing:null,dirty:false,report:null,busy:false,filter:{},createGrade:8,importing:null,generation:null,comparison:null,previewState:null};
   const clone=v=>JSON.parse(JSON.stringify(v));
   const opt=(v,text,selected)=>`<option value="${E(v)}"${selected?' selected':''}>${E(text)}</option>`;
   const uid=p=>p+'-'+Math.random().toString(36).slice(2,11);
   const qs=s=>ui.container.querySelector(s);
-  const lessons=grade=>(ui.ctx?.ppct?.lessons || (typeof window!=='undefined'&&window.SUBJECT_CURRICULA?.['Tin học']?.[grade]) || []).filter(l=>Number(l.grade)===Number(grade));
+  const lessons=grade=>(Array.isArray(ui.ctx?.ppct?.lessons) ? ui.ctx.ppct.lessons : ((typeof window!=='undefined'&&window.SUBJECT_CURRICULA?.['Tin học']?.[grade]) || [])).filter(l=>Number(l.grade)===Number(grade));
   function message(text,error=false){ui.ctx.notify(text,error);}
   function detail(e){const errors=e.details?.errors||e.details?.validation?.errors;return e.message+(errors?'\n'+errors.map(x=>x.message).join('\n'):'');}
   async function run(work){if(ui.busy)return;ui.busy=true;ui.container.querySelectorAll('button').forEach(b=>b.disabled=true);try{await work();}catch(e){message(detail(e),true);if(e.details?.errors){ui.report=e.details;renderReport();}}finally{ui.busy=false;ui.container.querySelectorAll('button').forEach(b=>b.disabled=false);restoreButtons();}}
@@ -331,7 +331,8 @@
   const apiUrl=path=>root.BankCore?.scopedUrl?.(path,ui.ctx?.context?.curriculum_id||'')||path;
   function render(){
     const f=ui.filter;
-    ui.container.innerHTML=`<div class="page-head"><div><p class="eyebrow">MA TRẬN THEO CHƯƠNG TRÌNH</p><h1>Ma trận & đặc tả</h1><p>Lập phân bố câu hỏi và yêu cầu cần đạt theo môn, khối lớp của bạn. Đầy đủ thao tác Tạo mới, Xem, Sửa, Nhân bản, Mở khóa và Xóa.</p></div><div class="actions">${grades().map(g=>`<button class="primary" data-action="new" data-grade="${g}">+ Tạo ma trận khối ${g}</button>`).join('')}<button data-action="import">Nhập ma trận</button></div></div>
+    const selCreateGrade=Number(ui.createGrade||f.grade||8)||8;
+    ui.container.innerHTML=`<div class="page-head"><div><p class="eyebrow">MA TRẬN THEO CHƯƠNG TRÌNH</p><h1>Ma trận & đặc tả</h1><p>Lập phân bố câu hỏi và yêu cầu cần đạt theo môn, khối lớp của bạn. Đầy đủ thao tác Tạo mới, Xem, Sửa, Nhân bản, Mở khóa và Xóa.</p></div><div class="actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><select id="mx-create-grade" aria-label="Chọn khối lớp tạo ma trận" style="min-height:38px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff;color:var(--ink)">${grades().map(g=>opt(g,'Khối '+g,selCreateGrade===Number(g))).join('')}</select><button class="primary" data-action="new">+ Tạo ma trận mới</button><button data-action="import">Nhập ma trận</button></div></div>
     <div class="matrix-flow"><span>1. Biên soạn / nhận nguồn</span><span>2. Đối chiếu & thống nhất</span><span>3. Khóa phiên bản</span><span>4. Tạo đề riêng · xuất Word</span></div>
     <div class="card"><div class="filters"><div class="field"><label for="mx-filter-grade">Khối</label><select id="mx-filter-grade" data-filter="grade">${opt('','Tất cả khối',!f.grade)}${grades().map(g=>opt(g,'Khối '+g,String(f.grade)===String(g))).join('')}</select></div><div class="field"><label for="mx-filter-period">Kỳ</label><select id="mx-filter-period" data-filter="period">${opt('','Tất cả kỳ',!f.period)}${Object.entries(periods).map(([k,v])=>opt(k,v,f.period===k)).join('')}</select></div><div class="field"><label for="mx-filter-status">Trạng thái</label><select id="mx-filter-status" data-filter="status">${opt('','Tất cả trạng thái',!f.status)}${Object.entries(states).map(([k,v])=>opt(k,v,f.status===k)).join('')}</select></div><div class="field"><label for="mx-filter-year">Năm học</label><input id="mx-filter-year" data-filter="year" value="${E(f.year||'')}" placeholder="2026-2027"></div></div>
     <div class="mx-records">${filterRecords(ui.records,f).length?filterRecords(ui.records,f).slice().reverse().map(m=>{const issues=m.reconciliation?.issues||[];return `<article class="mx-record-card${ui.editing?.id===m.id?' active':''}"><div class="mx-record-main"><button class="mx-record" data-open="${E(m.id)}"><span><strong>${E(m.title)}</strong><small>Khối ${m.grade} · ${E(profileLabel(m.profile))} · ${E(m.school_year)} · ${E(m.campus||'Chưa ghi cơ sở')} · ${m.mode==='received'?'Bản nhận từ tệp Word gốc':'Phụ trách biên soạn'}${m.source?.name?` (${E(m.source.name)})`:''}</small>${issues.length?`<span class="mx-inline-issues">${issues.map(x=>E(x.message)).join(' • ')}</span>`:''}</span><span class="mx-record-meta">${recordBadges(m)}</span></button></div><div class="mx-record-actions"><button type="button" data-open="${E(m.id)}">Mở & biên tập</button><button type="button" class="primary" data-action="preview-id" data-id="${E(m.id)}">Xem toàn bộ</button><button type="button" data-action="compare-id" data-id="${E(m.id)}">Đối chiếu bản gốc (2 cột)</button><button type="button" data-action="duplicate-id" data-id="${E(m.id)}">Nhân bản</button><button type="button" class="danger" data-action="delete-id" data-id="${E(m.id)}">Xóa</button></div></article>`;}).join(''):'<div class="empty"><h3>Chưa có hồ sơ ma trận</h3><p>Tạo ma trận cho chương trình đang mở hoặc nhập gói dữ liệu phù hợp.</p></div>'}</div></div>
@@ -538,7 +539,8 @@
       if(nextInput){nextInput.focus();nextInput.select();}
       return;
     }
-    if(el.matches('[data-field]')&&(el.tagName==='SELECT'||el.type==='checkbox'))assign(el);if(el.matches('[data-allow-kind],[data-yn-coef]'))assign(el);if(el.dataset.filter){ui.filter[el.dataset.filter]=el.value;render();}if(el.id==='mx-file')await readImport(el.files[0]);if(el.id==='mx-confirm-agreement'||el.dataset.field==='reconciliation.confirmed')restoreButtons();if(el.dataset.choice){const id=el.dataset.choice;ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===id)c.checked=false;});showChoice(id);coverage();}if(el.id==='mx-exam-revision')coverage();captureGeneration();}
+    if(el.id==='mx-create-grade'){ui.createGrade=Number(el.value)||8;return;}
+    if(el.matches('[data-field]')&&(el.tagName==='SELECT'||el.type==='checkbox'))assign(el);if(el.matches('[data-allow-kind],[data-yn-coef]'))assign(el);if(el.dataset.filter){ui.filter[el.dataset.filter]=el.value;if(el.dataset.filter==='grade'&&el.value)ui.createGrade=Number(el.value);render();}if(el.id==='mx-file')await readImport(el.files[0]);if(el.id==='mx-confirm-agreement'||el.dataset.field==='reconciliation.confirmed')restoreButtons();if(el.dataset.choice){const id=el.dataset.choice;ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===id)c.checked=false;});showChoice(id);coverage();}if(el.id==='mx-exam-revision')coverage();captureGeneration();}
   function guard(){
     if(ui.dirty){
       if(confirm('Bạn đang có thay đổi chưa lưu trên ma trận hiện tại. Bạn có muốn bỏ thay đổi để tiếp tục không?')){
@@ -1397,7 +1399,8 @@
     if(action==='compare-id'){await run(()=>openComparison(b.dataset.id));return;}
     if(action==='new'){
       if(!guard())return;
-      const g=Number(b.dataset.grade)||grades()[0];
+      const g=Number(b.dataset.grade||qs('#mx-create-grade')?.value||ui.createGrade||ui.filter.grade)||8;
+      ui.createGrade=g;
       ui.editing=newDraft(g,false);
       ui.report=null;
       ui.importing=null;
@@ -1407,7 +1410,7 @@
       message('Đã mở tạo ma trận mới cho Khối ' + g + '. Bạn có thể nhập số câu trực tiếp vào bảng 2D hoặc bấm "⚡ Nạp mẫu chuẩn Á Châu (10.0đ)".');
       return;
     }
-    if(action==='import'){if(!guard())return;ui.editing=null;ui.generation=null;ui.importing={grade:grades()[0]};render();return;}
+    if(action==='import'){if(!guard())return;ui.editing=null;ui.generation=null;const g=Number(qs('#mx-create-grade')?.value||ui.createGrade||ui.filter.grade)||8;ui.importing={grade:g};render();return;}
     if(action==='discard'){await run(async()=>{if(ui.dirty&&ui.editing.id)await openRecord(ui.editing.id,true);else{ui.editing=null;ui.dirty=false;render();}});return;}
     if(action==='apply-preset'&&ui.editing){
       const g=Number(ui.editing.grade)||8;

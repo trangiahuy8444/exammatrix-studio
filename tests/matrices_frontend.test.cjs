@@ -213,5 +213,20 @@ Khối: 9
   assert.equal(testMatrix.slots.length, initialSlots, 'Slots count should restore to initial count');
   assert.equal(testMatrix.slots[0].id, 'S1');
   assert.equal(testMatrix.slots[0].number, 1);
-  console.log('PASS matrix UI: web-native matrix creation, Asian School presets & 2D grid updates passed');
+  // Test sortLessonsByPpct when B2 is removed and re-added at the end (B1, B3, B4, B5, B2 -> B1, B2, B3, B4, B5)
+  const sortMatrix = ui.newDraft(9, false);
+  sortMatrix.lessons = [
+    { lesson_code: 'B1', title: 'Thế giới kĩ thuật số', topic: 'Chủ đề 1' },
+    { lesson_code: 'B3', title: 'Thực hành: Đánh giá chất lượng thông tin', topic: 'Chủ đề 2' },
+    { lesson_code: 'B4', title: 'Một số vấn đề pháp lý về sử dụng dịch vụ Internet', topic: 'Chủ đề 3' },
+    { lesson_code: 'B5', title: 'Tìm hiểu phần mềm mô phỏng', topic: 'Chủ đề 4' },
+    { lesson_code: 'B2', title: 'Thông tin trong giải quyết vấn đề', topic: 'Chủ đề 2' }
+  ];
+  ui.sortLessonsByPpct(sortMatrix);
+  assert.deepEqual(
+    sortMatrix.lessons.map(l => l.lesson_code),
+    ['B1', 'B2', 'B3', 'B4', 'B5'],
+    'Lessons should be sorted in natural PPCT order B1..B5'
+  );
+  console.log('PASS matrix UI: web-native matrix creation, Asian School presets, lesson sorting & 2D grid updates passed');
 }

@@ -34,7 +34,21 @@
   function renumberAllSlots(m) {
     if (!m || !m.slots) return;
     const kindOrder = { MC: 1, YN: 2, SHORT: 3, ES: 4 };
-    m.slots.sort((a, b) => (kindOrder[a.kind] || 9) - (kindOrder[b.kind] || 9));
+    const levelOrder = { 'Biết': 1, 'Hiểu': 2, 'Vận dụng thấp': 3, 'Vận dụng': 3, 'Vận dụng cao': 4 };
+    const lessonOrder = new Map((m.lessons || []).map((l, idx) => [l.lesson_code, idx]));
+    const reqMap = new Map((m.requirements || []).map(r => [r.id, r]));
+    m.slots.sort((a, b) => {
+      const kDiff = (kindOrder[a.kind] || 9) - (kindOrder[b.kind] || 9);
+      if (kDiff !== 0) return kDiff;
+      const ra = reqMap.get(a.parts?.[0]?.requirement_id);
+      const rb = reqMap.get(b.parts?.[0]?.requirement_id);
+      const la = ra && lessonOrder.has(ra.lesson_code) ? lessonOrder.get(ra.lesson_code) : 999;
+      const lb = rb && lessonOrder.has(rb.lesson_code) ? lessonOrder.get(rb.lesson_code) : 999;
+      if (la !== lb) return la - lb;
+      const lva = ra ? (levelOrder[ra.level] || 9) : 9;
+      const lvb = rb ? (levelOrder[rb.level] || 9) : 9;
+      return lva - lvb;
+    });
 
     let mcCount = 0, ynCount = 0, shortCount = 0, esCount = 0;
     m.slots.forEach((s, idx) => {
@@ -54,6 +68,36 @@
         p.id = 'P' + (idx + 1) + (s.parts.length > 1 ? String.fromCharCode(97 + pIdx) : '');
       });
     });
+  }
+
+  function lessonNaturalSortKey(lesson, ppctOrderMap) {
+    const code = String(lesson?.lesson_code || '').trim();
+    const match = code.match(/^B(\d+)([a-zA-Z]*)$/i);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      const suffix = (match[2] || '').toLowerCase();
+      return num * 100 + (suffix ? suffix.charCodeAt(0) - 96 : 0);
+    }
+    if (ppctOrderMap && ppctOrderMap.has(code)) {
+      return 10000 + ppctOrderMap.get(code);
+    }
+    return 99999;
+  }
+
+  function sortLessonsByPpct(m) {
+    if (!m || !Array.isArray(m.lessons)) return;
+    const ppctList = lessons(m.grade);
+    const ppctOrderMap = new Map(ppctList.map((l, idx) => [l.lesson_code, idx]));
+    m.lessons.sort((a, b) => {
+      const ka = lessonNaturalSortKey(a, ppctOrderMap);
+      const kb = lessonNaturalSortKey(b, ppctOrderMap);
+      if (ka !== kb) return ka - kb;
+      const ia = ppctOrderMap.has(a.lesson_code) ? ppctOrderMap.get(a.lesson_code) : 9999;
+      const ib = ppctOrderMap.has(b.lesson_code) ? ppctOrderMap.get(b.lesson_code) : 9999;
+      if (ia !== ib) return ia - ib;
+      return String(a.lesson_code || '').localeCompare(String(b.lesson_code || ''), 'vi', { numeric: true });
+    });
+    renumberAllSlots(m);
   }
 
   function updateSlotsFromGrid(m, lessonCode, gridType, newCount) {
@@ -178,6 +222,7 @@
       const totalQ = mc_b + mc_h + yn + es_vd + es_vdc;
       const dis = (locked || received) ? ' disabled' : '';
 
+      const totalLessonsCount = (m.lessons || []).length;
       return `
         <tr>
           <td style="text-align:center;font-weight:600">${idx + 1}</td>
@@ -187,7 +232,12 @@
                 <strong>${E(lesson.title)}</strong>
                 <small style="display:block;color:var(--muted)">${E(lesson.lesson_code)}${lesson.topic ? ' · ' + E(lesson.topic) : ''}</small>
               </div>
-              ${!(locked || received) ? `<button type="button" class="quiet danger" data-action="remove-lesson" data-index="${idx}" title="Xóa bài học này khỏi ma trận" style="padding:2px 6px;font-size:11px;min-height:auto">✕</button>` : ''}
+              ${!(locked || received) ? `
+              <div style="display:inline-flex;align-items:center;gap:3px;flex-shrink:0">
+                <button type="button" class="quiet" data-action="move-lesson-up" data-index="${idx}" title="Di chuyển bài học lên trên" style="padding:2px 6px;font-size:11px;min-height:auto"${idx === 0 ? ' disabled' : ''}>▲</button>
+                <button type="button" class="quiet" data-action="move-lesson-down" data-index="${idx}" title="Di chuyển bài học xuống dưới" style="padding:2px 6px;font-size:11px;min-height:auto"${idx === totalLessonsCount - 1 ? ' disabled' : ''}>▼</button>
+                <button type="button" class="quiet danger" data-action="remove-lesson" data-index="${idx}" title="Xóa bài học này khỏi ma trận" style="padding:2px 6px;font-size:11px;min-height:auto">✕</button>
+              </div>` : ''}
             </div>
           </td>
           <td style="text-align:center">
@@ -231,7 +281,10 @@
     const parts = (m.slots || []).flatMap(s => s.parts || []);
     const totalScore = Math.round(parts.reduce((sum, p) => sum + Number(p.points || 0), 0) * 100) / 100;
     const isPerfect10 = totalScore === 10;
-    const availPpctLessons = lessons(m.grade).filter(l => !(m.lessons || []).some(x => x.lesson_code === l.lesson_code));
+    const allPpctLessons = lessons(m.grade).slice().sort((a, b) => lessonNaturalSortKey(a, null) - lessonNaturalSortKey(b, null));
+    const addedCodes = new Set((m.lessons || []).map(x => x.lesson_code));
+    const availPpctLessons = allPpctLessons.filter(l => !addedCodes.has(l.lesson_code));
+    const firstAvailCode = availPpctLessons[0]?.lesson_code || '';
     const vdVdcPts = Math.max(0, totalScore - (tot_mc_b + tot_mc_h) * 0.25);
 
     return `
@@ -244,6 +297,7 @@
           <div class="actions">
             <button type="button" class="primary" data-action="apply-preset" title="Nạp mẫu chuẩn 10.0 điểm đã tối ưu cho Khối này">⚡ Nạp mẫu chuẩn Á Châu (10.0đ)</button>
             <button type="button" data-action="load-ppct-lessons" title="Kéo tất cả các bài học từ Phân phối chương trình sang">📚 Nạp toàn bộ bài từ PPCT</button>
+            <button type="button" data-action="sort-lessons-ppct" title="Tự động sắp xếp lại các bài học theo đúng thứ tự B1, B2, B3... của PPCT">⇅ Sắp xếp đúng thứ tự bài</button>
             <button type="button" class="danger quiet" data-action="clear-slots" title="Xóa trắng bài học và câu hỏi phân bố để làm lại từ đầu">🗑️ Làm trống ma trận</button>
           </div>
         </div>
@@ -251,9 +305,13 @@
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#f1f7fd;border:1px solid #d5e6f7;border-radius:8px">
           <label for="mx-grid-add-lesson" style="font-weight:600;font-size:13px;color:var(--navy)">Chọn bài đưa vào ma trận:</label>
           <select id="mx-grid-add-lesson" style="min-height:34px;padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;flex:1;min-width:220px">
-            ${availPpctLessons.length
-              ? availPpctLessons.map(l => opt(l.lesson_code, `${l.lesson_code} · ${l.lesson_name_source}${l.topic_source ? ' (' + l.topic_source + ')' : ''}`, false)).join('')
-              : '<option value="">-- Đã thêm hết bài PPCT hoặc chưa có PPCT --</option>'}
+            ${allPpctLessons.length
+              ? allPpctLessons.map(l => {
+                  const isAdded = addedCodes.has(l.lesson_code);
+                  const label = (isAdded ? '✓ [Đã có trong bảng] ' : '') + `${l.lesson_code} · ${l.lesson_name_source}${l.topic_source ? ' (' + l.topic_source + ')' : ''}`;
+                  return `<option value="${E(l.lesson_code)}"${isAdded ? ' disabled' : (l.lesson_code === firstAvailCode ? ' selected' : '')}>${E(label)}</option>`;
+                }).join('')
+              : '<option value="">-- Chưa có PPCT cho khối này --</option>'}
           </select>
           <button type="button" data-action="grid-add-lesson" ${availPpctLessons.length ? '' : 'disabled'}>+ Thêm bài đã chọn</button>
           <button type="button" data-action="grid-add-custom-lesson">+ Tự nhập bài mới</button>
@@ -1457,8 +1515,37 @@
           added++;
         }
       });
+      sortLessonsByPpct(ui.editing);
       changed();renderEditor();
-      message('Đã đồng bộ ' + added + ' bài học mới từ Phân phối chương trình Khối ' + g + '!');
+      message('Đã đồng bộ và sắp xếp ' + added + ' bài học từ Phân phối chương trình Khối ' + g + '!');
+      return;
+    }
+    if(action==='sort-lessons-ppct'&&ui.editing){
+      sortLessonsByPpct(ui.editing);
+      changed();renderEditor();
+      message('Đã sắp xếp lại các bài học theo đúng thứ tự PPCT (B1, B2, B3...)!');
+      return;
+    }
+    if(action==='move-lesson-up'&&ui.editing){
+      const idx=Number(b.dataset.index);
+      if(idx>0&&idx<ui.editing.lessons.length){
+        const tmp=ui.editing.lessons[idx-1];
+        ui.editing.lessons[idx-1]=ui.editing.lessons[idx];
+        ui.editing.lessons[idx]=tmp;
+        renumberAllSlots(ui.editing);
+        changed();renderEditor();
+      }
+      return;
+    }
+    if(action==='move-lesson-down'&&ui.editing){
+      const idx=Number(b.dataset.index);
+      if(idx>=0&&idx<ui.editing.lessons.length-1){
+        const tmp=ui.editing.lessons[idx+1];
+        ui.editing.lessons[idx+1]=ui.editing.lessons[idx];
+        ui.editing.lessons[idx]=tmp;
+        renumberAllSlots(ui.editing);
+        changed();renderEditor();
+      }
       return;
     }
     if(action==='clear-slots'&&ui.editing){
@@ -1476,9 +1563,10 @@
       if(!l){message('Vui lòng chọn bài học từ danh sách PPCT.',true);return;}
       if(!ui.editing.lessons.some(x=>x.lesson_code===l.lesson_code)){
         ui.editing.lessons.push({lesson_code:l.lesson_code,title:l.lesson_name_source||l.lesson_code,topic:l.topic_source||''});
+        sortLessonsByPpct(ui.editing);
       }
       changed();renderEditor();
-      message('Đã thêm bài "' + (l.lesson_name_source||l.lesson_code) + '" vào bảng ma trận.');
+      message('Đã thêm bài "' + (l.lesson_name_source||l.lesson_code) + '" vào đúng thứ tự trong bảng ma trận.');
       return;
     }
     if(action==='grid-add-custom-lesson'&&ui.editing){
@@ -1505,7 +1593,11 @@
     }
     if(action==='add-lesson'){
       const l=lessons(ui.editing.grade).find(x=>x.lesson_code===qs('#mx-add-lesson')?.value);if(!l)return;
-      ui.editing.lessons.push({lesson_code:l.lesson_code,title:l.lesson_name_source,topic:l.topic_source});changed();renderEditor();return;
+      if(!ui.editing.lessons.some(x=>x.lesson_code===l.lesson_code)){
+        ui.editing.lessons.push({lesson_code:l.lesson_code,title:l.lesson_name_source,topic:l.topic_source});
+        sortLessonsByPpct(ui.editing);
+      }
+      changed();renderEditor();return;
     }
     if(action==='remove-lesson'){
       const idx=Number(b.dataset.index),l=ui.editing.lessons[idx];if(!l)return;
@@ -2107,6 +2199,6 @@ Quy ước:
   function coverage(){if(!ui.generation||!qs('#mx-coverage'))return;const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));let count=0,matched=0;for(const e of ui.generation.slots){const q=e.candidates.find(q=>q.id===qs('#mx-choice-'+e.slot.id).value);if(q){count++;if(hashes.has(q.content_hash))matched++;}}qs('#mx-coverage').textContent=`Đã chọn ${count}/${ui.generation.slots.length} câu · Khớp nội dung đề cương ${matched} câu. Máy chủ sẽ kiểm tra lại khi tạo đề.`;}
   function suggest(){const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));const used=new Set();for(const e of ui.generation.slots){const pool=e.candidates.slice().sort((a,b)=>Number(hashes.has(b.content_hash))-Number(hashes.has(a.content_hash)));const q=pool.find(q=>!used.has(q.id));qs('#mx-choice-'+e.slot.id).value=q?.id||'';if(q)used.add(q.id);ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===e.slot.id)c.checked=false;});showChoice(e.slot.id);}captureGeneration();coverage();message('Đã gợi ý câu. Thầy cần xem nội dung và đánh dấu đối chiếu từng chỉ báo trước khi lưu đề.');}
   async function generate(){const g=ui.generation;const placements=g.slots.map(e=>({slot_id:e.slot.id,question_id:qs('#mx-choice-'+e.slot.id).value,reviewed_part_ids:[...ui.container.querySelectorAll('[data-review-slot]')].filter(x=>x.dataset.reviewSlot===e.slot.id&&x.checked).map(x=>x.value)}));const result=await ui.ctx.request('/api/exams/from-matrix',{matrix_id:g.matrix.id,revision_id:qs('#mx-exam-revision').value,title:qs('#mx-exam-title').value,campus:qs('#mx-exam-campus').value,exam_code:qs('#mx-exam-code').value,seed:qs('#mx-exam-seed').value,placements});const e=result.exam,base='/api/exams/'+encodeURIComponent(e.id)+'/export';qs('#mx-created-exam').innerHTML=`<div class="callout"><h3>Đã lưu đề ${E(e.exam_code)} · ${E(e.campus)}</h3><p>${e.question_count} câu · 10 điểm · Khớp đề cương ${e.revision_match_count}/${e.question_count} câu · Ma trận V${e.matrix_version}</p><div class="actions"><button type="button" class="primary" data-view-exam="${E(e.id)}" data-mode="student">Xem đề học sinh</button><button type="button" data-view-exam="${E(e.id)}" data-mode="answers">Xem đáp án & HDC</button><a class="button" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button" href="${base}?format=docx&answers=1">Word đáp án</a></div></div>`;ui.ctx.onExamCreated?.(e);message('Đã tạo đề riêng và lưu phiên bản ma trận dùng chung cùng đề.');}
-  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,STANDARD_PRESETS,newDraft,updateSlotsFromGrid,renumberAllSlots};
+  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,STANDARD_PRESETS,newDraft,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

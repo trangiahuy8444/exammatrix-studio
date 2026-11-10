@@ -36,13 +36,36 @@ const grades=()=>C.contextGrades(store.context);
 const schoolProfile=()=>store.context.school_profile!==false;
 const needsSource=(grade,period)=>schoolProfile()&&C.sourceTemplateRequired(grade,period);
 const gradeOptions=g=>grades().map(v=>opt(v,`Khối ${v}`,Number(g)===v)).join('');
+function safeLessonOccurrences(occ) {
+  if (Array.isArray(occ) && occ.length > 0) {
+    return occ.map(o => (typeof o === 'object' && o !== null) ? o : { week_raw: 'Tuần 1', periods_raw: String(o || '1') });
+  }
+  if (occ && typeof occ === 'object') return [occ];
+  if (typeof occ === 'number' || typeof occ === 'string') {
+    return [{ week_raw: 'Tuần 1', periods_raw: String(occ || '1') }];
+  }
+  return [{ week_raw: 'Tuần 1', periods_raw: '1' }];
+}
+function calcOccurrencesPeriods(occ) {
+  const arr = safeLessonOccurrences(occ);
+  const matched = arr.flatMap(r => String(r?.periods_raw || '').match(/\d+/g) || []);
+  return matched.length || arr.length || 1;
+}
 const lessons=(g,subj)=>{
   const s=subj||store.selectedSubject||subject();
-  if(store.context.curriculum_id)return C.courseLessons(store.bank?.ppct?.lessons||[],store.context,g,s);
-  const stored=(store.bank?.ppct?.lessons||[]).filter(l=>(!g||Number(l.grade)===Number(g))&&((l.subject_name===s)||(!l.subject_name&&s==='Tin học')));
-  if(stored.length)return stored;
-  const multiCatalog=(typeof window!=='undefined'&&window.SUBJECT_CURRICULA)||(store.subject_curricula||{});
-  return multiCatalog[s]?.[Number(g)]||multiCatalog[s]?.[String(g)]||[];
+  let list = [];
+  if(store.context.curriculum_id) {
+    list = C.courseLessons(store.bank?.ppct?.lessons||[],store.context,g,s);
+  } else {
+    const stored=(store.bank?.ppct?.lessons||[]).filter(l=>(!g||Number(l.grade)===Number(g))&&((l.subject_name===s)||(!l.subject_name&&s==='Tin học')));
+    if(stored.length) {
+      list = stored;
+    } else {
+      const multiCatalog=(typeof window!=='undefined'&&window.SUBJECT_CURRICULA)||(store.subject_curricula||{});
+      list = multiCatalog[s]?.[Number(g)]||multiCatalog[s]?.[String(g)]||[];
+    }
+  }
+  return list.map(l => ({ ...l, occurrences: safeLessonOccurrences(l.occurrences) }));
 };
 const questions=()=>{
   const all=store.bank?.questions||[];
@@ -638,8 +661,9 @@ function renderAnswerEditor(type){
 async function saveQuestion(event){
  event.preventDefault();const f=new FormData(event.target),q={...store.editing,grade:Number(f.get('grade')),type:f.get('type'),lesson_code:f.get('lesson_code'),outcome_index:Number(f.get('outcome_index')),level:f.get('level'),review_status:f.get('review_status'),response_mode:f.get('response_mode'),question:f.get('question').trim(),max_score:1};
  const lesson=lessons(q.grade).find(l=>l.lesson_code===q.lesson_code);q.learning_outcome=lesson?.outcomes?.[q.outcome_index]||'';q.lesson_name=lesson?.lesson_name_source||'';q.topic_source=lesson?.topic_source||'';
- q.source_file=lesson?.source_file||'';q.source_rows=(lesson?.occurrences||[]).map(r=>({table_index:r.table_index,row_index:r.row_index,week_raw:r.week_raw,periods_raw:r.periods_raw}));q.semester=1;
- const lessonPeriods=(lesson?.occurrences||[]).flatMap(r=>String(r.periods_raw||'').match(/\d+/g)||[]).map(Number);if(lessonPeriods.length){q.first_ppct_period=Math.min(...lessonPeriods);q.after_hk1_exam=q.first_ppct_period>=(q.grade===10?32:16);}
+ const occ=safeLessonOccurrences(lesson?.occurrences);
+ q.source_file=lesson?.source_file||'';q.source_rows=occ.map(r=>({table_index:r.table_index,row_index:r.row_index,week_raw:r.week_raw,periods_raw:r.periods_raw}));q.semester=1;
+ const lessonPeriods=occ.flatMap(r=>String(r.periods_raw||'').match(/\d+/g)||[]).map(Number);if(lessonPeriods.length){q.first_ppct_period=Math.min(...lessonPeriods);q.after_hk1_exam=q.first_ppct_period>=(q.grade===10?32:16);}
 
  if(q.type==='MC'){q.options=[0,1,2,3].map(i=>f.get('option'+i).trim());q.correct=Number(f.get('correct'));q.option_explanations=[0,1,2,3].map(i=>f.get('explanation'+i).trim());delete q.rubric;delete q.equivalent_answer_policy;}else{q.rubric=[0,1,2,3].map(i=>({criterion:f.get('rubric'+i).trim(),points:.25}));q.equivalent_answer_policy=f.get('equivalent_answer_policy').trim();delete q.options;delete q.correct;delete q.option_explanations;}
  const result=await mutate('/api/questions/save',{question:q},res=>{$('#edit-dialog').close();render();
@@ -716,7 +740,12 @@ function renderPPCT(){
    <div class="table-wrap">
      <table class="ppct-table">
        <thead><tr><th>Tuần</th><th>Tiết</th><th>Bài / chủ đề</th><th>Yêu cầu cần đạt (YCCĐ)</th><th style="width:150px">Thao tác</th></tr></thead>
-       <tbody>${ls.length ? ls.map(l=>`<tr><td>${[...new Set((l.occurrences||[]).map(o=>o.week_raw))].map(esc).join('<br>')}</td><td>${[...new Set((l.occurrences||[]).map(o=>o.periods_raw))].map(esc).join(', ')}</td><td><strong>${esc(l.lesson_code)} · ${esc(l.lesson_name_source || l.lesson_name || l.name)}</strong><p class="small muted">${esc(l.topic_source || '')}</p></td><td><ul>${(l.outcomes||[]).map(o=>`<li>${esc(o)}</li>`).join('')}</ul></td><td><div class="actions"><button type="button" class="export-link" data-edit-ppct="${esc(l.lesson_code)}" data-grade="${g}">Sửa</button><button type="button" class="export-link danger" data-del-ppct="${esc(l.lesson_code)}" data-grade="${g}">Xóa</button></div></td></tr>`).join('') : '<tr><td colspan="5" class="empty" style="text-align:center;padding:24px">Chưa có bài học PPCT cho môn và khối này. Bấm "+ Thêm bài học PPCT" để bổ sung, hoặc bấm "Nạp mẫu PPCT GDPT 2018" để nạp nhanh khung bài học.</td></tr>'}</tbody>
+       <tbody>${ls.length ? ls.map(l=>{
+         const occList = safeLessonOccurrences(l.occurrences);
+         const weeks = [...new Set(occList.map(o=>o.week_raw).filter(Boolean))].map(esc).join('<br>') || '—';
+         const periods = [...new Set(occList.map(o=>o.periods_raw).filter(Boolean))].map(esc).join(', ') || '—';
+         return `<tr><td>${weeks}</td><td>${periods}</td><td><strong>${esc(l.lesson_code)} · ${esc(l.lesson_name_source || l.lesson_name || l.name)}</strong><p class="small muted">${esc(l.topic_source || '')}</p></td><td><ul>${(l.outcomes||[]).map(o=>`<li>${esc(o)}</li>`).join('')}</ul></td><td><div class="actions"><button type="button" class="export-link" data-edit-ppct="${esc(l.lesson_code)}" data-grade="${g}">Sửa</button><button type="button" class="export-link danger" data-del-ppct="${esc(l.lesson_code)}" data-grade="${g}">Xóa</button></div></td></tr>`;
+       }).join('') : '<tr><td colspan="5" class="empty" style="text-align:center;padding:24px">Chưa có bài học PPCT cho môn và khối này. Bấm "+ Thêm bài học PPCT" để bổ sung, hoặc bấm "Nạp mẫu PPCT GDPT 2018" để nạp nhanh khung bài học.</td></tr>'}</tbody>
      </table>
    </div>
  </div>
@@ -845,7 +874,7 @@ function ppctImportCard(g){
  const rows=lessonsList.map(x=>{
    const [label,cls]=PPCT_STATUS[x.status]||[x.status,''];
    const detail=x.status==='conflict'?esc(x.conflict?.reason||'')+(x.conflict?.outcomes?`<ul>${x.conflict.outcomes.map(o=>`<li>${esc(o)}</li>`).join('')}</ul>`:'')
-     :(x.changes||[]).map(c=>`<div><strong>${esc(c.field)}:</strong> ${Array.isArray(c.new)?`${c.old.length} → ${c.new.length} YCCĐ<ul>${c.new.filter(o=>!c.old.includes(o)).map(o=>`<li>+ ${esc(o)}</li>`).join('')}${c.old.filter(o=>!c.new.includes(o)).map(o=>`<li>− ${esc(o)}</li>`).join('')}</ul>`:`${esc(c.old)} → ${esc(c.new)}`}</div>`).join('')||(x.status==='new'?`${(x.outcomes||[]).length} YCCĐ · ${x.occurrences||1} tiết`:'');
+     :(x.changes||[]).map(c=>`<div><strong>${esc(c.field)}:</strong> ${Array.isArray(c.new)?`${c.old.length} → ${c.new.length} YCCĐ<ul>${c.new.filter(o=>!c.old.includes(o)).map(o=>`<li>+ ${esc(o)}</li>`).join('')}${c.old.filter(o=>!c.new.includes(o)).map(o=>`<li>− ${esc(o)}</li>`).join('')}</ul>`:`${esc(c.old)} → ${esc(c.new)}`}</div>`).join('')||(x.status==='new'?`${(x.outcomes||[]).length} YCCĐ · ${calcOccurrencesPeriods(x.occurrences)} tiết`:'');
    return `<tr><td><span class="badge ${cls}">${esc(label)}</span></td><td>Khối ${esc(x.grade)} · <strong>${esc(x.lesson_code)}</strong></td><td>${esc(x.lesson_name)}<p class="small muted">${esc(x.topic||"")}</p></td><td class="small">${detail}</td></tr>`;
  }).join('');
  return `<div class="card"><h2>Nhập PPCT từ JSON, Markdown hoặc Word</h2>
@@ -930,6 +959,9 @@ function bindPpctImport(g){
        lessons: imp.report.lessons,
        expected_sha256: imp.report.sha256
      });
+     if (result.bank && result.bank.ppct && Array.isArray(result.bank.ppct.lessons)) {
+       result.bank.ppct.lessons = result.bank.ppct.lessons.map(l => ({ ...l, occurrences: safeLessonOccurrences(l.occurrences) }));
+     }
      store.bank=result.bank;
      store.ppctImport=null;
      store.ppctGrade=Number(imp.payload.grade || imp.report.grades?.[0] || 9);

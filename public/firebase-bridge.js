@@ -37,6 +37,32 @@
   }
 
   // Khởi tạo danh mục PPCT chuẩn từ curricula.js
+  function normalizeOccurrences(occ) {
+    if (Array.isArray(occ) && occ.length > 0) {
+      return occ.map(o => {
+        if (typeof o === 'object' && o !== null) {
+          return {
+            week_raw: o.week_raw ? String(o.week_raw) : 'Tuần 1',
+            periods_raw: o.periods_raw ? String(o.periods_raw) : '1',
+            ppct_raw: o.ppct_raw ? String(o.ppct_raw) : ''
+          };
+        }
+        return { week_raw: 'Tuần 1', periods_raw: String(o || '1'), ppct_raw: '' };
+      });
+    }
+    if (occ && typeof occ === 'object') {
+      return [{
+        week_raw: occ.week_raw ? String(occ.week_raw) : 'Tuần 1',
+        periods_raw: occ.periods_raw ? String(occ.periods_raw) : '1',
+        ppct_raw: occ.ppct_raw ? String(occ.ppct_raw) : ''
+      }];
+    }
+    if (typeof occ === 'number' || typeof occ === 'string') {
+      return [{ week_raw: 'Tuần 1', periods_raw: String(occ || '1'), ppct_raw: '' }];
+    }
+    return [{ week_raw: 'Tuần 1', periods_raw: '1', ppct_raw: '' }];
+  }
+
   function buildDefaultLessons(subject) {
     const curricula = window.SUBJECT_CURRICULA || {};
     const subjData = curricula[subject] || curricula['Tin học'] || {};
@@ -47,7 +73,7 @@
           ...l,
           grade: Number(grade),
           subject_name: subject,
-          occurrences: l.occurrences || [{ week_raw: 'Tuần 1', periods_raw: '1' }]
+          occurrences: normalizeOccurrences(l.occurrences)
         });
       });
     });
@@ -183,9 +209,11 @@
             grade: Number(l.grade || grade),
             lesson_code: l.lesson_code || ('B' + (i + 1)),
             lesson_name: l.lesson_name_source || l.lesson_name || l.name || '',
-            topic: l.topic_source || l.topic || '',
+            lesson_name_source: l.lesson_name_source || l.lesson_name || l.name || '',
+            topic: l.topic_source || l.topic || 'Chương trình GDPT',
+            topic_source: l.topic_source || l.topic || 'Chương trình GDPT',
             outcomes: Array.isArray(l.outcomes) ? l.outcomes : [],
-            occurrences: (l.occurrences || []).length || 1
+            occurrences: normalizeOccurrences(l.occurrences)
           }));
         } else if (body.extracted_html) {
           // Bóc tách bảng HTML từ tệp Word (.docx) chuẩn KHDH Phụ lục 1
@@ -304,9 +332,11 @@
               grade: grade,
               lesson_code: 'B' + (m[1] || (i + 1)),
               lesson_name: m[2].trim(),
+              lesson_name_source: m[2].trim(),
               topic: 'Chương trình GDPT',
+              topic_source: 'Chương trình GDPT',
               outcomes: ['Yêu cầu cần đạt theo chương trình môn học.'],
-              occurrences: 1
+              occurrences: [{ week_raw: 'Tuần ' + (i + 1), periods_raw: '1', ppct_raw: '' }]
             }));
           }
         }
@@ -337,12 +367,16 @@
         const incoming = Array.isArray(body.lessons) ? body.lessons : [];
         if (incoming.length > 0) {
           if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [] };
-          const existing = currentWorkspaceData.bank.ppct.lessons || [];
+          const existing = (currentWorkspaceData.bank.ppct.lessons || []).map(l => ({
+            ...l,
+            occurrences: normalizeOccurrences(l.occurrences)
+          }));
           const otherLessons = existing.filter(l => Number(l.grade) !== grade);
           const newLessons = incoming.map(l => ({
             ...l,
             grade: grade,
-            subject_name: body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học'
+            subject_name: body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học',
+            occurrences: normalizeOccurrences(l.occurrences)
           }));
           currentWorkspaceData.bank.ppct.lessons = [...otherLessons, ...newLessons];
           await syncToFirestore(uid, currentWorkspaceData);

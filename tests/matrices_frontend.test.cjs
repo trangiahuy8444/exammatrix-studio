@@ -138,5 +138,20 @@ Khối: 9
   const standalone = ui.generateMatrixWordStandaloneHtml(parsed.matrix, 'all');
   assert.ok(standalone.includes('xmlns:w="urn:schemas-microsoft-com:office:word"'));
   assert.ok(standalone.includes('size: A4 landscape'));
-  console.log('PASS matrix UI: buildMatrixView & generateMatrixWordHtml xuất chuẩn bố cục Word 2 bảng');
+
+  // Test gộp ô theo Chủ đề (rowspan) khi có nhiều bài trong 1 chủ đề
+  const mdSameTopic = `
+# MA TRẬN ĐỀ KIỂM TRA TIN HỌC 9
+Khối: 9
+
+## Chủ đề 1: Máy tính và cộng đồng
+### Bài 1: Thiết bị số
+- [Biết] [MC] Thiết bị số. (1 câu · 0.25đ · Câu 1)
+### Bài 2: Mạng máy tính
+- [Hiểu] [MC] Mạng máy tính. (1 câu · 0.25đ · Câu 2)
+`;
+  const parsedSame = ui.parseMatrixFromMarkdown(mdSameTopic, 9);
+  const htmlSame = ui.generateMatrixWordHtml(parsedSame.matrix, 'all');
+  assert.ok(htmlSame.includes('rowspan="2"'), 'Cả Khung Ma trận và Bản đặc tả phải gộp ô TT và Chủ đề (rowspan=2)');
+  console.log('PASS matrix UI: buildMatrixView & generateMatrixWordHtml xuất chuẩn bố cục Word 2 bảng và tự động gộp ô theo chủ đề');
 }

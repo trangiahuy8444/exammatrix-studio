@@ -230,6 +230,10 @@ function distributeCounts(cells,total){
             <button type="button" data-fmt-col="1.5" title="Mở rộng cột bảng đang đặt con trỏ (+1.5%)">Cột +</button>
             <button type="button" data-fmt-cmd="row-add" title="Chèn thêm 1 dòng ngay bên dưới ô bảng đang chọn">+ Dòng</button>
             <button type="button" data-fmt-cmd="row-del" title="Xóa dòng bảng đang đặt con trỏ">× Xóa dòng</button>
+            <span class="fmt-sep"></span>
+            <button type="button" data-fmt-cmd="cell-merge-right" title="Gộp ô đang chọn với ô kế tiếp bên phải (Colspan)">⧉ Gộp ngang</button>
+            <button type="button" data-fmt-cmd="cell-merge-down" title="Gộp ô đang chọn với ô bên dưới (Rowspan)">⧈ Gộp dọc</button>
+            <button type="button" data-fmt-cmd="cell-split" title="Hủy gộp ô (tách về các ô đơn ban đầu)">⊞ Tách ô</button>
             <label class="fmt-mini-label">Nền ô
               <select data-fmt-bg aria-label="Màu nền ô">
                 <option value="">Đổi màu ô…</option>
@@ -247,7 +251,7 @@ function distributeCounts(cells,total){
             <button type="button" class="quiet danger" data-fmt-cmd="reset" title="Khôi phục về nội dung và định dạng mặc định ban đầu">↺ Khôi phục gốc</button>
           </div>
         </div>
-        <p class="fmt-hint" ${editing?'':'hidden'} data-fmt-hint>Mẹo: Nhấp trực tiếp vào bất kỳ ô bảng, tiêu đề, câu hỏi hoặc phương án nào để sửa chữ. Bôi đen chữ hoặc đặt con trỏ vào ô bảng rồi bấm các nút căn giữa (↔ Giữa), chỉnh độ rộng cột (Cột − / Cột +), cỡ chữ hoặc thêm/xóa dòng.</p>
+        <p class="fmt-hint" ${editing?'':'hidden'} data-fmt-hint>Mẹo: Nhấp trực tiếp vào bất kỳ ô bảng, tiêu đề hoặc phương án nào để sửa chữ. Bấm <strong>⧉ Gộp ngang</strong> hoặc <strong>⧈ Gộp dọc</strong> để gộp các ô lại với nhau (hoặc <strong>⊞ Tách ô</strong> để hủy gộp). Dùng các nút căn giữa (↔ Giữa), chỉnh độ rộng cột (Cột − / Cột +), cỡ chữ hoặc thêm/xóa dòng theo ý muốn.</p>
       </div>`;
     },
     attach(hostEl,sheetSelector,opts={}){
@@ -349,7 +353,7 @@ function distributeCounts(cells,total){
       if(!bar)return;
       bar.addEventListener('click',async ev=>{
         const command=ev.target.closest('[data-fmt-cmd]')?.dataset.fmtCmd;
-        const mutatesSource=['[data-fmt-exec]','[data-fmt-align]','[data-fmt-valign]','[data-fmt-col]'].some(selector=>ev.target.closest(selector))||['row-add','row-del','auto-center-table'].includes(command);
+        const mutatesSource=['[data-fmt-exec]','[data-fmt-align]','[data-fmt-valign]','[data-fmt-col]'].some(selector=>ev.target.closest(selector))||['row-add','row-del','auto-center-table','cell-merge-right','cell-merge-down','cell-split'].includes(command);
         if(mutatesSource&&protectedSelection()){ev.preventDefault();explainSourceLock();return;}
         const execBtn=ev.target.closest('[data-fmt-exec]');
         if(execBtn){
@@ -429,6 +433,95 @@ function distributeCounts(cells,total){
           if(inSource(activeCell)){explainSourceLock();return;}
           const tr=activeCell.closest('tr');if(!tr)return;
           tr.remove();activeCell=null;
+          return;
+        }
+        if(cmd==='cell-merge-right'){
+          if(!activeCell||!sheet.contains(activeCell)){opts.notify?.('Hãy nhấp vào ô cần gộp.',true);return;}
+          if(inSource(activeCell)){explainSourceLock();return;}
+          const next=activeCell.nextElementSibling;
+          if(!next){opts.notify?.('Không có ô bên phải liền kề để gộp.',true);return;}
+          const nextText=next.innerHTML.trim();
+          if(nextText && nextText!=='&nbsp;' && nextText!=='—'){
+            activeCell.innerHTML += (activeCell.innerHTML.trim() ? '<br>' : '') + nextText;
+          }
+          const span=Number(activeCell.getAttribute('colspan')||1)+Number(next.getAttribute('colspan')||1);
+          activeCell.setAttribute('colspan',span);
+          next.remove();
+          opts.notify?.('Đã gộp ô sang phải (colspan=' + span + ').');
+          return;
+        }
+        if(cmd==='cell-merge-down'){
+          if(!activeCell||!sheet.contains(activeCell)){opts.notify?.('Hãy nhấp vào ô cần gộp.',true);return;}
+          if(inSource(activeCell)){explainSourceLock();return;}
+          const tr=activeCell.closest('tr');
+          const table=activeCell.closest('table');
+          if(!tr||!table){opts.notify?.('Không tìm thấy bảng.',true);return;}
+          const rows=[...table.querySelectorAll('tr')];
+          const ri=rows.indexOf(tr);
+          const rspan=Number(activeCell.getAttribute('rowspan')||1);
+          const targetRowIdx=ri+rspan;
+          if(targetRowIdx>=rows.length){opts.notify?.('Ô đã ở hàng cuối cùng của bảng, không thể gộp xuống.',true);return;}
+
+          const targetCol=findColumnIndex(activeCell);
+          if(targetCol<0){opts.notify?.('Không xác định được vị trí cột.',true);return;}
+
+          const occupied={};
+          let below=null;
+          for(let r=0;r<=targetRowIdx;r++){
+            let c=0;
+            for(const cellEl of rows[r].children){
+              while(occupied[`${r}:${c}`])c++;
+              if(r===targetRowIdx&&c===targetCol){below=cellEl;break;}
+              const sp=Number(cellEl.getAttribute('colspan')||1);
+              const rsp=Number(cellEl.getAttribute('rowspan')||1);
+              for(let dr=0;dr<rsp;dr++)for(let dc=0;dc<sp;dc++)occupied[`${r+dr}:${c+dc}`]=true;
+              c+=sp;
+            }
+            if(below)break;
+          }
+          if(!below){opts.notify?.('Không tìm thấy ô bên dưới tương ứng để gộp.',true);return;}
+          const belowText=below.innerHTML.trim();
+          if(belowText && belowText!=='&nbsp;' && belowText!=='—'){
+            activeCell.innerHTML += (activeCell.innerHTML.trim() ? '<br>' : '') + belowText;
+          }
+          const newRspan=rspan+Number(below.getAttribute('rowspan')||1);
+          activeCell.setAttribute('rowspan',newRspan);
+          below.remove();
+          opts.notify?.('Đã gộp ô xuống dưới (rowspan=' + newRspan + ').');
+          return;
+        }
+        if(cmd==='cell-split'){
+          if(!activeCell||!sheet.contains(activeCell)){opts.notify?.('Hãy nhấp vào ô cần tách.',true);return;}
+          if(inSource(activeCell)){explainSourceLock();return;}
+          const cspan=Number(activeCell.getAttribute('colspan')||1);
+          const rspan=Number(activeCell.getAttribute('rowspan')||1);
+          if(cspan<=1&&rspan<=1){opts.notify?.('Ô này chưa được gộp (colspan=1, rowspan=1).',true);return;}
+          activeCell.removeAttribute('colspan');
+          activeCell.removeAttribute('rowspan');
+          for(let i=1;i<cspan;i++){
+            const td=document.createElement(activeCell.tagName);
+            td.innerHTML='&nbsp;';
+            td.className=activeCell.className;
+            activeCell.parentElement.insertBefore(td,activeCell.nextSibling);
+          }
+          if(rspan>1){
+            const table=activeCell.closest('table');
+            const tr=activeCell.closest('tr');
+            const rows=[...table.querySelectorAll('tr')];
+            const ri=rows.indexOf(tr);
+            for(let r=1;r<rspan;r++){
+              const targetTr=rows[ri+r];
+              if(targetTr){
+                for(let i=0;i<cspan;i++){
+                  const td=document.createElement(activeCell.tagName);
+                  td.innerHTML='&nbsp;';
+                  td.className=activeCell.className;
+                  targetTr.appendChild(td);
+                }
+              }
+            }
+          }
+          opts.notify?.('Đã tách ô về ô đơn.');
           return;
         }
         if(cmd==='save'){

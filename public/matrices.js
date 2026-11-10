@@ -606,58 +606,78 @@
       </tr>`;
       out += `</thead><tbody>`;
 
-      v.rows.forEach((row, idx) => {
-        const lessonReqs = v.requirements.filter(r => r.lesson_code === row.lesson_code);
-        let reqHtml = '';
-        const LEVELS_ORDER = ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'];
-        const LEVEL_NAMES = { 'Biết': 'Nhận biết', 'Hiểu': 'Thông hiểu', 'Vận dụng': 'Vận dụng', 'Vận dụng cao': 'Vận dụng cao' };
+      const topicGroups2 = [];
+      let currentTopic2 = null;
+      let currentGroup2 = [];
+      v.rows.forEach(r => {
+        if (r.topic !== currentTopic2) {
+          if (currentGroup2.length) topicGroups2.push(currentGroup2);
+          currentTopic2 = r.topic;
+          currentGroup2 = [r];
+        } else {
+          currentGroup2.push(r);
+        }
+      });
+      if (currentGroup2.length) topicGroups2.push(currentGroup2);
 
-        LEVELS_ORDER.forEach(l => {
-          const rs = lessonReqs.filter(r => r.level === l);
-          if (!rs.length) return;
-          reqHtml += `<p style="margin:4px 0 2px 0;"><strong>${LEVEL_NAMES[l]}:</strong></p>`;
-          rs.forEach(r => {
-            const refsText = r.refs?.length ? ` (${r.refs.join(', ')})` : '';
-            reqHtml += `<p style="margin:2px 0 3px 12px;text-indent:-8px;">– ${E(r.text.replace(/\s*\(c[aâ]u\s+[^)]+\)/i, ''))}<strong>${refsText}</strong>.</p>`;
+      let topicIdx2 = 0;
+      topicGroups2.forEach(grp => {
+        topicIdx2++;
+        grp.forEach((row, rowInGrp) => {
+          const lessonReqs = v.requirements.filter(r => r.lesson_code === row.lesson_code);
+          let reqHtml = '';
+          const LEVELS_ORDER = ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'];
+          const LEVEL_NAMES = { 'Biết': 'Nhận biết', 'Hiểu': 'Thông hiểu', 'Vận dụng': 'Vận dụng', 'Vận dụng cao': 'Vận dụng cao' };
+
+          LEVELS_ORDER.forEach(l => {
+            const rs = lessonReqs.filter(r => r.level === l);
+            if (!rs.length) return;
+            reqHtml += `<p style="margin:4px 0 2px 0;"><strong>${LEVEL_NAMES[l]}:</strong></p>`;
+            rs.forEach(r => {
+              const refsText = r.refs?.length ? ` (${r.refs.join(', ')})` : '';
+              reqHtml += `<p style="margin:2px 0 3px 12px;text-indent:-8px;">– ${E(r.text.replace(/\s*\(c[aâ]u\s+[^)]+\)/i, ''))}<strong>${refsText}</strong>.</p>`;
+            });
           });
+
+          if (!reqHtml) reqHtml = `<p class="muted">Đạt yêu cầu chương trình GDPT 2018.</p>`;
+
+          const cellMC = row.cells['MC|Biết'] || row.cells['MC|Hiểu'] || row.cells['MC|Vận dụng'] ?
+            ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
+              const c = row.cells['MC|' + lvl];
+              return c ? `${c.count} ${lvl === 'Biết' ? 'B' : lvl === 'Hiểu' ? 'H' : 'VD'}` : '';
+            }).filter(Boolean).join('<br>') : '0';
+
+          const cellYN = row.cells['YN|Biết'] || row.cells['YN|Hiểu'] || row.cells['YN|Vận dụng'] ?
+            ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
+              const c = row.cells['YN|' + lvl];
+              return c ? `${c.count} YN` : '';
+            }).filter(Boolean).join('<br>') : '0';
+
+          const cellShort = row.cells['SHORT|Biết'] || row.cells['SHORT|Hiểu'] || row.cells['SHORT|Vận dụng'] ?
+            ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
+              const c = row.cells['SHORT|' + lvl];
+              return c ? `${c.count} Short` : '';
+            }).filter(Boolean).join('<br>') : '0';
+
+          const cellES = row.cells['ES|Biết'] || row.cells['ES|Hiểu'] || row.cells['ES|Vận dụng'] || row.cells['ES|Vận dụng cao'] ?
+            ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
+              const c = row.cells['ES|' + lvl];
+              return c ? `${c.count} ${lvl === 'Vận dụng cao' ? 'VDC' : 'VD'}` : '';
+            }).filter(Boolean).join('<br>') : '0';
+
+          out += `<tr>`;
+          if (rowInGrp === 0) {
+            out += `<td rowspan="${grp.length}" style="border:1px solid #333;text-align:center;vertical-align:middle;">${topicIdx2}</td>`;
+            out += `<td rowspan="${grp.length}" style="border:1px solid #333;vertical-align:middle;"><strong>${E(grp[0].topic)}</strong></td>`;
+          }
+          out += `<td style="border:1px solid #333;vertical-align:middle;">${E(row.title)}</td>
+            <td style="border:1px solid #333;vertical-align:top;line-height:1.45;padding:8px 10px;">${reqHtml}</td>
+            <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cellMC}</td>
+            <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cellYN}</td>
+            <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cellShort}</td>
+            <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cellES}</td>
+          </tr>`;
         });
-
-        if (!reqHtml) reqHtml = `<p class="muted">Đạt yêu cầu chương trình GDPT 2018.</p>`;
-
-        const cellMC = row.cells['MC|Biết'] || row.cells['MC|Hiểu'] || row.cells['MC|Vận dụng'] ?
-          ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
-            const c = row.cells['MC|' + lvl];
-            return c ? `${c.count} ${lvl === 'Biết' ? 'B' : lvl === 'Hiểu' ? 'H' : 'VD'}` : '';
-          }).filter(Boolean).join('<br>') : '0';
-
-        const cellYN = row.cells['YN|Biết'] || row.cells['YN|Hiểu'] || row.cells['YN|Vận dụng'] ?
-          ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
-            const c = row.cells['YN|' + lvl];
-            return c ? `${c.count} YN` : '';
-          }).filter(Boolean).join('<br>') : '0';
-
-        const cellShort = row.cells['SHORT|Biết'] || row.cells['SHORT|Hiểu'] || row.cells['SHORT|Vận dụng'] ?
-          ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
-            const c = row.cells['SHORT|' + lvl];
-            return c ? `${c.count} Short` : '';
-          }).filter(Boolean).join('<br>') : '0';
-
-        const cellES = row.cells['ES|Biết'] || row.cells['ES|Hiểu'] || row.cells['ES|Vận dụng'] || row.cells['ES|Vận dụng cao'] ?
-          ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
-            const c = row.cells['ES|' + lvl];
-            return c ? `${c.count} ${lvl === 'Vận dụng cao' ? 'VDC' : 'VD'}` : '';
-          }).filter(Boolean).join('<br>') : '0';
-
-        out += `<tr>
-          <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${idx + 1}</td>
-          <td style="border:1px solid #333;vertical-align:middle;"><strong>${E(row.topic)}</strong></td>
-          <td style="border:1px solid #333;vertical-align:middle;">${E(row.title)}</td>
-          <td style="border:1px solid #333;vertical-align:top;line-height:1.45;padding:8px 10px;">${reqHtml}</td>
-          <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cellMC}</td>
-          <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cellYN}</td>
-          <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cellShort}</td>
-          <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cellES}</td>
-        </tr>`;
       });
 
       const mcTot = v.totals.by_kind.MC?.items || 0;

@@ -463,108 +463,270 @@
     if (mTitle) title = mTitle[1].replace(/[*_#]/g, '').trim();
     if (!title) title = 'Ma trận & đặc tả ' + examType + ' - Khối ' + grade;
 
-    const lines = text.split(/\r?\n/);
-    const tableRows = lines.filter(l => l.trim().startsWith('|') && l.trim().endsWith('|'));
-    
     const lessonsMap = new Map();
     const requirements = [];
     const slots = [];
     let reqCount = 0;
     let slotCount = 0;
 
-    for (const r of tableRows) {
-      const cells = r.split('|').slice(1, -1).map(c => c.trim());
-      if (!cells.length) continue;
-      if (/^:?-+:?$/.test(cells[0]) || /^(?:TT|STT)$/i.test(cells[0]) || (/Bài\s*học/i.test(cells[1] || '') && /Yêu\s*cầu/i.test(cells[2] || '')) || (/Bài\s*học/i.test(cells[2] || '') && /Yêu\s*cầu/i.test(cells[3] || ''))) continue;
-      if (cells.some(c => /^Tổng/i.test(c))) continue;
+    function cleanLevel(raw) {
+      const l = String(raw || '').toLowerCase();
+      if (l.includes('cao')) return 'Vận dụng cao';
+      if (l.includes('vận dụng') || l.includes('van dung') || l.includes('vd')) return 'Vận dụng';
+      if (l.includes('hiểu') || l.includes('hieu') || l.includes('th')) return 'Hiểu';
+      return 'Biết';
+    }
 
-      let lessonRaw = '', outcomeRaw = '', levelRaw = 'Biết', kindRaw = 'MC', countRaw = '1', ptsRaw = '0.25', topicRaw = 'Chương trình GDPT';
+    function cleanKind(raw) {
+      const k = String(raw || '').toUpperCase();
+      if (k.includes('YN') || /ĐÚNG\/SAI|ĐÚNG SAI|Đ-S|DS/i.test(raw)) return 'YN';
+      if (k.includes('SHORT') || /TRẢ LỜI NGẮN|NGẮN|TLN/i.test(raw)) return 'SHORT';
+      if (k.includes('ES') || /TỰ LUẬN|TU LUAN|TL/i.test(raw)) return 'ES';
+      return 'MC';
+    }
 
-      if (cells.length >= 6) {
-        if (cells.length >= 7 && /Chủ\s*đề/i.test(cells[1])) {
-          topicRaw = cells[1];
-          lessonRaw = cells[2];
-          outcomeRaw = cells[3];
-          levelRaw = cells[4];
-          kindRaw = cells[5] || 'MC';
-          countRaw = cells[6] || '1';
-          ptsRaw = cells[7] || '0.25';
-        } else {
-          lessonRaw = cells[1] || cells[0];
-          outcomeRaw = cells[2] || '';
-          levelRaw = cells[3] || 'Biết';
-          kindRaw = cells[4] || 'MC';
-          countRaw = cells[5] || '1';
-          ptsRaw = cells[6] || '0.25';
-        }
-      } else if (cells.length >= 3) {
-        lessonRaw = cells[0];
-        outcomeRaw = cells[1];
-        levelRaw = cells[2] || 'Biết';
-        if (cells[3]) kindRaw = cells[3];
-      }
+    function getOrCreateLesson(rawLesson, rawTopic) {
+      let cleanLesson = (rawLesson || '').trim();
+      if (!cleanLesson) cleanLesson = 'Bài học ' + (lessonsMap.size + 1);
 
-      if (!lessonRaw) continue;
+      let code = '';
+      const mCode = cleanLesson.match(/^(?:Bài|Chủ\s*đề)\s*([0-9]+[a-zA-Z]?)/i);
+      if (mCode) code = 'B' + mCode[1];
+      else if (/KTGK1/i.test(cleanLesson)) code = 'KTGK1';
+      else if (/KTCK1/i.test(cleanLesson)) code = 'KTCK1';
+      else code = 'B' + (lessonsMap.size + 1);
 
-      let lessonCode = '';
-      const mCode = lessonRaw.match(/^(?:Bài|Chủ\s*đề)\s*([0-9]+[a-zA-Z]?)/i);
-      if (mCode) lessonCode = 'B' + mCode[1];
-      else if (/KTGK1/i.test(lessonRaw)) lessonCode = 'KTGK1';
-      else if (/KTCK1/i.test(lessonRaw)) lessonCode = 'KTCK1';
-      else lessonCode = 'B' + (lessonsMap.size + 1);
-
-      const cleanLessonName = lessonRaw.replace(/^(?:Bài|Chủ\s*đề)\s*[0-9]+[a-zA-Z]?[:.]?\s*/i, '').trim() || lessonRaw;
-
-      if (!lessonsMap.has(lessonCode)) {
-        lessonsMap.set(lessonCode, {
-          lesson_code: lessonCode,
-          title: cleanLessonName,
-          topic: topicRaw
+      const titleStr = cleanLesson.replace(/^(?:Bài|Chủ\s*đề)\s*[0-9]+[a-zA-Z]?[:.]?\s*/i, '').trim() || cleanLesson;
+      if (!lessonsMap.has(code)) {
+        lessonsMap.set(code, {
+          lesson_code: code,
+          title: titleStr,
+          topic: (rawTopic || 'Chương trình GDPT').trim()
         });
       }
+      return code;
+    }
 
-      let stdLevel = 'Biết';
-      const lLower = levelRaw.toLowerCase();
-      if (lLower.includes('cao')) stdLevel = 'Vận dụng cao';
-      else if (lLower.includes('vận dụng') || lLower.includes('van dung')) stdLevel = 'Vận dụng';
-      else if (lLower.includes('hiểu') || lLower.includes('hieu')) stdLevel = 'Hiểu';
-
-      let stdKind = 'MC';
-      const kUpper = kindRaw.toUpperCase();
-      if (kUpper.includes('YN') || /ĐÚNG\/SAI|ĐÚNG SAI/i.test(kindRaw)) stdKind = 'YN';
-      else if (kUpper.includes('SHORT') || /TRẢ LỜI NGẮN|NGẮN/i.test(kindRaw)) stdKind = 'SHORT';
-      else if (kUpper.includes('ES') || /TỰ LUẬN|TL/i.test(kindRaw)) stdKind = 'ES';
-
+    function addRequirementAndSlots(lessonCode, level, outcomeText, kind, count, points, refLabel) {
       reqCount++;
       const reqId = 'R' + reqCount;
       requirements.push({
         id: reqId,
         lesson_code: lessonCode,
-        level: stdLevel,
-        text: outcomeRaw || 'Yêu cầu cần đạt chuẩn theo chương trình môn học.',
+        level,
+        text: outcomeText || 'Yêu cầu cần đạt chuẩn GDPT.',
         ppct_outcome_index: 0,
         competency: 'NLa'
       });
 
-      const numSlots = Math.max(1, parseInt(countRaw, 10) || 1);
-      const pts = parseFloat(String(ptsRaw).replace(',', '.')) || (stdKind === 'ES' ? 1.0 : 0.25);
+      const numSlots = Math.max(1, count || 1);
+      const pts = points || (kind === 'ES' ? 1.0 : 0.25);
 
-      for (let sIdx = 0; sIdx < numSlots; sIdx++) {
+      for (let i = 0; i < numSlots; i++) {
         slotCount++;
-        const slotId = 'S' + slotCount;
         slots.push({
-          id: slotId,
-          kind: stdKind,
+          id: 'S' + slotCount,
+          kind,
           number: slotCount,
           parts: [{
             id: 'P' + slotCount,
-            label: '',
+            label: refLabel || '',
             requirement_id: reqId,
             points: pts,
             indicator: ''
           }],
           scoring: { mode: 'sum_parts' }
         });
+      }
+    }
+
+    // 1. Phân tách tài liệu thành từng bảng Markdown riêng biệt
+    const lines = text.split(/\r?\n/);
+    const tables = [];
+    let curT = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+        curT.push(trimmed);
+      } else {
+        if (curT.length >= 2) tables.push(curT);
+        curT = [];
+      }
+    }
+    if (curT.length >= 2) tables.push(curT);
+
+    let parsedAnyTable = false;
+
+    if (tables.length > 0) {
+      let specTable = null;
+      let matrixTable = null;
+      let flatTable = null;
+
+      for (const t of tables) {
+        const headerStr = t[0].toLowerCase();
+        if (/đặc\s*tả|yêu\s*cầu\s*cần\s*đạt|chuẩn\s*kiến\s*thức|mức\s*độ\s*đánh\s*giá/i.test(headerStr)) {
+          if (!specTable) specTable = t;
+        } else if (/nhận\s*biết|thông\s*hiểu|vận\s*dụng|tổng\s*số\s*câu/i.test(headerStr)) {
+          if (!matrixTable) matrixTable = t;
+        } else if (t[0].split('|').length >= 6) {
+          if (!flatTable) flatTable = t;
+        }
+      }
+
+      // Ưu tiên đọc Bản đặc tả (Specification table) trước vì có đầy đủ YCCĐ và câu hỏi chi tiết
+      const targetTable = specTable || flatTable;
+      if (targetTable) {
+        let curTopic = 'Chương trình GDPT';
+        let curLesson = '';
+        let curLevel = 'Biết';
+
+        const headerCells = targetTable[0].split('|').slice(1, -1).map(c => c.trim().toLowerCase());
+        let colTopic = headerCells.findIndex(c => /chủ\s*đề/i.test(c));
+        let colLesson = headerCells.findIndex(c => /bài\s*học|đơn\s*vị\s*kiến\s*thức|nội\s*dung/i.test(c));
+        let colLevel = headerCells.findIndex(c => /mức\s*độ/i.test(c));
+        let colOutcome = headerCells.findIndex(c => /yêu\s*cầu|chuẩn|đặc\s*tả|nội\s*dung\s*đánh\s*giá/i.test(c));
+        let colCount = headerCells.findIndex(c => /số\s*câu|số\s*lượng/i.test(c));
+        let colRef = headerCells.findIndex(c => /câu\s*hỏi|mã\s*câu/i.test(c));
+        let colPoints = headerCells.findIndex(c => /điểm/i.test(c));
+
+        if (colTopic === -1 && headerCells.length >= 2) colTopic = 1;
+        if (colLesson === -1 && headerCells.length >= 3) colLesson = 2;
+        if (colLevel === -1 && headerCells.length >= 4) colLevel = 3;
+        if (colOutcome === -1 && headerCells.length >= 5) colOutcome = 4;
+
+        for (let ri = 1; ri < targetTable.length; ri++) {
+          const row = targetTable[ri];
+          const cells = row.split('|').slice(1, -1).map(c => c.trim());
+          if (!cells.length || /^:?-+:?$/.test(cells[0])) continue;
+          if (cells.some(c => /^tổng/i.test(c))) continue;
+
+          // Xử lý ô gộp hàng (row-spanning carry-forward)
+          if (colTopic !== -1 && cells[colTopic]) curTopic = cells[colTopic];
+          if (colLesson !== -1 && cells[colLesson]) curLesson = cells[colLesson];
+          if (colLevel !== -1 && cells[colLevel]) curLevel = cleanLevel(cells[colLevel]);
+
+          const rawOutcome = (colOutcome !== -1 && cells[colOutcome]) ? cells[colOutcome] : '';
+          const rawCount = (colCount !== -1 && cells[colCount]) ? cells[colCount] : '1';
+          const rawRef = (colRef !== -1 && cells[colRef]) ? cells[colRef] : '';
+          const rawPoints = (colPoints !== -1 && cells[colPoints]) ? cells[colPoints] : '';
+
+          if (!rawOutcome && (colLevel === -1 || !cells[colLevel])) continue;
+
+          const lessonCode = getOrCreateLesson(curLesson || curTopic, curTopic);
+          const kind = cleanKind(rawCount + ' ' + rawRef);
+
+          const mCount = rawCount.match(/\d+/);
+          const count = mCount ? parseInt(mCount[0], 10) : 1;
+
+          const mPts = rawPoints.match(/\d+(?:[.,]\d+)?/);
+          const points = mPts ? parseFloat(mPts[0].replace(',', '.')) : (kind === 'ES' ? 1.0 : 0.25);
+
+          // Phân tách nhiều gạch đầu dòng trong cùng một ô
+          const bullets = rawOutcome.split(/<br\s*\/?>|\n|(?<=\.)\s*(?=[-•*]\s*)/i)
+            .map(b => b.replace(/^[-•*]\s*/, '').trim())
+            .filter(Boolean);
+
+          if (bullets.length > 1) {
+            const perBulletCount = Math.max(1, Math.floor(count / bullets.length));
+            for (const bText of bullets) {
+              addRequirementAndSlots(lessonCode, curLevel, bText, kind, perBulletCount, points, rawRef);
+            }
+          } else {
+            addRequirementAndSlots(lessonCode, curLevel, bullets[0] || rawOutcome, kind, count, points, rawRef);
+          }
+          parsedAnyTable = true;
+        }
+      } else if (matrixTable) {
+        // Đọc Khung ma trận (Matrix table 10-16 cột)
+        let curTopic = 'Chương trình GDPT';
+        let curLesson = '';
+        const headerCells = matrixTable[0].split('|').slice(1, -1).map(c => c.trim().toLowerCase());
+        let colTopic = headerCells.findIndex(c => /chủ\s*đề/i.test(c));
+        let colLesson = headerCells.findIndex(c => /bài\s*học|đơn\s*vị\s*kiến\s*thức|nội\s*dung/i.test(c));
+        if (colTopic === -1) colTopic = 1;
+        if (colLesson === -1) colLesson = 2;
+
+        for (let ri = 1; ri < matrixTable.length; ri++) {
+          const row = matrixTable[ri];
+          const cells = row.split('|').slice(1, -1).map(c => c.trim());
+          if (!cells.length || /^:?-+:?$/.test(cells[0])) continue;
+          if (cells.some(c => /^tổng/i.test(c))) continue;
+
+          if (cells[colTopic]) curTopic = cells[colTopic];
+          if (cells[colLesson]) curLesson = cells[colLesson];
+
+          const lessonCode = getOrCreateLesson(curLesson || curTopic, curTopic);
+
+          for (let ci = 0; ci < cells.length; ci++) {
+            if (ci === colTopic || ci === colLesson) continue;
+            const hName = headerCells[ci] || '';
+            if (/tổng|tỉ\s*lệ|stt|tt/i.test(hName)) continue;
+
+            const cellVal = cells[ci];
+            const mNum = cellVal.match(/\d+/);
+            if (mNum && parseInt(mNum[0], 10) > 0) {
+              const count = parseInt(mNum[0], 10);
+              const level = cleanLevel(hName);
+              const kind = cleanKind(hName + ' ' + cellVal);
+              const mPts = cellVal.match(/(\d+(?:[.,]\d+)?)\s*(?:đ|điểm)/i);
+              const pts = mPts ? parseFloat(mPts[1].replace(',', '.')) : (kind === 'ES' ? 1.0 : 0.25);
+
+              addRequirementAndSlots(lessonCode, level, 'Yêu cầu cần đạt mức ' + level + ' - ' + (curLesson || curTopic), kind, count, pts, '');
+              parsedAnyTable = true;
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Đọc định dạng Markdown phân cấp theo đề mục (Hierarchical Sections) nếu không có bảng
+    if (!parsedAnyTable) {
+      let curTopic = 'Chương trình GDPT';
+      let curLesson = 'Bài học 1';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        if (/^##\s+(.+)$/.test(trimmed)) {
+          curTopic = trimmed.replace(/^##\s+/, '').trim();
+        } else if (/^###\s+(.+)$/.test(trimmed)) {
+          curLesson = trimmed.replace(/^###\s+/, '').trim();
+        } else if (/^[-*•]\s+/.test(trimmed)) {
+          const body = trimmed.replace(/^[-*•]\s+/, '').trim();
+          const tags = [];
+          const bodyWithoutTags = body.replace(/\[([^\]]+)\]/g, (_, tag) => {
+            tags.push(tag.trim());
+            return '';
+          }).trim();
+
+          let level = 'Biết';
+          let kind = 'MC';
+          for (const t of tags) {
+            if (/biết|hiểu|vận\s*dụng/i.test(t)) level = cleanLevel(t);
+            if (/mc|tn|yn|đúng|sai|short|ngắn|es|tự\s*luận|tl/i.test(t)) kind = cleanKind(t);
+          }
+
+          let count = 1;
+          let points = kind === 'ES' ? 1.0 : 0.25;
+          let refLabel = '';
+
+          const mMeta = bodyWithoutTags.match(/\(([^)]+)\)\s*$/);
+          let outcomeText = bodyWithoutTags;
+          if (mMeta) {
+            outcomeText = bodyWithoutTags.slice(0, mMeta.index).trim();
+            const metaStr = mMeta[1];
+            const mC = metaStr.match(/(\d+)\s*(?:câu|ý)/i);
+            if (mC) count = parseInt(mC[1], 10);
+            const mP = metaStr.match(/(\d+(?:[.,]\d+)?)\s*(?:đ|điểm)/i);
+            if (mP) points = parseFloat(mP[1].replace(',', '.'));
+            const mR = metaStr.match(/(?:câu\s*[\d,\sA-Z]+)/i);
+            if (mR) refLabel = mR[0];
+          }
+
+          const lessonCode = getOrCreateLesson(curLesson, curTopic);
+          addRequirementAndSlots(lessonCode, level, outcomeText, kind, count, points, refLabel);
+        }
       }
     }
 
@@ -653,12 +815,19 @@
 Môn: Tin học - Khối: ${g}
 Thời gian: 45 phút - Năm học: 2026-2027
 
-| TT | Chủ đề | Bài học | Yêu cầu cần đạt | Mức độ | Dạng câu | Số câu | Điểm |
+> Ghi chú: Hệ thống hỗ trợ 2 cách biểu diễn trong Markdown:
+> Cách 1 (Bảng Đặc tả): Phù hợp khi chuyển từ Word sang. Mỗi dòng là một yêu cầu cần đạt kèm số câu.
+> Cách 2 (Phân cấp đề mục ## Chủ đề, ### Bài học, - [Mức độ] [Dạng câu] YCCĐ): Dễ đọc, AI tạo chuẩn 100% không bao giờ lo lệch cột.
+
+## BẢNG ĐẶC TẢ KĨ THUẬT ĐỀ KIỂM TRA
+
+| TT | Chủ đề | Bài học / Đơn vị kiến thức | Mức độ đánh giá | Yêu cầu cần đạt | Số câu hỏi | Câu hỏi trong đề | Điểm |
 |---|---|---|---|---|---|---|---|
-| 1 | Chủ đề 1: Máy tính và cộng đồng | Bài 1: Thế giới kĩ thuật số | Nhận biết được một số thiết bị số thông dụng. | Biết | MC | 2 | 0.5 |
-| 2 | Chủ đề 1: Máy tính và cộng đồng | Bài 1: Thế giới kĩ thuật số | Giải thích được vai trò của thiết bị số trong đời sống. | Hiểu | MC | 2 | 0.5 |
-| 3 | Chủ đề 2: Tổ chức lưu trữ | Bài 2: Thông tin trong giải quyết vấn đề | Giải thích được sự cần thiết phải đánh giá thông tin. | Hiểu | MC | 2 | 0.5 |
-| 4 | Chủ đề 2: Tổ chức lưu trữ | Bài 2: Thông tin trong giải quyết vấn đề | Vận dụng được kiến thức để tìm kiếm và đánh giá thông tin. | Vận dụng | ES | 1 | 1.0 |
+| 1 | Máy tính và cộng đồng | Bài 1: Thế giới kĩ thuật số | Nhận biết | - Nhận biết được một số thiết bị số thông dụng.<br>- Nêu được ưu điểm của thiết bị số trong đời sống. | 2 TN | Câu 1, Câu 2 | 0.5 |
+| | | | Thông hiểu | - Giải thích được vai trò của thiết bị số trong lưu trữ và xử lý thông tin. | 1 TN | Câu 3 | 0.25 |
+| 2 | Tổ chức lưu trữ, tìm kiếm | Bài 2: Thông tin trong giải quyết vấn đề | Nhận biết | - Nhận biết được chất lượng của thông tin trên mạng Internet. | 1 TN | Câu 4 | 0.25 |
+| | | | Thông hiểu | - Phân biệt được nguồn thông tin đáng tin cậy và không đáng tin cậy. | 2 TN | Câu 5, Câu 6 | 0.5 |
+| | | | Vận dụng | - Thực hành tìm kiếm và đánh giá thông tin phục vụ giải quyết vấn đề thực tế. | 1 TL | Câu 1 TL | 1.0 |
 `;
     const blob = new Blob([sampleMd], { type: 'text/markdown;charset=utf-8' });
     const a = document.createElement('a');
@@ -671,22 +840,52 @@ Thời gian: 45 phút - Năm học: 2026-2027
   function copyMatrixAiPrompt(grade = 9) {
     const g = Number(grade) || 9;
     const prompt = `Bạn là chuyên gia khảo thí môn Tin học phổ thông GDPT 2018 tại Trường Quốc tế Á Châu.
-Hãy giúp tôi chuyển bảng Ma trận & Đặc tả đề kiểm tra môn Tin học Khối ${g} sang định dạng bảng Markdown (.md) chuẩn để nạp vào hệ thống ExamMatrix Studio:
+Hãy giúp tôi chuyển đổi nội dung Ma trận & Đặc tả đề kiểm tra môn Tin học Khối ${g} sang định dạng chuẩn để nạp vào hệ thống ExamMatrix Studio:
 
-Yêu cầu cấu trúc:
-1. Dòng đầu: # MA TRẬN & ĐẶC TẢ KIỂM TRA GIỮA HỌC KỲ 1 (hoặc CUỐI HỌC KỲ)
-2. Thông tin phụ: Môn: Tin học - Khối: ${g} - Thời gian: 45 phút
-3. Bảng Markdown gồm chính xác các cột:
-| TT | Chủ đề | Bài học | Yêu cầu cần đạt | Mức độ | Dạng câu | Số câu | Điểm |
-4. Quy ước chuẩn:
-- Cột "Mức độ": Ghi rõ một trong 4 mức: Biết, Hiểu, Vận dụng, Vận dụng cao.
-- Cột "Dạng câu": Ghi rõ: MC (Trắc nghiệm nhiều lựa chọn 4 phương án), YN (Trắc nghiệm Đúng/Sai 4 ý a,b,c,d), SHORT (Trả lời ngắn) hoặc ES (Tự luận).
-- Tổng điểm các dòng cộng lại bằng đúng 10.0 điểm.
-5. Chỉ xuất trực tiếp nội dung Markdown, không kèm lời bình.`;
+---
+CÁCH 1: ĐỊNH DẠNG JSON (KHUYÊN DÙNG SỐ 1 - CHUẨN XÁC 100%):
+{
+  "format": "asian-school-matrix",
+  "schema_version": 1,
+  "matrix": {
+    "profile": "${g >= 10 ? 'THPT' : 'THCS'}",
+    "grade": ${g},
+    "exam_type": "GK1",
+    "duration": 45,
+    "school_year": "2026-2027",
+    "title": "Ma trận & đặc tả Kiểm tra Giữa HK1 Tin học ${g}",
+    "total_points": 10,
+    "lessons": [
+      { "lesson_code": "B1", "title": "Tên bài 1", "topic": "Tên chủ đề 1" }
+    ],
+    "requirements": [
+      { "id": "R1", "lesson_code": "B1", "level": "Biết", "text": "Nội dung YCCĐ...", "competency": "NLa" }
+    ],
+    "slots": [
+      { "id": "S1", "kind": "MC", "number": 1, "parts": [{ "id": "P1", "label": "Câu 1", "requirement_id": "R1", "points": 0.25 }] }
+    ]
+  }
+}
+
+---
+CÁCH 2: ĐỊNH DẠNG MARKDOWN PHÂN CẤP (DỄ ĐỌC, KHÔNG LO LỆCH CỘT KHI NHẬP):
+# MA TRẬN & ĐẶC TẢ GIỮA KÌ 1 TIN HỌC ${g}
+Môn: Tin học - Khối: ${g} - Thời gian: 45 phút - Năm học: 2026-2027
+
+## Chủ đề 1: Máy tính và cộng đồng
+### Bài 1: Tên bài học (Mã: B1)
+- [Biết] [MC] Yêu cầu cần đạt 1... (2 câu · 0.5đ · Câu 1, Câu 2)
+- [Hiểu] [MC] Yêu cầu cần đạt 2... (1 câu · 0.25đ · Câu 3)
+- [Vận dụng] [ES] Yêu cầu cần đạt 3... (1 câu · 1.0đ · Câu 1 TL)
+
+Quy ước:
+- [Mức độ]: Biết, Hiểu, Vận dụng, Vận dụng cao.
+- [Dạng câu]: MC (Trắc nghiệm 4 lựa chọn), YN (Đúng/Sai), SHORT (Trả lời ngắn), ES (Tự luận).
+- Tổng điểm bằng 10.0 điểm.`;
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(prompt).then(() => {
-        alert('Đã chép Prompt AI vào bộ nhớ tạm! Thầy/Cô dán vào ChatGPT hoặc Gemini để tạo ma trận Markdown tức thì.');
+        alert('Đã chép Prompt AI vào bộ nhớ tạm! Thầy/Cô có thể dán vào ChatGPT hoặc Gemini để tạo ma trận chuẩn.');
       }).catch(() => {
         window.prompt('Sao chép Prompt AI dưới đây:', prompt);
       });
@@ -700,7 +899,12 @@ Yêu cầu cấu trúc:
     qs('#mx-work').innerHTML=`<section class="card">
       <p class="eyebrow">GIỮ NGUYÊN BẢN CỦA GIÁO VIÊN PHỤ TRÁCH</p>
       <h2>Nhận ma trận & đặc tả (JSON, Markdown hoặc Word)</h2>
-      <p>Khuyên dùng <strong>JSON</strong> hoặc <strong>Markdown (.md)</strong> để nạp tức thì, chính xác 100% và không bị phụ thuộc định dạng ngầm. Vẫn hỗ trợ tệp Word (.docx) theo cấu trúc mẫu trường.</p>
+      <div class="callout" style="background:#f0f7ff;border-left:4px solid #0267b1;padding:12px;margin:10px 0;font-size:13px;line-height:1.6">
+        <strong>💡 Lưu ý xử lý ma trận nhiều bảng, nhiều cột:</strong><br>
+        Ma trận GDPT 2018 thường có nhiều bảng (Khung ma trận & Bản đặc tả) với các ô gộp dòng/cột phức tạp.<br>
+        • Khuyên dùng <strong>JSON</strong> (chuẩn xác 100%) hoặc dạng <strong>Markdown phân cấp theo đề mục</strong> để hệ thống nhận diện chính xác tuyệt đối, không lo lệch cột.<br>
+        • Bấm <strong>"📥 Tải mẫu"</strong> hoặc <strong>"📋 Chép Prompt AI"</strong> để AI tạo ngay dữ liệu chuẩn.
+      </div>
       <div style="display:flex;gap:10px;margin:10px 0 14px;flex-wrap:wrap">
         <button type="button" class="button quiet" id="mx-download-json-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📥 Tải mẫu Ma trận (JSON)</button>
         <button type="button" class="button quiet" id="mx-download-md-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📝 Tải mẫu Ma trận (Markdown)</button>

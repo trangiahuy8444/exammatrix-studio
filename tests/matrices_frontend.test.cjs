@@ -55,3 +55,88 @@ console.log('PASS matrix UI: chọn riêng Vận dụng cao');
  assert.doesNotMatch(html,/Chưa thể kết luận/);
 }
 console.log('PASS matrix UI: báo cáo thiếu câu chưa đủ căn cứ và hiển thị mọi ý');
+
+// Test parseMatrixFromMarkdown with multi-table document and row-spanning
+{
+  const multiTableMd = `
+# MA TRẬN & ĐẶC TẢ GIỮA HỌC KỲ 1
+Môn: Tin học - Khối 9 - Năm học: 2026-2027
+
+## BẢNG 1: KHUNG MA TRẬN
+| TT | Chủ đề | Đơn vị kiến thức | Nhận biết | Thông hiểu | Vận dụng | Vận dụng cao | Tổng |
+|---|---|---|---|---|---|---|---|
+| 1 | Máy tính | Bài 1 | 2 | 1 | 0 | 0 | 3 |
+| | | Bài 2 | 1 | 2 | 1 | 0 | 4 |
+
+## BẢNG 2: BẢNG ĐẶC TẢ KĨ THUẬT
+| TT | Chủ đề | Bài học / Đơn vị kiến thức | Mức độ đánh giá | Yêu cầu cần đạt | Số câu hỏi | Câu hỏi trong đề | Điểm |
+|---|---|---|---|---|---|---|---|
+| 1 | Máy tính và cộng đồng | Bài 1: Thế giới kĩ thuật số | Nhận biết | - Nhận biết được một số thiết bị số thông dụng.<br>- Nêu được ưu điểm của thiết bị số. | 2 TN | Câu 1, Câu 2 | 0.5 |
+| | | | Thông hiểu | - Giải thích được vai trò mạng máy tính. | 1 TN | Câu 3 | 0.25 |
+| 2 | Tổ chức lưu trữ, tìm kiếm | Bài 2: Thông tin trong giải quyết vấn đề | Nhận biết | - Nhận biết được thông tin chất lượng. | 1 TN | Câu 4 | 0.25 |
+| | | | Thông hiểu | - Phân biệt tin thật và tin giả. | 2 TN | Câu 5, Câu 6 | 0.5 |
+| | | | Vận dụng | - Thực hành tìm kiếm thông tin an toàn. | 1 TL | Câu 1 TL | 1.0 |
+`;
+
+  const parsed = ui.parseMatrixFromMarkdown(multiTableMd, 9);
+  assert.ok(parsed && parsed.matrix, 'Phải bóc tách được ma trận từ tài liệu nhiều bảng');
+  assert.equal(parsed.matrix.grade, 9);
+  assert.equal(parsed.matrix.lessons.length, 2);
+  assert.equal(parsed.matrix.lessons[0].title, 'Thế giới kĩ thuật số');
+  assert.equal(parsed.matrix.lessons[0].topic, 'Máy tính và cộng đồng');
+  assert.equal(parsed.matrix.lessons[1].title, 'Thông tin trong giải quyết vấn đề');
+  assert.equal(parsed.matrix.lessons[1].topic, 'Tổ chức lưu trữ, tìm kiếm');
+
+  // Kiểm tra 6 yêu cầu cần đạt được phân tách chính xác (bao gồm tách <br>)
+  assert.equal(parsed.matrix.requirements.length, 6);
+  assert.equal(parsed.matrix.requirements[0].level, 'Biết');
+  assert.equal(parsed.matrix.requirements[1].level, 'Biết');
+  assert.equal(parsed.matrix.requirements[2].level, 'Hiểu');
+  assert.equal(parsed.matrix.requirements[5].level, 'Vận dụng');
+
+  // Kiểm tra 7 slots
+  assert.equal(parsed.matrix.slots.length, 7);
+  assert.equal(parsed.matrix.slots[6].kind, 'ES');
+  console.log('PASS matrix UI: parseMatrixFromMarkdown nhận diện chính xác tài liệu đa bảng và ô gộp dòng');
+}
+
+// Test parseMatrixFromMarkdown with hierarchical section markdown
+{
+  const sectionMd = `
+# MA TRẬN ĐỀ KIỂM TRA TIN HỌC 9
+Khối: 9
+
+## Chủ đề 1: Máy tính và cộng đồng
+### Bài 1: Thiết bị số
+- [Biết] [MC] Nhận biết được các loại thiết bị số. (2 câu · 0.5đ · Câu 1, Câu 2)
+- [Hiểu] [MC] Giải thích được cơ chế hoạt động mạng. (1 câu · 0.25đ · Câu 3)
+
+## Chủ đề 2: Dịch vụ đám mây
+### Bài 2: Lưu trữ trực tuyến
+- [Vận dụng] [ES] Thực hành chia sẻ thư mục bảo mật. (1 câu · 1.0đ · Câu 1 TL)
+`;
+
+  const parsed = ui.parseMatrixFromMarkdown(sectionMd, 9);
+  assert.ok(parsed && parsed.matrix);
+  assert.equal(parsed.matrix.lessons.length, 2);
+  assert.equal(parsed.matrix.requirements.length, 3);
+  assert.equal(parsed.matrix.slots.length, 4); // 2 câu Biết + 1 câu Hiểu + 1 câu Vận dụng
+  console.log('PASS matrix UI: parseMatrixFromMarkdown nhận diện chính xác Markdown phân cấp đề mục');
+
+  // Test buildMatrixView & generateMatrixWordHtml
+  const v = ui.buildMatrixView(parsed.matrix);
+  assert.ok(v.rows && v.rows.length === 2);
+  assert.equal(v.totals.items, 4);
+
+  const wordHtml = ui.generateMatrixWordHtml(parsed.matrix, 'all');
+  assert.ok(wordHtml.includes('KHUNG MA TRẬN ĐỀ KIỂM TRA ĐỊNH KỲ'));
+  assert.ok(wordHtml.includes('BẢNG ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KỲ'));
+  assert.ok(wordHtml.includes('TRƯỜNG QUỐC TẾ Á CHÂU'));
+  assert.ok(wordHtml.includes('Thiết bị số'));
+  assert.ok(wordHtml.includes('Lưu trữ trực tuyến'));
+
+  const standalone = ui.generateMatrixWordStandaloneHtml(parsed.matrix, 'all');
+  assert.ok(standalone.includes('xmlns:w="urn:schemas-microsoft-com:office:word"'));
+  assert.ok(standalone.includes('size: A4 landscape'));
+  console.log('PASS matrix UI: buildMatrixView & generateMatrixWordHtml xuất chuẩn bố cục Word 2 bảng');
+}

@@ -38,7 +38,18 @@
   function message(text,error=false){ui.ctx.notify(text,error);}
   function detail(e){const errors=e.details?.errors||e.details?.validation?.errors;return e.message+(errors?'\n'+errors.map(x=>x.message).join('\n'):'');}
   async function run(work){if(ui.busy)return;ui.busy=true;ui.container.querySelectorAll('button').forEach(b=>b.disabled=true);try{await work();}catch(e){message(detail(e),true);if(e.details?.errors){ui.report=e.details;renderReport();}}finally{ui.busy=false;ui.container.querySelectorAll('button').forEach(b=>b.disabled=false);restoreButtons();}}
-  function restoreButtons(){if(!ui.editing)return;const actions=visibleActions(ui.editing);ui.container.querySelectorAll('[data-action]').forEach(b=>{const a=b.dataset.action;if(['save','review','preview','lock','export'].includes(a))b.disabled=!actions.includes(a)||((a!=='save')&&(!ui.editing.id||ui.dirty))||(a==='lock'&&!ui.report?.valid);if(a==='compare')b.disabled=!ui.editing.id||ui.dirty;});ui.container.querySelectorAll('button:not([data-action])').forEach(b=>b.disabled=false);}
+  function restoreButtons(){
+    if(!ui.editing)return;
+    const actions=visibleActions(ui.editing);
+    const canLock=Boolean(ui.report?.valid || ui.report?.ok || ui.editing?.reconciliation?.confirmed || qs('#mx-confirm-agreement')?.checked);
+    ui.container.querySelectorAll('[data-action]').forEach(b=>{
+      const a=b.dataset.action;
+      if(['save','review','preview','lock','export'].includes(a))
+        b.disabled=!actions.includes(a)||((a!=='save')&&(!ui.editing.id||ui.dirty))||(a==='lock'&&!canLock);
+      if(a==='compare')b.disabled=!ui.editing.id||ui.dirty;
+    });
+    ui.container.querySelectorAll('button:not([data-action])').forEach(b=>b.disabled=false);
+  }
   async function refresh(){const d=await ui.ctx.request('/api/matrices');ui.records=d.matrices||[];}
   async function mount(container,context){ui.container=container;ui.ctx=context;await run(async()=>{await refresh();render();});}
   function recordBadges(m){
@@ -51,11 +62,11 @@
       (notes.length?`<span class="badge content_checked">${notes.length} ghi chú đối chiếu</span>`:'')+
       `<small>Phiên bản ${m.version} · ${m.slots?.length||0} câu (${parts.length} ý) · ${m.total_points??10} điểm</small>`;
   }
-  const grades=()=>root.BankCore.contextGrades(ui.ctx.context||{});
-  const generic=()=>ui.ctx.context?.school_profile===false;
-  const subject=m=>m?.subject_name||ui.ctx.context?.subject_name||'Tin học';
-  const competencies=()=>ui.ctx.context?.competencies||['NLa','NLb','NLc','NLd','NLe'];
-  const apiUrl=path=>root.BankCore.scopedUrl(path,ui.ctx.context?.curriculum_id||'');
+  const grades=()=>root.BankCore?.contextGrades?.(ui.ctx?.context||{})||[8,9,10];
+  const generic=()=>ui.ctx?.context?.school_profile===false;
+  const subject=m=>m?.subject_name||ui.ctx?.context?.subject_name||'Tin học';
+  const competencies=()=>ui.ctx?.context?.competencies||['NLa','NLb','NLc','NLd','NLe'];
+  const apiUrl=path=>root.BankCore?.scopedUrl?.(path,ui.ctx?.context?.curriculum_id||'')||path;
   function render(){
     const f=ui.filter;
     ui.container.innerHTML=`<div class="page-head"><div><p class="eyebrow">MA TRẬN THEO CHƯƠNG TRÌNH</p><h1>Ma trận & đặc tả</h1><p>Lập phân bố câu hỏi và yêu cầu cần đạt theo môn, khối lớp của bạn. Đầy đủ thao tác Tạo mới, Xem, Sửa, Nhân bản, Mở khóa và Xóa.</p></div><div class="actions">${grades().map(g=>`<button class="primary" data-action="new" data-grade="${g}">+ Tạo ma trận khối ${g}</button>`).join('')}<button data-action="import">Nhập ma trận</button></div></div>
@@ -113,8 +124,48 @@
   function renderShortfall(){const el=qs('#mx-shortfall'),r=ui.shortfall;if(!el||!r)return;
     el.innerHTML=shortfallHtml(r,Boolean(ui.ctx.openReview));
     el.querySelectorAll('[data-open-review]').forEach(b=>b.onclick=()=>ui.ctx.openReview(r.cells[Number(b.dataset.openReview)]));}
-  function renderReport(){const el=qs('#mx-report');if(!el)return;const r=ui.report;el.innerHTML=r?`<div class="${r.valid?'callout':'mx-errors'}"><strong>${r.valid?'Đã đạt kiểm tra kỹ thuật':'Còn nội dung cần đối chiếu'}</strong>${r.errors?.length?`<ul>${r.errors.map(e=>`<li>${E(e.message)}</li>`).join('')}</ul>`:''}${r.warnings?.length?`<div class="callout warning"><strong>Cảnh báo (không chặn)</strong><ul>${r.warnings.map(w=>`<li>${E(w.message)}</li>`).join('')}</ul></div>`:''}${r.valid&&!r.exam_supported?'<p>Ma trận xuất được Word; có câu Đúng/Sai hoặc trả lời ngắn trải trên nhiều bài/mức độ nên cần chọn câu và đối chiếu thủ công.</p>':''}${r.valid?'<p>Kiểm tra này không tự xác nhận tổ trưởng đã duyệt.</p>':''}</div>`:'<p class="muted">Lưu nháp và chạy kiểm tra để xem những mục còn thiếu.</p>';}
-  function renderLinks(){const el=qs('#mx-export-links'),m=ui.editing;if(!el)return;if(!m.id||ui.dirty){el.innerHTML='<p class="muted">Lưu thay đổi để xuất đúng nội dung đang soạn.</p>';return;}const base='/api/matrices/'+encodeURIComponent(m.id)+'/export';el.innerHTML=`<div class="actions"><a class="button primary" href="${base}?format=docx">Word trọn bộ</a><a class="button" href="${base}?format=docx&section=matrix">Word ma trận</a><a class="button" href="${base}?format=docx&section=specification">Word đặc tả</a><a class="button" href="${base}?format=pdf">PDF</a><a class="button" href="${base}?format=tex">LaTeX (.tex)</a>${m.profile==='THPT'?`<a class="button" href="${base}?format=docx&section=competencies">Word năng lực</a>`:''}<a class="button" href="${base}?format=json">Gói dữ liệu dùng chung</a></div>`;}
+  function renderReport(){
+    const el=qs('#mx-report');if(!el)return;
+    const r=ui.report;
+    if(!r){
+      el.innerHTML='<p class="muted">Lưu nháp và chạy kiểm tra để xem những mục còn thiếu.</p>';
+      return;
+    }
+    const isValid=Boolean(r.valid ?? r.ok);
+    el.innerHTML=`<div class="${isValid?'callout':'mx-errors'}">
+      <strong>${isValid?'Đã đạt kiểm tra kỹ thuật':'Còn nội dung cần đối chiếu'}</strong>
+      ${r.errors?.length?`<ul>${r.errors.map(e=>`<li>${E(e.message||e)}</li>`).join('')}</ul>`:''}
+      ${r.warnings?.length?`<div class="callout warning"><strong>Cảnh báo (không chặn)</strong><ul>${r.warnings.map(w=>`<li>${E(w.message||w)}</li>`).join('')}</ul></div>`:''}
+      ${isValid?'<p class="small muted" style="margin-top:6px;">✓ Hồ sơ ma trận & đặc tả khớp chuẩn kỹ thuật. Bạn có thể ký duyệt hoặc khóa phiên bản để sử dụng.</p>':''}
+    </div>`;
+  }
+  function renderLinks(){
+    const el=qs('#mx-export-links'),m=ui.editing;if(!el)return;
+    if(!m.id||ui.dirty){el.innerHTML='<p class="muted">Lưu thay đổi để xuất đúng nội dung đang soạn.</p>';return;}
+    el.innerHTML=`<div class="actions">
+      <button type="button" class="button primary" data-export="doc-all">Word trọn bộ (.doc)</button>
+      <button type="button" class="button" data-export="doc-matrix">Word ma trận</button>
+      <button type="button" class="button" data-export="doc-spec">Word đặc tả</button>
+      <button type="button" class="button" data-export="pdf">PDF / In</button>
+      <button type="button" class="button" data-export="tex">LaTeX (.tex)</button>
+      ${m.profile==='THPT'?`<button type="button" class="button" data-export="doc-comp">Word năng lực</button>`:''}
+      <button type="button" class="button" data-export="json">Gói dữ liệu dùng chung (.json)</button>
+    </div>`;
+
+    el.querySelectorAll('[data-export]').forEach(btn=>{
+      btn.onclick=(ev)=>{
+        ev.preventDefault();
+        const type=btn.dataset.export;
+        if(type==='doc-all')downloadMatrixWord(m,'all');
+        else if(type==='doc-matrix')downloadMatrixWord(m,'matrix');
+        else if(type==='doc-spec')downloadMatrixWord(m,'specification');
+        else if(type==='doc-comp')downloadMatrixWord(m,'competencies');
+        else if(type==='pdf')printMatrixDoc(m);
+        else if(type==='tex')downloadMatrixLatex(m);
+        else if(type==='json')downloadMatrixJson(m);
+      };
+    });
+  }
   function changed(){ui.dirty=true;ui.report=null;const mark=qs('#mx-dirty');if(mark)mark.textContent=' · Có thay đổi chưa lưu';updateSummary();renderReport();renderLinks();restoreButtons();}
   function assign(el){
     if(ui.editing&&el.dataset.allowKind!==undefined){
@@ -141,8 +192,8 @@
     }else if(el.tagName==='SELECT'&&['level','profile','competency'].includes(key))renderEditor();
   }
   function captureGeneration(){if(!ui.generation||!qs('#mx-exam-title'))return;const values={};ui.container.querySelectorAll('[id^=mx-exam-],[data-choice],[data-review-slot]').forEach(el=>{const key=el.dataset.reviewSlot?'review:'+el.dataset.reviewSlot+':'+el.value:el.id;values[key]=el.type==='checkbox'?el.checked:el.value;});ui.generation.formValues=values;}
-  function input(event){captureGeneration();if(event.target.matches('[data-field]')&&event.target.tagName!=='SELECT'&&event.target.type!=='checkbox')assign(event.target);}
-  async function change(event){const el=event.target;if(el.matches('[data-field]')&&(el.tagName==='SELECT'||el.type==='checkbox'))assign(el);if(el.matches('[data-allow-kind],[data-yn-coef]'))assign(el);if(el.dataset.filter){ui.filter[el.dataset.filter]=el.value;render();}if(el.id==='mx-file')await readImport(el.files[0]);if(el.dataset.choice){const id=el.dataset.choice;ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===id)c.checked=false;});showChoice(id);coverage();}if(el.id==='mx-exam-revision')coverage();captureGeneration();}
+  function input(event){captureGeneration();if(event.target.matches('[data-field]')&&event.target.tagName!=='SELECT'&&event.target.type!=='checkbox')assign(event.target);if(event.target.id==='mx-confirm-agreement')restoreButtons();}
+  async function change(event){const el=event.target;if(el.matches('[data-field]')&&(el.tagName==='SELECT'||el.type==='checkbox'))assign(el);if(el.matches('[data-allow-kind],[data-yn-coef]'))assign(el);if(el.dataset.filter){ui.filter[el.dataset.filter]=el.value;render();}if(el.id==='mx-file')await readImport(el.files[0]);if(el.id==='mx-confirm-agreement'||el.dataset.field==='reconciliation.confirmed')restoreButtons();if(el.dataset.choice){const id=el.dataset.choice;ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===id)c.checked=false;});showChoice(id);coverage();}if(el.id==='mx-exam-revision')coverage();captureGeneration();}
   function guard(){if(ui.dirty){message('Có thay đổi chưa lưu. Hãy lưu hoặc bấm “Bỏ thay đổi / tải bản đã lưu” trước khi mở hồ sơ khác.',true);return false;}return true;}
   async function openRecord(id,discard=false){if(!discard&&!guard())return;const d=await ui.ctx.request('/api/matrices/'+encodeURIComponent(id));ui.editing=d.matrix;ui.report=d.validation;ui.dirty=false;ui.importing=null;ui.generation=null;render();}
   async function save(){const result=await ui.ctx.request('/api/matrices/save',{matrix:ui.editing,expected_revision:ui.editing.revision,allow_custom_override:Boolean(ui.editing.allow_custom_override)});ui.editing=result.matrix;ui.report=result.validation;ui.dirty=false;await refresh();render();message('Đã lưu bản nháp; nguồn và lịch sử cũ được giữ nguyên.');}
@@ -249,18 +300,608 @@
       });
     });
   }
+  function buildMatrixView(m) {
+    const requirements = {};
+    (m?.requirements || []).forEach(r => {
+      requirements[r.id] = { ...r, refs: [] };
+    });
+
+    const rows = [];
+    const lookup = {};
+    (m?.lessons || []).forEach((lesson, idx) => {
+      const row = {
+        index: idx + 1,
+        lesson_code: lesson.lesson_code,
+        title: lesson.title || lesson.lesson_name_source || `Bài ${idx + 1}`,
+        topic: lesson.topic || 'Chủ đề',
+        cells: {},
+        points: 0,
+        counts: { 'Biết': 0, 'Hiểu': 0, 'Vận dụng': 0, 'Vận dụng cao': 0 }
+      };
+      lookup[row.lesson_code] = row;
+      rows.push(row);
+    });
+
+    const KINDS = ['MC', 'YN', 'SHORT', 'ES'];
+    const LEVELS = ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'];
+    const totals = {
+      points: 0,
+      questions: 0,
+      items: 0,
+      by_kind: {
+        MC: { questions: 0, items: 0, points: 0 },
+        YN: { questions: 0, items: 0, points: 0 },
+        SHORT: { questions: 0, items: 0, points: 0 },
+        ES: { questions: 0, items: 0, points: 0 }
+      },
+      by_level: {
+        'Biết': { items: 0, points: 0 },
+        'Hiểu': { items: 0, points: 0 },
+        'Vận dụng': { items: 0, points: 0 },
+        'Vận dụng cao': { items: 0, points: 0 }
+      }
+    };
+
+    const competencies = [];
+
+    (m?.slots || []).forEach(slot => {
+      const kind = slot.kind;
+      if (!KINDS.includes(kind)) return;
+      totals.questions += 1;
+      if (!totals.by_kind[kind]) totals.by_kind[kind] = { questions: 0, items: 0, points: 0 };
+      totals.by_kind[kind].questions += 1;
+
+      (slot.parts || []).forEach(part => {
+        const req = requirements[part.requirement_id];
+        const row = req ? lookup[req.lesson_code] : (rows[0] || null);
+        const level = req?.level || 'Biết';
+
+        const label = kind === 'ES' ? `Câu ${slot.number} TL` : `Câu ${slot.number}${part.label || ''}`;
+        if (req && !req.refs.includes(label)) req.refs.push(label);
+
+        const pts = Number(part.points || 0);
+        if (row) {
+          const cellKey = `${kind}|${level}`;
+          if (!row.cells[cellKey]) {
+            row.cells[cellKey] = { count: 0, refs: [], points: 0 };
+          }
+          row.cells[cellKey].count += 1;
+          row.cells[cellKey].refs.push(label);
+          row.cells[cellKey].points += pts;
+
+          row.counts[level] = (row.counts[level] || 0) + 1;
+          row.points += pts;
+        }
+
+        totals.items += 1;
+        totals.points += pts;
+        totals.by_kind[kind].items += 1;
+        totals.by_kind[kind].points += pts;
+        totals.by_level[level].items += 1;
+        totals.by_level[level].points += pts;
+
+        competencies.push({
+          kind,
+          number: slot.number,
+          label: part.label || '',
+          level,
+          competency: req?.competency || '',
+          indicator: part.indicator || ''
+        });
+      });
+    });
+
+    const denominator = Number(m?.total_points || 10);
+    rows.forEach(row => {
+      row.percentage = denominator ? ((row.points / denominator) * 100) : 0;
+    });
+
+    return {
+      rows,
+      requirements: Object.values(requirements),
+      totals,
+      competencies,
+      indicator_catalog: m?.indicator_catalog || []
+    };
+  }
+
+  function generateMatrixWordHtml(m, section='all') {
+    if (!m) return '<p class="muted">Chưa có dữ liệu ma trận.</p>';
+    const v = buildMatrixView(m);
+    const period = { TX: 'THƯỜNG XUYÊN', GK1: 'GIỮA KÌ 1', CK1: 'CUỐI KÌ 1', GK2: 'GIỮA KÌ 2', CK2: 'CUỐI KÌ 2' }[m.exam_type] || 'GIỮA KÌ 1';
+    const subjUpper = (subject(m) || 'TIN HỌC').toLocaleUpperCase('vi');
+
+    let out = '';
+
+    const headerHtml = (title) => `
+      <div class="doc-sheet-head" style="text-align:center;margin-bottom:18px;">
+        <table style="width:100%;border:none;margin-bottom:12px;font-family:'Times New Roman',Times,serif;table-layout:fixed;">
+          <colgroup><col style="width:45%"><col style="width:55%"></colgroup>
+          <tr style="border:none;">
+            <td style="border:none;text-align:center;vertical-align:top;font-size:11pt;line-height:1.4;padding:0;">
+              <strong>TRƯỜNG QUỐC TẾ Á CHÂU</strong><br>
+              <strong>TỔ: ${E(subjUpper)}</strong>
+            </td>
+            <td style="border:none;text-align:center;vertical-align:top;font-size:11pt;line-height:1.4;padding:0;">
+              <strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><br>
+              <strong>Độc lập - Tự do - Hạnh phúc</strong><br>
+              -----------------
+            </td>
+          </tr>
+        </table>
+        <p class="mx-doc-heading" style="font-size:13pt;font-weight:700;margin:12px 0 4px;text-align:center;text-transform:uppercase;">
+          <strong>${E(title)}</strong>
+        </p>
+        <p class="mx-doc-subhead" style="font-size:11.5pt;font-weight:700;margin:0 0 16px;text-align:center;">
+          <strong>MÔN: ${E(subjUpper)} ${E(m.grade)} - THỜI GIAN LÀM BÀI: ${E(m.duration || 45)} PHÚT</strong>
+        </p>
+      </div>
+    `;
+
+    // 1. TABLE 1: MA TRẬN
+    if (section === 'all' || section === 'matrix') {
+      out += headerHtml(`KHUNG MA TRẬN ĐỀ KIỂM TRA ĐỊNH KỲ ${period}`);
+      const kinds = effectiveKinds(m);
+      const hasVdc = (m.requirements || []).some(r => r.level === 'Vận dụng cao') || (v.totals?.by_level['Vận dụng cao']?.items > 0);
+      const levels = hasVdc ? ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'] : ['Biết', 'Hiểu', 'Vận dụng'];
+      const levelAbbr = { 'Biết': 'B', 'Hiểu': 'H', 'Vận dụng': 'VD', 'Vận dụng cao': 'VDC' };
+      const kindNames = { MC: 'TNKQ', YN: 'Đúng/Sai', SHORT: 'Trả lời ngắn', ES: 'Tự luận' };
+
+      out += `<table style="border-collapse:collapse;width:100%;table-layout:fixed;margin:10px auto 26px;font-family:'Times New Roman',Times,serif;font-size:11pt;">`;
+      out += `<thead>`;
+      out += `<tr>
+        <th rowspan="3" style="width:40px;border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">TT</th>
+        <th rowspan="3" style="width:140px;border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Chương / Chủ đề</th>
+        <th rowspan="3" style="width:190px;border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Nội dung / Đơn vị kiến thức</th>
+        <th colspan="${kinds.length * levels.length}" style="border:1px solid #333;text-align:center;background:#f0f4f8;">Mức độ đánh giá</th>
+        <th colspan="${levels.length}" style="border:1px solid #333;text-align:center;background:#f0f4f8;">Tổng</th>
+        <th rowspan="3" style="width:70px;border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Tỉ lệ % điểm</th>
+      </tr>`;
+      out += `<tr>`;
+      kinds.forEach(k => {
+        out += `<th colspan="${levels.length}" style="border:1px solid #333;text-align:center;background:#f0f4f8;">${kindNames[k] || k}</th>`;
+      });
+      out += `<th colspan="${levels.length}" style="border:1px solid #333;text-align:center;background:#f0f4f8;">Số câu</th>`;
+      out += `</tr>`;
+      out += `<tr>`;
+      kinds.forEach(() => {
+        levels.forEach(l => {
+          out += `<th style="border:1px solid #333;text-align:center;font-size:10pt;background:#f0f4f8;">${levelAbbr[l] || l}</th>`;
+        });
+      });
+      levels.forEach(l => {
+        out += `<th style="border:1px solid #333;text-align:center;font-size:10pt;background:#f0f4f8;">${levelAbbr[l] || l}</th>`;
+      });
+      out += `</tr>`;
+      out += `</thead><tbody>`;
+
+      const topicGroups = [];
+      let currentTopic = null;
+      let currentGroup = [];
+      v.rows.forEach(r => {
+        if (r.topic !== currentTopic) {
+          if (currentGroup.length) topicGroups.push(currentGroup);
+          currentTopic = r.topic;
+          currentGroup = [r];
+        } else {
+          currentGroup.push(r);
+        }
+      });
+      if (currentGroup.length) topicGroups.push(currentGroup);
+
+      let topicIdx = 0;
+      topicGroups.forEach(grp => {
+        topicIdx++;
+        grp.forEach((row, rowInGrp) => {
+          out += `<tr>`;
+          if (rowInGrp === 0) {
+            out += `<td rowspan="${grp.length}" style="border:1px solid #333;text-align:center;vertical-align:middle;">${topicIdx}</td>`;
+            out += `<td rowspan="${grp.length}" style="border:1px solid #333;vertical-align:middle;"><strong>${E(grp[0].topic)}</strong></td>`;
+          }
+          out += `<td style="border:1px solid #333;vertical-align:middle;">${E(row.title)}</td>`;
+
+          kinds.forEach(k => {
+            levels.forEach(l => {
+              const cell = row.cells[k + '|' + l];
+              if (cell && cell.count > 0) {
+                out += `<td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cell.count}${k==='ES'?' TL':''}<br><small>(${cell.refs.join(', ')})</small></td>`;
+              } else {
+                out += `<td style="border:1px solid #333;text-align:center;vertical-align:middle;color:#888;">—</td>`;
+              }
+            });
+          });
+
+          levels.forEach(l => {
+            const cnt = row.counts[l] || 0;
+            out += `<td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cnt || '—'}</td>`;
+          });
+
+          const pct = (row.percentage || 0).toFixed(1).replace('.0', '');
+          out += `<td style="border:1px solid #333;text-align:center;vertical-align:middle;"><strong>${pct}%</strong></td>`;
+          out += `</tr>`;
+        });
+      });
+
+      // Bottom Totals rows
+      out += `<tr>
+        <td colspan="3" style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>Tổng số câu và ý</strong></td>`;
+      kinds.forEach(k => {
+        levels.forEach(l => {
+          const sum = v.rows.reduce((acc, r) => acc + (r.cells[k + '|' + l]?.count || 0), 0);
+          out += `<td style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>${sum || '—'}</strong></td>`;
+        });
+      });
+      levels.forEach(l => {
+        const sum = v.totals.by_level[l]?.items || 0;
+        out += `<td style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>${sum || '—'}</strong></td>`;
+      });
+      out += `<td style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>${v.totals.items} câu/ý</strong></td></tr>`;
+
+      out += `<tr>
+        <td colspan="3" style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>Tổng số điểm</strong></td>`;
+      kinds.forEach(k => {
+        levels.forEach(l => {
+          const pts = v.rows.reduce((acc, r) => acc + (r.cells[k + '|' + l]?.points || 0), 0);
+          out += `<td style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>${pts ? pts.toFixed(2).replace(/\.?0+$/, '') : '—'}</strong></td>`;
+        });
+      });
+      levels.forEach(l => {
+        const pts = v.totals.by_level[l]?.points || 0;
+        out += `<td style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>${pts ? pts.toFixed(2).replace(/\.?0+$/, '') : '—'}</strong></td>`;
+      });
+      out += `<td style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>${(v.totals.points || 10).toFixed(1).replace('.0', '')} đ</strong></td></tr>`;
+
+      out += `<tr>
+        <td colspan="3" style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>Tỉ lệ %</strong></td>`;
+      kinds.forEach(k => {
+        levels.forEach(l => {
+          const pts = v.rows.reduce((acc, r) => acc + (r.cells[k + '|' + l]?.points || 0), 0);
+          const pct = (pts / (v.totals.points || 10)) * 100;
+          out += `<td style="border:1px solid #333;text-align:center;background:#fafafa;">${pct ? pct.toFixed(1).replace('.0', '') + '%' : '—'}</td>`;
+        });
+      });
+      levels.forEach(l => {
+        const pts = v.totals.by_level[l]?.points || 0;
+        const pct = (pts / (v.totals.points || 10)) * 100;
+        out += `<td style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>${pct ? pct.toFixed(1).replace('.0', '') + '%' : '—'}</strong></td>`;
+      });
+      out += `<td style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>100%</strong></td></tr>`;
+
+      out += `</tbody></table>`;
+    }
+
+    // 2. TABLE 2: BẢNG ĐẶC TẢ
+    if (section === 'all' || section === 'specification') {
+      if (out && section === 'all') {
+        out += `<div style="page-break-before:always;margin-top:40px;"></div>`;
+      }
+      out += headerHtml(`BẢNG ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KỲ ${period}`);
+      out += `<table style="border-collapse:collapse;width:100%;table-layout:fixed;margin:10px auto 26px;font-family:'Times New Roman',Times,serif;font-size:11pt;">`;
+      out += `<colgroup>
+        <col style="width:40px">
+        <col style="width:130px">
+        <col style="width:160px">
+        <col style="width:340px">
+        <col style="width:90px">
+        <col style="width:90px">
+        <col style="width:90px">
+        <col style="width:90px">
+      </colgroup>`;
+      out += `<thead>`;
+      out += `<tr>
+        <th rowspan="3" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">TT</th>
+        <th rowspan="3" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Chương / Chủ đề</th>
+        <th rowspan="3" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Nội dung / Đơn vị kiến thức</th>
+        <th rowspan="3" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Yêu cầu cần đạt</th>
+        <th colspan="4" style="border:1px solid #333;text-align:center;background:#f0f4f8;">Số câu hỏi theo mức độ đánh giá</th>
+      </tr>`;
+      out += `<tr>
+        <th colspan="3" style="border:1px solid #333;text-align:center;background:#f0f4f8;">Trắc nghiệm khách quan</th>
+        <th rowspan="2" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Thực hành /<br>Tự luận</th>
+      </tr>`;
+      out += `<tr>
+        <th style="border:1px solid #333;text-align:center;background:#f0f4f8;font-size:10pt;">Nhiều lựa chọn<br>(MC)</th>
+        <th style="border:1px solid #333;text-align:center;background:#f0f4f8;font-size:10pt;">Đúng / Sai<br>(YN)</th>
+        <th style="border:1px solid #333;text-align:center;background:#f0f4f8;font-size:10pt;">Trả lời ngắn<br>(Short)</th>
+      </tr>`;
+      out += `</thead><tbody>`;
+
+      v.rows.forEach((row, idx) => {
+        const lessonReqs = v.requirements.filter(r => r.lesson_code === row.lesson_code);
+        let reqHtml = '';
+        const LEVELS_ORDER = ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'];
+        const LEVEL_NAMES = { 'Biết': 'Nhận biết', 'Hiểu': 'Thông hiểu', 'Vận dụng': 'Vận dụng', 'Vận dụng cao': 'Vận dụng cao' };
+
+        LEVELS_ORDER.forEach(l => {
+          const rs = lessonReqs.filter(r => r.level === l);
+          if (!rs.length) return;
+          reqHtml += `<p style="margin:4px 0 2px 0;"><strong>${LEVEL_NAMES[l]}:</strong></p>`;
+          rs.forEach(r => {
+            const refsText = r.refs?.length ? ` (${r.refs.join(', ')})` : '';
+            reqHtml += `<p style="margin:2px 0 3px 12px;text-indent:-8px;">– ${E(r.text.replace(/\s*\(c[aâ]u\s+[^)]+\)/i, ''))}<strong>${refsText}</strong>.</p>`;
+          });
+        });
+
+        if (!reqHtml) reqHtml = `<p class="muted">Đạt yêu cầu chương trình GDPT 2018.</p>`;
+
+        const cellMC = row.cells['MC|Biết'] || row.cells['MC|Hiểu'] || row.cells['MC|Vận dụng'] ?
+          ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
+            const c = row.cells['MC|' + lvl];
+            return c ? `${c.count} ${lvl === 'Biết' ? 'B' : lvl === 'Hiểu' ? 'H' : 'VD'}` : '';
+          }).filter(Boolean).join('<br>') : '0';
+
+        const cellYN = row.cells['YN|Biết'] || row.cells['YN|Hiểu'] || row.cells['YN|Vận dụng'] ?
+          ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
+            const c = row.cells['YN|' + lvl];
+            return c ? `${c.count} YN` : '';
+          }).filter(Boolean).join('<br>') : '0';
+
+        const cellShort = row.cells['SHORT|Biết'] || row.cells['SHORT|Hiểu'] || row.cells['SHORT|Vận dụng'] ?
+          ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
+            const c = row.cells['SHORT|' + lvl];
+            return c ? `${c.count} Short` : '';
+          }).filter(Boolean).join('<br>') : '0';
+
+        const cellES = row.cells['ES|Biết'] || row.cells['ES|Hiểu'] || row.cells['ES|Vận dụng'] || row.cells['ES|Vận dụng cao'] ?
+          ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
+            const c = row.cells['ES|' + lvl];
+            return c ? `${c.count} ${lvl === 'Vận dụng cao' ? 'VDC' : 'VD'}` : '';
+          }).filter(Boolean).join('<br>') : '0';
+
+        out += `<tr>
+          <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${idx + 1}</td>
+          <td style="border:1px solid #333;vertical-align:middle;"><strong>${E(row.topic)}</strong></td>
+          <td style="border:1px solid #333;vertical-align:middle;">${E(row.title)}</td>
+          <td style="border:1px solid #333;vertical-align:top;line-height:1.45;padding:8px 10px;">${reqHtml}</td>
+          <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cellMC}</td>
+          <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cellYN}</td>
+          <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cellShort}</td>
+          <td style="border:1px solid #333;text-align:center;vertical-align:middle;">${cellES}</td>
+        </tr>`;
+      });
+
+      const mcTot = v.totals.by_kind.MC?.items || 0;
+      const ynTot = v.totals.by_kind.YN?.items || 0;
+      const shortTot = v.totals.by_kind.SHORT?.items || 0;
+      const esTot = v.totals.by_kind.ES?.items || 0;
+
+      const ptsB = v.totals.by_level['Biết']?.points || 0;
+      const ptsH = v.totals.by_level['Hiểu']?.points || 0;
+      const ptsVD = v.totals.by_level['Vận dụng']?.points || 0;
+      const ptsVDC = v.totals.by_level['Vận dụng cao']?.points || 0;
+      const tTotPts = v.totals.points || 10;
+
+      const pctB = ((ptsB / tTotPts) * 100).toFixed(0);
+      const pctH = ((ptsH / tTotPts) * 100).toFixed(0);
+      const pctVD = ((ptsVD / tTotPts) * 100).toFixed(0);
+      const pctVDC = ((ptsVDC / tTotPts) * 100).toFixed(0);
+
+      const tnkqPts = (v.totals.by_kind.MC?.points || 0) + (v.totals.by_kind.YN?.points || 0) + (v.totals.by_kind.SHORT?.points || 0);
+      const tlPts = v.totals.by_kind.ES?.points || 0;
+      const tnkqPct = ((tnkqPts / tTotPts) * 100).toFixed(0);
+      const tlPct = ((tlPts / tTotPts) * 100).toFixed(0);
+
+      out += `<tr>
+        <td colspan="4" style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>Tổng</strong></td>
+        <td style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>${mcTot} câu</strong></td>
+        <td style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>${ynTot ? ynTot + ' câu' : '0'}</strong></td>
+        <td style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>${shortTot ? shortTot + ' câu' : '0'}</strong></td>
+        <td style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>${esTot} câu</strong></td>
+      </tr>`;
+
+      out += `<tr>
+        <td colspan="4" style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>Tỉ lệ %</strong></td>
+        <td colspan="4" style="border:1px solid #333;text-align:center;background:#fafafa;">
+          <strong>Biết: ${pctB}% | Hiểu: ${pctH}% | Vận dụng: ${pctVD}%${Number(pctVDC) ? ` | Vận dụng cao: ${pctVDC}%` : ''}</strong>
+        </td>
+      </tr>`;
+
+      out += `<tr>
+        <td colspan="4" style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>Tỉ lệ chung</strong></td>
+        <td colspan="3" style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>Trắc nghiệm (B + H): ${tnkqPct}%</strong></td>
+        <td style="border:1px solid #333;text-align:center;background:#fafafa;"><strong>Tự luận (VD + VDC): ${tlPct}%</strong></td>
+      </tr>`;
+
+      out += `</tbody></table>`;
+    }
+
+    // 3. TABLE 3: NĂNG LỰC (THPT)
+    if ((section === 'all' || section === 'competencies') && m.profile === 'THPT' && v.competencies.length) {
+      if (out) out += `<div style="page-break-before:always;margin-top:40px;"></div>`;
+      out += headerHtml(`MA TRẬN PHÂN BỐ THEO DẠNG THỨC CÂU HỎI VÀ CẤP ĐỘ TƯ DUY`);
+      out += `<table style="border-collapse:collapse;width:100%;table-layout:fixed;margin:10px auto 26px;font-family:'Times New Roman',Times,serif;font-size:11pt;">`;
+      out += `<thead><tr>
+        <th style="border:1px solid #333;width:120px;text-align:center;background:#f0f4f8;">Dạng thức</th>
+        <th style="border:1px solid #333;width:90px;text-align:center;background:#f0f4f8;">Câu hỏi</th>
+        <th style="border:1px solid #333;width:60px;text-align:center;background:#f0f4f8;">Ý</th>
+        <th style="border:1px solid #333;width:100px;text-align:center;background:#f0f4f8;">Cấp độ tư duy</th>
+        <th style="border:1px solid #333;width:120px;text-align:center;background:#f0f4f8;">Năng lực</th>
+        <th style="border:1px solid #333;text-align:center;background:#f0f4f8;">Mã chỉ báo</th>
+      </tr></thead><tbody>`;
+      v.competencies.forEach(c => {
+        out += `<tr>
+          <td style="border:1px solid #333;text-align:center;">${NAMEShort(c.kind) || c.kind}</td>
+          <td style="border:1px solid #333;text-align:center;">Câu ${c.number}</td>
+          <td style="border:1px solid #333;text-align:center;">${c.label || '—'}</td>
+          <td style="border:1px solid #333;text-align:center;">${c.level}</td>
+          <td style="border:1px solid #333;text-align:center;">${c.competency || '—'}</td>
+          <td style="border:1px solid #333;text-align:center;">${c.indicator || '—'}</td>
+        </tr>`;
+      });
+      out += `</tbody></table>`;
+    }
+
+    return out;
+  }
+
+  function generateMatrixWordStandaloneHtml(m, section='all') {
+    const bodyHtml = generateMatrixWordHtml(m, section);
+    const css = `
+      body {
+        font-family: "Times New Roman", Times, serif;
+        color: #000;
+        margin: 20px auto;
+        max-width: 1400px;
+        line-height: 1.45;
+        font-size: 11pt;
+      }
+      p.mx-doc-heading {
+        text-align: center;
+        font-size: 13pt;
+        font-weight: 700;
+        margin: 12px 0 4px;
+        text-transform: uppercase;
+      }
+      p.mx-doc-subhead {
+        text-align: center;
+        font-size: 11.5pt;
+        font-weight: 700;
+        margin: 0 0 16px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        table-layout: fixed;
+        margin: 10px auto 26px;
+      }
+      td, th {
+        border: 1px solid #333;
+        padding: 6px 8px;
+        overflow-wrap: anywhere;
+        vertical-align: middle;
+        font-size: 11pt;
+        line-height: 1.4;
+      }
+      th {
+        background-color: #f0f4f8;
+        font-weight: bold;
+        text-align: center;
+      }
+      @page {
+        size: A4 landscape;
+        margin: 1.2cm 1.5cm;
+      }
+      @media print {
+        body { margin: 0; max-width: none; }
+        tr { break-inside: avoid; }
+      }
+    `;
+    return `<!doctype html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40" lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(m?.title || 'Ma trận & đặc tả')}</title>
+  <style>${css}</style>
+</head>
+<body>
+  ${bodyHtml}
+</body>
+</html>`;
+  }
+
+  function downloadMatrixWord(m, section='all') {
+    if (!m) return;
+    const html = generateMatrixWordStandaloneHtml(m, section);
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const period = { TX: 'TX', GK1: 'GK1', CK1: 'CK1', GK2: 'GK2', CK2: 'CK2' }[m.exam_type] || 'GK1';
+    const secName = section === 'matrix' ? 'MA_TRAN' : section === 'specification' ? 'DAC_TA' : section === 'competencies' ? 'NANG_LUC' : 'MA_TRAN_VA_DAC_TA';
+    a.download = `TIN_${m.grade}_${period}_${secName}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    message(`Đã xuất tệp Word "${a.download}" thành công.`);
+  }
+
+  function downloadMatrixJson(m) {
+    if (!m) return;
+    const pkg = {
+      format: 'asian-school-matrix',
+      schema_version: 1,
+      exported_at: new Date().toISOString(),
+      matrix: m
+    };
+    const jsonStr = JSON.stringify(pkg, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `TIN_${m.grade}_${m.exam_type || 'GK1'}_GOI_DU_LIEU.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    message(`Đã tải gói dữ liệu JSON dùng chung "${a.download}".`);
+  }
+
+  function printMatrixDoc(m) {
+    if (!m) return;
+    const html = generateMatrixWordStandaloneHtml(m, 'all');
+    const win = window.open('', '_blank');
+    if (!win) {
+      message('Trình duyệt đã chặn cửa sổ pop-up. Hãy cho phép mở pop-up để in/xuất PDF.', true);
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
+  }
+
+  function downloadMatrixLatex(m) {
+    if (!m) return;
+    const v = buildMatrixView(m);
+    const period = { TX: 'TX', GK1: 'Giữa HK1', CK1: 'Cuối HK1', GK2: 'Giữa HK2', CK2: 'Cuối HK2' }[m.exam_type] || 'Giữa HK1';
+    let tex = `% MA TRẬN VÀ ĐẶC TẢ ĐỀ KIỂM TRA TIN HỌC ${m.grade} - ${period}\n`;
+    tex += `\\documentclass[a4paper,landscape,11pt]{article}\n`;
+    tex += `\\usepackage[utf8]{inputenc}\n\\usepackage[vietnamese]{babel}\n\\usepackage{geometry,tabularx,booktabs,multirow}\n`;
+    tex += `\\geometry{margin=1.5cm}\n\\begin{document}\n`;
+    tex += `\\section*{MA TRẬN ĐỀ KIỂM TRA TIN HỌC ${m.grade}}\n`;
+    tex += `\\begin{table}[h!]\n\\centering\n`;
+    tex += `\\begin{tabular}{|c|l|l|c|c|c|c|c|}\n\\hline\n`;
+    tex += `TT & Chương / Chủ đề & Nội dung / Bài học & Biết & Hiểu & Vận dụng & Tổng câu & Tỉ lệ \\\\ \\hline\n`;
+    v.rows.forEach(r => {
+      tex += `${r.index} & ${r.topic} & ${r.title} & ${r.counts['Biết'] || 0} & ${r.counts['Hiểu'] || 0} & ${r.counts['Vận dụng'] || 0} & ${(r.counts['Biết']||0)+(r.counts['Hiểu']||0)+(r.counts['Vận dụng']||0)} & ${r.percentage.toFixed(0)}\\% \\\\ \\hline\n`;
+    });
+    tex += `\\end{tabular}\n\\end{table}\n\\end{document}\n`;
+    const blob = new Blob([tex], { type: 'application/x-tex;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `TIN_${m.grade}_${m.exam_type || 'GK1'}_MA_TRAN.tex`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    message(`Đã xuất tệp LaTeX "${a.download}".`);
+  }
+
   async function openPreview(id,section='all',mode='web'){
     const m=ui.records.find(x=>x.id===id)||(ui.editing?.id===id?ui.editing:null)||(await ui.ctx.request('/api/matrices/'+encodeURIComponent(id))).matrix;
     let bodyHtml='';
     if(mode==='raw'&&m?.source?.tables?.length&&section==='all'){
-      const res=await fetch(apiUrl(`/api/matrices/${encodeURIComponent(id)}/export?format=html&section=${encodeURIComponent(section)}&mode=raw`));
-      if(res.ok){const doc=new DOMParser().parseFromString(await res.text(),'text/html');bodyHtml=doc.body.innerHTML;}
-      else bodyHtml=renderRawTablesHtml(m);
+      try {
+        const res=await fetch(apiUrl(`/api/matrices/${encodeURIComponent(id)}/export?format=html&section=${encodeURIComponent(section)}&mode=raw`));
+        if(res.ok){const doc=new DOMParser().parseFromString(await res.text(),'text/html');bodyHtml=doc.body.innerHTML;}
+        else bodyHtml=renderRawTablesHtml(m);
+      } catch {
+        bodyHtml=renderRawTablesHtml(m);
+      }
     }else{
-      const res=await fetch(apiUrl(`/api/matrices/${encodeURIComponent(id)}/export?format=html&section=${encodeURIComponent(section)}&mode=${encodeURIComponent(mode)}`));
-      if(!res.ok)throw new Error('Chưa dựng được bản xem toàn bộ. Hãy kiểm tra hồ sơ đã lưu.');
-      const doc=new DOMParser().parseFromString(await res.text(),'text/html');
-      bodyHtml=doc.body.innerHTML;
+      try {
+        const res=await fetch(apiUrl(`/api/matrices/${encodeURIComponent(id)}/export?format=html&section=${encodeURIComponent(section)}&mode=${encodeURIComponent(mode)}`));
+        if(res.ok){
+          const doc=new DOMParser().parseFromString(await res.text(),'text/html');
+          bodyHtml=doc.body.innerHTML;
+        }
+      } catch {}
+      if(!bodyHtml){
+        bodyHtml=generateMatrixWordHtml(m,section);
+      }
     }
     ui.comparison=null;
     ui.previewState={id,matrix:m,section,mode,bodyHtml};
@@ -268,18 +909,20 @@
   }
   function renderPreviewBox(scroll=false){
     const preview=qs('#mx-preview'),st=ui.previewState;if(!preview||!st)return;
-    const m=st.matrix,base='/api/matrices/'+encodeURIComponent(st.id)+'/export',hasRaw=Boolean(m.source?.tables?.length);
+    const m=st.matrix,hasRaw=Boolean(m.source?.tables?.length);
     const issues=m.reconciliation?.issues||[];
     const fmtKey=`matrix:${st.id}:${st.section}:${st.mode}`;
     const fmt=root.DocFormatter||root.BankCore?.DocFormatter;
     preview.hidden=false;preview.className='card mx-preview';
     preview.innerHTML=`<div class="mx-panel-head"><div><p class="eyebrow">XEM TOÀN BỘ MA TRẬN & BẢNG ĐẶC TẢ</p><h2>${E(m.title)} · Khối ${m.grade} (${E(profileLabel(m.profile))})</h2></div><div class="actions"><button type="button" data-action="compare-id" data-id="${E(st.id)}">Đối chiếu bản gốc (2 cột)</button>${ui.editing?.id!==st.id?`<button type="button" data-open="${E(st.id)}">Mở biên tập</button>`:''}<button type="button" class="quiet" data-action="close-preview">Đóng khung xem</button></div></div>`+
     `<div class="mx-panel-toolbar"><div class="actions"><button type="button" class="${st.section==='all'?'primary':''}" data-action="preview-sec" data-sec="all">Toàn bộ bảng</button><button type="button" class="${st.section==='matrix'?'primary':''}" data-action="preview-sec" data-sec="matrix">Bảng ma trận</button><button type="button" class="${st.section==='specification'?'primary':''}" data-action="preview-sec" data-sec="specification">Bảng đặc tả</button>${m.profile==='THPT'?`<button type="button" class="${st.section==='competencies'?'primary':''}" data-action="preview-sec" data-sec="competencies">Bảng năng lực</button>`:''}</div>`+
-    `<div class="actions">${hasRaw?`<button type="button" class="${st.mode==='web'?'primary':''}" data-action="preview-mode" data-mode="web">Bản chuẩn hóa Web (đánh số câu)</button><button type="button" class="${st.mode==='raw'?'primary':''}" data-action="preview-mode" data-mode="raw">Bảng nguyên trạng từ Word</button>`:''}<a class="button" href="${base}?format=docx&mode=${E(st.mode)}">Tải Word (.docx)</a></div></div>`+
+    `<div class="actions">${hasRaw?`<button type="button" class="${st.mode==='web'?'primary':''}" data-action="preview-mode" data-mode="web">Bản chuẩn hóa Web (đánh số câu)</button><button type="button" class="${st.mode==='raw'?'primary':''}" data-action="preview-mode" data-mode="raw">Bảng nguyên trạng từ Word</button>`:''}<button type="button" class="button primary" data-action="download-preview-word">📄 Tải Word (.doc)</button></div></div>`+
     (fmt?fmt.toolbarHtml(fmtKey,false):'')+
     (issues.length?`<div class="mx-errors"><strong>Cảnh báo nguồn cần xác minh (${issues.length} mục):</strong><ul>${issues.map(x=>`<li>${E(x.message)}</li>`).join('')}</ul></div>`:'')+
     `<div class="mx-sheet-body">${st.bodyHtml}</div>`;
     enhanceSheetTables(preview);
+    const dlBtn=preview.querySelector('[data-action="download-preview-word"]');
+    if(dlBtn)dlBtn.onclick=()=>downloadMatrixWord(m,st.section);
     if(fmt){
       fmt.attach(preview,'.mx-sheet-body',{
         storageKey:fmtKey,
@@ -302,15 +945,24 @@
     }catch(_err){
       const d=await ui.ctx.request('/api/matrices/'+encodeURIComponent(id));
       const m=d.matrix;
-      const webRes=await fetch(apiUrl(`/api/matrices/${encodeURIComponent(id)}/export?format=html&section=all&mode=web`));
-      const webDoc=webRes.ok?new DOMParser().parseFromString(await webRes.text(),'text/html'):null;
+      let webHtml='';
+      try{
+        const webRes=await fetch(apiUrl(`/api/matrices/${encodeURIComponent(id)}/export?format=html&section=all&mode=web`));
+        if(webRes.ok){
+          const webDoc=new DOMParser().parseFromString(await webRes.text(),'text/html');
+          webHtml=webDoc.body.innerHTML;
+        }
+      }catch{}
+      if(!webHtml){
+        webHtml=generateMatrixWordHtml(m,'all');
+      }
       data={
         matrix:m,
         validation:d.validation,
         pages:[],
         has_raw_tables:Boolean(m.source?.tables?.length),
-        raw_html:renderRawTablesHtml(m),
-        web_html:webDoc?webDoc.body.innerHTML:'',
+        raw_html:renderRawTablesHtml(m)||webHtml,
+        web_html:webHtml,
         comparison_notes:m.source?.comparison_notes||[],
         issues:m.reconciliation?.issues||[],
       };
@@ -441,6 +1093,7 @@
       }else if(action==='accept-import'){
         const i=ui.importing;const result=i.package?await ui.ctx.request('/api/matrices/import-package',{package:i.package}):await ui.ctx.request('/api/matrices/accept-import',{filename:i.filename,grade:i.grade,content_base64:i.base64});
         ui.editing=result.matrix;ui.report=result.validation;ui.importing=null;ui.dirty=false;await refresh();render();message('Đã nhận bản nguồn. Hãy đối chiếu PPCT, vị trí câu và các điểm còn thiếu trước khi khóa.');
+        await openPreview(ui.editing.id, 'all', 'web');
       }else if(action==='use'){
         const data=await ui.ctx.request('/api/matrices/'+encodeURIComponent(ui.editing.id)+'/candidates');ui.generation=data;ui.editing=null;ui.dirty=false;render();
       }else if(action==='suggest'){suggest();}
@@ -916,8 +1569,20 @@ Quy ước:
       </div>
       <div id="mx-import-result">
         ${i.package?`<p class="callout">${E(packageSummary(i.package))}</p>`:i.candidate?`<p class="callout">Đã nhận dạng ${E(i.candidate.profile||'THCS')} · Khối ${i.grade} · ${i.candidate.slots?.length||0} vị trí câu hỏi. Đạt chuẩn cấu trúc ma trận & đặc tả.</p><ul class="mx-errors">${(i.issues||[]).map(x=>`<li>${E(x.message||x)}</li>`).join('')}</ul><p class="muted">Các chỉ báo và ánh xạ sẽ được mở ở màn hình đối chiếu. Nội dung gốc được bảo toàn.</p>`:'<p class="muted">Hỗ trợ tệp Markdown (.md), gói JSON chuẩn và Word (.docx). Bấm nút tải mẫu ở trên để xem định dạng chuẩn.</p>'}
-        ${i.package||i.candidate?'<button class="primary" data-action="accept-import">Lưu bản nhận để đối chiếu</button>':''}
+        ${i.package||i.candidate?'<button class="primary" data-action="accept-import">Lưu bản nhận để đối chiếu & khóa</button>':''}
       </div>
+      ${(i.candidate||i.package?.matrix)?`
+        <div style="margin-top:20px;border-top:1px dashed var(--line);padding-top:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
+            <h3 style="margin:0;color:var(--navy);">Bản xem trước đối chiếu theo chuẩn Word (Tự động dựng)</h3>
+            <button type="button" class="primary" data-action="accept-import">Lưu bản nhận để đối chiếu & khóa</button>
+          </div>
+          <p class="muted" style="margin-bottom:12px;">Bảng bên dưới được tự động trích xuất trực quan đúng bố cục Word (Khung ma trận & Bản đặc tả) để thầy/cô đối chiếu tức thì trước khi lưu.</p>
+          <div class="mx-sheet-body" style="max-height:60vh;overflow:auto;">
+            ${generateMatrixWordHtml(i.candidate || i.package?.matrix, 'all')}
+          </div>
+        </div>
+      `:''}
     </section>`;
 
     const btnJson = qs('#mx-download-json-sample');
@@ -967,6 +1632,6 @@ Quy ước:
   function coverage(){if(!ui.generation||!qs('#mx-coverage'))return;const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));let count=0,matched=0;for(const e of ui.generation.slots){const q=e.candidates.find(q=>q.id===qs('#mx-choice-'+e.slot.id).value);if(q){count++;if(hashes.has(q.content_hash))matched++;}}qs('#mx-coverage').textContent=`Đã chọn ${count}/${ui.generation.slots.length} câu · Khớp nội dung đề cương ${matched} câu. Máy chủ sẽ kiểm tra lại khi tạo đề.`;}
   function suggest(){const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));const used=new Set();for(const e of ui.generation.slots){const pool=e.candidates.slice().sort((a,b)=>Number(hashes.has(b.content_hash))-Number(hashes.has(a.content_hash)));const q=pool.find(q=>!used.has(q.id));qs('#mx-choice-'+e.slot.id).value=q?.id||'';if(q)used.add(q.id);ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===e.slot.id)c.checked=false;});showChoice(e.slot.id);}captureGeneration();coverage();message('Đã gợi ý câu. Thầy cần xem nội dung và đánh dấu đối chiếu từng chỉ báo trước khi lưu đề.');}
   async function generate(){const g=ui.generation;const placements=g.slots.map(e=>({slot_id:e.slot.id,question_id:qs('#mx-choice-'+e.slot.id).value,reviewed_part_ids:[...ui.container.querySelectorAll('[data-review-slot]')].filter(x=>x.dataset.reviewSlot===e.slot.id&&x.checked).map(x=>x.value)}));const result=await ui.ctx.request('/api/exams/from-matrix',{matrix_id:g.matrix.id,revision_id:qs('#mx-exam-revision').value,title:qs('#mx-exam-title').value,campus:qs('#mx-exam-campus').value,exam_code:qs('#mx-exam-code').value,seed:qs('#mx-exam-seed').value,placements});const e=result.exam,base='/api/exams/'+encodeURIComponent(e.id)+'/export';qs('#mx-created-exam').innerHTML=`<div class="callout"><h3>Đã lưu đề ${E(e.exam_code)} · ${E(e.campus)}</h3><p>${e.question_count} câu · 10 điểm · Khớp đề cương ${e.revision_match_count}/${e.question_count} câu · Ma trận V${e.matrix_version}</p><div class="actions"><button type="button" class="primary" data-view-exam="${E(e.id)}" data-mode="student">Xem đề học sinh</button><button type="button" data-view-exam="${E(e.id)}" data-mode="answers">Xem đáp án & HDC</button><a class="button" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button" href="${base}?format=docx&answers=1">Word đáp án</a></div></div>`;ui.ctx.onExamCreated?.(e);message('Đã tạo đề riêng và lưu phiên bản ma trận dùng chung cùng đề.');}
-  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt};
+  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

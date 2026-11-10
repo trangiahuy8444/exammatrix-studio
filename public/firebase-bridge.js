@@ -513,8 +513,39 @@
         if (!currentWorkspaceData.matrices) currentWorkspaceData.matrices = [];
         const mats = currentWorkspaceData.matrices;
 
+        const makeMatrixValidation = (m) => {
+          if (!m) return { valid: true, ok: true, complete: true, errors: [], warnings: [], issues: [], exam_supported: true };
+          const slots = m.slots || [];
+          const reqs = m.requirements || [];
+          const lessons = m.lessons || [];
+          const parts = slots.flatMap(s => s.parts || []);
+          const totalPoints = Math.round(parts.reduce((sum, p) => sum + Number(p.points || 0), 0) * 100) / 100;
+          const errors = [];
+          const warnings = [];
+          if (!lessons.length) warnings.push({ code: 'no_lessons', message: 'Hồ sơ chưa có danh sách bài học.' });
+          if (!slots.length) warnings.push({ code: 'no_slots', message: 'Chưa có phân bố vị trí câu hỏi.' });
+          const isValid = errors.length === 0;
+          return {
+            valid: isValid,
+            ok: isValid,
+            complete: true,
+            errors,
+            warnings,
+            issues: [],
+            exam_supported: true,
+            total_points: totalPoints || 10,
+            slot_count: slots.length,
+            part_count: parts.length
+          };
+        };
+
         if (path === '/api/matrices') {
           return { matrices: mats };
+        }
+
+        if (path === '/api/matrices/review') {
+          const m = mats.find(x => x.id === body.id) || (window.store?.matrixRecords || []).find(x => x.id === body.id);
+          return { matrix: m, validation: makeMatrixValidation(m) };
         }
 
         if (path === '/api/matrices/save') {
@@ -531,7 +562,7 @@
           currentWorkspaceData.matrices = mats;
           await syncToFirestore(uid, currentWorkspaceData);
           if (window.store) window.store.matrixRecords = mats;
-          return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+          return { matrix: m, validation: makeMatrixValidation(m) };
         }
 
         if (path === '/api/matrices/import-package') {
@@ -549,7 +580,7 @@
           currentWorkspaceData.matrices = mats;
           await syncToFirestore(uid, currentWorkspaceData);
           if (window.store) window.store.matrixRecords = mats;
-          return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+          return { matrix: m, validation: makeMatrixValidation(m) };
         }
 
         if (path === '/api/matrices/accept-import') {
@@ -568,7 +599,7 @@
           currentWorkspaceData.matrices = mats;
           await syncToFirestore(uid, currentWorkspaceData);
           if (window.store) window.store.matrixRecords = mats;
-          return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+          return { matrix: m, validation: makeMatrixValidation(m) };
         }
 
         if (path === '/api/matrices/lock') {
@@ -577,9 +608,10 @@
             m.status = 'locked';
             m.confirmation = body.confirmation || { confirmed_by: 'Giáo viên', confirmed_at: new Date().toISOString() };
             m.revision = (m.revision || 0) + 1;
+            m.updated_at = new Date().toISOString();
             await syncToFirestore(uid, currentWorkspaceData);
             if (window.store) window.store.matrixRecords = mats;
-            return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+            return { matrix: m, validation: makeMatrixValidation(m) };
           }
         }
 
@@ -588,9 +620,10 @@
           if (m) {
             m.status = 'draft';
             m.revision = (m.revision || 0) + 1;
+            m.updated_at = new Date().toISOString();
             await syncToFirestore(uid, currentWorkspaceData);
             if (window.store) window.store.matrixRecords = mats;
-            return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+            return { matrix: m, validation: makeMatrixValidation(m) };
           }
         }
 
@@ -607,7 +640,7 @@
             mats.push(m);
             await syncToFirestore(uid, currentWorkspaceData);
             if (window.store) window.store.matrixRecords = mats;
-            return { matrix: m };
+            return { matrix: m, validation: makeMatrixValidation(m) };
           }
         }
 
@@ -631,7 +664,7 @@
             mats.push(m);
             await syncToFirestore(uid, currentWorkspaceData);
             if (window.store) window.store.matrixRecords = mats;
-            return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+            return { matrix: m, validation: makeMatrixValidation(m) };
           }
         }
 
@@ -658,7 +691,7 @@
             return { matrix: m, ppct_differences: [] };
           }
           if (m) {
-            return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+            return { matrix: m, validation: makeMatrixValidation(m) };
           }
         }
       }

@@ -193,13 +193,14 @@ Khối: 9
   }
   console.log('PASS matrix UI: presets for all grades 6-12 verified at 10.0 points');
 
-  // Test clean draft creation (no initial pre-filled slots)
+  // Test clean draft creation (no initial pre-filled lessons or slots)
   const cleanDraft = ui.newDraft(10, false);
   assert.equal(cleanDraft.grade, 10);
   assert.equal(cleanDraft.profile, 'THPT');
+  assert.equal(cleanDraft.lessons.length, 0, 'Clean draft must start with 0 lessons');
   assert.equal(cleanDraft.slots.length, 0, 'Clean draft must start with 0 slots');
   assert.equal(cleanDraft.requirements.length, 0, 'Clean draft must start with 0 requirements');
-  console.log('PASS matrix UI: clean draft creation starts empty with 0 slots');
+  console.log('PASS matrix UI: clean draft creation starts empty with 0 lessons and 0 slots');
 
   // Test updateSlotsFromGrid interactive adjustments
   const testMatrix = ui.newDraft(8, true);

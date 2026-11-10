@@ -182,8 +182,13 @@
         <tr>
           <td style="text-align:center;font-weight:600">${idx + 1}</td>
           <td>
-            <strong>${E(lesson.title)}</strong>
-            <small style="display:block;color:var(--muted)">${E(lesson.lesson_code)}${lesson.topic ? ' · ' + E(lesson.topic) : ''}</small>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+              <div>
+                <strong>${E(lesson.title)}</strong>
+                <small style="display:block;color:var(--muted)">${E(lesson.lesson_code)}${lesson.topic ? ' · ' + E(lesson.topic) : ''}</small>
+              </div>
+              ${!(locked || received) ? `<button type="button" class="quiet danger" data-action="remove-lesson" data-index="${idx}" title="Xóa bài học này khỏi ma trận" style="padding:2px 6px;font-size:11px;min-height:auto">✕</button>` : ''}
+            </div>
           </td>
           <td style="text-align:center">
             <input type="number" min="0" max="30" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="MC_B" value="${mc_b}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>
@@ -226,6 +231,8 @@
     const parts = (m.slots || []).flatMap(s => s.parts || []);
     const totalScore = Math.round(parts.reduce((sum, p) => sum + Number(p.points || 0), 0) * 100) / 100;
     const isPerfect10 = totalScore === 10;
+    const availPpctLessons = lessons(m.grade).filter(l => !(m.lessons || []).some(x => x.lesson_code === l.lesson_code));
+    const vdVdcPts = Math.max(0, totalScore - (tot_mc_b + tot_mc_h) * 0.25);
 
     return `
       <div class="card" style="border:1px solid #c2dbf1;background:#fafdff;margin-bottom:20px;padding:20px">
@@ -236,10 +243,21 @@
           </div>
           <div class="actions">
             <button type="button" class="primary" data-action="apply-preset" title="Nạp mẫu chuẩn 10.0 điểm đã tối ưu cho Khối này">⚡ Nạp mẫu chuẩn Á Châu (10.0đ)</button>
-            <button type="button" data-action="load-ppct-lessons" title="Kéo tất cả các bài học từ Phân phối chương trình sang">📚 Nạp bài học từ PPCT</button>
-            <button type="button" class="danger quiet" data-action="clear-slots" title="Xóa toàn bộ câu hỏi để phân bố lại từ đầu">🗑️ Xóa phân bố</button>
+            <button type="button" data-action="load-ppct-lessons" title="Kéo tất cả các bài học từ Phân phối chương trình sang">📚 Nạp toàn bộ bài từ PPCT</button>
+            <button type="button" class="danger quiet" data-action="clear-slots" title="Xóa trắng bài học và câu hỏi phân bố để làm lại từ đầu">🗑️ Làm trống ma trận</button>
           </div>
         </div>
+        ${!(locked || received) ? `
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#f1f7fd;border:1px solid #d5e6f7;border-radius:8px">
+          <label for="mx-grid-add-lesson" style="font-weight:600;font-size:13px;color:var(--navy)">Chọn bài đưa vào ma trận:</label>
+          <select id="mx-grid-add-lesson" style="min-height:34px;padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;flex:1;min-width:220px">
+            ${availPpctLessons.length
+              ? availPpctLessons.map(l => opt(l.lesson_code, `${l.lesson_code} · ${l.lesson_name_source}${l.topic_source ? ' (' + l.topic_source + ')' : ''}`, false)).join('')
+              : '<option value="">-- Đã thêm hết bài PPCT hoặc chưa có PPCT --</option>'}
+          </select>
+          <button type="button" data-action="grid-add-lesson" ${availPpctLessons.length ? '' : 'disabled'}>+ Thêm bài đã chọn</button>
+          <button type="button" data-action="grid-add-custom-lesson">+ Tự nhập bài mới</button>
+        </div>` : ''}
         <div class="table-wrap">
           <table class="matrix-grid-table" style="width:100%;border-collapse:collapse;font-size:13px;background:white">
             <thead>
@@ -260,7 +278,7 @@
               </tr>
             </thead>
             <tbody>
-              ${lessonRows || '<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--muted)">Chưa có bài học nào. Bấm "+ Thêm bài" hoặc "📚 Nạp bài học từ PPCT" để bắt đầu.</td></tr>'}
+              ${lessonRows || `<tr><td colspan="${isTHPT ? 8 : 7}" style="text-align:center;padding:24px;color:var(--muted)">Ma trận đang trống. Hãy chọn bài học ở thanh phía trên (<strong>+ Thêm bài đã chọn</strong> / <strong>+ Tự nhập bài mới</strong>), hoặc bấm <strong>📚 Nạp toàn bộ bài từ PPCT</strong> / <strong>⚡ Nạp mẫu chuẩn Á Châu (10.0đ)</strong>.</td></tr>`}
             </tbody>
             <tfoot>
               <tr style="background:#eaf3fb;font-weight:700">
@@ -284,7 +302,7 @@
             }
           </div>
           <div style="font-size:12px;color:var(--muted)">
-            Phân bố tỉ lệ: <strong>Nhận biết ${(tot_mc_b*0.25*10).toFixed(0)}%</strong> · <strong>Thông hiểu ${(tot_mc_h*0.25*10).toFixed(0)}%</strong> · <strong>Vận dụng + VDC ${((10 - (tot_mc_b+tot_mc_h)*0.25)*10).toFixed(0)}%</strong>
+            Phân bố tỉ lệ: <strong>Nhận biết ${(tot_mc_b*0.25*10).toFixed(0)}%</strong> · <strong>Thông hiểu ${(tot_mc_h*0.25*10).toFixed(0)}%</strong> · <strong>Vận dụng + VDC ${(vdVdcPts*10).toFixed(0)}%</strong>
           </div>
         </div>
       </div>
@@ -347,12 +365,6 @@
   function newDraft(grade, usePreset=false){
     const g=Number(grade)||grades()[0];
     const isHigh=g>=10;
-    const pl=lessons(g);
-    const draftLessons=(pl.length?pl.slice(0,isHigh?8:5):[]).map(l=>({
-      lesson_code:l.lesson_code,
-      title:l.lesson_name_source||l.lesson_code,
-      topic:l.topic_source||''
-    }));
 
     if(usePreset&&STANDARD_PRESETS&&STANDARD_PRESETS[String(g)]){
       const preset=clone(STANDARD_PRESETS[String(g)]);
@@ -384,7 +396,7 @@
       owner_name:'Tổ Tin học Á Châu',
       campus:generic()?'':'Cao Thắng',
       total_points:10,
-      lessons:draftLessons,
+      lessons:[],
       requirements:[],
       slots:[],
       indicator_catalog:isHigh?[
@@ -1450,10 +1462,38 @@
       return;
     }
     if(action==='clear-slots'&&ui.editing){
-      if(!confirm('Bạn có chắc chắn muốn xóa toàn bộ câu hỏi phân bố để tự nhập lại từ đầu?'))return;
+      if(!confirm('Bạn có chắc chắn muốn làm trống toàn bộ bài học và câu hỏi phân bố trong ma trận để tự thiết lập lại từ đầu?'))return;
+      ui.editing.lessons=[];
+      ui.editing.requirements=[];
       ui.editing.slots=[];
       changed();renderEditor();
-      message('Đã xóa toàn bộ câu hỏi phân bố.');
+      message('Đã làm trống toàn bộ bài học và câu hỏi phân bố trong ma trận.');
+      return;
+    }
+    if(action==='grid-add-lesson'&&ui.editing){
+      const code=qs('#mx-grid-add-lesson')?.value;
+      const l=lessons(ui.editing.grade).find(x=>x.lesson_code===code);
+      if(!l){message('Vui lòng chọn bài học từ danh sách PPCT.',true);return;}
+      if(!ui.editing.lessons.some(x=>x.lesson_code===l.lesson_code)){
+        ui.editing.lessons.push({lesson_code:l.lesson_code,title:l.lesson_name_source||l.lesson_code,topic:l.topic_source||''});
+      }
+      changed();renderEditor();
+      message('Đã thêm bài "' + (l.lesson_name_source||l.lesson_code) + '" vào bảng ma trận.');
+      return;
+    }
+    if(action==='grid-add-custom-lesson'&&ui.editing){
+      const nextNum=(ui.editing.lessons?.length||0)+1;
+      const defaultCode='B'+nextNum;
+      const title=prompt('Nhập tên bài học / nội dung kiểm tra:', 'Bài ' + nextNum);
+      if(!title||!title.trim())return;
+      const topic=prompt('Nhập tên Chủ đề (tùy chọn):', 'Chủ đề ' + nextNum)||'';
+      let code=defaultCode;
+      while((ui.editing.lessons||[]).some(x=>x.lesson_code===code)){
+        code='B'+Math.floor(Math.random()*900+100);
+      }
+      ui.editing.lessons.push({lesson_code:code,title:title.trim(),topic:topic.trim()});
+      changed();renderEditor();
+      message('Đã thêm bài "' + title.trim() + '" vào bảng ma trận.');
       return;
     }
     if(action==='unlock-custom'&&ui.editing){
@@ -1469,8 +1509,11 @@
     }
     if(action==='remove-lesson'){
       const idx=Number(b.dataset.index),l=ui.editing.lessons[idx];if(!l)return;
+      const removedReqIds=new Set(ui.editing.requirements.filter(r=>r.lesson_code===l.lesson_code).map(r=>r.id));
       ui.editing.lessons.splice(idx,1);
       ui.editing.requirements=ui.editing.requirements.filter(r=>r.lesson_code!==l.lesson_code);
+      ui.editing.slots=(ui.editing.slots||[]).filter(s=>!removedReqIds.has(s.parts?.[0]?.requirement_id));
+      renumberAllSlots(ui.editing);
       changed();renderEditor();return;
     }
     if(action==='add-requirement'){

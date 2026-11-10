@@ -623,7 +623,7 @@ function distributeCounts(cells,total){
   }
   function contextGrades(context={}){
     const grades=context.allowed_grades;
-    return Array.isArray(grades)&&grades.length?grades.filter(g=>Number.isInteger(g)&&g>=1&&g<=12):[8,9,10];
+    return Array.isArray(grades)&&grades.length?grades.filter(g=>Number.isInteger(g)&&g>=1&&g<=12):[6,7,8,9,10,11,12];
   }
 function syncEditedQuestionsFromSheet(sheet,record){
  const changed=[];

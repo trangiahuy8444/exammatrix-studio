@@ -181,15 +181,17 @@ Khối: 9
   const total9 = draft9.slots.flatMap(s => s.parts).reduce((sum, p) => sum + Number(p.points), 0);
   assert.equal(total9, 10, 'Grade 9 preset must equal 10.0 points');
 
-  // Test newDraft for Grade 10
-  const draft10 = ui.newDraft(10);
-  assert.equal(draft10.grade, 10);
-  assert.equal(draft10.profile, 'THPT');
-  assert.equal(draft10.total_points, 10);
-  assert.equal(draft10.lessons.length, 8);
-  assert.equal(draft10.slots.length, 25);
-  const total10 = draft10.slots.flatMap(s => s.parts).reduce((sum, p) => sum + Number(p.points), 0);
-  assert.equal(total10, 10, 'Grade 10 preset must equal 10.0 points');
+  // Test newDraft for all grades 6 to 12
+  for (const g of [6, 7, 8, 9, 10, 11, 12]) {
+    assert.ok(ui.STANDARD_PRESETS[String(g)], `Preset for grade ${g} must exist`);
+    const d = ui.newDraft(g);
+    assert.equal(d.grade, g);
+    assert.equal(d.total_points, 10);
+    assert.equal(d.profile, g >= 10 ? 'THPT' : 'THCS');
+    const tot = d.slots.flatMap(s => s.parts).reduce((sum, p) => sum + Number(p.points), 0);
+    assert.equal(tot, 10, `Grade ${g} preset must sum to 10.0 points`);
+  }
+  console.log('PASS matrix UI: presets for all grades 6-12 verified at 10.0 points');
 
   // Test updateSlotsFromGrid interactive adjustments
   const testMatrix = ui.newDraft(8);

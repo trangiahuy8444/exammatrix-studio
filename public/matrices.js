@@ -296,7 +296,7 @@
   const opt=(v,text,selected)=>`<option value="${E(v)}"${selected?' selected':''}>${E(text)}</option>`;
   const uid=p=>p+'-'+Math.random().toString(36).slice(2,11);
   const qs=s=>ui.container.querySelector(s);
-  const lessons=grade=>(ui.ctx.ppct.lessons||[]).filter(l=>l.grade===Number(grade));
+  const lessons=grade=>(ui.ctx?.ppct?.lessons || (typeof window!=='undefined'&&window.SUBJECT_CURRICULA?.['Tin học']?.[grade]) || []).filter(l=>Number(l.grade)===Number(grade));
   function message(text,error=false){ui.ctx.notify(text,error);}
   function detail(e){const errors=e.details?.errors||e.details?.validation?.errors;return e.message+(errors?'\n'+errors.map(x=>x.message).join('\n'):'');}
   async function run(work){if(ui.busy)return;ui.busy=true;ui.container.querySelectorAll('button').forEach(b=>b.disabled=true);try{await work();}catch(e){message(detail(e),true);if(e.details?.errors){ui.report=e.details;renderReport();}}finally{ui.busy=false;ui.container.querySelectorAll('button').forEach(b=>b.disabled=false);restoreButtons();}}
@@ -343,10 +343,18 @@
   }
   function field(label,path,value,type='text',disabled=false){const id='mx-'+path.replaceAll('.','-');return `<div class="field"><label for="${id}">${E(label)}</label><input id="${id}" data-field="${E(path)}" type="${type}" value="${E(value??'')}"${disabled?' disabled':''}></div>`;}
   function select(label,path,options,disabled=false){const id='mx-'+path.replaceAll('.','-');return `<div class="field"><label for="${id}">${E(label)}</label><select id="${id}" data-field="${E(path)}"${disabled?' disabled':''}>${options}</select></div>`;}
-  function newDraft(grade, usePreset=true){
+  function newDraft(grade, usePreset=false){
     const g=Number(grade)||grades()[0];
-    const preset=(usePreset&&STANDARD_PRESETS&&STANDARD_PRESETS[String(g)])?clone(STANDARD_PRESETS[String(g)]):null;
-    if(preset){
+    const isHigh=g>=10;
+    const pl=lessons(g);
+    const draftLessons=(pl.length?pl.slice(0,isHigh?8:5):[]).map(l=>({
+      lesson_code:l.lesson_code,
+      title:l.lesson_name_source||l.lesson_code,
+      topic:l.topic_source||''
+    }));
+
+    if(usePreset&&STANDARD_PRESETS&&STANDARD_PRESETS[String(g)]){
+      const preset=clone(STANDARD_PRESETS[String(g)]);
       preset.id='';
       preset.family_id='';
       preset.version=1;
@@ -362,7 +370,32 @@
       preset.audit=[{at:new Date().toISOString(),action:'create_preset'}];
       return preset;
     }
-    return {id:'',family_id:'',version:1,revision:0,status:'draft',mode:'authored',profile:generic()?'GENERAL':g>=10?'THPT':'THCS',grade:g,school_year:ui.ctx?.context?.school_year||'2026-2027',subject_name:subject(),exam_type:'GK1',duration:45,title:`Ma trận Giữa HK1 ${subject()} ${g}`,owner_name:'',campus:generic()?'':'Cao Thắng',total_points:10,lessons:[],requirements:[],slots:[],indicator_catalog:[],source:null,reconciliation:{confirmed:true,issues:[]},audit:[],allow_custom_override:true};
+
+    return {
+      id:'',family_id:'',version:1,revision:0,status:'draft',mode:'authored',
+      profile:generic()?'GENERAL':isHigh?'THPT':'THCS',
+      grade:g,
+      school_year:ui.ctx?.context?.school_year||'2026-2027',
+      subject_name:subject(),
+      exam_type:'GK1',
+      duration:45,
+      title:`Ma trận Giữa HK1 ${subject()} ${g}`,
+      owner_name:'Tổ Tin học Á Châu',
+      campus:generic()?'':'Cao Thắng',
+      total_points:10,
+      lessons:draftLessons,
+      requirements:[],
+      slots:[],
+      indicator_catalog:isHigh?[
+        {code:'NLa',competency:'NLa',text:'Nhận biết và giải thích các khái niệm tin học cơ bản.'},
+        {code:'NLb',competency:'NLb',text:'Sử dụng và ứng dụng công nghệ thông tin trong học tập.'},
+        {code:'NLc',competency:'NLc',text:'Tư duy giải quyết vấn đề với sự trợ giúp của máy tính.'}
+      ]:[],
+      source:null,
+      reconciliation:{confirmed:true,issues:[]},
+      audit:[{at:new Date().toISOString(),action:'create_clean'}],
+      allow_custom_override:true
+    };
   }
   function renderEditor(){
     const m=ui.editing,custom=Boolean(m.allow_custom_override),locked=!custom&&['locked','archived'].includes(m.status),received=!custom&&m.mode==='received',protectedFields=locked||received;
@@ -464,8 +497,24 @@
     else if(el.type==='number'||key==='ppct_outcome_index'||key==='grade')value=value===''?null:Number(value);
     object[key]=value;changed();
     if(key==='grade'){
-      ui.editing.profile=generic()?'GENERAL':Number(value)>=10?'THPT':'THCS';
+      const newGrade=Number(value);
+      ui.editing.grade=newGrade;
+      ui.editing.profile=generic()?'GENERAL':newGrade>=10?'THPT':'THCS';
+      ui.editing.title=`Ma trận Giữa HK1 ${subject()} ${newGrade}`;
+      const pl=lessons(newGrade);
+      if(pl.length){
+        ui.editing.lessons=pl.slice(0,newGrade>=10?8:5).map(l=>({
+          lesson_code:l.lesson_code,
+          title:l.lesson_name_source||l.lesson_code,
+          topic:l.topic_source||''
+        }));
+        ui.editing.requirements=[];
+        ui.editing.slots=[];
+      }
+      changed();
       renderEditor();
+      message('Đã chuyển sang Khối ' + newGrade + ' và nạp danh sách bài học tương ứng.');
+      return;
     }else if(path[0]==='lessons'&&key==='lesson_code'){
       const lesson=ui.editing.lessons[Number(path[1])];
       ui.editing.requirements.forEach(r=>{if(ui.editing.mode==='received'&&!ui.editing.allow_custom_override?r.source_index===lesson.source_index:r.lesson_code===previous){r.lesson_code=value;r.ppct_outcome_index=null;}});
@@ -490,7 +539,16 @@
       return;
     }
     if(el.matches('[data-field]')&&(el.tagName==='SELECT'||el.type==='checkbox'))assign(el);if(el.matches('[data-allow-kind],[data-yn-coef]'))assign(el);if(el.dataset.filter){ui.filter[el.dataset.filter]=el.value;render();}if(el.id==='mx-file')await readImport(el.files[0]);if(el.id==='mx-confirm-agreement'||el.dataset.field==='reconciliation.confirmed')restoreButtons();if(el.dataset.choice){const id=el.dataset.choice;ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===id)c.checked=false;});showChoice(id);coverage();}if(el.id==='mx-exam-revision')coverage();captureGeneration();}
-  function guard(){if(ui.dirty){message('Có thay đổi chưa lưu. Hãy lưu hoặc bấm “Bỏ thay đổi / tải bản đã lưu” trước khi mở hồ sơ khác.',true);return false;}return true;}
+  function guard(){
+    if(ui.dirty){
+      if(confirm('Bạn đang có thay đổi chưa lưu trên ma trận hiện tại. Bạn có muốn bỏ thay đổi để tiếp tục không?')){
+        ui.dirty=false;
+        return true;
+      }
+      return false;
+    }
+    return true;
+  }
   async function openRecord(id,discard=false){if(!discard&&!guard())return;const d=await ui.ctx.request('/api/matrices/'+encodeURIComponent(id));ui.editing=d.matrix;ui.report=d.validation;ui.dirty=false;ui.importing=null;ui.generation=null;render();}
   async function save(){const result=await ui.ctx.request('/api/matrices/save',{matrix:ui.editing,expected_revision:ui.editing.revision,allow_custom_override:Boolean(ui.editing.allow_custom_override)});ui.editing=result.matrix;ui.report=result.validation;ui.dirty=false;await refresh();render();message('Đã lưu bản nháp; nguồn và lịch sử cũ được giữ nguyên.');}
   function rawCellCenter(ri,headers,cols,start,firstText){
@@ -1337,7 +1395,18 @@
     if(action==='preview-mode'&&ui.previewState){await run(()=>openPreview(ui.previewState.id,ui.previewState.section,b.dataset.mode));return;}
     if(action==='preview-id'){await run(()=>openPreview(b.dataset.id,'all','web'));return;}
     if(action==='compare-id'){await run(()=>openComparison(b.dataset.id));return;}
-    if(action==='new'){if(!guard())return;ui.editing=newDraft(b.dataset.grade);ui.report=null;ui.importing=null;ui.generation=null;render();return;}
+    if(action==='new'){
+      if(!guard())return;
+      const g=Number(b.dataset.grade)||grades()[0];
+      ui.editing=newDraft(g,false);
+      ui.report=null;
+      ui.importing=null;
+      ui.generation=null;
+      ui.dirty=false;
+      render();
+      message('Đã mở tạo ma trận mới cho Khối ' + g + '. Bạn có thể nhập số câu trực tiếp vào bảng 2D hoặc bấm "⚡ Nạp mẫu chuẩn Á Châu (10.0đ)".');
+      return;
+    }
     if(action==='import'){if(!guard())return;ui.editing=null;ui.generation=null;ui.importing={grade:grades()[0]};render();return;}
     if(action==='discard'){await run(async()=>{if(ui.dirty&&ui.editing.id)await openRecord(ui.editing.id,true);else{ui.editing=null;ui.dirty=false;render();}});return;}
     if(action==='apply-preset'&&ui.editing){

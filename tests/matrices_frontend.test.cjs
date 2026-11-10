@@ -162,7 +162,7 @@ Khối: 9
   assert.ok(ui.STANDARD_PRESETS['10'], 'Preset for grade 10 must exist');
 
   // Test newDraft for Grade 8
-  const draft8 = ui.newDraft(8);
+  const draft8 = ui.newDraft(8, true);
   assert.equal(draft8.grade, 8);
   assert.equal(draft8.profile, 'THCS');
   assert.equal(draft8.total_points, 10);
@@ -172,7 +172,7 @@ Khối: 9
   assert.equal(total8, 10, 'Grade 8 preset must equal 10.0 points');
 
   // Test newDraft for Grade 9
-  const draft9 = ui.newDraft(9);
+  const draft9 = ui.newDraft(9, true);
   assert.equal(draft9.grade, 9);
   assert.equal(draft9.profile, 'THCS');
   assert.equal(draft9.total_points, 10);
@@ -181,10 +181,10 @@ Khối: 9
   const total9 = draft9.slots.flatMap(s => s.parts).reduce((sum, p) => sum + Number(p.points), 0);
   assert.equal(total9, 10, 'Grade 9 preset must equal 10.0 points');
 
-  // Test newDraft for all grades 6 to 12
+  // Test newDraft presets for all grades 6 to 12
   for (const g of [6, 7, 8, 9, 10, 11, 12]) {
     assert.ok(ui.STANDARD_PRESETS[String(g)], `Preset for grade ${g} must exist`);
-    const d = ui.newDraft(g);
+    const d = ui.newDraft(g, true);
     assert.equal(d.grade, g);
     assert.equal(d.total_points, 10);
     assert.equal(d.profile, g >= 10 ? 'THPT' : 'THCS');
@@ -193,8 +193,16 @@ Khối: 9
   }
   console.log('PASS matrix UI: presets for all grades 6-12 verified at 10.0 points');
 
+  // Test clean draft creation (no initial pre-filled slots)
+  const cleanDraft = ui.newDraft(10, false);
+  assert.equal(cleanDraft.grade, 10);
+  assert.equal(cleanDraft.profile, 'THPT');
+  assert.equal(cleanDraft.slots.length, 0, 'Clean draft must start with 0 slots');
+  assert.equal(cleanDraft.requirements.length, 0, 'Clean draft must start with 0 requirements');
+  console.log('PASS matrix UI: clean draft creation starts empty with 0 slots');
+
   // Test updateSlotsFromGrid interactive adjustments
-  const testMatrix = ui.newDraft(8);
+  const testMatrix = ui.newDraft(8, true);
   const initialSlots = testMatrix.slots.length;
   // Reduce MC_B for B1 from 4 to 2
   ui.updateSlotsFromGrid(testMatrix, 'B1', 'MC_B', 2);

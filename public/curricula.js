@@ -4,6 +4,1484 @@
  */
 // Nội dung là JSON hợp lệ: bank_service.load_default_curricula() đọc trực tiếp tệp này (nguồn duy nhất).
 window.SUBJECT_CURRICULA = {
+  "Tin học": {
+  "8": [
+    {
+      "grade": 8,
+      "lesson_code": "B1",
+      "lesson_name_source": "Lịch sử công cụ tính toán",
+      "topic_source": "Chủ đề 1. Máy tính và cộng đồng",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 1",
+          "periods_raw": "1",
+          "ppct_raw": "1"
+        },
+        {
+          "week_raw": "Tuần 2",
+          "periods_raw": "2",
+          "ppct_raw": "2"
+        }
+      ],
+      "outcomes": [
+        "Trình bày được sơ lược lịch sử phát triển máy tính.",
+        "Nêu được ví dụ cho thấy sự phát triển máy tính đã đem đến những thay đổi lớn lao cho xã hội loài người."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B2",
+      "lesson_name_source": "Thông tin trong môi trường số",
+      "topic_source": "Chủ đề 2. Tổ chức lưu trữ, tìm kiếm và trao đổi thông tin",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 3",
+          "periods_raw": "3",
+          "ppct_raw": "3"
+        }
+      ],
+      "outcomes": [
+        "Nêu được các đặc điểm của thông tin số: đa dạng, được thu thập ngày càng nhanh và nhiều, được lưu trữ với dung lượng khổng lồ bởi nhiều tổ chức và cá nhân, có tính bản quyền, có độ tin cậy rất khác nhau, có các công cụ tìm kiếm, chuyển đổi, truyền và xử lí hiệu quả.",
+        "Trình bày được tầm quan trọng của việc biết khai thác các nguồn thông tin đáng tin cậy, nêu được ví dụ minh hoạ."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B3",
+      "lesson_name_source": "Thực hành: Khai thác thông tin số",
+      "topic_source": "Chủ đề 2. Tổ chức lưu trữ, tìm kiếm và trao đổi thông tin",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 4(28/09-03/10)",
+          "periods_raw": "4",
+          "ppct_raw": "4"
+        },
+        {
+          "week_raw": "Tuần 5(05/10-10/10)",
+          "periods_raw": "5",
+          "ppct_raw": "5"
+        }
+      ],
+      "outcomes": [
+        "Sử dụng được công cụ tìm kiếm, xử lí và trao đổi thông tin trong môi trường số. Nêu được ví dụ minh hoạ.",
+        "Chủ động tìm kiếm được thông tin để thực hiện nhiệm vụ cụ thể.",
+        "Đánh giá được lợi ích của thông tin tìm được trong giải quyết vấn đề, nêu được ví dụ minh hoạ."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B4",
+      "lesson_name_source": "Đạo đức và văn hóa trong sử dụng kĩ thuật số",
+      "topic_source": "Chủ đề 3. Đạo đức, pháp luật và văn hóa trong môi trường số",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 6(12/10-17/10)",
+          "periods_raw": "6",
+          "ppct_raw": "6"
+        }
+      ],
+      "outcomes": [
+        "Nhận biết và giải thích được một số biểu hiện vi phạm đạo đức và pháp luật, biểu hiện thiếu văn hoa khi sử dụng công nghệ kĩ thuật số.",
+        "Bảo đảm được các sản phẩm số do bản thân tạo ra thể hiện được đạo đức, tính văn hoa và không vi phạm pháp luật."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B12",
+      "lesson_name_source": "Từ thuật toán đến chương trình",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 7",
+          "periods_raw": "7",
+          "ppct_raw": "7"
+        },
+        {
+          "week_raw": "Tuần 8",
+          "periods_raw": "8",
+          "ppct_raw": "8"
+        }
+      ],
+      "outcomes": [
+        "Mô tả được kịch bản đơn giản dưới dạng thuật toán và tạo được một chương trình đơn giản.",
+        "Hiểu được chương trình là dãy các lệnh điều khiển máy tính thực hiện một thuật toán."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B13",
+      "lesson_name_source": "Biểu diễn dữ liệu",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 9(02/11-07/11)",
+          "periods_raw": "9",
+          "ppct_raw": "9"
+        },
+        {
+          "week_raw": "Tuần 11",
+          "periods_raw": "11",
+          "ppct_raw": "11"
+        },
+        {
+          "week_raw": "Tuần 18b",
+          "periods_raw": "1",
+          "ppct_raw": ""
+        }
+      ],
+      "outcomes": [
+        "Nêu được khái niệm hằng, biến, kiểu dữ liệu, biểu thức và sử dụng được các khái niệm này ở các chương trình đơn giản trong môi trường lập trình trực quan."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "KTGK1",
+      "lesson_name_source": "Kiểm tra giữa HK1",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 10",
+          "periods_raw": "10",
+          "ppct_raw": "10"
+        },
+        {
+          "week_raw": "Tuần 26(15/03-20/03)",
+          "periods_raw": "26",
+          "ppct_raw": "26"
+        }
+      ],
+      "outcomes": [
+        "Hệ thống các kiến thức đã học trong chủ đề 1,2,3,5, vận dụng vào câu hỏi và bài tập."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B14",
+      "lesson_name_source": "Cấu trúc điều khiển",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 12",
+          "periods_raw": "12",
+          "ppct_raw": "12"
+        },
+        {
+          "week_raw": "Tuần 13",
+          "periods_raw": "13",
+          "ppct_raw": "13"
+        }
+      ],
+      "outcomes": [
+        "Thể hiện được cấu trúc tuần tự, rẽ nhánh và lặp ở chương trình trong môi trường lập trình trực quan."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B15",
+      "lesson_name_source": "Gỡ lỗi",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 14(07/12-12/12)",
+          "periods_raw": "14",
+          "ppct_raw": "14"
+        }
+      ],
+      "outcomes": [
+        "Chạy thử, tìm lỗi và sửa được lỗi cho chương trình."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B10",
+      "lesson_name_source": "Ôn tập",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 15",
+          "periods_raw": "15",
+          "ppct_raw": "15"
+        }
+      ],
+      "outcomes": [
+        "Hệ thống các kiến thức đã học trong chủ đề 1,2,3,5."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B11",
+      "lesson_name_source": "Kiểm tra HK1",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 16(21/12-26/12)",
+          "periods_raw": "16",
+          "ppct_raw": "16"
+        }
+      ],
+      "outcomes": [
+        "Hệ thống các kiến thức đã học trong chủ đề 1,2,3,5, vận dụng vào câu hỏi và bài tập."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B16",
+      "lesson_name_source": "Tin học với nghề nghiệp",
+      "topic_source": "Chủ đề 6. Hướng nghiệp với tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 17",
+          "periods_raw": "17",
+          "ppct_raw": "17"
+        },
+        {
+          "week_raw": "Tuần 18",
+          "periods_raw": "18",
+          "ppct_raw": "18"
+        }
+      ],
+      "outcomes": [
+        "Nêu được một số nghề nghiệp mà ứng dụng tin học sẽ làm tăng hiệu quả công việc.",
+        "Nêu được tên một số nghề thuộc lĩnh vực tin học và một số nghề liên quan đến ứng dụng tin học.",
+        "Nhận thức và trình bày được vấn đề bình đẳng giới trong việc sử dụng máy tính và trong ứng dụng tin học, nêu được ví dụ minh hoạ."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B5",
+      "lesson_name_source": "Sử dụng bảng tính giải quyết bài toán thực tế",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 19(11/01-16/01)",
+          "periods_raw": "19",
+          "ppct_raw": "19"
+        },
+        {
+          "week_raw": "Tuần 20(18/01-23/01)",
+          "periods_raw": "20",
+          "ppct_raw": "20"
+        }
+      ],
+      "outcomes": [
+        "Giải thích được sự thay đổi địa chỉ tương đối trong công thức khi sao chép công thức.",
+        "Giải thích được sự khác nhau giữa địa chỉ tương đối và địa chỉ tuyệt đối của một ô tính.",
+        "Sử dụng được phần mềm bảng tính trợ giúp giải quyết bài toán thực tế.",
+        "Sao chép được dữ liệu từ các tệp văn bản, trang trình chiếu sang trang tính."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B6",
+      "lesson_name_source": "Sắp xếp và lọc dữ liệu",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 21(25/01-30/01)",
+          "periods_raw": "21",
+          "ppct_raw": "21"
+        },
+        {
+          "week_raw": "Tuần 22(15/02-20/02)",
+          "periods_raw": "22",
+          "ppct_raw": "22"
+        }
+      ],
+      "outcomes": [
+        "Sử dụng được phần mềm bảng tính trợ giúp giải quyết bài toán thực tế.",
+        "Nêu được một số tình huống thực tế cần sử dụng các chức năng sắp xếp và lọc dữ liệu.",
+        "Thực hiện được các thao tác lọc, sắp xếp dữ liệu của phần mềm bảng tính."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B7",
+      "lesson_name_source": "Trình bày dữ liệu bằng biểu đồ",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 23",
+          "periods_raw": "23",
+          "ppct_raw": "23"
+        },
+        {
+          "week_raw": "Tuần 24(01/03-06/03)",
+          "periods_raw": "24",
+          "ppct_raw": "24"
+        }
+      ],
+      "outcomes": [
+        "Nêu được một số tình huống thực tế cần sử dụng các chức năng tạo biểu đồ.",
+        "Thực hiện được các thao tác tạo biểu đồ của phần mềm bảng tính."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B8a",
+      "lesson_name_source": "a. Làm việc với danh sách dạng liệt kê và hình ảnh trong văn bản",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 25(08/03-13/03)",
+          "periods_raw": "25",
+          "ppct_raw": "25"
+        },
+        {
+          "week_raw": "Tuần 27(22/03-27/03)",
+          "periods_raw": "27",
+          "ppct_raw": "27"
+        }
+      ],
+      "outcomes": [
+        "Thực hiện được các thao tác: tạo danh sách dạng liệt kê; chèn thêm, xoá bỏ, co dãn hình ảnh; vẽ hình đồ hoa trong văn bản, ...",
+        "Tạo được sản phẩm là văn bản có tính thẩm mĩ phục vụ nhu cầu thực tế."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B9a",
+      "lesson_name_source": "a. Tạo đầu trang, chân trang cho văn bản",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 28(29/03-03/04)",
+          "periods_raw": "28",
+          "ppct_raw": "28"
+        },
+        {
+          "week_raw": "Tuần 29(05/04-10/04)",
+          "periods_raw": "29",
+          "ppct_raw": "29"
+        }
+      ],
+      "outcomes": [
+        "Thực hiện được các thao tác: đánh số trang, thêm đầu trang và chân trang.",
+        "Tạo được sản phẩm là văn bản có tính thẩm mĩ phục vụ nhu cầu thực tế."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B18",
+      "lesson_name_source": "Ôn tập",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 30(12/04-17/04)",
+          "periods_raw": "30",
+          "ppct_raw": "30"
+        }
+      ],
+      "outcomes": [
+        "Hệ thống các kiến thức đã học trong chủ đề 4"
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B19",
+      "lesson_name_source": "Kiểm tra HK2",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 31(19/04-01/05)",
+          "periods_raw": "31",
+          "ppct_raw": "31"
+        }
+      ],
+      "outcomes": [
+        "Hệ thống các kiến thức đã học trong chủ đề 4, vận dụng vào câu hỏi và bài tập."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B10a",
+      "lesson_name_source": "a. Định dạng nâng cao cho trang chiếu",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 32(03/05-08/05)",
+          "periods_raw": "32",
+          "ppct_raw": "32"
+        },
+        {
+          "week_raw": "Tuần 33",
+          "periods_raw": "33",
+          "ppct_raw": "33"
+        }
+      ],
+      "outcomes": [
+        "Chọn đặt được màu sắc, cỡ chữ hài hoà và hợp lí với nội dung.",
+        "Thực hiện được thao tác đánh số trang, thêm đầu trang và chân trang."
+      ]
+    },
+    {
+      "grade": 8,
+      "lesson_code": "B11a",
+      "lesson_name_source": "a. Sử dụng bản mẫu tạo bài trình chiếu",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 34",
+          "periods_raw": "34",
+          "ppct_raw": "34"
+        },
+        {
+          "week_raw": "Tuần 35",
+          "periods_raw": "35",
+          "ppct_raw": "35"
+        }
+      ],
+      "outcomes": [
+        "Sử dụng được các bản mẫu (template).",
+        "Đưa được vào trong trang chiếu đường dẫn đến video hay tài liệu khác.",
+        "Tạo được các sản phẩm số phục vụ học tập, giao lưu và trao đổi thông tin."
+      ]
+    }
+  ],
+  "9": [
+    {
+      "grade": 9,
+      "lesson_code": "B1",
+      "lesson_name_source": "Thế giới kĩ thuật số",
+      "topic_source": "Chủ đề 1. Máy tính và cộng đồng",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 1(01/09-12/09)",
+          "periods_raw": "1",
+          "ppct_raw": "1"
+        },
+        {
+          "week_raw": "Tuần 2(14/09-19/09)",
+          "periods_raw": "2",
+          "ppct_raw": "2"
+        }
+      ],
+      "outcomes": [
+        "Nhận biết được sự có mặt của các thiết bị có gắn bộ xử lí thông tin ở khắp nơi và nêu được ví dụ minh hoạ.",
+        "Nêu được khả năng của máy tính và chỉ ra được một số ứng dụng thực tế của nó trong khoa học kĩ thuật và đời sống.",
+        "Giải thích được tác động của công nghệ thông tin lên giáo dục và xã hội thông qua các ví dụ cụ thể."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B2",
+      "lesson_name_source": "Thông tin trong giải quyết vấn đề",
+      "topic_source": "Chủ đề 2. Tổ chức lưu trữ, tìm kiếm và trao đổi thông tin",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 3(21/09-26/09)",
+          "periods_raw": "3",
+          "ppct_raw": "3"
+        },
+        {
+          "week_raw": "Tuần 4(28/09-03/10)",
+          "periods_raw": "4",
+          "ppct_raw": "4"
+        }
+      ],
+      "outcomes": [
+        "Giải thích được sự cần thiết phải quan tâm đến chất lượng thông tin khi tìm kiếm, tiếp nhận và trao đổi thông tin. Nêu được ví dụ minh hoạ.",
+        "Giải thích được tính mới, tính chính xác, tính đầy đủ, tính sử dụng được của thông tin. Nêu được ví dụ minh hoạ."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B3",
+      "lesson_name_source": "Thực hành: Đánh giá chất lượng thông tin",
+      "topic_source": "Chủ đề 2. Tổ chức lưu trữ, tìm kiếm và trao đổi thông tin",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 5(05/10-10/10)",
+          "periods_raw": "5",
+          "ppct_raw": "5"
+        }
+      ],
+      "outcomes": [
+        "Tìm kiếm được thông tin để giải quyết vấn đề.",
+        "Đánh giá được chất lượng thông tin trong giải quyết vấn đề."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B4",
+      "lesson_name_source": "Một số vấn đề pháp lý về sử dụng dịch vụ Internet",
+      "topic_source": "Chủ đề 3. Đạo đức, pháp luật và văn hóa trong môi trường số",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 6(12/10-17/10)",
+          "periods_raw": "6",
+          "ppct_raw": "6"
+        },
+        {
+          "week_raw": "Tuần 7",
+          "periods_raw": "7",
+          "ppct_raw": "7"
+        }
+      ],
+      "outcomes": [
+        "Trình bày được một số tác động tiêu cực của công nghệ kĩ thuật số đối với đời sống con người và xã hội, nêu được ví dụ minh hoạ.",
+        "Nêu được một số nội dung liên quan đến luật Công nghệ thông tin, nghị định về sử dụng dịch vụ Internet, các khía cạnh pháp lí của việc sở hữu, sử dụng và trao đổi thông tin.",
+        "Nêu được một số hành vi vi phạm pháp luật, trái đạo đức, thiếu văn hoá khi hoạt động trong môi trường số thông qua một vài ví dụ."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B5",
+      "lesson_name_source": "Tìm hiểu phần mềm mô phỏng",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 8(26/10-31/10)",
+          "periods_raw": "8",
+          "ppct_raw": "8"
+        }
+      ],
+      "outcomes": [
+        "Nêu được ví dụ phần mềm mô phỏng. Nhận ra được lợi ích của phần mềm mô phỏng."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B6",
+      "lesson_name_source": "Thực hành: Khai thác phần mềm mô phỏng",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 9(02/11-07/11)",
+          "periods_raw": "9",
+          "ppct_raw": "9"
+        },
+        {
+          "week_raw": "Tuần 11(16/11-21/11)",
+          "periods_raw": "11",
+          "ppct_raw": "11"
+        }
+      ],
+      "outcomes": [
+        "Nêu được những kiến thức đã thu nhận từ việc khai thác một vài phần mềm mô phỏng.",
+        "Nhận biết được sự mô phỏng thế giới thực nhờ máy tính có thể giúp con người khám phá tri thức và giải quyết vấn đề."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "KTGK1",
+      "lesson_name_source": "Kiểm tra giữa HK1",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 10(09/11-14/11)",
+          "periods_raw": "10",
+          "ppct_raw": "10"
+        },
+        {
+          "week_raw": "Tuần 26(15/03-20/03)",
+          "periods_raw": "26",
+          "ppct_raw": "26"
+        }
+      ],
+      "outcomes": [
+        "Hệ thống các kiến thức đã học trong chủ đề 1,2,3,4, vận dụng vào câu hỏi và bài tập."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B7",
+      "lesson_name_source": "Trình bày thông tin trong trao đổi và hợp tác",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 12(23/11-28/11)",
+          "periods_raw": "12",
+          "ppct_raw": "12"
+        }
+      ],
+      "outcomes": [
+        "Sử dụng được bài trình chiếu và sơ đồ tư duy trong trao đổi thông tin và hợp tác.",
+        "Biết được khả năng đính kèm tệp văn bản, ảnh, video, trang tính vào sơ đồ tư duy."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B8",
+      "lesson_name_source": "Thực hành: Sử dụng công cụ trực quan trình bày thông tin trong trao đổi và hợp tác",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 13(30/11-05/12)",
+          "periods_raw": "13",
+          "ppct_raw": "13"
+        },
+        {
+          "week_raw": "Tuần 14(07/12-12/12)",
+          "periods_raw": "14",
+          "ppct_raw": "14"
+        }
+      ],
+      "outcomes": [
+        "Sử dụng được hình ảnh, biểu đồ, video một cách hợp lí.",
+        "Tạo được sơ đồ tư duy có đính kèm văn bản, hình ảnh, video và trang tính.",
+        "Tạo được bài trình chiếu có sử dụng hình ảnh, biểu đồ và video hợp lí."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B10",
+      "lesson_name_source": "Ôn tập",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 15(14/12-19/12)",
+          "periods_raw": "15",
+          "ppct_raw": "15"
+        }
+      ],
+      "outcomes": [
+        "Hệ thống các kiến thức đã học trong chủ đề 1,2,3,4"
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B11",
+      "lesson_name_source": "Kiểm tra HK1",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 16(21/12-26/12)",
+          "periods_raw": "16",
+          "ppct_raw": "16"
+        }
+      ],
+      "outcomes": [
+        "Hệ thống các kiến thức đã học trong chủ đề 1,2,3,4, vận dụng vào câu hỏi và bài tập"
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B9a",
+      "lesson_name_source": "a. Sử dụng công cụ xác thực dữ liệu",
+      "topic_source": "Chủ đề a. Sử dụng bảng tính điện tử nâng cao",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 17(28/12-02/01)",
+          "periods_raw": "17",
+          "ppct_raw": "17"
+        },
+        {
+          "week_raw": "Tuần 18(04/01-09/01)",
+          "periods_raw": "18",
+          "ppct_raw": "18"
+        }
+      ],
+      "outcomes": [
+        "Sử dụng được công cụ xác thực dữ liệu (Data Validation) của phần mềm bảng tính để giải quyết bài toán quản lí tài chính."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B10a",
+      "lesson_name_source": "a. Sử dụng hàm COUNTIF",
+      "topic_source": "Chủ đề a. Sử dụng bảng tính điện tử nâng cao",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 19(11/01-16/01)",
+          "periods_raw": "19",
+          "ppct_raw": "19"
+        },
+        {
+          "week_raw": "Tuần 20(18/01-23/01)",
+          "periods_raw": "20",
+          "ppct_raw": "20"
+        }
+      ],
+      "outcomes": [
+        "Sử dụng được hàm đếm theo điều kiện COUNTIF trong giải quyết bài toán thực tế về quản lí tài chính."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B11a",
+      "lesson_name_source": "a. Sử dụng hàm SUMIF",
+      "topic_source": "Chủ đề a. Sử dụng bảng tính điện tử nâng cao",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 21(25/01-30/01)",
+          "periods_raw": "21",
+          "ppct_raw": "21"
+        },
+        {
+          "week_raw": "Tuần 22(15/02-20/02)",
+          "periods_raw": "22",
+          "ppct_raw": "22"
+        }
+      ],
+      "outcomes": [
+        "Biết sử dụng hàm tính tổng theo điều kiện SUMIF để giải quyết bài toán quản lí tài chính gia đình."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B12a",
+      "lesson_name_source": "a. Sử dụng hàm IF",
+      "topic_source": "Chủ đề a. Sử dụng bảng tính điện tử nâng cao",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 23",
+          "periods_raw": "23",
+          "ppct_raw": "23"
+        },
+        {
+          "week_raw": "Tuần 24",
+          "periods_raw": "24",
+          "ppct_raw": "24"
+        }
+      ],
+      "outcomes": [
+        "Sử dụng được hàm điều kiện IF trong giải quyết bài toán thực tiễn về quản lí tài chính."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B13a",
+      "lesson_name_source": "a. Hoàn thiện bảng tính quản lý tài chính gia đình",
+      "topic_source": "Chủ đề a. Sử dụng bảng tính điện tử nâng cao",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 25",
+          "periods_raw": "25",
+          "ppct_raw": "25"
+        },
+        {
+          "week_raw": "Tuần 27(22/03-27/03)",
+          "periods_raw": "27",
+          "ppct_raw": "27"
+        }
+      ],
+      "outcomes": [
+        "Tạo được trang tính tổng hợp thông tin thu, chi gia đình.",
+        "Hoàn thiện bảng tính quản lí tài chính gia đình."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B14",
+      "lesson_name_source": "Giải quyết vấn đề",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 28(29/03-03/04)",
+          "periods_raw": "28",
+          "ppct_raw": "28"
+        }
+      ],
+      "outcomes": [
+        "Trình bày được quá trình giải quyết vấn đề và mô tả được giải pháp dưới dạng thuật toán (hoặc bằng phương pháp liệt kê các bước hoặc bằng sơ đồ khối)."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B15",
+      "lesson_name_source": "Bài toán tin học",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 29(05/04-10/04)",
+          "periods_raw": "29",
+          "ppct_raw": "29"
+        },
+        {
+          "week_raw": "Tuần 32",
+          "periods_raw": "32",
+          "ppct_raw": "32"
+        }
+      ],
+      "outcomes": [
+        "Giải thích được trong quy trình giải quyết vấn đề có những bước (những vấn đề nhỏ hơn) có thể chuyển giao cho máy tính thực hiện, nêu được ví dụ minh hoạ.",
+        "Giải thích được khái niệm bài toán trong tin học là một nhiệm vụ có thể giao cho máy tính thực hiện, nêu được ví dụ minh hoạ.",
+        "Nêu được quy trình con người giao bài toán cho máy tính giải quyết."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B19",
+      "lesson_name_source": "Ôn tập",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 30",
+          "periods_raw": "30",
+          "ppct_raw": "30"
+        }
+      ],
+      "outcomes": [
+        "Hệ thống các kiến thức đã học trong chủ đề 4,a,5"
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B20",
+      "lesson_name_source": "Kiểm tra HK2",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 31",
+          "periods_raw": "31",
+          "ppct_raw": "31"
+        }
+      ],
+      "outcomes": [
+        "Hệ thống các kiến thức đã học trong chủ đề 4,a,5, vận dụng vào câu hỏi và bài tập."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B16",
+      "lesson_name_source": "Thực hành: Lập chương trình máy tính",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 33(10/05-15/05)",
+          "periods_raw": "33",
+          "ppct_raw": "33"
+        },
+        {
+          "week_raw": "Tuần 34(17/05-22/05)",
+          "periods_raw": "34",
+          "ppct_raw": "34"
+        }
+      ],
+      "outcomes": [
+        "Sử dụng được cấu trúc tuần tự, rẽ nhánh, lặp trong mô tả thuật toán.",
+        "Giải thích được chương trình là bản mô tả thuật toán bằng ngôn ngữ mà máy tính có thể “hiểu” và thực hiện."
+      ]
+    },
+    {
+      "grade": 9,
+      "lesson_code": "B17",
+      "lesson_name_source": "Tin học và thế giới nghề nghiệp",
+      "topic_source": "Chủ đề 6. Hướng nghiệp với tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 35(24/05-29/05)",
+          "periods_raw": "35",
+          "ppct_raw": "35"
+        }
+      ],
+      "outcomes": [
+        "Trình bày được công việc đặc thù và sản phẩm chính của người làm tin học trong ít nhất ba nhóm nghề.",
+        "Nêu và giải thích được ý kiến cá nhân (thích hay không thích, ... ) về một nhóm nghề nào đó.",
+        "Nhận biết được đặc trưng cơ bản của nhóm nghề thuộc hướng Tin học ứng dụng và nhóm nghề thuộc hướng Khoa học máy tính.",
+        "Tìm hiểu được (thông qua Internet và những kênh thông tin khác) công việc ở một số doanh nghiệp, công ti có sử dụng nhân lực thuộc cácnhóm ngành đã được giới thiệu.",
+        "Giải thích được cả nam và nữ đều có thể thích hợp với các ngành nghề trong lĩnh vực tin học."
+      ]
+    }
+  ],
+  "10": [
+    {
+      "grade": 10,
+      "lesson_code": "B1",
+      "lesson_name_source": "Thông tin và xử lí thông tin",
+      "topic_source": "Chủ đề 1. Máy tính và xã hội tri thức",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 1",
+          "periods_raw": "1, 2",
+          "ppct_raw": "1, 2"
+        }
+      ],
+      "outcomes": [
+        "Phân biệt được thông tin và dữ liệu.",
+        "Chuyển đổi giữa các đơn vị lữu trữ dữ liệu.",
+        "Nêu được sự ưu việt của việc lưu trữ, xử lý và truyền thông tin bằng thiết bị số."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B2",
+      "lesson_name_source": "Vai trò của thiết bị thông minh và tin học đối với xã hội",
+      "topic_source": "Chủ đề 1. Máy tính và xã hội tri thức",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 2",
+          "periods_raw": "3, 4",
+          "ppct_raw": "3, 4"
+        }
+      ],
+      "outcomes": [
+        "Nhận biết được một số thiết bị thông minh thông dụng. Nêu được ví dụ cụ thể.",
+        "Biết được vai trò của thiết bị thông minh trong xã hội và cuộc cách mạng công nghiệp lần thứ tư.",
+        "Biết vai trò của tin học đối với xã hội. Nêu được ví dụ.",
+        "Biết các thành tựu nổi bật của ngành Tin học."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B7",
+      "lesson_name_source": "Thực hành sử dụng thiết bị thông dụng",
+      "topic_source": "Chủ đề 1. Máy tính và xã hội tri thức",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 3",
+          "periods_raw": "5, 6",
+          "ppct_raw": "5, 6"
+        }
+      ],
+      "outcomes": [
+        "Biết được thiết bị số cá nhân thông dụng thường có những gì.",
+        "Biết được một số tính năng tiêu biểu của thiết bị số cá nhân thông dụng.",
+        "Khai thác sử dụng một số ứng dụng và dữ liệu trên các thiết bị di động như máy tính bảng (tablet), điện thoại thông minh (smartphone)."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B8",
+      "lesson_name_source": "Mạng máy tính trong cuộc sống hiện đại",
+      "topic_source": "Chủ đề 2. Mạng máy tính và Internet",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 4(28/09-03/10)",
+          "periods_raw": "7, 8",
+          "ppct_raw": "7, 8"
+        }
+      ],
+      "outcomes": [
+        "Hiểu được sự khác biệt giữa mạng LAN và Internet.",
+        "Trình bày được những thay đổi về chất lượng cuộc sống, phương thức học tập và làm việc trong xã hội khi mạng máy tính được sử dụng rộng rãi.",
+        "Nêu được một số công nghệ dựa trên Internet như dịch vụ điện toán đám mây hay kết nối vạn vật (IoT)."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B9",
+      "lesson_name_source": "An toàn trên không gian mạng",
+      "topic_source": "Chủ đề 2. Mạng máy tính và Internet",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 5(05/10-10/10)",
+          "periods_raw": "9, 10",
+          "ppct_raw": "9, 10"
+        }
+      ],
+      "outcomes": [
+        "Nêu được những nguy cơ và tác hại khi tham gia các hoạt động trên Internet một cách thiếu hiểu biết và bất cần. Trình bày được một số cách đề phòng những tác hại đó.",
+        "Nêu được một vài cách phòng vệ khi bị bắt nạt trên mạng. Biết cách bảo vệ dữ liệu cá nhân.",
+        "Trình bày được sơ lược về các phần mềm xấu (mã độc). Biết sử dụng một số công cụ để phòng chống phần mềm xấu."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B10",
+      "lesson_name_source": "Thực hành khai thác tài nguyên trên Internet",
+      "topic_source": "Chủ đề 2. Mạng máy tính và Internet",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 6(12/10-17/10)",
+          "periods_raw": "11, 12",
+          "ppct_raw": "11, 12"
+        }
+      ],
+      "outcomes": [
+        "Khai thác được một số dịch vụ và tài nguyên trên Internet phục vụ học tập gồm: phần mềm dịch, kho học liệu mở."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B11",
+      "lesson_name_source": "Ứng xử trên môi trường số. Nghĩa vụ tôn trọng bản quyền",
+      "topic_source": "Chủ đề 3. Đạo đức, pháp luật và văn hóa trong môi trường số",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 7",
+          "periods_raw": "13, 14",
+          "ppct_raw": "13, 14"
+        },
+        {
+          "week_raw": "Tuần 8",
+          "periods_raw": "15",
+          "ppct_raw": "15"
+        }
+      ],
+      "outcomes": [
+        "Nêu được những vấn đề nảy sinh về đạo đức, pháp luật và văn hoá khi giao tiếp qua mạng trở nên phổ biến.",
+        "Giải thích được một số nội dung pháp lí liên quan tới việc đưa tin lên mạng và tôn trọng bản quyền thông tin, sản phẩm số."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B12",
+      "lesson_name_source": "Phần mềm thiết kế đồ họa",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 1",
+          "periods_raw": "16",
+          "ppct_raw": "16"
+        },
+        {
+          "week_raw": "Tuần 9(02/11-07/11)",
+          "periods_raw": "17",
+          "ppct_raw": "17"
+        }
+      ],
+      "outcomes": [
+        "Biết được khái niệm về thiết kế đồ hoa, phân biệt được đồ hoạ vectơ và đồ hoạ điểm ảnh.",
+        "Sử dụng được các chức năng cơ bản của phần mềm thiết kế đồ hoạ Inkscape để vẽ hình đơn giản."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B13",
+      "lesson_name_source": "Bổ sung các đối tượng đồ họa",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 1",
+          "periods_raw": "18",
+          "ppct_raw": "18"
+        },
+        {
+          "week_raw": "Tuần 10(09/11-14/11)",
+          "periods_raw": "19",
+          "ppct_raw": "19"
+        }
+      ],
+      "outcomes": [
+        "Biết và sử dụng được một số chức năng của các lệnh tạo, điều chỉnh các đối tượng đồ hoạ đơn giản.",
+        "Biết và thực hiện được các phép ghép đối tượng đồ hoạ."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "KTGK1",
+      "lesson_name_source": "Kiểm tra giữa HK1",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 1",
+          "periods_raw": "20",
+          "ppct_raw": "20"
+        },
+        {
+          "week_raw": "Tuần 1",
+          "periods_raw": "52",
+          "ppct_raw": "52"
+        }
+      ],
+      "outcomes": [
+        "Hệ thống các kiến thức đã học (chủ đề 1,2,3), vận dụng kiến thức vào câu hỏi và bài tập."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B14",
+      "lesson_name_source": "Làm việc với đối tượng đường và văn bản",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 11(16/11-21/11)",
+          "periods_raw": "21, 22",
+          "ppct_raw": "21, 22"
+        }
+      ],
+      "outcomes": [
+        "Biết các thao tác chỉnh sửa hình.",
+        "Thực hiện được việc vẽ, chỉnh sửa hình để được đường cong mong muốn.",
+        "Biết tạo và định dạng văn bản."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B15",
+      "lesson_name_source": "Hoàn thiện hình ảnh đồ họa",
+      "topic_source": "Chủ đề 4. Ứng dụng tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 12(23/11-28/11)",
+          "periods_raw": "23, 24",
+          "ppct_raw": "23, 24"
+        }
+      ],
+      "outcomes": [
+        "Tạo được sản phẩm số đơn giản, hữu ích và thực tế như thiết kế logo, tạo banner, topic quảng cáo, băng",
+        "rôn, áp phích, poster và thiệp chúc mừng, ..."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B16",
+      "lesson_name_source": "Ngôn ngữ lập trình bậc cao và Python",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 13(30/11-05/12)",
+          "periods_raw": "25, 26",
+          "ppct_raw": "25, 26"
+        },
+        {
+          "week_raw": "Tuần 16",
+          "periods_raw": "31",
+          "ppct_raw": "31"
+        },
+        {
+          "week_raw": "Tuần 1",
+          "periods_raw": "32",
+          "ppct_raw": "32"
+        }
+      ],
+      "outcomes": [
+        "Biết khái niệm ngôn ngữ lập trình bậc cao và ngôn ngữ lập trình bậc cao Python.",
+        "Phân biệt được chế độ gõ lệnh trực tiếp và chế độ soạn thảo chương trình trong môi trường lập trình Python.",
+        "Biết cách tạo và thực hiện một chương trình Python."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B17",
+      "lesson_name_source": "Biến và lệnh gán",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 14",
+          "periods_raw": "27, 28",
+          "ppct_raw": "27, 28"
+        }
+      ],
+      "outcomes": [
+        "Biết cách thiết lập biến. Phân biệt được biến và từ khoá.",
+        "Biết sử dụng lệnh gán và thực hiện một số phép toán trên kiểu số nguyên, số thực và xâu kí tự."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B18",
+      "lesson_name_source": "Các lệnh vào ra đơn giản",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 15(14/12-19/12)",
+          "periods_raw": "29, 30",
+          "ppct_raw": "29, 30"
+        }
+      ],
+      "outcomes": [
+        "Biết và thực hiện được một số lệnh vào, ra đơn giản.",
+        "Thực hiện được một số chuyển đổi dữ liệu giữa các kiểu dữ liệu cơ bản."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B19",
+      "lesson_name_source": "Câu lệnh rẽ nhánh if",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 17",
+          "periods_raw": "33, 34",
+          "ppct_raw": "33, 34"
+        }
+      ],
+      "outcomes": [
+        "Biết và trình bày được các phép toán với kiểu dữ liệu lôgic.",
+        "Sử dụng được lệnh rẽ nhánh if trong lập trình."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B20",
+      "lesson_name_source": "Câu lệnh lặp for",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 18",
+          "periods_raw": "35, 36",
+          "ppct_raw": "35, 36"
+        }
+      ],
+      "outcomes": [
+        "Biết được ý nghĩa của vùng giá trị tạo bởi lệnh range().",
+        "Biết được chức năng của lệnh lặp for và cách dùng trong Python."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B21",
+      "lesson_name_source": "Câu lệnh lặp while",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 19(11/01-16/01)",
+          "periods_raw": "37, 38",
+          "ppct_raw": "37, 38"
+        }
+      ],
+      "outcomes": [
+        "Biết và thực hành giải các bài toán sử dụng lệnh lặp while với số lần không biết trước.",
+        "Biết ba cấu trúc lập trình cơ bản: tuần tự, rẽ nhánh, lặp."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B22",
+      "lesson_name_source": "Kiểu dữ liệu danh sách",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 20(18/01-23/01)",
+          "periods_raw": "39, 40",
+          "ppct_raw": "39, 40"
+        }
+      ],
+      "outcomes": [
+        "Biết được kiểu dữ liệu danh sách (list), cách khởi tạo và truy cập từng phần tử của danh sách.",
+        "Biết và thực hiện được cách duyệt các phần tử của danh sách bằng lệnh for.",
+        "Thực hành được một số phương thức đơn giản trên dữ liệu danh sách."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B23",
+      "lesson_name_source": "Một số lệnh làm việc với dữ liệu danh sách",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 21(25/01-30/01)",
+          "periods_raw": "41, 42",
+          "ppct_raw": "41, 42"
+        },
+        {
+          "week_raw": "Tuần 22(15/02-20/02)",
+          "periods_raw": "43",
+          "ppct_raw": "43"
+        }
+      ],
+      "outcomes": [
+        "Biết cách duyệt danh sách bằng toán tử in.",
+        "Biết và thực hiện được một số phương thức thường dùng với danh sách."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B24",
+      "lesson_name_source": "Xâu ký tự",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 1",
+          "periods_raw": "44",
+          "ppct_raw": "44"
+        },
+        {
+          "week_raw": "Tuần 23(22/02-27/02)",
+          "periods_raw": "45",
+          "ppct_raw": "45"
+        }
+      ],
+      "outcomes": [
+        "Hiểu được xâu kí tự là kiểu dữ liệu cơ bản của Python.",
+        "Biết và thực hiện được lệnh for để xử lí xâu kí tự."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B25",
+      "lesson_name_source": "Một số lệnh làm việc với xâu ký tự",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 1",
+          "periods_raw": "46",
+          "ppct_raw": "46"
+        },
+        {
+          "week_raw": "Tuần 24(01/03-06/03)",
+          "periods_raw": "47, 48",
+          "ppct_raw": "47, 48"
+        }
+      ],
+      "outcomes": [
+        "Biết và thực hiện được một số lệnh thường dùng với xâu kí tự."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B26",
+      "lesson_name_source": "Hàm trong Python",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 25(08/03-13/03)",
+          "periods_raw": "49, 50",
+          "ppct_raw": "49, 50"
+        }
+      ],
+      "outcomes": [
+        "Biết được chương trình con là hàm.",
+        "Biết cách tạo hàm."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B27",
+      "lesson_name_source": "Tham số của hàm",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 26(15/03-20/03)",
+          "periods_raw": "51",
+          "ppct_raw": "51"
+        },
+        {
+          "week_raw": "Tuần 27",
+          "periods_raw": "53, 54",
+          "ppct_raw": "53, 54"
+        }
+      ],
+      "outcomes": [
+        "Biết cách thiết lập các tham số của hàm. Hiểu được cách truyền giá trị thông qua đối số hàm.",
+        "Biết viết chương trình có sử dụng chương trình con."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B28",
+      "lesson_name_source": "Phạm vi của biến",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 28",
+          "periods_raw": "55, 56",
+          "ppct_raw": "55, 56"
+        },
+        {
+          "week_raw": "Tuần 31",
+          "periods_raw": "61",
+          "ppct_raw": "61"
+        },
+        {
+          "week_raw": "Tuần 1",
+          "periods_raw": "62",
+          "ppct_raw": "62"
+        }
+      ],
+      "outcomes": [
+        "Biết và trình bày được ý nghĩa của phạm vi hoạt động của biến trong chương trình và hàm."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B29",
+      "lesson_name_source": "Nhận biết lỗi chương trình",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 29",
+          "periods_raw": "57, 58",
+          "ppct_raw": "57, 58"
+        }
+      ],
+      "outcomes": [
+        "Biết và phân loại được một số loại lỗi chương trình.",
+        "Biết được một vài lỗi ngoại lệ thường gặp."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B30",
+      "lesson_name_source": "Kiểm thử và gỡ lỗi chương trình",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 30(12/04-17/04)",
+          "periods_raw": "59, 60",
+          "ppct_raw": "59, 60"
+        }
+      ],
+      "outcomes": [
+        "Biết được một vài phương pháp đơn giản kiểm thử chương trình.",
+        "Biết được một vài cách gỡ lỗi đơn giản một chương trình."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B31",
+      "lesson_name_source": "Thực hành viết chương trình đơn giản",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 32(03/05-",
+          "periods_raw": "63, 64",
+          "ppct_raw": "63, 64"
+        }
+      ],
+      "outcomes": [
+        "Thực hành viết chương trình đơn giản bằng ngôn ngữ Python.",
+        "Thực hành được các bước gỡ rối chương trình bằng công cụ debug",
+        "thiết lập điểm dừng và chạy theo từng lệnh."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B32",
+      "lesson_name_source": "Ôn tập lập trình Python",
+      "topic_source": "Chủ đề 5. Giải quyết vấn đề với sự trợ giúp của máy tính",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 33(10/05",
+          "periods_raw": "65, 66",
+          "ppct_raw": "65, 66"
+        },
+        {
+          "week_raw": "Tuần STT",
+          "periods_raw": "Yêu cầu cần đạt",
+          "ppct_raw": "Yêu cầu cần đạt"
+        },
+        {
+          "week_raw": "Tuần 1",
+          "periods_raw": "- Biết nguyên lí hoạt động của hệ soạn thảo văn bản- Biết được các chức năng thường dùng của một hệ soạn thảo văn bản.- Tạo được tiêu đề mục và mục lục cho văn bản- Trình bày được thông tin ở các dạng mục con- Tạo các tiêu đề trang và đánh số trang cho văn bản.- Tạo được một số văn bản hữu ích, thiết thực, đáp ứng nhu cầu học tập và đời sống như: + Tiểu luận hay báo cáo về một chủ đề thuộc môn học nào đó. + Biên bản buổi họp bầu cán bộ lớp. + Hướng dẫn thể thức tham gia câu lạc bộ STEM ROBOTIC. + Chương trình thi đấu thể thao. - Sản phẩm văn bản đáp ứng được yêu cầu thực tế đặt ra, có thông tin đa dạng, phong phú, hình ảnh và hoạ tiết hấp dẫn được thu thập từ nhiều nguồn dữ liệu khác nhau.- Làm việc được theo nhóm với tinh thần hợp tác.",
+          "ppct_raw": "- Biết nguyên lí hoạt động của hệ soạn thảo văn bản- Biết được các chức năng thường dùng của một hệ soạn thảo văn bản.- Tạo được tiêu đề mục và mục lục cho văn bản- Trình bày được thông tin ở các dạng mục con- Tạo các tiêu đề trang và đánh số trang cho văn bản.- Tạo được một số văn bản hữu ích, thiết thực, đáp ứng nhu cầu học tập và đời sống như: + Tiểu luận hay báo cáo về một chủ đề thuộc môn học nào đó. + Biên bản buổi họp bầu cán bộ lớp. + Hướng dẫn thể thức tham gia câu lạc bộ STEM ROBOTIC. + Chương trình thi đấu thể thao. - Sản phẩm văn bản đáp ứng được yêu cầu thực tế đặt ra, có thông tin đa dạng, phong phú, hình ảnh và hoạ tiết hấp dẫn được thu thập từ nhiều nguồn dữ liệu khác nhau.- Làm việc được theo nhóm với tinh thần hợp tác."
+        }
+      ],
+      "outcomes": [
+        "Thực hành on tập lập trình Python.",
+        "Thực hành lập trình giải bài toán có tính liên môn."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B33",
+      "lesson_name_source": "Nghề thiết kế đồ họa máy tính",
+      "topic_source": "Chủ đề 6. Hướng nghiệp với tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 34",
+          "periods_raw": "67, 68",
+          "ppct_raw": "67, 68"
+        }
+      ],
+      "outcomes": [
+        "Biết được khái niệm, kiến thức và kĩ năng cần có của nghề thiết kế đồ hoạ.",
+        "Biết các ngành học và nhu cầu nhân lực liên quan đến nghề thiết kế đồ hoạ.",
+        "Tự tìm kiếm và khai thác được thông tin hướng nghiệp về lĩnh vực thiết kế đồ hoạ, giao lưu và chia sẻ với bạn bè qua các kênh truyền thông tin số về thông tin nghề nghiệp."
+      ]
+    },
+    {
+      "grade": 10,
+      "lesson_code": "B34",
+      "lesson_name_source": "Nghề phát triển phần mềm",
+      "topic_source": "Chủ đề 6. Hướng nghiệp với tin học",
+      "occurrences": [
+        {
+          "week_raw": "Tuần 35(24/05-29/05)",
+          "periods_raw": "69, 70",
+          "ppct_raw": "69, 70"
+        }
+      ],
+      "outcomes": [
+        "Hiểu được khái niệm nghề phát triển phần mềm và một số kiến thức, kĩ năng cần có của người làm nghề phát triển phần mềm.",
+        "Biết các ngành học ở bậc đại học, cao đẳng liên quan đến phát triển phần mềm và cơ hội nghề nghiệp liên quan đến phát triển phần mềm."
+      ]
+    }
+  ]
+},
+
   "Toán học": {
     "8": [
       {

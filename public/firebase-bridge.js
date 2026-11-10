@@ -36,6 +36,38 @@
     } catch(e) {}
   }
 
+  function initLocalWorkspace() {
+    try {
+      let cached = null;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(localCacheKey)) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed && (parsed.bank?.questions?.length || parsed.bank?.ppct?.lessons?.length || parsed.matrices?.length)) {
+                cached = parsed;
+                break;
+              }
+            } catch(e) {}
+          }
+        }
+      }
+      if (!cached) cached = getStorageData('offline');
+      if (cached) {
+        if (cached.bank?.questions) currentWorkspaceData.bank.questions = cached.bank.questions;
+        if (cached.bank?.ppct?.lessons?.length) currentWorkspaceData.bank.ppct = cached.bank.ppct;
+        if (cached.exams) currentWorkspaceData.exams = cached.exams;
+        if (cached.revisions) currentWorkspaceData.revisions = cached.revisions;
+        if (cached.matrices) currentWorkspaceData.matrices = cached.matrices;
+      }
+    } catch(e) {}
+    if (!currentWorkspaceData.bank.ppct?.lessons?.length) {
+      currentWorkspaceData.bank.ppct = { lessons: buildDefaultLessons('Tin học') };
+    }
+  }
+
   // Khởi tạo danh mục PPCT chuẩn từ curricula.js
   function normalizeOccurrences(occ) {
     if (Array.isArray(occ) && occ.length > 0) {
@@ -88,6 +120,7 @@
     isReady: false,
     currentData: currentWorkspaceData
   };
+  initLocalWorkspace();
 
   // ===========================================================================
   // CLIENT ADAPTER: ĐIỀU PHỐI DỮ LIỆU KHI CHẠY TRÊN GITHUB PAGES
@@ -103,13 +136,19 @@
 
       // 1. Lấy trạng thái hệ thống
       if (path === '/api/state') {
-        const lessons = buildDefaultLessons(subj);
+        const storedLessons = (currentWorkspaceData.bank?.ppct?.lessons || []);
+        const defaultLessons = buildDefaultLessons(subj);
+        let finalLessons = storedLessons.length > 0 ? storedLessons : defaultLessons;
+        if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [] };
+        if (!currentWorkspaceData.bank.ppct.lessons.length) {
+          currentWorkspaceData.bank.ppct.lessons = defaultLessons;
+        }
         const questions = currentWorkspaceData.bank.questions || [];
         return {
           context: { subject_name: subj },
           bank: {
             questions: questions,
-            ppct: { lessons: lessons }
+            ppct: { lessons: finalLessons }
           },
           review_checklist: [],
           can_view_answers: true,
@@ -711,7 +750,10 @@
       await setDoc(ref, {
         owner_email: window.FirebaseState.user.email,
         updated_at: new Date().toISOString(),
-        bank: { questions: data.bank.questions || [] },
+        bank: { 
+          questions: data.bank.questions || [],
+          ppct: data.bank.ppct || { lessons: [] }
+        },
         exams: data.exams || [],
         revisions: data.revisions || [],
         matrices: data.matrices || []
@@ -729,25 +771,39 @@
       if (snap.exists()) {
         const remote = snap.data();
         currentWorkspaceData.bank.questions = remote.bank?.questions || [];
+        if (remote.bank?.ppct?.lessons?.length) {
+          currentWorkspaceData.bank.ppct = remote.bank.ppct;
+        } else {
+          const cached = getStorageData(user.uid) || getStorageData('offline');
+          if (cached?.bank?.ppct?.lessons?.length) {
+            currentWorkspaceData.bank.ppct = cached.bank.ppct;
+          } else if (!currentWorkspaceData.bank.ppct?.lessons?.length) {
+            currentWorkspaceData.bank.ppct = { lessons: buildDefaultLessons('Tin học') };
+          }
+        }
         currentWorkspaceData.exams = remote.exams || [];
         currentWorkspaceData.revisions = remote.revisions || [];
         currentWorkspaceData.matrices = remote.matrices || [];
       } else {
-        // Chưa có dữ liệu thì lưu bộ khung mới
         await helpers.setDoc(ref, {
           owner_email: user.email,
           created_at: new Date().toISOString(),
-          bank: { questions: [] },
+          bank: { 
+            questions: [],
+            ppct: { lessons: buildDefaultLessons('Tin học') }
+          },
           exams: [],
           revisions: [],
           matrices: []
         });
+        currentWorkspaceData.bank.ppct = { lessons: buildDefaultLessons('Tin học') };
       }
       saveStorageData(user.uid, currentWorkspaceData);
       if (window.store) {
         window.store.bank = {
           ...window.store.bank,
-          questions: currentWorkspaceData.bank.questions
+          questions: currentWorkspaceData.bank.questions,
+          ppct: currentWorkspaceData.bank.ppct
         };
         window.store.exams = currentWorkspaceData.exams;
         window.store.revisions = currentWorkspaceData.revisions;

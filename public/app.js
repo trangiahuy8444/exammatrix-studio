@@ -1208,7 +1208,7 @@ function renderPPCT(){
  const ls=lessons(g, s);
  $('#ppct').innerHTML=title(`Chương trình môn ${s}`,'Phân phối chương trình',`Quản lý bài học, tuần, tiết và yêu cầu cần đạt môn ${s} Khối ${g}.`,
    `<div style="display:flex;gap:8px">` +
-   (store.isTestMode && !ls.length ? `<button type="button" class="button" id="btn-load-sample-ppct" style="background:#eaf3fb;color:var(--blue,#0267b1);font-weight:600">📥 Nạp mẫu PPCT GDPT 2018 (${esc(s)})</button>` : '') +
+   (!ls.length ? `<button type="button" class="button" id="btn-load-sample-ppct" style="background:#eaf3fb;color:var(--blue,#0267b1);font-weight:600">📥 Nạp mẫu PPCT GDPT 2018 (${esc(s)})</button>` : '') +
    `<button type="button" class="primary" id="add-ppct-lesson">+ Thêm bài học PPCT</button></div>`)+
  `<div class="card">
    <div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap">
@@ -1239,7 +1239,20 @@ function renderPPCT(){
  $('#ppct-subject').onchange=e=>setGlobalSubject(e.target.value);
  $('#add-ppct-lesson').onclick=()=>openPPCTEditor(g,'',s);
  const sampleBtn=$('#btn-load-sample-ppct');
- if(sampleBtn)sampleBtn.onclick=()=>{store.testPpctLoaded=true;renderPPCT();notify(`Đã nạp mẫu PPCT GDPT 2018 cho môn ${s}.`);};
+ if(sampleBtn)sampleBtn.onclick=async()=>{
+   const cat=(typeof window!=='undefined'&&window.SUBJECT_CURRICULA)||(store.subject_curricula||{});
+   const dLessons = cat[s]?.[g] || cat[s]?.[String(g)] || [];
+   if(dLessons.length){
+     if(!store.bank.ppct)store.bank.ppct={lessons:[]};
+     const others=(store.bank.ppct.lessons||[]).filter(l=>Number(l.grade)!==g);
+     store.bank.ppct.lessons=[...others,...dLessons];
+     await request('/api/ppct/apply-import',{grade:g,subject_name:s,lessons:dLessons});
+     renderPPCT();
+     notify(`Đã nạp mẫu chuẩn PPCT GDPT 2018 (${dLessons.length} bài học Khối ${g}).`);
+   } else {
+     store.testPpctLoaded=true;renderPPCT();notify(`Đã nạp mẫu PPCT GDPT 2018 cho môn ${s}.`);
+   }
+ };
  bindPpctImport(g);
 }
 // Nhập PPCT từ JSON, Markdown (.md) hoặc Word (bảng KHDH Phụ lục 1)

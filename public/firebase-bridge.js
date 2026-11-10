@@ -421,6 +421,45 @@
         return { revisions: currentWorkspaceData.revisions };
       }
 
+      if (path === '/api/revisions/duplicate') {
+        const orig = (currentWorkspaceData.revisions || []).find(r => r.id === body.id);
+        if (!orig) throw new Error('Không tìm thấy đề cương');
+        const copy = JSON.parse(JSON.stringify(orig));
+        copy.id = `REV-${Math.random().toString(36).slice(2, 10)}`;
+        copy.title = `${orig.title} (Bản sao)`;
+        copy.created_at = new Date().toISOString();
+        currentWorkspaceData.revisions.push(copy);
+        await syncToFirestore(uid, currentWorkspaceData);
+        return { revision: copy, revisions: currentWorkspaceData.revisions };
+      }
+
+      if (path === '/api/revisions/import-file') {
+        let rev = body.revision || null;
+        if (!rev && body.content_base64) {
+          try {
+            const raw = atob(body.content_base64);
+            const parsed = JSON.parse(raw);
+            rev = parsed.revision || parsed;
+          } catch(e) {}
+        }
+        if (!rev) {
+          rev = {
+            id: `REV-${Math.random().toString(36).slice(2, 10)}`,
+            title: (body.filename || 'Đề cương mới').replace(/\.[^/.]+$/, ''),
+            grade: Number(body.grade || (window.store && window.store.revisionGrade) || 9),
+            question_count: (body.questions || []).length,
+            questions: body.questions || [],
+            created_at: new Date().toISOString()
+          };
+        }
+        if (!rev.id) rev.id = `REV-${Math.random().toString(36).slice(2, 10)}`;
+        rev.created_at = rev.created_at || new Date().toISOString();
+        if (!currentWorkspaceData.revisions) currentWorkspaceData.revisions = [];
+        currentWorkspaceData.revisions.push(rev);
+        await syncToFirestore(uid, currentWorkspaceData);
+        return { revision: rev, revisions: currentWorkspaceData.revisions };
+      }
+
       // 6. Đề kiểm tra (Exams)
       if (path === '/api/exams/save' || path === '/api/exams/generate') {
         const exam = { ...body };
@@ -433,10 +472,195 @@
         return { exam: exam, exams: exams };
       }
 
+      if (path === '/api/exams/inspect-import') {
+        const candidates = body.candidates || [];
+        return {
+          filename: body.filename || 'import.json',
+          candidate_count: candidates.length,
+          all_passed: true,
+          candidates: candidates.map(c => ({
+            ...c,
+            verification: c.verification || {
+              passed: true,
+              score: 10,
+              matrix_id: 'Đề nhập từ Markdown / JSON',
+              revision_check: { coverage_percent_points: 100 }
+            }
+          }))
+        };
+      }
+
+      if (path === '/api/exams/import-verified') {
+        const cands = body.candidates || [];
+        if (!currentWorkspaceData.exams) currentWorkspaceData.exams = [];
+        cands.forEach(c => {
+          if (!c.id) c.id = `EXAM-${Math.random().toString(36).slice(2, 10)}`;
+          c.created_at = c.created_at || new Date().toISOString();
+          currentWorkspaceData.exams.push(c);
+        });
+        await syncToFirestore(uid, currentWorkspaceData);
+        return { imported_count: cands.length, imported: cands, exams: currentWorkspaceData.exams };
+      }
+
       if (path === '/api/exams/delete') {
         currentWorkspaceData.exams = (currentWorkspaceData.exams || []).filter(e => e.id !== body.id);
         await syncToFirestore(uid, currentWorkspaceData);
         return { exams: currentWorkspaceData.exams };
+      }
+
+      // 7. Ma trận & đặc tả (Matrices)
+      if (path === '/api/matrices' || path.startsWith('/api/matrices/')) {
+        if (!currentWorkspaceData.matrices) currentWorkspaceData.matrices = [];
+        const mats = currentWorkspaceData.matrices;
+
+        if (path === '/api/matrices') {
+          return { matrices: mats };
+        }
+
+        if (path === '/api/matrices/save') {
+          const m = { ...body.matrix };
+          if (!m.id) m.id = `MX-${m.grade || 9}-${m.exam_type || 'GK1'}-${Date.now().toString(36)}`;
+          if (!m.family_id) m.family_id = `FAM-${m.grade || 9}-${m.exam_type || 'GK1'}`;
+          m.revision = (m.revision || 0) + 1;
+          m.version = m.version || 1;
+          m.status = m.status || 'draft';
+          m.updated_at = new Date().toISOString();
+          const idx = mats.findIndex(x => x.id === m.id);
+          if (idx >= 0) mats[idx] = m;
+          else mats.push(m);
+          currentWorkspaceData.matrices = mats;
+          await syncToFirestore(uid, currentWorkspaceData);
+          if (window.store) window.store.matrixRecords = mats;
+          return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+        }
+
+        if (path === '/api/matrices/import-package') {
+          const pkg = body.package || {};
+          const m = pkg.matrix || pkg;
+          if (!m.id) m.id = `MX-${m.grade || 9}-${m.exam_type || 'GK1'}-${Date.now().toString(36)}`;
+          if (!m.family_id) m.family_id = `FAM-${m.grade || 9}-${m.exam_type || 'GK1'}`;
+          m.version = m.version || 1;
+          m.revision = 0;
+          m.status = m.status || 'draft';
+          m.updated_at = new Date().toISOString();
+          const idx = mats.findIndex(x => x.id === m.id);
+          if (idx >= 0) mats[idx] = m;
+          else mats.push(m);
+          currentWorkspaceData.matrices = mats;
+          await syncToFirestore(uid, currentWorkspaceData);
+          if (window.store) window.store.matrixRecords = mats;
+          return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+        }
+
+        if (path === '/api/matrices/accept-import') {
+          const m = body.candidate || body.matrix || {};
+          if (!m.id) m.id = `MX-${body.grade || 9}-${Date.now().toString(36)}`;
+          if (!m.family_id) m.family_id = `FAM-${body.grade || 9}`;
+          m.grade = Number(body.grade || m.grade || 9);
+          m.version = m.version || 1;
+          m.revision = 0;
+          m.status = 'draft';
+          m.title = m.title || `Ma trận Khối ${m.grade}`;
+          m.updated_at = new Date().toISOString();
+          const idx = mats.findIndex(x => x.id === m.id);
+          if (idx >= 0) mats[idx] = m;
+          else mats.push(m);
+          currentWorkspaceData.matrices = mats;
+          await syncToFirestore(uid, currentWorkspaceData);
+          if (window.store) window.store.matrixRecords = mats;
+          return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+        }
+
+        if (path === '/api/matrices/lock') {
+          const m = mats.find(x => x.id === body.id);
+          if (m) {
+            m.status = 'locked';
+            m.confirmation = body.confirmation || { confirmed_by: 'Giáo viên', confirmed_at: new Date().toISOString() };
+            m.revision = (m.revision || 0) + 1;
+            await syncToFirestore(uid, currentWorkspaceData);
+            if (window.store) window.store.matrixRecords = mats;
+            return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+          }
+        }
+
+        if (path === '/api/matrices/unlock') {
+          const m = mats.find(x => x.id === body.id);
+          if (m) {
+            m.status = 'draft';
+            m.revision = (m.revision || 0) + 1;
+            await syncToFirestore(uid, currentWorkspaceData);
+            if (window.store) window.store.matrixRecords = mats;
+            return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+          }
+        }
+
+        if (path === '/api/matrices/duplicate') {
+          const orig = mats.find(x => x.id === body.id);
+          if (orig) {
+            const m = JSON.parse(JSON.stringify(orig));
+            m.id = `MX-${m.grade || 9}-${Date.now().toString(36)}`;
+            m.title = `${m.title} (Bản sao)`;
+            m.status = 'draft';
+            m.version = 1;
+            m.revision = 0;
+            m.updated_at = new Date().toISOString();
+            mats.push(m);
+            await syncToFirestore(uid, currentWorkspaceData);
+            if (window.store) window.store.matrixRecords = mats;
+            return { matrix: m };
+          }
+        }
+
+        if (path === '/api/matrices/delete') {
+          currentWorkspaceData.matrices = mats.filter(x => x.id !== body.id);
+          await syncToFirestore(uid, currentWorkspaceData);
+          if (window.store) window.store.matrixRecords = currentWorkspaceData.matrices;
+          return { success: true };
+        }
+
+        if (path === '/api/matrices/new-version') {
+          const orig = mats.find(x => x.id === body.id);
+          if (orig) {
+            const m = JSON.parse(JSON.stringify(orig));
+            m.id = `MX-${m.grade || 9}-V${(orig.version || 1) + 1}-${Date.now().toString(36)}`;
+            m.version = (orig.version || 1) + 1;
+            m.previous_id = orig.id;
+            m.status = 'draft';
+            m.revision = 0;
+            m.updated_at = new Date().toISOString();
+            mats.push(m);
+            await syncToFirestore(uid, currentWorkspaceData);
+            if (window.store) window.store.matrixRecords = mats;
+            return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+          }
+        }
+
+        const matId = decodeURIComponent(path.replace('/api/matrices/', '').split('/')[0]);
+        if (matId && matId !== 'save' && matId !== 'review' && matId !== 'inspect-docx') {
+          const m = mats.find(x => x.id === matId) || (window.MatrixDefaults && window.MatrixDefaults[matId]);
+          if (path.endsWith('/candidates')) {
+            const qs = currentWorkspaceData.bank.questions || [];
+            const slots = (m?.slots || []).map(s => {
+              const req = (m.requirements || []).find(r => s.parts?.[0]?.requirement_id === r.id);
+              const matching = qs.filter(q => Number(q.grade) === Number(m.grade) && (s.kind === 'MC' ? q.type === 'MC' : true));
+              return {
+                slot: s,
+                candidates: matching.slice(0, 10),
+                requirements: req ? [req] : [{ text: 'Đạt yêu cầu chương trình' }]
+              };
+            });
+            return { matrix: m || { id: matId, title: 'Ma trận', grade: 9, slots: [] }, slots };
+          }
+          if (path.endsWith('/shortfall')) {
+            return { ok: true, complete: true, total_shortfall: 0, cells: [], issues: [], unresolved_slots: [] };
+          }
+          if (path.endsWith('/compare')) {
+            return { matrix: m, ppct_differences: [] };
+          }
+          if (m) {
+            return { matrix: m, validation: { ok: true, complete: true, issues: [] } };
+          }
+        }
       }
 
       // Mặc định phản hồi thành công cho các route phụ

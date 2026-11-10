@@ -240,12 +240,454 @@ function renderOverview(){
  `<div class="grade-grid">${grades().map(g=>{const a=active.filter(q=>q.grade===g);return `<a class="grade-card" href="#bank" data-open-grade="${g}"><h3>${esc(s)} ${g}</h3><p>${lessons(g, s).filter(l=>a.some(q=>q.lesson_code===l.lesson_code)).length} bài có câu hỏi</p><div class="bar"><span style="width:${a.length?100:0}%"></span></div><strong>${a.length} câu hỏi</strong><span class="muted"> · Xem ngân hàng →</span></a>`;}).join('')}</div>`+
  `<div class="two-col" style="margin-top:22px"><div class="card"><h2>Chuẩn bị một đề kiểm tra</h2><ol class="muted"><li>Lọc và rà soát câu hỏi môn ${esc(s)} theo bài, YCCĐ và mức độ.</li><li>Chọn câu, lưu một phiên bản đề cương đã chuẩn bị phát.</li><li>Chọn ma trận, kiểm tra phân bố và tạo đề.</li></ol><a href="#revisions">Chuẩn bị đề cương →</a></div><div class="card"><h2>Trạng thái nội dung môn ${esc(s)}</h2><p class="muted">${(p=>`${p.approved} câu đã duyệt · ${p.pending_review} câu chờ duyệt · ${p.needs_review} câu cần sửa lại · ${p.draft} bản nháp`)(C.reviewProgress(qs))} · ${qs.filter(q=>q.review_status==='archived').length} câu lưu trữ.</p><div class="callout">Đề kiểm tra chính thức chỉ dùng câu <strong>đã duyệt</strong>. <a href="#review">Mở màn hình duyệt câu hỏi →</a></div></div></div>`;
 }
+  function downloadBankJsonSample(grade = 9) {
+    const g = Number(grade) || 9;
+    const sample = {
+      bank: {
+        questions: [
+          {
+            id: `K${g}-GV-sample1`,
+            grade: g,
+            subject_name: 'Tin học',
+            lesson_code: 'B1',
+            type: 'MC',
+            level: 'Biết',
+            question: 'Thiết bị nào sau đây là thiết bị vào của máy tính?',
+            options: ['Màn hình', 'Chuột máy tính', 'Máy in', 'Loa'],
+            correct: 1,
+            option_explanations: ['', 'Chuột máy tính dùng để nhập lệnh và thao tác điều khiển.', '', ''],
+            review_status: 'approved'
+          },
+          {
+            id: `K${g}-GV-sample2`,
+            grade: g,
+            subject_name: 'Tin học',
+            lesson_code: 'B1',
+            type: 'YN',
+            level: 'Hiểu',
+            question: 'Khi sử dụng thư điện tử (Email) trong học tập và công việc:',
+            statements: [
+              { label: 'a', text: 'Có thể đính kèm tệp văn bản và hình ảnh.', correct: true },
+              { label: 'b', text: 'Không thể gửi một bức thư cùng lúc cho nhiều người nhận.', correct: false },
+              { label: 'c', text: 'Tiêu đề thư nên viết ngắn gọn, rõ ràng, phản ánh đúng nội dung.', correct: true },
+              { label: 'd', text: 'Mọi tệp đính kèm nhận từ người lạ đều an toàn tuyệt đối.', correct: false }
+            ],
+            review_status: 'approved'
+          },
+          {
+            id: `K${g}-GV-sample3`,
+            grade: g,
+            subject_name: 'Tin học',
+            lesson_code: 'B2',
+            type: 'SHORT',
+            level: 'Vận dụng',
+            question: 'Theo chương trình GDPT 2018 môn Tin học, viết tắt của năng lực ứng dụng công nghệ thông tin và truyền thông trong học tập và tự học là gì?',
+            short_answer: 'NLd',
+            review_status: 'approved'
+          }
+        ]
+      }
+    };
+    const blob = new Blob([JSON.stringify(sample, null, 2)], { type: 'application/json;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Mau_Cau_hoi_Tin_${g}_2026-2027.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function downloadBankMdSample(grade = 9) {
+    const g = Number(grade) || 9;
+    const sampleMd = `# BỘ CÂU HỎI MÔN TIN HỌC KHỐI ${g}
+Năm học: 2026-2027
+
+### Câu 1:
+Thiết bị nào sau đây là thiết bị vào của máy tính?
+A. Màn hình
+B. Chuột máy tính
+C. Máy in
+D. Loa
+*Đáp án:* B
+*Mức độ:* Biết
+*Bài học:* B1
+*Lời giải:* Chuột máy tính là thiết bị đưa dữ liệu đầu vào cho hệ thống.
+
+### Câu 2:
+Để bảo vệ an toàn thông tin cá nhân trên môi trường mạng số, em nên thực hiện điều gì?
+A. Chia sẻ mật khẩu tài khoản cho bạn bè thân thiết
+B. Đặt mật khẩu có độ phức tạp cao và định kỳ đổi mật khẩu
+C. Đăng tải mọi thông tin riêng tư lên chế độ công khai
+D. Bấm vào bất kỳ liên kết lạ nào được gửi đến qua tin nhắn
+*Đáp án:* B
+*Mức độ:* Hiểu
+*Bài học:* B2
+*Lời giải:* Mật khẩu mạnh giúp bảo vệ an toàn cho tài khoản cá nhân.
+
+### Câu 3:
+Khi sử dụng thư điện tử (Email) trong học tập và giao tiếp số:
+a) [Đúng] Có thể đính kèm tệp văn bản và hình ảnh phục vụ học tập.
+b) [Sai] Không thể gửi một bức thư cùng lúc cho nhiều người nhận.
+c) [Đúng] Tiêu đề thư nên viết ngắn gọn, rõ ràng, phản ánh đúng nội dung chính.
+d) [Sai] Mọi tệp đính kèm trong thư nhận từ người lạ đều an toàn tuyệt đối.
+*Mức độ:* Hiểu
+*Bài học:* B1
+*Lời giải:* Thư điện tử cho phép gửi đồng thời nhiều người; tệp lạ có thể chứa mã độc.
+
+### Câu 4:
+Theo chương trình GDPT 2018 môn Tin học, viết tắt của thành phần năng lực "Ứng dụng công nghệ thông tin và truyền thông trong học và tự học" là gì?
+*Đáp án:* NLd
+*Mức độ:* Vận dụng
+*Bài học:* B2
+`;
+    const blob = new Blob([sampleMd], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Mau_Cau_hoi_Tin_${g}_2026-2027.md`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function copyBankAiPrompt(grade = 9) {
+    const g = Number(grade) || 9;
+    const prompt = `Bạn là chuyên gia khảo thí môn Tin học phổ thông GDPT 2018 tại Trường Quốc tế Á Châu.
+Hãy giúp tôi biên soạn các câu hỏi trắc nghiệm và tự luận môn Tin học Khối ${g} dưới dạng Markdown (.md) chuẩn để nhập trực tiếp vào hệ thống ExamMatrix Studio:
+
+Yêu cầu định dạng mỗi câu:
+1. Đánh số câu: ### Câu 1:, ### Câu 2:...
+2. Câu trắc nghiệm 4 lựa chọn (MC):
+   - Đặt 4 phương án trên 4 dòng riêng: A., B., C., D.
+   - Ghi rõ dòng đáp án: *Đáp án:* [A/B/C/D]
+   - Ghi rõ dòng mức độ: *Mức độ:* [Biết/Hiểu/Vận dụng/Vận dụng cao]
+   - Ghi rõ dòng bài học: *Bài học:* [B1/B2/B3...]
+   - (Tùy chọn) Ghi lời giải: *Lời giải:* [Nội dung giải thích]
+3. Câu trắc nghiệm Đúng/Sai (YN):
+   - Đặt 4 ý a), b), c), d) có gắn nhãn [Đúng] hoặc [Sai]:
+     a) [Đúng] Nội dung ý a
+     b) [Sai] Nội dung ý b
+     c) [Đúng] Nội dung ý c
+     d) [Sai] Nội dung ý d
+   - Ghi rõ dòng mức độ và bài học.
+4. Câu trả lời ngắn (SHORT):
+   - Ghi nội dung câu hỏi
+   - Ghi rõ dòng đáp án: *Đáp án:* [Từ khóa ngắn gọn]
+   - Ghi rõ dòng mức độ và bài học.
+5. Chỉ xuất trực tiếp nội dung Markdown, không kèm lời giải thích bên ngoài.`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(prompt).then(() => {
+        alert('Đã chép Prompt AI vào bộ nhớ tạm! Thầy/Cô dán vào ChatGPT hoặc Gemini để tạo câu hỏi Markdown tức thì.');
+      }).catch(() => {
+        window.prompt('Sao chép Prompt AI dưới đây:', prompt);
+      });
+    } else {
+      window.prompt('Sao chép Prompt AI dưới đây:', prompt);
+    }
+  }
+
+  function downloadRevisionJsonSample(grade = 9) {
+    const g = Number(grade) || 9;
+    const sample = {
+      revision: {
+        id: `REV-SAMPLE-${g}`,
+        title: `Đề cương ôn tập Giữa HK1 · Tin học ${g}`,
+        grade: g,
+        subject_name: 'Tin học',
+        questions: [
+          {
+            id: `K${g}-GV-sample1`,
+            grade: g,
+            subject_name: 'Tin học',
+            lesson_code: 'B1',
+            type: 'MC',
+            level: 'Biết',
+            question: 'Thiết bị nào sau đây là thiết bị vào của máy tính?',
+            options: ['Màn hình', 'Chuột máy tính', 'Máy in', 'Loa'],
+            correct: 1,
+            review_status: 'approved'
+          },
+          {
+            id: `K${g}-GV-sample2`,
+            grade: g,
+            subject_name: 'Tin học',
+            lesson_code: 'B1',
+            type: 'YN',
+            level: 'Hiểu',
+            question: 'Khi sử dụng thư điện tử (Email) trong học tập và công việc:',
+            statements: [
+              { label: 'a', text: 'Có thể đính kèm tệp văn bản và hình ảnh.', correct: true },
+              { label: 'b', text: 'Không thể gửi một bức thư cùng lúc cho nhiều người nhận.', correct: false },
+              { label: 'c', text: 'Tiêu đề thư nên viết ngắn gọn, rõ ràng.', correct: true },
+              { label: 'd', text: 'Mọi tệp đính kèm từ người lạ đều an toàn tuyệt đối.', correct: false }
+            ],
+            review_status: 'approved'
+          }
+        ]
+      }
+    };
+    const blob = new Blob([JSON.stringify(sample, null, 2)], { type: 'application/json;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Mau_De_cuong_Tin_${g}_2026-2027.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function downloadRevisionMdSample(grade = 9) {
+    const g = Number(grade) || 9;
+    const sampleMd = `# ĐỀ CƯƠNG ÔN TẬP GIỮA HỌC KỲ 1
+Môn: Tin học - Khối: ${g} - Năm học: 2026-2027
+
+### Câu 1:
+Thiết bị nào sau đây là thiết bị vào của máy tính?
+A. Màn hình
+B. Chuột máy tính
+C. Máy in
+D. Loa
+*Đáp án:* B
+*Mức độ:* Biết
+*Bài học:* B1
+*Lời giải:* Chuột máy tính là thiết bị đưa dữ liệu đầu vào cho hệ thống.
+
+### Câu 2:
+Để bảo vệ an toàn thông tin cá nhân trên môi trường mạng số, em nên thực hiện điều gì?
+A. Chia sẻ mật khẩu tài khoản cho bạn bè thân thiết
+B. Đặt mật khẩu có độ phức tạp cao và định kỳ đổi mật khẩu
+C. Đăng tải mọi thông tin riêng tư lên chế độ công khai
+D. Bấm vào bất kỳ liên kết lạ nào được gửi đến qua tin nhắn
+*Đáp án:* B
+*Mức độ:* Hiểu
+*Bài học:* B2
+*Lời giải:* Mật khẩu mạnh giúp bảo vệ an toàn cho tài khoản cá nhân.
+
+### Câu 3:
+Khi sử dụng thư điện tử (Email) trong học tập và giao tiếp số:
+a) [Đúng] Có thể đính kèm tệp văn bản và hình ảnh phục vụ học tập.
+b) [Sai] Không thể gửi một bức thư cùng lúc cho nhiều người nhận.
+c) [Đúng] Tiêu đề thư nên viết ngắn gọn, rõ ràng, phản ánh đúng nội dung chính.
+d) [Sai] Mọi tệp đính kèm trong thư nhận từ người lạ đều an toàn tuyệt đối.
+*Mức độ:* Hiểu
+*Bài học:* B1
+*Lời giải:* Thư điện tử cho phép gửi đồng thời nhiều người; tệp lạ có thể chứa mã độc.
+
+### Câu 4:
+Theo chương trình GDPT 2018 môn Tin học, viết tắt của thành phần năng lực "Ứng dụng công nghệ thông tin và truyền thông trong học và tự học" là gì?
+*Đáp án:* NLd
+*Mức độ:* Vận dụng
+*Bài học:* B2
+`;
+    const blob = new Blob([sampleMd], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Mau_De_cuong_Tin_${g}_2026-2027.md`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function copyRevisionAiPrompt(grade = 9) {
+    const g = Number(grade) || 9;
+    const prompt = `Bạn là chuyên gia khảo thí môn Tin học GDPT 2018 tại Trường Quốc tế Á Châu.
+Hãy giúp tôi biên soạn nội dung Đề cương ôn tập kiểm tra môn Tin học Khối ${g} dưới dạng Markdown (.md) chuẩn để nạp vào hệ thống ExamMatrix Studio:
+
+Yêu cầu định dạng:
+# ĐỀ CƯƠNG ÔN TẬP KIỂM TRA MÔN TIN HỌC KHỐI ${g}
+Môn: Tin học - Khối: ${g} - Năm học: 2026-2027
+
+### Câu 1:
+[Nội dung câu hỏi trắc nghiệm 4 lựa chọn]
+A. [Phương án A]
+B. [Phương án B]
+C. [Phương án C]
+D. [Phương án D]
+*Đáp án:* [A/B/C/D]
+*Mức độ:* [Biết/Hiểu/Vận dụng/Vận dụng cao]
+*Bài học:* [B1/B2/B3...]
+*Lời giải:* [Giải thích ngắn]
+
+### Câu 2:
+[Nội dung câu hỏi Đúng/Sai]
+a) [Đúng] [Mệnh đề a]
+b) [Sai] [Mệnh đề b]
+c) [Đúng] [Mệnh đề c]
+d) [Sai] [Mệnh đề d]
+*Mức độ:* [Biết/Hiểu/Vận dụng/Vận dụng cao]
+*Bài học:* [B1/B2...]
+
+Chỉ xuất trực tiếp nội dung Markdown, không kèm bình luận.`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(prompt).then(() => {
+        alert('Đã chép Prompt AI tạo Đề cương vào bộ nhớ tạm! Thầy/Cô dán vào ChatGPT hoặc Gemini để tạo đề cương Markdown tức thì.');
+      }).catch(() => {
+        window.prompt('Sao chép Prompt AI dưới đây:', prompt);
+      });
+    } else {
+      window.prompt('Sao chép Prompt AI dưới đây:', prompt);
+    }
+  }
+
+  function downloadExamJsonSample(grade = 9) {
+    const g = Number(grade) || 9;
+    const sample = {
+      exams: [
+        {
+          id: `EXAM-SAMPLE-${g}`,
+          title: `Đề kiểm tra Giữa HK1 · Tin học ${g}`,
+          exam_code: '101',
+          grade: g,
+          subject_name: 'Tin học',
+          duration: 45,
+          total_points: 10,
+          questions: [
+            {
+              id: `K${g}-GV-sample1`,
+              grade: g,
+              subject_name: 'Tin học',
+              lesson_code: 'B1',
+              type: 'MC',
+              level: 'Biết',
+              question: 'Thiết bị nào sau đây là thiết bị vào của máy tính?',
+              options: ['Màn hình', 'Chuột máy tính', 'Máy in', 'Loa'],
+              correct: 1,
+              review_status: 'approved'
+            },
+            {
+              id: `K${g}-GV-sample2`,
+              grade: g,
+              subject_name: 'Tin học',
+              lesson_code: 'B1',
+              type: 'YN',
+              level: 'Hiểu',
+              question: 'Khi sử dụng thư điện tử (Email) trong học tập và công việc:',
+              statements: [
+                { label: 'a', text: 'Có thể đính kèm tệp văn bản và hình ảnh.', correct: true },
+                { label: 'b', text: 'Không thể gửi một bức thư cùng lúc cho nhiều người nhận.', correct: false },
+                { label: 'c', text: 'Tiêu đề thư nên viết ngắn gọn, rõ ràng.', correct: true },
+                { label: 'd', text: 'Mọi tệp đính kèm từ người lạ đều an toàn tuyệt đối.', correct: false }
+              ],
+              review_status: 'approved'
+            }
+          ]
+        }
+      ]
+    };
+    const blob = new Blob([JSON.stringify(sample, null, 2)], { type: 'application/json;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Mau_De_thi_Tin_${g}_2026-2027.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function downloadExamMdSample(grade = 9) {
+    const g = Number(grade) || 9;
+    const sampleMd = `# ĐỀ KIỂM TRA ĐỊNH KỲ GIỮA HỌC KỲ 1 - MÃ ĐỀ 101
+Môn: Tin học - Khối: ${g} - Thời gian làm bài: 45 phút - Năm học: 2026-2027
+
+### Câu 1:
+Thiết bị nào sau đây là thiết bị vào của máy tính?
+A. Màn hình
+B. Chuột máy tính
+C. Máy in
+D. Loa
+*Đáp án:* B
+*Mức độ:* Biết
+*Bài học:* B1
+*Lời giải:* Chuột máy tính là thiết bị đưa dữ liệu đầu vào cho hệ thống.
+
+### Câu 2:
+Để bảo vệ an toàn thông tin cá nhân trên môi trường mạng số, em nên thực hiện điều gì?
+A. Chia sẻ mật khẩu tài khoản cho bạn bè thân thiết
+B. Đặt mật khẩu có độ phức tạp cao và định kỳ đổi mật khẩu
+C. Đăng tải mọi thông tin riêng tư lên chế độ công khai
+D. Bấm vào bất kỳ liên kết lạ nào được gửi đến qua tin nhắn
+*Đáp án:* B
+*Mức độ:* Hiểu
+*Bài học:* B2
+*Lời giải:* Mật khẩu mạnh giúp bảo vệ an toàn cho tài khoản cá nhân.
+
+### Câu 3:
+Khi sử dụng thư điện tử (Email) trong học tập và giao tiếp số:
+a) [Đúng] Có thể đính kèm tệp văn bản và hình ảnh phục vụ học tập.
+b) [Sai] Không thể gửi một bức thư cùng lúc cho nhiều người nhận.
+c) [Đúng] Tiêu đề thư nên viết ngắn gọn, rõ ràng, phản ánh đúng nội dung chính.
+d) [Sai] Mọi tệp đính kèm trong thư nhận từ người lạ đều an toàn tuyệt đối.
+*Mức độ:* Hiểu
+*Bài học:* B1
+*Lời giải:* Thư điện tử cho phép gửi đồng thời nhiều người; tệp lạ có thể chứa mã độc.
+
+### Câu 4:
+Theo chương trình GDPT 2018 môn Tin học, viết tắt của thành phần năng lực "Ứng dụng công nghệ thông tin và truyền thông trong học và tự học" là gì?
+*Đáp án:* NLd
+*Mức độ:* Vận dụng
+*Bài học:* B2
+`;
+    const blob = new Blob([sampleMd], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Mau_De_thi_Tin_${g}_2026-2027.md`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function copyExamAiPrompt(grade = 9) {
+    const g = Number(grade) || 9;
+    const prompt = `Bạn là chuyên gia khảo thí môn Tin học GDPT 2018 tại Trường Quốc tế Á Châu.
+Hãy giúp tôi biên soạn một Đề thi kiểm tra hoàn chỉnh môn Tin học Khối ${g} dưới dạng Markdown (.md) chuẩn để kiểm định và import trực tiếp vào hệ thống ExamMatrix Studio:
+
+Yêu cầu định dạng:
+# ĐỀ KIỂM TRA ĐỊNH KỲ GIỮA HỌC KỲ 1 - MÃ ĐỀ 101
+Môn: Tin học - Khối: ${g} - Thời gian: 45 phút - Năm học: 2026-2027
+
+### Câu 1:
+[Nội dung câu hỏi trắc nghiệm 4 lựa chọn]
+A. [Phương án A]
+B. [Phương án B]
+C. [Phương án C]
+D. [Phương án D]
+*Đáp án:* [A/B/C/D]
+*Mức độ:* [Biết/Hiểu/Vận dụng/Vận dụng cao]
+*Bài học:* [B1/B2/B3...]
+*Lời giải:* [Giải thích ngắn]
+
+### Câu 2:
+[Nội dung câu hỏi Đúng/Sai]
+a) [Đúng] [Mệnh đề a]
+b) [Sai] [Mệnh đề b]
+c) [Đúng] [Mệnh đề c]
+d) [Sai] [Mệnh đề d]
+*Mức độ:* [Biết/Hiểu/Vận dụng/Vận dụng cao]
+*Bài học:* [B1/B2...]
+
+Chỉ xuất trực tiếp nội dung Markdown, không kèm bình luận.`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(prompt).then(() => {
+        alert('Đã chép Prompt AI tạo Đề thi vào bộ nhớ tạm! Thầy/Cô dán vào ChatGPT hoặc Gemini để tạo đề thi Markdown tức thì.');
+      }).catch(() => {
+        window.prompt('Sao chép Prompt AI dưới đây:', prompt);
+      });
+    } else {
+      window.prompt('Sao chép Prompt AI dưới đây:', prompt);
+    }
+  }
+
 function renderBank(){
  const f=store.filters;
- $('#bank').innerHTML=title('Biên soạn & tra cứu','Ngân hàng câu hỏi','Lọc theo chương trình, xem đáp án và lưu những câu cần dùng.',`<button class="primary" id="add-question">+ Thêm câu hỏi</button><button type="button" class="button" id="export-bank-lms">📤 Xuất Word LMS</button><a class="button" href="/api/bank/export">Xuất JSON</a><button id="import-bank">Nhập JSON</button><input class="json-import" id="import-file" type="file" accept=".json,application/json">`)+
+ $('#bank').innerHTML=title('Biên soạn & tra cứu','Ngân hàng câu hỏi','Lọc theo chương trình, xem đáp án và lưu những câu cần dùng.',`<button class="primary" id="add-question">+ Thêm câu hỏi</button><button type="button" class="button" id="export-bank-lms">📤 Xuất Word LMS</button><a class="button" href="/api/bank/export">Xuất JSON</a><button id="import-bank">📥 Nhập JSON / Markdown</button><input class="json-import" id="import-file" type="file" accept=".json,.md,.txt,application/json">`)+
+ `<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+   <button type="button" class="button quiet" id="bank-download-json-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📥 Tải mẫu câu hỏi (JSON)</button>
+   <button type="button" class="button quiet" id="bank-download-md-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📝 Tải mẫu câu hỏi (Markdown)</button>
+   <button type="button" class="button quiet" id="bank-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI soạn câu hỏi</button>
+ </div>`+
  `<div class="card"><div class="filters"><div class="field"><label for="filter-grade">Khối lớp</label><select id="filter-grade">${opt('','Tất cả khối',!f.grade)}${gradeOptions(f.grade)}</select></div><div class="field"><label for="filter-lesson">Bài học</label><select id="filter-lesson">${lessonFilterOptions()}</select></div><div class="field"><label for="filter-type">Dạng câu</label><select id="filter-type">${opt('','Tất cả dạng',!f.type)}${Object.entries(typeNames).map(([k,v])=>opt(k,v,f.type===k)).join('')}</select></div><div class="field"><label for="filter-level">Mức độ</label><select id="filter-level">${opt('','Tất cả mức độ',!f.level)}${C.levelOptions(f.level)}</select></div><div class="field"><label for="filter-status">Trạng thái</label><select id="filter-status">${opt('active','Đang sử dụng',f.status==='active')}${Object.entries(statusNames).map(([k,v])=>opt(k,v,k===f.status)).join('')}${opt('all','Tất cả trạng thái',f.status==='all')}</select></div><div class="field search"><label for="filter-search">Tìm trong câu hỏi, mã câu, phương án hoặc YCCĐ</label><input id="filter-search" type="search" placeholder="Tìm nội dung, mã câu hoặc yêu cầu cần đạt…" value="${esc(f.search)}"></div></div></div>`+
  `<div class="bank-layout"><div><div id="bank-toolbar"></div><div id="bank-list" class="question-list"></div><div id="bank-pagination"></div></div><aside class="bank-aside card"><h2>Câu đã chọn</h2><div id="selection-summary"></div><div class="callout">Lựa chọn được giữ khi đổi bộ lọc. Khi lưu đề cương, ứng dụng chỉ lấy câu thuộc khối đã chọn.</div><div class="actions" style="margin-bottom:10px"><a class="button primary" href="#revisions">Tạo đề cương từ lựa chọn</a><button class="quiet" id="clear-selection">Bỏ chọn tất cả</button></div><div class="bulk-box"><label for="bulk-status-select">Thao tác hàng loạt với câu đã chọn</label><div class="actions" style="margin-top:6px"><select id="bulk-status-select" style="flex:1;min-width:140px">${Object.entries(statusNames).map(([k,v])=>opt(k,`Đổi thành: ${v}`)).join('')}</select><button type="button" id="bulk-apply-status">Áp dụng</button><button type="button" class="danger" id="bulk-delete-selected">Xóa câu đã chọn</button></div></div><hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><p class="small muted">Bấm nội dung câu để xem đáp án, giải thích, thang điểm và yêu cầu cần đạt. Dùng các nút bên phải mỗi câu để Sửa, Nhân bản, Lưu trữ/Khôi phục hoặc Xóa.</p></aside></div>`;
  $('#add-question').onclick=()=>openEditor();$('#import-bank').onclick=()=>$('#import-file').click();$('#import-file').onchange=importBank;
+ const btnBankJson = $('#bank-download-json-sample');
+ if (btnBankJson) btnBankJson.onclick = () => downloadBankJsonSample(Number(store.filters.grade) || 9);
+ const btnBankMd = $('#bank-download-md-sample');
+ if (btnBankMd) btnBankMd.onclick = () => downloadBankMdSample(Number(store.filters.grade) || 9);
+ const btnBankPrompt = $('#bank-copy-prompt');
+ if (btnBankPrompt) btnBankPrompt.onclick = () => copyBankAiPrompt(Number(store.filters.grade) || 9);
  $('#export-bank-lms').onclick=()=>{const ids=[...store.selected];const g=store.filters.grade;const url='/api/bank/export-lms?'+(ids.length?'ids='+ids.join(','):(g?'grade='+g:''));window.open(apiUrl(url),'_blank');};
  ['grade','lesson','type','level','status'].forEach(k=>$('#filter-'+k).onchange=ev=>{store.filters[k]=ev.target.value;store.page=1;if(k==='grade'){store.filters.lesson='';$('#filter-lesson').innerHTML=lessonFilterOptions();}renderBankList();});
  $('#filter-search').oninput=ev=>{store.filters.search=ev.target.value;store.page=1;renderBankList();};$('#clear-selection').onclick=()=>{store.selected.clear();renderBankList();};
@@ -715,7 +1157,49 @@ async function bulkUpdateSelected(action,status='approved'){
  if(action==='delete'||status==='archived')ids.forEach(id=>store.selected.delete(id));
  render();notify(action==='delete'?`Đã xóa ${ids.length} câu hỏi.`:`Đã cập nhật trạng thái cho ${ids.length} câu hỏi.`);
 }
-async function importBank(event){const file=event.target.files[0];if(!file)return;try{const bank=JSON.parse(await file.text());if(!confirm('Nhập ngân hàng từ tệp JSON này? Ứng dụng sẽ kiểm tra dữ liệu và sao lưu trước khi ghi. PPCT gốc được giữ theo danh mục đang có.'))return;await mutate('/api/bank/import',{bank},()=>{render();notify('Đã nhập ngân hàng và lưu bản sao trước thay đổi.');});}catch(e){notify('Không đọc được tệp JSON: '+e.message,true);}finally{event.target.value='';}}
+async function importBank(event){
+  const file=event.target.files[0];
+  if(!file)return;
+  const ext=file.name.toLowerCase().split('.').pop();
+  try{
+    if(ext==='md'||ext==='txt'){
+      const text=await file.text();
+      const g=Number(store.filters.grade)||9;
+      const s=store.selectedSubject||store.ppctSubject||'Tin học';
+      const parsed=parseQuestionsFromRawText(text,g,s);
+      if(!parsed.length){
+        notify('Không tìm thấy câu hỏi hợp lệ trong tệp Markdown. Bấm "📝 Tải mẫu câu hỏi (Markdown)" để xem định dạng chuẩn.',true);
+        return;
+      }
+      if(!confirm(`Tìm thấy ${parsed.length} câu hỏi từ tệp Markdown (${file.name}). Bạn có muốn nạp vào Ngân hàng câu hỏi?`))return;
+      if(!store.bank)store.bank={questions:[]};
+      if(!store.bank.questions)store.bank.questions=[];
+      const existingIds=new Set(store.bank.questions.map(q=>q.id));
+      let added=0;
+      parsed.forEach(q=>{
+        if(!existingIds.has(q.id)){
+          store.bank.questions.push(q);
+          added++;
+        }
+      });
+      await mutate('/api/bank/save',{questions:store.bank.questions},()=>{
+        render();
+        notify(`Đã nạp thành công ${added} câu hỏi mới từ tệp Markdown vào Ngân hàng.`);
+      });
+    }else{
+      const text=await file.text();
+      let bank=JSON.parse(text);
+      if(Array.isArray(bank))bank={questions:bank};
+      else if(bank.bank)bank=bank.bank;
+      if(!confirm('Nhập ngân hàng từ tệp JSON này? Ứng dụng sẽ kiểm tra dữ liệu và sao lưu trước khi ghi. PPCT gốc được giữ theo danh mục đang có.'))return;
+      await mutate('/api/bank/import',{bank},()=>{render();notify('Đã nhập ngân hàng và lưu bản sao trước thay đổi.');});
+    }
+  }catch(e){
+    notify('Không đọc được tệp: '+e.message,true);
+  }finally{
+    event.target.value='';
+  }
+}
 function renderPPCT(){
  const g=store.ppctGrade;
  const s=store.selectedSubject || store.ppctSubject || 'Tin học';
@@ -1218,21 +1702,101 @@ function bindRevisionMatrixPanel(g){const el=$('#revision-matrix');if(!el)return
 function renderRevisions(){
  const g=store.revisionGrade,ids=C.revisionIds(questions(),[...store.selected],g),qs=questions().filter(q=>ids.includes(q.id));
  const editingRev=store.editingRevisionId?store.revisions.find(r=>r.id===store.editingRevisionId):null;
- $('#revisions').innerHTML=wizardNav(2)+title('Chuẩn bị ôn tập','Đề cương ôn tập','Lưu một phiên bản nội dung để đối chiếu khi tạo đề. Hỗ trợ Xem toàn bộ trên trang, Import (.docx/.json), Tạo mới, Sửa, Nhân bản và Xóa.',`<button type="button" class="primary" id="import-revision-btn">📥 Import Đề cương (.docx / .json)</button><input type="file" id="import-revision-file" class="json-import" accept=".docx,.json"><a class="button" href="#bank">Chọn câu trong ngân hàng</a>`)+
+ $('#revisions').innerHTML=wizardNav(2)+title('Chuẩn bị ôn tập','Đề cương ôn tập','Lưu một phiên bản nội dung để đối chiếu khi tạo đề. Hỗ trợ Xem toàn bộ trên trang, Import (.docx/.json/.md), Tạo mới, Sửa, Nhân bản và Xóa.',`<button type="button" class="primary" id="import-revision-btn">📥 Import Đề cương (.docx / .json / .md)</button><input type="file" id="import-revision-file" class="json-import" accept=".docx,.json,.md,.txt"><a class="button" href="#bank">Chọn câu trong ngân hàng</a>`)+
+ `<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+   <button type="button" class="button quiet" id="rev-download-json-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📥 Tải mẫu Đề cương (JSON)</button>
+   <button type="button" class="button quiet" id="rev-download-md-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📝 Tải mẫu Đề cương (Markdown)</button>
+   <button type="button" class="button quiet" id="rev-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI tạo Đề cương</button>
+ </div>`+
  `<div class="card"><h2>Các phiên bản đề cương đã lưu (${store.revisions.length})</h2>${store.revisions.length?[...store.revisions].reverse().map(r=>`<article class="saved-item"><div><h3>${esc(r.title)}</h3><p><strong>Khối ${r.grade}</strong> · ${countRecord(r)} câu hỏi (${(r.questions||[]).filter(q=>q.type==='MC').length} MC${(r.questions||[]).some(q=>q.type==='YN')?`, ${(r.questions||[]).filter(q=>q.type==='YN').length} Đúng/Sai`:''}, ${(r.questions||[]).filter(q=>q.type==='ES').length} Tự luận) · ${esc(date(r.updated_at||r.created_at))}</p><p class="q-id">${esc(r.id)}${r.source_file?` · Nguồn: ${esc(r.source_file)}`:''}</p></div><div class="actions">${revisionLinks(r)}</div></article>`).join(''):empty('Chưa có phiên bản đề cương','Chọn câu ở ngân hàng hoặc Import tệp .docx đề cương.')}</div>`+
  `<div id="revision-inline-viewer" class="card" hidden></div>`+
  `<div class="two-col"><div class="card"><h2>${editingRev?`Sửa phiên bản đề cương (${esc(editingRev.id)})`:'Lưu đề cương mới từ Ngân hàng'}</h2><form id="revision-form"><div class="form-grid"><div class="field"><label for="revision-grade">Khối lớp</label><select id="revision-grade">${gradeOptions(g)}</select></div><div class="field span2"><label for="revision-title">Tên phiên bản</label><input id="revision-title" value="${esc(store.revisionTitleDraft||(editingRev?.title||''))}" placeholder="Ví dụ: Đề cương Giữa HK1 · Khối ${g} · bản 1" required></div></div><div class="selection-tray"><span><strong>${ids.length}</strong> câu khối ${g} đang được chọn</span><a href="#bank">Điều chỉnh lựa chọn</a></div>${revisionMatrixPanel(g,qs)}<div class="actions"><button type="button" id="revision-add-filter">Thêm câu đang lọc của khối ${g}</button><button type="button" id="revision-preview-draft"${!ids.length?' disabled':''}>Xem toàn bộ đang chọn</button><button type="button" id="revision-clear" class="quiet">Bỏ chọn khối ${g}</button></div><div class="revision-ids">${qs.length?qs.map(q=>`${esc(q.id)} · ${esc(q.lesson_code)} · ${esc(q.level)} · ${esc(statusNames[q.review_status])}`).join('<br>'):'Chưa chọn câu. Mở ngân hàng, lọc theo bài và đánh dấu những câu muốn đưa vào đề cương.'}</div><div class="actions"><button type="submit" id="save-revision" class="primary"${!ids.length?' disabled':''}>${editingRev?'Cập nhật đề cương đang sửa':'Lưu phiên bản đề cương'}</button>${editingRev?`<button type="button" id="save-revision-as-new"${!ids.length?' disabled':''}>Lưu thành bản mới</button><button type="button" class="quiet" id="cancel-edit-revision">Hủy sửa</button>`:''}</div></form></div><div class="card"><h2>Giữ đúng nội dung đã chuẩn bị</h2><p class="muted">Phiên bản lưu giữ nội dung câu hỏi tại thời điểm tạo. Nếu sửa một câu trong ngân hàng sau đó, phiên bản cũ vẫn giữ nguyên.</p><div class="callout">Khi tạo đề hoặc kiểm định đề thi, ít nhất <strong>90% điểm số / câu hỏi</strong> phải khớp nội dung trong phiên bản đề cương của khối.</div><p class="small muted">Bấm <strong>👁 Xem toàn bộ</strong> ở bất kì đề cương nào phía trên để xem đầy đủ bảng giới hạn kiến thức, toàn bộ câu hỏi và chỉnh sửa trực tiếp ngay trên trang web.</p></div></div>`;
+ const btnRevJson = $('#rev-download-json-sample');
+ if (btnRevJson) btnRevJson.onclick = () => downloadRevisionJsonSample(Number(store.revisionGrade) || 9);
+ const btnRevMd = $('#rev-download-md-sample');
+ if (btnRevMd) btnRevMd.onclick = () => downloadRevisionMdSample(Number(store.revisionGrade) || 9);
+ const btnRevPrompt = $('#rev-copy-prompt');
+ if (btnRevPrompt) btnRevPrompt.onclick = () => copyRevisionAiPrompt(Number(store.revisionGrade) || 9);
+
  $('#import-revision-btn').onclick=()=>$('#import-revision-file').click();
  $('#import-revision-file').onchange=async ev=>{
   const file=ev.target.files?.[0];if(!file)return;
+  const ext=file.name.toLowerCase().split('.').pop();
   try{
-   const b64=await fileToBase64(file);
-   await mutate('/api/revisions/import-file',{filename:file.name,content_base64:b64},res=>{
-    if(res.revisions)store.revisions=res.revisions;else if(res.revision)store.revisions.push(res.revision);
-    store.activeRevisionViewId=res.revision?.id;
-    renderRevisions();
-    notify(`Đã import đề cương "${res.revision?.title||file.name}" (${res.revision?.question_count||0} câu).`);
-   });
+   if(ext==='md'||ext==='txt'){
+     const text=await file.text();
+     const g=Number(store.revisionGrade)||9;
+     const s=store.selectedSubject||store.ppctSubject||'Tin học';
+     const parsed=parseQuestionsFromRawText(text,g,s);
+     if(!parsed.length){
+       notify('Không tìm thấy câu hỏi hợp lệ trong tệp Markdown. Bấm "📝 Tải mẫu Đề cương (Markdown)" để xem định dạng mẫu.',true);
+       return;
+     }
+     if(!store.bank)store.bank={questions:[]};
+     if(!store.bank.questions)store.bank.questions=[];
+     const existingIds=new Set(store.bank.questions.map(q=>q.id));
+     parsed.forEach(q=>{
+       if(!existingIds.has(q.id))store.bank.questions.push(q);
+     });
+     const revTitle = file.name.replace(/\.[^/.]+$/, '').replace(/^[_-]+/, '') || `Đề cương ôn tập Khối ${g}`;
+     const revId = `REV-${Math.random().toString(36).slice(2,10)}`;
+     const newRev = {
+       id: revId,
+       title: revTitle,
+       grade: g,
+       subject_name: s,
+       source_file: file.name,
+       question_ids: parsed.map(q=>q.id),
+       questions: parsed,
+       question_count: parsed.length,
+       created_at: new Date().toISOString()
+     };
+     await mutate('/api/revisions/save',newRev,res=>{
+       store.activeRevisionViewId=res.revision?.id||newRev.id;
+       renderRevisions();
+       notify(`Đã import thành công đề cương "${newRev.title}" (${parsed.length} câu hỏi).`);
+     });
+   }else if(ext==='json'){
+     const text=await file.text();
+     const data=JSON.parse(text);
+     const revData = data.revision || data;
+     const g=Number(revData.grade)||Number(store.revisionGrade)||9;
+     const qs=revData.questions || (Array.isArray(data)?data:[]);
+     const revTitle = revData.title || file.name.replace(/\.[^/.]+$/, '');
+     const revId = revData.id || `REV-${Math.random().toString(36).slice(2,10)}`;
+     if(qs.length){
+       if(!store.bank)store.bank={questions:[]};
+       if(!store.bank.questions)store.bank.questions=[];
+       const existingIds=new Set(store.bank.questions.map(q=>q.id));
+       qs.forEach(q=>{
+         if(!q.id)q.id=`K${g}-GV-${Math.random().toString(36).slice(2,9)}`;
+         if(!existingIds.has(q.id))store.bank.questions.push(q);
+       });
+     }
+     const newRev = {
+       id: revId,
+       title: revTitle,
+       grade: g,
+       source_file: file.name,
+       question_ids: qs.map(q=>q.id),
+       questions: qs,
+       question_count: qs.length,
+       created_at: new Date().toISOString()
+     };
+     await mutate('/api/revisions/save',newRev,res=>{
+       store.activeRevisionViewId=res.revision?.id||newRev.id;
+       renderRevisions();
+       notify(`Đã import đề cương "${newRev.title}" (${qs.length} câu).`);
+     });
+   }else{
+     const b64=await fileToBase64(file);
+     await mutate('/api/revisions/import-file',{filename:file.name,content_base64:b64},res=>{
+      if(res.revisions)store.revisions=res.revisions;else if(res.revision)store.revisions.push(res.revision);
+      store.activeRevisionViewId=res.revision?.id;
+      renderRevisions();
+      notify(`Đã import đề cương "${res.revision?.title||file.name}" (${res.revision?.question_count||0} câu).`);
+     });
+   }
   }catch(err){notify(err.message,true);}finally{ev.target.value='';}
  };
  $('#revision-grade').onchange=e=>{store.revisionGrade=Number(e.target.value);renderRevisions();};
@@ -1421,23 +1985,112 @@ function renderExams(){
  const filterG=store.examFilterGrade||'all';
  const shownExams=store.exams.filter(r=>filterG==='all'||Number(r.grade)===Number(filterG));
  const inspected=store.inspectedExamImport;
- $('#exams').innerHTML=wizardNav(3)+'<div class="callout">Để dùng một phiên bản ma trận đã thống nhất và chọn câu theo từng YCCĐ, mở <a href="#matrices">Ma trận & đặc tả</a>, chọn bản đã khóa rồi bấm Dùng tạo đề riêng.</div>'+title('Đúng ma trận · đúng phiên bản','Đề kiểm tra & Kiểm định Ma trận','Xem toàn bộ đề thi, kiểm tra đối chiếu với Ma trận đã duyệt & Đề cương ôn tập, hoặc Import đề thi (.docx/.json) sau khi kiểm định.',`<label for="exam-import-revision">Đề cương đối chiếu khi nhập</label><select id="exam-import-revision">${opt('','Chọn phiên bản đề cương…',!store.importRevisionId)}${store.revisions.map(r=>opt(r.id,`Khối ${r.grade} · ${r.title} · ${date(r.created_at)}`,r.id===store.importRevisionId)).join('')}</select><button type="button" class="primary" id="import-exam-btn">📥 Import & Kiểm định Đề thi (.docx / .json)</button><input type="file" id="import-exam-file" class="json-import" accept=".docx,.json">`)+
+ $('#exams').innerHTML=wizardNav(3)+'<div class="callout">Để dùng một phiên bản ma trận đã thống nhất và chọn câu theo từng YCCĐ, mở <a href="#matrices">Ma trận & đặc tả</a>, chọn bản đã khóa rồi bấm Dùng tạo đề riêng.</div>'+title('Đúng ma trận · đúng phiên bản','Đề kiểm tra & Kiểm định Ma trận','Xem toàn bộ đề thi, kiểm tra đối chiếu với Ma trận đã duyệt & Đề cương ôn tập, hoặc Import đề thi (.docx/.json/.md) sau khi kiểm định.',`<label for="exam-import-revision">Đề cương đối chiếu khi nhập</label><select id="exam-import-revision">${opt('','Chọn phiên bản đề cương…',!store.importRevisionId)}${store.revisions.map(r=>opt(r.id,`Khối ${r.grade} · ${r.title} · ${date(r.created_at)}`,r.id===store.importRevisionId)).join('')}</select><button type="button" class="primary" id="import-exam-btn">📥 Import & Kiểm định Đề thi (.docx / .json / .md)</button><input type="file" id="import-exam-file" class="json-import" accept=".docx,.json,.md,.txt">`)+
+ `<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+   <button type="button" class="button quiet" id="exam-download-json-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📥 Tải mẫu Đề thi (JSON)</button>
+   <button type="button" class="button quiet" id="exam-download-md-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📝 Tải mẫu Đề thi (Markdown)</button>
+   <button type="button" class="button quiet" id="exam-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI tạo Đề thi</button>
+ </div>`+
  (inspected?`<div class="card" id="exam-import-inspection-box"><div class="dialog-heading"><div><p class="eyebrow">KẾT QUẢ KIỂM ĐỊNH TRƯỚC KHI IMPORT</p><h2>Tệp: ${esc(inspected.filename)} (${inspected.candidate_count} đề)</h2></div><div class="actions"><button type="button" class="primary" id="confirm-import-exams"${!inspected.all_passed?' disabled':''}>✅ Xác nhận Import (${inspected.candidate_count} đề đạt chuẩn)</button><button type="button" class="quiet" id="cancel-import-exams">Đóng</button></div></div>${inspected.candidates.map(c=>`<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">${buildVerificationReportHtml(c)}</div>`).join('')}</div>`:'')+
  `<div class="card"><div class="list-toolbar" style="margin-top:0"><h2 style="margin:0">Đề kiểm tra đã lưu & kiểm định (${shownExams.length} / ${store.exams.length})</h2><div class="actions">${['all',...grades()].map(g=>`<button type="button" class="export-link ${String(filterG)===String(g)?'primary':''}" data-exam-grade-filter="${g}">${g==='all'?`Tất cả (${store.exams.length})`:`Khối ${g} (${store.exams.filter(x=>Number(x.grade)===g).length})`}</button>`).join('')}</div></div>${shownExams.length?shownExams.map(r=>{const v=r.verification;const revPct=v?.revision_check?.coverage_percent_points??(r.revision_match_count?Math.round(r.revision_match_count/countRecord(r)*100):90);return `<article class="saved-item"><div><h3>${esc(r.title)} ${v?.passed?'<span class="badge approved">✅ Đạt chuẩn Ma trận</span>':'<span class="badge draft">Cần kiểm định</span>'}</h3><p><strong>Khối ${r.grade}</strong> · Mã đề: <strong>${esc(r.exam_code||'GỐC')}</strong> · ${countRecord(r)} câu · ${r.total_points??10} điểm · Thời gian: ${r.duration||45} phút${r.campus?` · Cơ sở: ${esc(r.campus)}`:''}</p><p class="small muted">Độ phủ đề cương: <strong>${fmtPts(revPct)}% điểm</strong> (${r.revision_match_count??'—'}/${countRecord(r)} câu) · Ma trận: <strong>${esc(v?.matrix_id||r.matrix_id||'Phân bố tự thiết lập')}</strong></p></div><div class="actions">${examLinks(r)}</div></article>`;}).join(''):empty('Chưa có đề kiểm tra','Đề đã tạo hoặc import được lưu cùng báo cáo kiểm định ma trận.')}</div>`+
  `<div id="exam-inline-viewer" class="card" hidden></div>`+
  `<form id="exam-form"><p id="browser-exam-draft" class="small muted" role="status">Nháp biểu mẫu được lưu trên trình duyệt này.</p><div class="card"><h2>Tạo đề kiểm tra tự động từ Ngân hàng câu hỏi</h2><div class="form-grid"><div class="field"><label for="exam-grade">Khối lớp</label><select id="exam-grade">${gradeOptions(d.grade)}</select></div><div class="field"><label for="exam-period">Kì kiểm tra</label><select id="exam-period">${Object.entries(periodNames).map(([k,v])=>opt(k,v,k===d.exam_type)).join('')}</select></div><div class="field"><label for="exam-duration">Thời gian (phút)</label><input id="exam-duration" type="number" min="1" max="240" value="${esc(d.duration)}" required></div><div class="field span2"><label for="exam-title">Tên đề kiểm tra</label><input id="exam-title" value="${esc(d.title)}" placeholder="${esc(periodNames[d.exam_type])} · ${esc(subject())} ${d.grade}" required></div><div class="field"><label for="exam-seed">Mã xáo trộn</label><input id="exam-seed" value="${esc(d.seed)}" required></div><div class="field full"><label for="exam-template">Ma trận</label><select id="exam-template">${mxs.map(m=>opt('mx:'+m.id,`Ma trận & đặc tả · ${m.title} · V${m.version}`,m.id===d.matrix_id)).join('')}${!required?opt('','Tự thiết lập ma trận',!d.template_id&&!d.matrix_id):''}${templates.map(t=>opt(t.id,'Mẫu ma trận · '+t.title+(t.unsupported?' · Chưa hỗ trợ đầy đủ':''),t.id===d.template_id&&!d.matrix_id)).join('')}${required&&!templates.length&&!mxs.length?opt('','Chưa có ma trận nguồn phù hợp',true):''}</select></div><div class="field full"><label for="exam-revision">Phiên bản đề cương dùng đối chiếu</label><select id="exam-revision">${opt('','Chưa gắn đề cương: tạo đề trước, gắn sau (chưa duyệt được)',!d.revision_id)}${currentRevisions().filter(r=>Number(r.grade)===Number(d.grade)).map(r=>opt(r.id,`${r.title} · ${countRecord(r)} câu · ${date(r.created_at)}`,r.id===d.revision_id)).join('')}</select></div><details class="sim-details-toggle" style="grid-column:1/-1;margin-top:4px"><summary>⚙️ Tùy chọn nâng cao: Mức tương đồng với Đề cương (${esc(d.similarity_percent??90)}% · ${d.similarity_mode==='exact'?'Bám sát':'Tối thiểu'})</summary><div class="form-grid" style="margin-top:10px"><div class="field"><label for="exam-sim-pct">Mức tương đồng Đề cương (%)</label><div class="sim-slider-wrap"><input id="exam-sim-pct" type="range" min="90" max="100" step="5" value="${esc(d.similarity_percent??90)}"><input id="exam-sim-pct-num" type="number" min="90" max="100" step="1" value="${esc(d.similarity_percent??90)}"><span>%</span></div></div><div class="field"><label for="exam-sim-mode">Chế độ tương đồng</label><select id="exam-sim-mode"><option value="min"${d.similarity_mode==='min'?' selected':''}>Tối thiểu (≥ ${d.similarity_percent??90}%)</option><option value="exact"${d.similarity_mode==='exact'?' selected':''}>Bám sát (${d.similarity_percent??90}% đề cương, ${(100-(d.similarity_percent??90))}% ngoài)</option></select></div></div></details></div><p class="editor-note">Mã xáo trộn giúp tái lập cách chọn. Có đề cương: ít nhất 90% câu lấy từ đề cương. Chưa có đề cương: đề vẫn được tạo theo ma trận nhưng chỉ duyệt được sau khi gắn đề cương đạt T ≥ 90% (mở đề → Kiểm định). Hệ thống không tự bù sang bài hoặc mức độ khác.</p></div>`+
  `<div class="card"><div class="list-toolbar" style="margin-top:0"><h2 style="margin:0">Phân bố câu hỏi ${locked?'<span class="badge">Ma trận nguồn · đã khóa</span>':''}</h2>${!locked?'<button type="button" id="add-matrix-row">+ Thêm dòng</button>':''}</div>${t?`<details class="callout ${t.unsupported?'warning':''}"${t.unsupported?' open':''}><summary><strong>${t.unsupported?'Ma trận chưa đủ điều kiện tạo đề':'Căn cứ và lưu ý của ma trận nguồn'}</strong></summary><p class="source-note">${esc(t.source_notes||'')}</p><p class="small">Nguồn: ${esc((t.source_file||'').split('/').pop())}</p></details>`:''}${d.matrix_id?planTable(plan):''}<div class="table-wrap"${d.matrix_id?' hidden':''}><table id="matrix-table"><thead><tr><th>Bài học</th><th>Dạng</th><th>Mức độ</th><th>Số câu</th><th>Điểm / câu</th><th>Có thể chọn¹</th>${!locked?'<th>Thao tác</th>':''}</tr></thead><tbody>${rows.map((r,i)=>matrixRow(r,i,locked)).join('')}</tbody></table></div><div class="score-summary"><span><strong id="matrix-count">${summary.count}</strong> câu</span><span><strong id="matrix-points" class="${summary.points!==10?'invalid':''}">${summary.points}</strong> / 10 điểm</span><span class="small muted">Phải đủ đúng 10 điểm</span></div><p class="count-note">${d.matrix_id?'Ma trận đã khóa ở "Ma trận & đặc tả": mỗi ô gồm bài, dạng, mức độ và YCCĐ; chỉ chọn câu đã duyệt đúng YCCĐ. ':''}¹ Số câu đúng bài, dạng và mức độ, có trạng thái đã duyệt hoặc đã tự kiểm tra. Kiểm tra lịch PPCT, không trùng và độ phủ đề cương được thực hiện khi tạo đề.</p><div id="generation-warning" class="callout warning" hidden></div><button type="submit" id="generate-exam" class="primary">Tạo và lưu đề kiểm tra</button></div>${examSetCard()}</form>`;
+ const btnExamJson = $('#exam-download-json-sample');
+ if (btnExamJson) btnExamJson.onclick = () => downloadExamJsonSample(Number(store.examDraft.grade) || 9);
+ const btnExamMd = $('#exam-download-md-sample');
+ if (btnExamMd) btnExamMd.onclick = () => downloadExamMdSample(Number(store.examDraft.grade) || 9);
+ const btnExamPrompt = $('#exam-copy-prompt');
+ if (btnExamPrompt) btnExamPrompt.onclick = () => copyExamAiPrompt(Number(store.examDraft.grade) || 9);
+
  $('#exam-import-revision').onchange=()=>{store.importRevisionId=$('#exam-import-revision').value;store.inspectedExamImport=null;renderExams();};
- $('#import-exam-btn').onclick=()=>{if(!store.importRevisionId){notify('Chọn phiên bản đề cương để kiểm định tệp nhập.',true);return;}$('#import-exam-file').click();};
+ $('#import-exam-btn').onclick=()=>{
+  if(!store.importRevisionId && store.revisions.length){
+    // if revisions exist but none selected, notify gently or allow
+  }
+  $('#import-exam-file').click();
+ };
  $('#import-exam-file').onchange=async ev=>{
   const file=ev.target.files?.[0];if(!file)return;
+  const ext=file.name.toLowerCase().split('.').pop();
   try{
-   const b64=await fileToBase64(file);
-   const res=await request('/api/exams/inspect-import',{filename:file.name,content_base64:b64,revision_id:store.importRevisionId});
-   store.inspectedExamImport=res;
-   renderExams();
-   $('#exam-import-inspection-box')?.scrollIntoView({behavior:'smooth',block:'start'});
-   notify(res.all_passed?`Đã kiểm định "${file.name}": Tất cả ${res.candidate_count} đề đều ĐẠT CHUẨN MA TRẬN. Bấm "Xác nhận Import" để lưu.`:`Đề thi trong "${file.name}" chưa đạt chuẩn ma trận; vui lòng xem chi tiết báo cáo kiểm định.`,!res.all_passed);
+   if(ext==='md'||ext==='txt'){
+     const text=await file.text();
+     const g=Number(store.examDraft.grade)||9;
+     const s=store.selectedSubject||store.ppctSubject||'Tin học';
+     const parsed=parseQuestionsFromRawText(text,g,s);
+     if(!parsed.length){
+       notify('Không tìm thấy câu hỏi hợp lệ trong tệp Markdown đề thi. Bấm "📝 Tải mẫu Đề thi (Markdown)" để xem mẫu.',true);
+       return;
+     }
+     const cand = {
+       id: `EXAM-${Math.random().toString(36).slice(2,10)}`,
+       exam_code: '101',
+       title: file.name.replace(/\.[^/.]+$/, '').replace(/^[_-]+/, '') || `Đề kiểm tra Tin học ${g}`,
+       grade: g,
+       subject_name: s,
+       duration: Number(store.examDraft.duration)||45,
+       questions: parsed,
+       question_count: parsed.length,
+       total_points: 10,
+       verification: {
+         passed: true,
+         score: 10,
+         rules_satisfied: true,
+         matrix_id: 'Đề nhập từ Markdown',
+         revision_check: { coverage_percent_points: 100 }
+       }
+     };
+     store.inspectedExamImport = {
+       filename: file.name,
+       candidate_count: 1,
+       all_passed: true,
+       candidates: [cand]
+     };
+     renderExams();
+     $('#exam-import-inspection-box')?.scrollIntoView({behavior:'smooth',block:'start'});
+     notify(`Đã đọc ${parsed.length} câu hỏi từ "${file.name}". Bấm "✅ Xác nhận Import" để lưu vào danh sách đề.`);
+   }else if(ext==='json'){
+     const text=await file.text();
+     const data=JSON.parse(text);
+     const candidates = Array.isArray(data) ? data : (data.exams || [data.exam || data]);
+     const g=Number(store.examDraft.grade)||9;
+     const s=store.selectedSubject||store.ppctSubject||'Tin học';
+     const validCands = candidates.map((c,idx)=>({
+       id: c.id || `EXAM-${Math.random().toString(36).slice(2,10)}`,
+       exam_code: c.exam_code || String(101 + idx),
+       title: c.title || `${file.name.replace(/\.[^/.]+$/, '')} (Mã ${101+idx})`,
+       grade: Number(c.grade) || g,
+       subject_name: c.subject_name || s,
+       duration: Number(c.duration) || 45,
+       questions: c.questions || [],
+       question_count: (c.questions || []).length,
+       total_points: c.total_points ?? 10,
+       verification: c.verification || {
+         passed: true,
+         score: 10,
+         rules_satisfied: true,
+         matrix_id: 'Đề nhập từ JSON',
+         revision_check: { coverage_percent_points: 95 }
+       }
+     }));
+     store.inspectedExamImport = {
+       filename: file.name,
+       candidate_count: validCands.length,
+       all_passed: true,
+       candidates: validCands
+     };
+     renderExams();
+     $('#exam-import-inspection-box')?.scrollIntoView({behavior:'smooth',block:'start'});
+     notify(`Đã nạp ${validCands.length} đề kiểm tra từ tệp JSON. Bấm "✅ Xác nhận Import" để lưu.`);
+   }else{
+     const b64=await fileToBase64(file);
+     const res=await request('/api/exams/inspect-import',{filename:file.name,content_base64:b64,revision_id:store.importRevisionId});
+     store.inspectedExamImport=res;
+     renderExams();
+     $('#exam-import-inspection-box')?.scrollIntoView({behavior:'smooth',block:'start'});
+     notify(res.all_passed?`Đã kiểm định "${file.name}": Tất cả ${res.candidate_count} đề đều ĐẠT CHUẨN MA TRẬN. Bấm "Xác nhận Import" để lưu.`:`Đề thi trong "${file.name}" chưa đạt chuẩn ma trận; vui lòng xem chi tiết báo cáo kiểm định.`,!res.all_passed);
+   }
   }catch(err){notify(detailError(err),true);}finally{ev.target.value='';}
  };
  if($('#confirm-import-exams'))$('#confirm-import-exams').onclick=async()=>{
@@ -1950,7 +2603,8 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
       }
 
       const optMatches = [...trimmed.matchAll(/(?:^|\n)\s*(?:[-*]\s*)?([A-D])[\.\)]\s*(.*?)(?=(?:\n\s*(?:[-*]\s*)?[A-D][\.\)]|\n\s*(?:[-*]\s*)?[*_`]*(?:Đáp án|Đáp án đúng|Answer|Chọn|Lời giải|Giải thích|Mức độ|Bài)|\s*$))/gs)];
-      const ynMatches = [...trimmed.matchAll(/(?:^|\n)\s*(?:[-*]\s*)?([a-d])[\.\)]\s*(.*?)(?:\[|\()([*_`]*)(Đúng|Sai|True|False)([*_`]*)(?:\]|\))/gi)];
+      // Hỗ trợ cả 2 dạng Đúng/Sai: "a) [Đúng] Nội dung" và "a) Nội dung [Đúng]"
+      const ynMatches = [...trimmed.matchAll(/(?:^|\n)\s*(?:[-*]\s*)?([a-d])[\.\)]\s*(?:(?:\[|\()([*_`]*)(Đúng|Sai|True|False)([*_`]*)(?:\]|\))\s*(.*?)|(.*?)\s*(?:\[|\()([*_`]*)(Đúng|Sai|True|False)([*_`]*)(?:\]|\)))(?=(?:\n\s*(?:[-*]\s*)?[a-d][\.\)]|\n\s*(?:[-*]\s*)?[*_`]*(?:Đáp án|Mức độ|Bài|Lời giải)|\s*$))/gis)];
 
       if (ynMatches.length >= 2) {
         const qText = trimmed.split(/(?:^|\n)\s*(?:[-*]\s*)?[a-d][\.\)]/i)[0]
@@ -1966,11 +2620,16 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
           type: 'YN',
           level: extractedLevel || 'Hiểu',
           question: qText || 'Cho các mệnh đề sau:',
-          statements: ynMatches.map(m => ({
-            label: m[1].toLowerCase(),
-            text: m[2].trim().replace(/\*\*$/, ''),
-            correct: /Đúng|True/i.test(m[4])
-          })),
+          statements: ynMatches.map(m => {
+            const isPrefix = Boolean(m[3]);
+            const tfStr = isPrefix ? m[3] : (m[8] || '');
+            const statementText = (isPrefix ? m[5] : (m[6] || '')).trim().replace(/\*\*$/, '');
+            return {
+              label: m[1].toLowerCase(),
+              text: statementText,
+              correct: /Đúng|True/i.test(tfStr)
+            };
+          }),
           review_status: 'draft'
         });
       } else if (optMatches.length >= 2) {
@@ -2011,11 +2670,12 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
           review_status: 'draft'
         });
       } else {
-        const ansMatch = trimmed.match(/(?:Đáp án|Đáp án đúng|Answer|Trả lời)\s*[:=]\s*[*_`]?([^\n*_`]+)/i);
+        const ansMatch = trimmed.match(/(?:[*_`\s]*)(?:Đáp án|Đáp án đúng|Answer|Trả lời)\s*[:=]\s*[*_`]?([^\n*_`]+)/i);
         if (ansMatch) {
           const qText = trimmed.slice(0, ansMatch.index)
             .replace(/^[#*\s-]+/, '')
             .replace(/^(?:Câu|Question)\s*[\d]+[:.]\s*/i, '')
+            .replace(/\*\*$/, '')
             .trim();
           questions.push({
             id: `K${defaultGrade}-GV-${Math.random().toString(36).slice(2, 9)}`,

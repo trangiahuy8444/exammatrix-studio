@@ -447,10 +447,315 @@
       else if(action==='generate'){await generate();}
     });
   }
-  function renderImport(){
-    const i=ui.importing;qs('#mx-work').innerHTML=`<section class="card"><p class="eyebrow">GIỮ NGUYÊN BẢN CỦA GIÁO VIÊN PHỤ TRÁCH</p><h2>Nhận ma trận & đặc tả</h2><p>Word được đọc theo hai cấu trúc mẫu trường. Gói JSON giữ dữ liệu để dùng lại trên web.</p><div class="form-grid"><div class="field"><label for="mx-import-grade">Khối của mẫu Word</label><select id="mx-import-grade">${grades().map(g=>opt(g,'Khối '+g,i.grade===g)).join('')}</select></div><div class="field span2"><label for="mx-file">Chọn Word hoặc gói JSON</label><input type="file" id="mx-file" accept=".docx,.json"></div></div><div id="mx-import-result">${i.package?`<p class="callout">${E(packageSummary(i.package))}</p>`:i.candidate?`<p class="callout">Đã nhận dạng ${E(i.candidate.profile)} · Khối ${i.grade} · ${i.candidate.slots.length} câu mẹ. Chỉ các bảng ma trận/đặc tả/năng lực được lấy vào hồ sơ.</p><ul class="mx-errors">${i.issues.map(x=>`<li>${E(x.message)}</li>`).join('')}</ul><p class="muted">Các chỉ báo và ánh xạ sẽ được mở ở màn hình đối chiếu. Nội dung gốc được bảo toàn.</p>`:'<p class="muted">Giới hạn Word 8 MB. Tệp gốc được lưu riêng ngoài phần web công khai, không lấy phần đề/đáp án đi kèm vào gói dùng chung.</p>'}${i.package||i.candidate?'<button class="primary" data-action="accept-import">Lưu bản nhận để đối chiếu</button>':''}</div></section>`;
+  function parseMatrixFromMarkdown(text, defaultGrade) {
+    if (!text || typeof text !== 'string') return null;
+    let grade = Number(defaultGrade || 9);
+    const mGrade = text.match(/(?:Khối|Khối lớp|Grade)\s*[:=]?\s*(\d+)/i) || text.match(/(?:TIN|K)\s*(\d+)/i);
+    if (mGrade) grade = Number(mGrade[1]);
+
+    let examType = 'GK1';
+    if (/Cuối\s*k[ỳi]\s*1|CK1|Học\s*k[ỳi]\s*1/i.test(text)) examType = 'CK1';
+    else if (/Giữa\s*k[ỳi]\s*2|GK2/i.test(text)) examType = 'GK2';
+    else if (/Cuối\s*k[ỳi]\s*2|CK2|Học\s*k[ỳi]\s*2/i.test(text)) examType = 'CK2';
+
+    let title = '';
+    const mTitle = text.match(/^#+\s*(.+)$/m);
+    if (mTitle) title = mTitle[1].replace(/[*_#]/g, '').trim();
+    if (!title) title = 'Ma trận & đặc tả ' + examType + ' - Khối ' + grade;
+
+    const lines = text.split(/\r?\n/);
+    const tableRows = lines.filter(l => l.trim().startsWith('|') && l.trim().endsWith('|'));
+    
+    const lessonsMap = new Map();
+    const requirements = [];
+    const slots = [];
+    let reqCount = 0;
+    let slotCount = 0;
+
+    for (const r of tableRows) {
+      const cells = r.split('|').slice(1, -1).map(c => c.trim());
+      if (!cells.length) continue;
+      if (/^:?-+:?$/.test(cells[0]) || /^(?:TT|STT)$/i.test(cells[0]) || (/Bài\s*học/i.test(cells[1] || '') && /Yêu\s*cầu/i.test(cells[2] || '')) || (/Bài\s*học/i.test(cells[2] || '') && /Yêu\s*cầu/i.test(cells[3] || ''))) continue;
+      if (cells.some(c => /^Tổng/i.test(c))) continue;
+
+      let lessonRaw = '', outcomeRaw = '', levelRaw = 'Biết', kindRaw = 'MC', countRaw = '1', ptsRaw = '0.25', topicRaw = 'Chương trình GDPT';
+
+      if (cells.length >= 6) {
+        if (cells.length >= 7 && /Chủ\s*đề/i.test(cells[1])) {
+          topicRaw = cells[1];
+          lessonRaw = cells[2];
+          outcomeRaw = cells[3];
+          levelRaw = cells[4];
+          kindRaw = cells[5] || 'MC';
+          countRaw = cells[6] || '1';
+          ptsRaw = cells[7] || '0.25';
+        } else {
+          lessonRaw = cells[1] || cells[0];
+          outcomeRaw = cells[2] || '';
+          levelRaw = cells[3] || 'Biết';
+          kindRaw = cells[4] || 'MC';
+          countRaw = cells[5] || '1';
+          ptsRaw = cells[6] || '0.25';
+        }
+      } else if (cells.length >= 3) {
+        lessonRaw = cells[0];
+        outcomeRaw = cells[1];
+        levelRaw = cells[2] || 'Biết';
+        if (cells[3]) kindRaw = cells[3];
+      }
+
+      if (!lessonRaw) continue;
+
+      let lessonCode = '';
+      const mCode = lessonRaw.match(/^(?:Bài|Chủ\s*đề)\s*([0-9]+[a-zA-Z]?)/i);
+      if (mCode) lessonCode = 'B' + mCode[1];
+      else if (/KTGK1/i.test(lessonRaw)) lessonCode = 'KTGK1';
+      else if (/KTCK1/i.test(lessonRaw)) lessonCode = 'KTCK1';
+      else lessonCode = 'B' + (lessonsMap.size + 1);
+
+      const cleanLessonName = lessonRaw.replace(/^(?:Bài|Chủ\s*đề)\s*[0-9]+[a-zA-Z]?[:.]?\s*/i, '').trim() || lessonRaw;
+
+      if (!lessonsMap.has(lessonCode)) {
+        lessonsMap.set(lessonCode, {
+          lesson_code: lessonCode,
+          title: cleanLessonName,
+          topic: topicRaw
+        });
+      }
+
+      let stdLevel = 'Biết';
+      const lLower = levelRaw.toLowerCase();
+      if (lLower.includes('cao')) stdLevel = 'Vận dụng cao';
+      else if (lLower.includes('vận dụng') || lLower.includes('van dung')) stdLevel = 'Vận dụng';
+      else if (lLower.includes('hiểu') || lLower.includes('hieu')) stdLevel = 'Hiểu';
+
+      let stdKind = 'MC';
+      const kUpper = kindRaw.toUpperCase();
+      if (kUpper.includes('YN') || /ĐÚNG\/SAI|ĐÚNG SAI/i.test(kindRaw)) stdKind = 'YN';
+      else if (kUpper.includes('SHORT') || /TRẢ LỜI NGẮN|NGẮN/i.test(kindRaw)) stdKind = 'SHORT';
+      else if (kUpper.includes('ES') || /TỰ LUẬN|TL/i.test(kindRaw)) stdKind = 'ES';
+
+      reqCount++;
+      const reqId = 'R' + reqCount;
+      requirements.push({
+        id: reqId,
+        lesson_code: lessonCode,
+        level: stdLevel,
+        text: outcomeRaw || 'Yêu cầu cần đạt chuẩn theo chương trình môn học.',
+        ppct_outcome_index: 0,
+        competency: 'NLa'
+      });
+
+      const numSlots = Math.max(1, parseInt(countRaw, 10) || 1);
+      const pts = parseFloat(String(ptsRaw).replace(',', '.')) || (stdKind === 'ES' ? 1.0 : 0.25);
+
+      for (let sIdx = 0; sIdx < numSlots; sIdx++) {
+        slotCount++;
+        const slotId = 'S' + slotCount;
+        slots.push({
+          id: slotId,
+          kind: stdKind,
+          number: slotCount,
+          parts: [{
+            id: 'P' + slotCount,
+            label: '',
+            requirement_id: reqId,
+            points: pts,
+            indicator: ''
+          }],
+          scoring: { mode: 'sum_parts' }
+        });
+      }
+    }
+
+    if (!slots.length) {
+      const l1 = { lesson_code: 'B1', title: 'Bài học 1', topic: 'Chương trình GDPT' };
+      lessonsMap.set('B1', l1);
+      requirements.push({ id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'Nhận biết kiến thức trọng tâm.', ppct_outcome_index: 0, competency: 'NLa' });
+      slots.push({ id: 'S1', kind: 'MC', number: 1, parts: [{ id: 'P1', label: '', requirement_id: 'R1', points: 10, indicator: '' }], scoring: { mode: 'sum_parts' } });
+    }
+
+    const profile = grade >= 10 ? 'THPT' : 'THCS';
+    const totalPoints = slots.reduce((acc, s) => acc + (s.parts || []).reduce((pAcc, p) => pAcc + (Number(p.points) || 0), 0), 0) || 10;
+
+    return {
+      format: 'asian-school-matrix',
+      schema_version: 1,
+      matrix: {
+        id: 'MX-' + grade + '-' + examType + '-' + Date.now().toString(36),
+        family_id: 'FAM-' + grade + '-' + examType,
+        version: 1,
+        revision: 0,
+        status: 'draft',
+        mode: 'authored',
+        profile,
+        grade,
+        school_year: '2026-2027',
+        exam_type: examType,
+        duration: 45,
+        title,
+        owner_name: 'Giáo viên phụ trách',
+        campus: 'Cao Thắng',
+        total_points: Math.round(totalPoints * 10) / 10,
+        lessons: Array.from(lessonsMap.values()),
+        requirements,
+        slots,
+        indicator_catalog: [],
+        source: null,
+        reconciliation: { confirmed: true, issues: [] },
+        audit: []
+      }
+    };
   }
-  async function readImport(file){if(!file)return;const grade=Number(qs('#mx-import-grade').value);await run(async()=>{if(file.name.toLowerCase().endsWith('.json')){const packageData=JSON.parse(await file.text());ui.importing={grade,package:packageData};}else{if(file.size>8*1024*1024)throw new Error('Word phải nhỏ hơn 8 MB.');const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});const result=await ui.ctx.request('/api/matrices/inspect-docx',{filename:file.name,grade,content_base64:base64});ui.importing={...result,grade,filename:file.name,base64};}renderImport();});}
+
+  function downloadMatrixJsonSample(grade = 9) {
+    const g = Number(grade) || 9;
+    const sample = {
+      format: 'asian-school-matrix',
+      schema_version: 1,
+      matrix: {
+        profile: g >= 10 ? 'THPT' : 'THCS',
+        grade: g,
+        exam_type: 'GK1',
+        duration: 45,
+        school_year: '2026-2027',
+        title: `Ma trận & đặc tả Kiểm tra Giữa HK1 · Môn Tin học Khối ${g}`,
+        owner_name: 'Tổ Tin học Á Châu',
+        campus: 'Cao Thắng',
+        total_points: 10,
+        lessons: [
+          { lesson_code: 'B1', title: 'Thế giới kĩ thuật số', topic: 'Chủ đề 1: Máy tính và cộng đồng' },
+          { lesson_code: 'B2', title: 'Thông tin trong giải quyết vấn đề', topic: 'Chủ đề 2: Tổ chức lưu trữ, tìm kiếm và trao đổi thông tin' }
+        ],
+        requirements: [
+          { id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'Nhận biết được một số thiết bị số thông dụng.', ppct_outcome_index: 0, competency: 'NLa' },
+          { id: 'R2', lesson_code: 'B1', level: 'Hiểu', text: 'Giải thích được vai trò của thiết bị số trong đời sống và học tập.', ppct_outcome_index: 1, competency: 'NLa' },
+          { id: 'R3', lesson_code: 'B2', level: 'Vận dụng', text: 'Vận dụng được kiến thức để tìm kiếm và đánh giá chất lượng thông tin.', ppct_outcome_index: 0, competency: 'NLb' }
+        ],
+        slots: [
+          { id: 'S1', kind: 'MC', number: 1, parts: [{ id: 'P1', label: '', requirement_id: 'R1', points: 0.25, indicator: '' }], scoring: { mode: 'sum_parts' } },
+          { id: 'S2', kind: 'MC', number: 2, parts: [{ id: 'P2', label: '', requirement_id: 'R2', points: 0.25, indicator: '' }], scoring: { mode: 'sum_parts' } },
+          { id: 'S3', kind: 'ES', number: 3, parts: [{ id: 'P3', label: '', requirement_id: 'R3', points: 1.0, indicator: '' }], scoring: { mode: 'sum_parts' } }
+        ]
+      }
+    };
+    const blob = new Blob([JSON.stringify(sample, null, 2)], { type: 'application/json;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Mau_Ma_tran_Tin_${g}_2026-2027.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function downloadMatrixMdSample(grade = 9) {
+    const g = Number(grade) || 9;
+    const sampleMd = `# MA TRẬN & ĐẶC TẢ ĐỀ KIỂM TRA GIỮA HỌC KỲ 1
+Môn: Tin học - Khối: ${g}
+Thời gian: 45 phút - Năm học: 2026-2027
+
+| TT | Chủ đề | Bài học | Yêu cầu cần đạt | Mức độ | Dạng câu | Số câu | Điểm |
+|---|---|---|---|---|---|---|---|
+| 1 | Chủ đề 1: Máy tính và cộng đồng | Bài 1: Thế giới kĩ thuật số | Nhận biết được một số thiết bị số thông dụng. | Biết | MC | 2 | 0.5 |
+| 2 | Chủ đề 1: Máy tính và cộng đồng | Bài 1: Thế giới kĩ thuật số | Giải thích được vai trò của thiết bị số trong đời sống. | Hiểu | MC | 2 | 0.5 |
+| 3 | Chủ đề 2: Tổ chức lưu trữ | Bài 2: Thông tin trong giải quyết vấn đề | Giải thích được sự cần thiết phải đánh giá thông tin. | Hiểu | MC | 2 | 0.5 |
+| 4 | Chủ đề 2: Tổ chức lưu trữ | Bài 2: Thông tin trong giải quyết vấn đề | Vận dụng được kiến thức để tìm kiếm và đánh giá thông tin. | Vận dụng | ES | 1 | 1.0 |
+`;
+    const blob = new Blob([sampleMd], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Mau_Ma_tran_Tin_${g}_2026-2027.md`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function copyMatrixAiPrompt(grade = 9) {
+    const g = Number(grade) || 9;
+    const prompt = `Bạn là chuyên gia khảo thí môn Tin học phổ thông GDPT 2018 tại Trường Quốc tế Á Châu.
+Hãy giúp tôi chuyển bảng Ma trận & Đặc tả đề kiểm tra môn Tin học Khối ${g} sang định dạng bảng Markdown (.md) chuẩn để nạp vào hệ thống ExamMatrix Studio:
+
+Yêu cầu cấu trúc:
+1. Dòng đầu: # MA TRẬN & ĐẶC TẢ KIỂM TRA GIỮA HỌC KỲ 1 (hoặc CUỐI HỌC KỲ)
+2. Thông tin phụ: Môn: Tin học - Khối: ${g} - Thời gian: 45 phút
+3. Bảng Markdown gồm chính xác các cột:
+| TT | Chủ đề | Bài học | Yêu cầu cần đạt | Mức độ | Dạng câu | Số câu | Điểm |
+4. Quy ước chuẩn:
+- Cột "Mức độ": Ghi rõ một trong 4 mức: Biết, Hiểu, Vận dụng, Vận dụng cao.
+- Cột "Dạng câu": Ghi rõ: MC (Trắc nghiệm nhiều lựa chọn 4 phương án), YN (Trắc nghiệm Đúng/Sai 4 ý a,b,c,d), SHORT (Trả lời ngắn) hoặc ES (Tự luận).
+- Tổng điểm các dòng cộng lại bằng đúng 10.0 điểm.
+5. Chỉ xuất trực tiếp nội dung Markdown, không kèm lời bình.`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(prompt).then(() => {
+        alert('Đã chép Prompt AI vào bộ nhớ tạm! Thầy/Cô dán vào ChatGPT hoặc Gemini để tạo ma trận Markdown tức thì.');
+      }).catch(() => {
+        window.prompt('Sao chép Prompt AI dưới đây:', prompt);
+      });
+    } else {
+      window.prompt('Sao chép Prompt AI dưới đây:', prompt);
+    }
+  }
+
+  function renderImport(){
+    const i=ui.importing;
+    qs('#mx-work').innerHTML=`<section class="card">
+      <p class="eyebrow">GIỮ NGUYÊN BẢN CỦA GIÁO VIÊN PHỤ TRÁCH</p>
+      <h2>Nhận ma trận & đặc tả (JSON, Markdown hoặc Word)</h2>
+      <p>Khuyên dùng <strong>JSON</strong> hoặc <strong>Markdown (.md)</strong> để nạp tức thì, chính xác 100% và không bị phụ thuộc định dạng ngầm. Vẫn hỗ trợ tệp Word (.docx) theo cấu trúc mẫu trường.</p>
+      <div style="display:flex;gap:10px;margin:10px 0 14px;flex-wrap:wrap">
+        <button type="button" class="button quiet" id="mx-download-json-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📥 Tải mẫu Ma trận (JSON)</button>
+        <button type="button" class="button quiet" id="mx-download-md-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📝 Tải mẫu Ma trận (Markdown)</button>
+        <button type="button" class="button quiet" id="mx-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI tạo Ma trận</button>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label for="mx-import-grade">Khối lớp</label><select id="mx-import-grade">${grades().map(g=>opt(g,'Khối '+g,i.grade===g)).join('')}</select></div>
+        <div class="field span2"><label for="mx-file">Chọn tệp Markdown (.md), JSON hoặc Word (.docx)</label><input type="file" id="mx-file" accept=".docx,.json,.md,.txt"></div>
+      </div>
+      <div id="mx-import-result">
+        ${i.package?`<p class="callout">${E(packageSummary(i.package))}</p>`:i.candidate?`<p class="callout">Đã nhận dạng ${E(i.candidate.profile||'THCS')} · Khối ${i.grade} · ${i.candidate.slots?.length||0} vị trí câu hỏi. Đạt chuẩn cấu trúc ma trận & đặc tả.</p><ul class="mx-errors">${(i.issues||[]).map(x=>`<li>${E(x.message||x)}</li>`).join('')}</ul><p class="muted">Các chỉ báo và ánh xạ sẽ được mở ở màn hình đối chiếu. Nội dung gốc được bảo toàn.</p>`:'<p class="muted">Hỗ trợ tệp Markdown (.md), gói JSON chuẩn và Word (.docx). Bấm nút tải mẫu ở trên để xem định dạng chuẩn.</p>'}
+        ${i.package||i.candidate?'<button class="primary" data-action="accept-import">Lưu bản nhận để đối chiếu</button>':''}
+      </div>
+    </section>`;
+
+    const btnJson = qs('#mx-download-json-sample');
+    if (btnJson) btnJson.onclick = () => downloadMatrixJsonSample(Number(qs('#mx-import-grade').value || 9));
+    const btnMd = qs('#mx-download-md-sample');
+    if (btnMd) btnMd.onclick = () => downloadMatrixMdSample(Number(qs('#mx-import-grade').value || 9));
+    const btnPrompt = qs('#mx-copy-prompt');
+    if (btnPrompt) btnPrompt.onclick = () => copyMatrixAiPrompt(Number(qs('#mx-import-grade').value || 9));
+  }
+
+  async function readImport(file){
+    if(!file)return;
+    const grade=Number(qs('#mx-import-grade').value);
+    await run(async()=>{
+      const ext = file.name.toLowerCase().split('.').pop();
+      if(ext === 'json') {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (data.format === 'asian-school-matrix' || data.matrix) {
+          ui.importing = { grade: Number(data.matrix?.grade || grade), package: data };
+        } else {
+          ui.importing = { grade, package: { format: 'asian-school-matrix', schema_version: 1, matrix: data } };
+        }
+      } else if (ext === 'md' || ext === 'txt') {
+        const text = await file.text();
+        const parsed = parseMatrixFromMarkdown(text, grade);
+        if (!parsed || !parsed.matrix) throw new Error('Không đọc được cấu trúc ma trận từ tệp Markdown.');
+        ui.importing = {
+          grade: parsed.matrix.grade || grade,
+          candidate: parsed.matrix,
+          package: parsed,
+          filename: file.name
+        };
+      } else {
+        if(file.size>8*1024*1024) throw new Error('Word phải nhỏ hơn 8 MB.');
+        const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});
+        const result=await ui.ctx.request('/api/matrices/inspect-docx',{filename:file.name,grade,content_base64:base64});
+        ui.importing={...result,grade,filename:file.name,base64};
+      }
+      renderImport();
+    });
+  }
   function renderGeneration(){const g=ui.generation,m=g.matrix;const revisions=(ui.ctx.revisions||[]).filter(r=>r.grade===m.grade);qs('#mx-work').innerHTML=`<section class="card"><p class="eyebrow">ĐỀ RIÊNG THEO MA TRẬN ĐÃ KHÓA</p><h2>${E(m.title)} · V${m.version}</h2><p>Phân bố và điểm giữ theo ma trận chung. Chọn câu và xác nhận chỉ báo cho từng vị trí.</p><div class="form-grid"><div class="field span2"><label for="mx-exam-title">Tên đề riêng</label><input id="mx-exam-title" value="${E(periods[m.exam_type]+' · '+subject(m)+' '+m.grade)}"></div><div class="field"><label for="mx-exam-campus">Cơ sở ra đề</label><input id="mx-exam-campus" value="${generic()?'':'Cao Thắng'}"></div><div class="field"><label for="mx-exam-code">Mã đề</label><input id="mx-exam-code" value="101"></div><div class="field"><label for="mx-exam-seed">Mã xáo trộn phương án</label><input id="mx-exam-seed" value="2026"></div><div class="field full"><label for="mx-exam-revision">Phiên bản đề cương</label><select id="mx-exam-revision">${opt('','Chọn đề cương đã lưu',true)}${revisions.map(r=>opt(r.id,r.title,false)).join('')}</select></div></div><div class="actions"><button data-action="suggest">Gợi ý chọn câu không trùng</button><span id="mx-coverage"></span></div>
     ${g.slots.map(entry=>{const s=entry.slot;return `<article class="mx-exam-slot"><h3>${E(NAMEShort(s.kind))} ${s.number} · ${s.parts.reduce((n,p)=>n+Number(p.points),0)} điểm</h3><div class="field"><label for="mx-choice-${E(s.id)}">Câu cho vị trí ${E(s.id)}</label><select id="mx-choice-${E(s.id)}" data-choice="${E(s.id)}">${opt('','Chọn câu phù hợp',true)}${entry.candidates.map(q=>opt(q.id,(q.recently_used?.length?'⚠ Vừa dùng · ':'')+q.id+' · '+q.question.slice(0,180),false)).join('')}</select></div><div id="mx-choice-detail-${E(s.id)}" class="mx-choice-detail"></div>${entry.requirements.map((r,i)=>`<label class="mx-checkbox"><input type="checkbox" data-review-slot="${E(s.id)}" value="${E(s.parts[i].id)}">Đã đối chiếu ${E(s.parts[i].label||'câu này')}: ${E(r.text)}</label>`).join('')}${!entry.candidates.length?'<p class="mx-bad">Chưa có câu khớp bài, dạng, mức độ và YCCĐ nguồn. Cần bổ sung ngân hàng; không bù sang ô khác.</p>':''}</article>`;}).join('')}
     <button class="primary" data-action="generate">Tạo và lưu đề riêng</button><div id="mx-created-exam"></div></section>`;const values=g.formValues||{};ui.container.querySelectorAll('[id^=mx-exam-],[data-choice],[data-review-slot]').forEach(el=>{const key=el.dataset.reviewSlot?'review:'+el.dataset.reviewSlot+':'+el.value:el.id;if(Object.prototype.hasOwnProperty.call(values,key)){if(el.type==='checkbox')el.checked=values[key];else el.value=values[key];}});g.slots.forEach(e=>showChoice(e.slot.id));coverage();}
@@ -458,6 +763,6 @@
   function coverage(){if(!ui.generation||!qs('#mx-coverage'))return;const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));let count=0,matched=0;for(const e of ui.generation.slots){const q=e.candidates.find(q=>q.id===qs('#mx-choice-'+e.slot.id).value);if(q){count++;if(hashes.has(q.content_hash))matched++;}}qs('#mx-coverage').textContent=`Đã chọn ${count}/${ui.generation.slots.length} câu · Khớp nội dung đề cương ${matched} câu. Máy chủ sẽ kiểm tra lại khi tạo đề.`;}
   function suggest(){const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));const used=new Set();for(const e of ui.generation.slots){const pool=e.candidates.slice().sort((a,b)=>Number(hashes.has(b.content_hash))-Number(hashes.has(a.content_hash)));const q=pool.find(q=>!used.has(q.id));qs('#mx-choice-'+e.slot.id).value=q?.id||'';if(q)used.add(q.id);ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===e.slot.id)c.checked=false;});showChoice(e.slot.id);}captureGeneration();coverage();message('Đã gợi ý câu. Thầy cần xem nội dung và đánh dấu đối chiếu từng chỉ báo trước khi lưu đề.');}
   async function generate(){const g=ui.generation;const placements=g.slots.map(e=>({slot_id:e.slot.id,question_id:qs('#mx-choice-'+e.slot.id).value,reviewed_part_ids:[...ui.container.querySelectorAll('[data-review-slot]')].filter(x=>x.dataset.reviewSlot===e.slot.id&&x.checked).map(x=>x.value)}));const result=await ui.ctx.request('/api/exams/from-matrix',{matrix_id:g.matrix.id,revision_id:qs('#mx-exam-revision').value,title:qs('#mx-exam-title').value,campus:qs('#mx-exam-campus').value,exam_code:qs('#mx-exam-code').value,seed:qs('#mx-exam-seed').value,placements});const e=result.exam,base='/api/exams/'+encodeURIComponent(e.id)+'/export';qs('#mx-created-exam').innerHTML=`<div class="callout"><h3>Đã lưu đề ${E(e.exam_code)} · ${E(e.campus)}</h3><p>${e.question_count} câu · 10 điểm · Khớp đề cương ${e.revision_match_count}/${e.question_count} câu · Ma trận V${e.matrix_version}</p><div class="actions"><button type="button" class="primary" data-view-exam="${E(e.id)}" data-mode="student">Xem đề học sinh</button><button type="button" data-view-exam="${E(e.id)}" data-mode="answers">Xem đáp án & HDC</button><a class="button" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button" href="${base}?format=docx&answers=1">Word đáp án</a></div></div>`;ui.ctx.onExamCreated?.(e);message('Đã tạo đề riêng và lưu phiên bản ma trận dùng chung cùng đề.');}
-  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions};
+  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -460,6 +460,16 @@
     let tableRows = '';
     let topicIdx = 0;
 
+    const datalistHtml = `
+      <datalist id="mx-competency-datalist">
+        <option value="NLa">NLa - Sử dụng và quản lý CNTT&TT</option>
+        <option value="NLb">NLb - Ứng xử phù hợp trong môi trường số</option>
+        <option value="NLc">NLc - Giải quyết vấn đề với sự trợ giúp của máy tính</option>
+        <option value="NLd">NLd - Ứng dụng CNTT&TT trong học và tự học</option>
+        <option value="NLe">NLe - Hợp tác trong môi trường số</option>
+      </datalist>
+    `;
+
     topicGroups.forEach(grp => {
       topicIdx++;
       grp.forEach((lesson, rowInGrp) => {
@@ -477,13 +487,44 @@
           if (!rs.length && !hasSlots) return;
 
           const levelReqV = v.requirements.filter(r => r.lesson_code === lesson.lesson_code && r.level === lvl);
-          const refs = levelReqV.flatMap(r => r.refs || []);
-          const refsBadge = refs.length ? `<span class="badge" style="font-size:11px;background:#e0f2fe;color:#0267B1;font-weight:600">${refs.join(', ')}</span>` : '';
+          const autoRefs = levelReqV.flatMap(r => r.refs || []).join(', ');
+          const customRefs = rs[0]?.custom_refs ?? m.custom_level_refs?.[lesson.lesson_code + '|' + lvl] ?? '';
+          const displayRefs = customRefs || autoRefs;
+          const lvlComp = rs[0]?.competency || m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa;
 
           reqsHtml += `<div style="margin-bottom:8px;padding-bottom:6px;border-bottom:1px dotted #e2e8f0">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:6px;flex-wrap:wrap">
               <strong style="color:var(--navy);font-size:12px">${LEVEL_NAMES[lvl]}:</strong>
-              ${refsBadge}
+              <div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">
+                ${!(locked || received)
+                  ? `<div style="display:inline-flex;align-items:center;gap:3px;background:#f0f9ff;border:1px solid #bae6fd;padding:2px 6px;border-radius:5px" title="Số thứ tự câu hỏi thuộc mức ${LEVEL_NAMES[lvl]}">
+                       <span style="font-size:10.5px;font-weight:700;color:#0267B1">Câu:</span>
+                       <input type="text"
+                              class="mx-spec-refs-input"
+                              data-lesson-code="${E(lesson.lesson_code)}"
+                              data-level="${lvl}"
+                              value="${E(displayRefs)}"
+                              placeholder="VD: Câu 1, Câu 2, Câu 3, Câu 4"
+                              title="Tùy chỉnh số thứ tự / câu hỏi gán cho mức độ này (bấm nút ↺ để tự tính lại từ ma trận)"
+                              style="font-size:11px;padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;color:#0267B1;font-weight:700;min-width:130px;background:#fff">
+                       ${customRefs ? `<button type="button" class="quiet" data-action="reset-spec-refs" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" title="Khôi phục câu tự động từ ma trận" style="padding:1px 4px;font-size:10px;color:#64748b;line-height:1">↺</button>` : ''}
+                     </div>
+                     <div style="display:inline-flex;align-items:center;gap:3px;background:#fefce8;border:1px solid #fef08a;padding:2px 6px;border-radius:5px" title="Thành phần năng lực cho mức ${LEVEL_NAMES[lvl]}">
+                       <span style="font-size:10.5px;font-weight:700;color:#854d0e">NL:</span>
+                       <input type="text"
+                              list="mx-competency-datalist"
+                              class="mx-spec-comp-input"
+                              data-lesson-code="${E(lesson.lesson_code)}"
+                              data-level="${lvl}"
+                              value="${E(lvlComp)}"
+                              placeholder="NLa"
+                              title="Nhập/chọn thành phần năng lực (VD: NLa, NLb, NLc, NLd, NLe)"
+                              style="font-size:11px;font-weight:700;padding:2px 4px;border:1px solid #cbd5e1;border-radius:4px;color:#854d0e;width:55px;background:#fff;text-align:center">
+                     </div>`
+                  : `<span class="badge" style="font-size:11px;background:#e0f2fe;color:#0267B1;font-weight:600">${E(displayRefs)}</span>
+                     <span class="badge" style="font-size:11px;background:#fef9c3;color:#854d0e;font-weight:700;border:1px solid #fde047">(${E(lvlComp)})</span>`
+                }
+              </div>
             </div>`;
 
           if (rs.length) {
@@ -522,10 +563,28 @@
 
         const cellMC = ['Biết', 'Hiểu', 'Vận dụng'].map(lvl => {
           const c = vRow.cells['MC|' + lvl];
+          if (!c || !c.count) return '';
           const rLvl = lessonReqs.find(r => r.level === lvl);
-          const comp = rLvl?.competency || compNLa;
-          return c ? `${c.count} MC (${lvl === 'Biết' ? 'B' : lvl === 'Hiểu' ? 'H' : 'VD'}) (${comp})` : '';
-        }).filter(Boolean).join('<br>') || '0';
+          const comp = rLvl?.competency || m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa;
+          const lvlAbbr = lvl === 'Biết' ? 'B' : lvl === 'Hiểu' ? 'H' : 'VD';
+          if (locked || received) {
+            return `${c.count} MC (${lvlAbbr}) (${comp})`;
+          }
+          return `
+            <div style="display:flex;align-items:center;justify-content:center;gap:3px;margin:2px 0">
+              <span style="font-weight:600;font-size:11.5px">${c.count} MC (${lvlAbbr})</span>
+              <input type="text"
+                     list="mx-competency-datalist"
+                     class="mx-spec-comp-input"
+                     data-lesson-code="${E(lesson.lesson_code)}"
+                     data-level="${lvl}"
+                     value="${E(comp)}"
+                     placeholder="NLa"
+                     title="Nhập/chọn thành phần năng lực (VD: NLa, NLb, NLc)"
+                     style="width:52px;font-size:11px;font-weight:700;padding:1px 3px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;color:#854d0e;background:#fefce8">
+            </div>
+          `;
+        }).filter(Boolean).join('') || '0';
 
         const cellYN = isTHPT ? (['Biết', 'Hiểu', 'Vận dụng'].map(lvl => {
           const c = vRow.cells['YN|' + lvl];
@@ -539,10 +598,27 @@
 
         const cellES = ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
           const c = vRow.cells['ES|' + lvl];
+          if (!c || !c.count) return '';
           const rLvl = lessonReqs.find(r => r.level === lvl);
-          const comp = rLvl?.competency || compNLa;
-          return c ? `${c.count} ES (${comp})` : '';
-        }).filter(Boolean).join('<br>') || '0';
+          const comp = rLvl?.competency || m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa;
+          if (locked || received) {
+            return `${c.count} ES (${comp})`;
+          }
+          return `
+            <div style="display:flex;align-items:center;justify-content:center;gap:3px;margin:2px 0">
+              <span style="font-weight:600;font-size:11.5px">${c.count} ES</span>
+              <input type="text"
+                     list="mx-competency-datalist"
+                     class="mx-spec-comp-input"
+                     data-lesson-code="${E(lesson.lesson_code)}"
+                     data-level="${lvl}"
+                     value="${E(comp)}"
+                     placeholder="NLc"
+                     title="Nhập/chọn thành phần năng lực cho câu Tự luận (VD: NLa, NLb, NLc)"
+                     style="width:52px;font-size:11px;font-weight:700;padding:1px 3px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;color:#854d0e;background:#fefce8">
+            </div>
+          `;
+        }).filter(Boolean).join('') || '0';
 
         tableRows += `<tr>`;
         if (rowInGrp === 0) {
@@ -583,7 +659,7 @@
     const tnkqPct = ((tnkqPts / tTotPts) * 100).toFixed(0);
     const tlPct = ((tlPts / tTotPts) * 100).toFixed(0);
 
-    return `
+    return datalistHtml + `
       <div class="card" style="border:1px solid #c2dbf1;background:#fff;margin-bottom:20px;padding:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px">
           <div>
@@ -912,6 +988,39 @@
       }
       return;
     }
+    if (event.target.matches('.mx-spec-refs-input')) {
+      const lessonCode = event.target.dataset.lessonCode;
+      const level = event.target.dataset.level;
+      const val = event.target.value;
+      if (!ui.editing.custom_level_refs) ui.editing.custom_level_refs = {};
+      ui.editing.custom_level_refs[lessonCode + '|' + level] = val;
+      (ui.editing.requirements || []).filter(r => r.lesson_code === lessonCode && r.level === level).forEach(r => {
+        r.custom_refs = val;
+      });
+      ui.dirty = true;
+      const mark = qs('#mx-dirty');
+      if (mark) mark.textContent = ' · Có thay đổi chưa lưu';
+      return;
+    }
+    if (event.target.matches('.mx-spec-comp-input')) {
+      const lessonCode = event.target.dataset.lessonCode;
+      const level = event.target.dataset.level;
+      const val = event.target.value.trim();
+      if (!ui.editing.custom_level_comp) ui.editing.custom_level_comp = {};
+      ui.editing.custom_level_comp[lessonCode + '|' + level] = val;
+      (ui.editing.requirements || []).filter(r => r.lesson_code === lessonCode && r.level === level).forEach(r => {
+        r.competency = val;
+      });
+      ui.container.querySelectorAll(`.mx-spec-comp-input[data-lesson-code="${lessonCode}"][data-level="${level}"]`).forEach(inputEl => {
+        if (inputEl !== event.target && inputEl.value !== val) {
+          inputEl.value = val;
+        }
+      });
+      ui.dirty = true;
+      const mark = qs('#mx-dirty');
+      if (mark) mark.textContent = ' · Có thay đổi chưa lưu';
+      return;
+    }
     if(event.target.matches('[data-field]')&&event.target.tagName!=='SELECT'&&event.target.type!=='checkbox')assign(event.target);
     if(event.target.id==='mx-confirm-agreement')restoreButtons();
   }
@@ -919,6 +1028,11 @@
     const el=event.target;
     if (el.matches('.mx-spec-req-input')) {
       changed();
+      return;
+    }
+    if (el.matches('.mx-spec-refs-input') || el.matches('.mx-spec-comp-input')) {
+      changed();
+      renderEditor();
       return;
     }
     if(el.matches('.mx-grid-input')){
@@ -1065,7 +1179,9 @@
   function buildMatrixView(m) {
     const requirements = {};
     (m?.requirements || []).forEach(r => {
-      requirements[r.id] = { ...r, refs: [] };
+      const customRefs = r.custom_refs || m?.custom_level_refs?.[r.lesson_code + '|' + r.level];
+      const comp = r.competency || m?.custom_level_comp?.[r.lesson_code + '|' + r.level] || 'NLa';
+      requirements[r.id] = { ...r, competency: comp, refs: [], custom_refs: customRefs };
     });
 
     const rows = [];
@@ -1401,7 +1517,10 @@
             if (!rs.length) return;
             reqHtml += `<p style="margin:4px 0 2px 0;"><strong>${LEVEL_NAMES[l]}:</strong></p>`;
             rs.forEach(r => {
-              const refsText = r.refs?.length ? ` (${r.refs.join(', ')})` : '';
+              const customRefs = r.custom_refs || m?.custom_level_refs?.[row.lesson_code + '|' + l];
+              const autoRefs = r.refs?.length ? r.refs.join(', ') : '';
+              const finalRefs = customRefs || autoRefs;
+              const refsText = finalRefs ? ` (${finalRefs})` : '';
               reqHtml += `<p style="margin:2px 0 3px 12px;text-indent:-8px;">– ${E(r.text.replace(/\s*\(c[aâ]u\s+[^)]+\)/i, ''))}<strong>${refsText}</strong>.</p>`;
             });
           });
@@ -1413,7 +1532,7 @@
               const c = row.cells['MC|' + lvl];
               if (!c || !c.count) return '';
               const lvlAbbr = lvl === 'Biết' ? 'B' : lvl === 'Hiểu' ? 'H' : lvl === 'Vận dụng cao' ? 'VDC' : 'VD';
-              const comp = (lessonReqs.find(r => r.level === lvl)?.competency) || 'NLa';
+              const comp = (lessonReqs.find(r => r.level === lvl)?.competency) || m?.custom_level_comp?.[row.lesson_code + '|' + lvl] || 'NLa';
               return `${c.count} MC (${lvlAbbr}) (${comp})`;
             }).filter(Boolean).join('<br>') : '0';
 
@@ -1433,7 +1552,7 @@
             ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
               const c = row.cells['ES|' + lvl];
               if (!c || !c.count) return '';
-              const comp = (lessonReqs.find(r => r.level === lvl)?.competency) || 'NLa';
+              const comp = (lessonReqs.find(r => r.level === lvl)?.competency) || m?.custom_level_comp?.[row.lesson_code + '|' + lvl] || 'NLa';
               return `${c.count} ES (${comp})`;
             }).filter(Boolean).join('<br>') : '0';
 
@@ -1987,6 +2106,19 @@
         });
         changed();renderEditor();
       }
+      return;
+    }
+    if(action==='reset-spec-refs'&&ui.editing){
+      const lessonCode=b.dataset.lessonCode;
+      const level=b.dataset.level;
+      if(ui.editing.custom_level_refs){
+        delete ui.editing.custom_level_refs[lessonCode+'|'+level];
+      }
+      (ui.editing.requirements||[]).filter(r=>r.lesson_code===lessonCode&&r.level===level).forEach(r=>{
+        delete r.custom_refs;
+      });
+      changed();renderEditor();
+      message('Đã khôi phục số thứ tự câu tự động theo ma trận cho mức ' + level + ' của bài ' + lessonCode + '.');
       return;
     }
     if(action==='add-lesson'){

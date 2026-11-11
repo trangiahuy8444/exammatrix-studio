@@ -280,4 +280,39 @@ Khối: 9
   assert(specLockedHtml.includes('data-action="unlock-spec"'), 'Spec grid should have unlock-spec action');
   assert(specLockedHtml.includes('disabled'), 'Spec textareas should be disabled when locked');
   console.log('PASS matrix UI: two-stage independent locking for Matrix 2D and Spec Grid passed');
+
+  // Test customizable question numbers by level and competency input in Spec Grid
+  const customSpecMatrix = ui.newDraft(8, false);
+  customSpecMatrix.lessons = g8Preset.lessons;
+  customSpecMatrix.requirements = JSON.parse(JSON.stringify(g8Preset.requirements));
+  customSpecMatrix.slots = g8Preset.slots;
+
+  // Unlocked editable state should have mx-spec-refs-input and mx-spec-comp-input
+  const editableSpecHtml = ui.specGridHtml(customSpecMatrix, false, false);
+  assert(editableSpecHtml.includes('mx-spec-refs-input'), 'Should render editable question input mx-spec-refs-input');
+  assert(editableSpecHtml.includes('mx-spec-comp-input'), 'Should render competency input mx-spec-comp-input');
+  assert(editableSpecHtml.includes('mx-competency-datalist'), 'Should include datalist with standard competencies NLa..NLe');
+
+  // Set custom refs and custom competency for B1 - Biết
+  customSpecMatrix.custom_level_refs = { 'B1|Biết': 'Câu 1 - 4 (Tùy chỉnh)' };
+  customSpecMatrix.custom_level_comp = { 'B1|Biết': 'NLb' };
+  // Also update requirement
+  customSpecMatrix.requirements.forEach(r => {
+    if (r.lesson_code === 'B1' && r.level === 'Biết') {
+      r.custom_refs = 'Câu 1 - 4 (Tùy chỉnh)';
+      r.competency = 'NLb';
+    }
+  });
+
+  const updatedSpecHtml = ui.specGridHtml(customSpecMatrix, false, false);
+  assert(updatedSpecHtml.includes('Câu 1 - 4 (Tùy chỉnh)'), 'Spec grid should display customized question refs');
+  assert(updatedSpecHtml.includes('value="NLb"'), 'Spec grid competency input should have value NLb');
+  assert(updatedSpecHtml.includes('4 MC (B)'), 'Column should display question count');
+  assert(updatedSpecHtml.includes('reset-spec-refs'), 'Should render reset button when custom refs are set');
+
+  // Check Word export reflects the custom refs and custom competency
+  const updatedWordHtml = ui.generateMatrixWordHtml(customSpecMatrix, 'all');
+  assert(updatedWordHtml.includes('Câu 1 - 4 (Tùy chỉnh)'), 'Word export must reflect custom question refs');
+  assert(updatedWordHtml.includes('4 MC (B) (NLb)'), 'Word export must reflect customized competency (NLb)');
+  console.log('PASS matrix UI: customizable question numbers and competency in Table 2 passed');
 }

@@ -287,11 +287,13 @@ Khối: 9
   customSpecMatrix.requirements = JSON.parse(JSON.stringify(g8Preset.requirements));
   customSpecMatrix.slots = g8Preset.slots;
 
-  // Unlocked editable state should have mx-spec-refs-input and mx-spec-comp-input
+  // Unlocked editable state should have mx-spec-refs-input and exactly 1 mx-spec-comp-input per level
   const editableSpecHtml = ui.specGridHtml(customSpecMatrix, false, false);
   assert(editableSpecHtml.includes('mx-spec-refs-input'), 'Should render editable question input mx-spec-refs-input');
   assert(editableSpecHtml.includes('mx-spec-comp-input'), 'Should render competency input mx-spec-comp-input');
   assert(editableSpecHtml.includes('mx-competency-datalist'), 'Should include datalist with standard competencies NLa..NLe');
+  const b1BietCompInputs = (editableSpecHtml.match(/class="mx-spec-comp-input"[^>]*data-lesson-code="B1"[^>]*data-level="Biết"/g) || []).length;
+  assert.equal(b1BietCompInputs, 1, 'There should be exactly 1 competency input for B1 - Biết (no duplicates in MC column)');
 
   // Set custom refs and custom competency for B1 - Biết
   customSpecMatrix.custom_level_refs = { 'B1|Biết': 'Câu 1 - 4 (Tùy chỉnh)' };

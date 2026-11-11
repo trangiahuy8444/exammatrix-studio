@@ -567,23 +567,7 @@
           const rLvl = lessonReqs.find(r => r.level === lvl);
           const comp = rLvl?.competency || m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa;
           const lvlAbbr = lvl === 'Biết' ? 'B' : lvl === 'Hiểu' ? 'H' : 'VD';
-          if (locked || received) {
-            return `${c.count} MC (${lvlAbbr}) (${comp})`;
-          }
-          return `
-            <div style="display:flex;align-items:center;justify-content:center;gap:3px;margin:2px 0">
-              <span style="font-weight:600;font-size:11.5px">${c.count} MC (${lvlAbbr})</span>
-              <input type="text"
-                     list="mx-competency-datalist"
-                     class="mx-spec-comp-input"
-                     data-lesson-code="${E(lesson.lesson_code)}"
-                     data-level="${lvl}"
-                     value="${E(comp)}"
-                     placeholder="NLa"
-                     title="Nhập/chọn thành phần năng lực (VD: NLa, NLb, NLc)"
-                     style="width:52px;font-size:11px;font-weight:700;padding:1px 3px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;color:#854d0e;background:#fefce8">
-            </div>
-          `;
+          return `<div style="padding:2px 0;font-size:12px;white-space:nowrap"><strong>${c.count} MC (${lvlAbbr})</strong> <span class="badge" style="background:#fef9c3;color:#854d0e;font-size:11px;font-weight:700;border:1px solid #fde047;padding:1px 5px;border-radius:4px" title="Thành phần năng lực của mức ${LEVEL_NAMES[lvl]} (chỉnh sửa ở ô NL bên trái)">(${comp})</span></div>`;
         }).filter(Boolean).join('') || '0';
 
         const cellYN = isTHPT ? (['Biết', 'Hiểu', 'Vận dụng'].map(lvl => {
@@ -601,23 +585,7 @@
           if (!c || !c.count) return '';
           const rLvl = lessonReqs.find(r => r.level === lvl);
           const comp = rLvl?.competency || m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa;
-          if (locked || received) {
-            return `${c.count} ES (${comp})`;
-          }
-          return `
-            <div style="display:flex;align-items:center;justify-content:center;gap:3px;margin:2px 0">
-              <span style="font-weight:600;font-size:11.5px">${c.count} ES</span>
-              <input type="text"
-                     list="mx-competency-datalist"
-                     class="mx-spec-comp-input"
-                     data-lesson-code="${E(lesson.lesson_code)}"
-                     data-level="${lvl}"
-                     value="${E(comp)}"
-                     placeholder="NLc"
-                     title="Nhập/chọn thành phần năng lực cho câu Tự luận (VD: NLa, NLb, NLc)"
-                     style="width:52px;font-size:11px;font-weight:700;padding:1px 3px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;color:#854d0e;background:#fefce8">
-            </div>
-          `;
+          return `<div style="padding:2px 0;font-size:12px;white-space:nowrap"><strong>${c.count} ES</strong> <span class="badge" style="background:#fef9c3;color:#854d0e;font-size:11px;font-weight:700;border:1px solid #fde047;padding:1px 5px;border-radius:4px" title="Thành phần năng lực của mức ${LEVEL_NAMES[lvl]} (chỉnh sửa ở ô NL bên trái)">(${comp})</span></div>`;
         }).filter(Boolean).join('') || '0';
 
         tableRows += `<tr>`;

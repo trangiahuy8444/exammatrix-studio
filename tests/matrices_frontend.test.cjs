@@ -248,4 +248,36 @@ Khối: 9
   assert(g8WordHtml.includes('1 ES (NLa)'), 'Word should format Grade 8 exact essay 1 ES (NLa)');
   assert(g8WordHtml.includes('16 câu B = 40%'), 'Word should format Grade 8 exact percentage row');
   console.log('PASS matrix UI: specGridHtml and Grade 8 exact layout Word export passed');
+
+  // Test two-stage locking: Table 1 (Matrix 2D) lock and Table 2 (Spec) lock
+  const draftMatrix = ui.newDraft(8, false);
+  draftMatrix.lessons = g8Preset.lessons;
+  draftMatrix.requirements = g8Preset.requirements;
+  draftMatrix.slots = g8Preset.slots;
+
+  // Unlocked state
+  const gridUnlockedHtml = ui.matrixGridHtml(draftMatrix, false, false);
+  assert(gridUnlockedHtml.includes('data-action="lock-matrix"'), 'Matrix 2D should have Lock Matrix button');
+  const specUnlockedHtml = ui.specGridHtml(draftMatrix, false, false);
+  assert(specUnlockedHtml.includes('data-action="lock-spec"'), 'Spec grid should have Lock Spec button');
+
+  // Matrix locked state (Table 1 locked, Table 2 remains editable)
+  draftMatrix.matrix_locked = true;
+  draftMatrix.spec_locked = false;
+  const gridLockedHtml = ui.matrixGridHtml(draftMatrix, true, false);
+  assert(gridLockedHtml.includes('🔒 Đã chốt Bảng ma trận 2D'), 'Matrix 2D should display locked badge');
+  assert(gridLockedHtml.includes('data-action="unlock-matrix"'), 'Matrix 2D should have unlock-matrix action');
+  assert(gridLockedHtml.includes('disabled'), 'Matrix 2D inputs should be disabled when locked');
+  
+  // Spec is still unlocked
+  const specStillUnlockedHtml = ui.specGridHtml(draftMatrix, false, false);
+  assert(specStillUnlockedHtml.includes('data-action="lock-spec"'), 'Spec should remain editable and have lock-spec action');
+
+  // Spec locked state
+  draftMatrix.spec_locked = true;
+  const specLockedHtml = ui.specGridHtml(draftMatrix, true, false);
+  assert(specLockedHtml.includes('🔒 Đã chốt Bảng đặc tả'), 'Spec grid should display locked badge');
+  assert(specLockedHtml.includes('data-action="unlock-spec"'), 'Spec grid should have unlock-spec action');
+  assert(specLockedHtml.includes('disabled'), 'Spec textareas should be disabled when locked');
+  console.log('PASS matrix UI: two-stage independent locking for Matrix 2D and Spec Grid passed');
 }

@@ -229,4 +229,23 @@ Khối: 9
     'Lessons should be sorted in natural PPCT order B1..B5'
   );
   console.log('PASS matrix UI: web-native matrix creation, Asian School presets, lesson sorting & 2D grid updates passed');
+
+  // Test interactive specGridHtml & fillLessonPpctRequirements & Grade 8 Word 100% exact format
+  const g8Preset = ui.STANDARD_PRESETS['8'];
+  assert(typeof ui.specGridHtml === 'function', 'specGridHtml should be exported');
+  assert(typeof ui.fillLessonPpctRequirements === 'function', 'fillLessonPpctRequirements should be exported');
+  const specHtml = ui.specGridHtml(g8Preset, false, false);
+  assert(specHtml.includes('Bảng 2: Bảng đặc tả đề kiểm tra trực quan'), 'Should render Table 2 header');
+  assert(specHtml.includes('Tự điền toàn bộ YCCĐ từ PPCT'), 'Should render 1-click auto-fill button');
+  assert(specHtml.includes('mx-spec-req-input'), 'Should render editable textareas for requirements');
+  assert(specHtml.includes('MC (B)'), 'Should format question count with level and competency');
+
+  const g8WordHtml = ui.generateMatrixWordHtml(g8Preset, 'all');
+  assert(g8WordHtml.includes('KHUNG MA TRẬN ĐỀ KIỂM TRA ĐỊNH KỲ'), 'Word should include Khung ma trận');
+  assert(g8WordHtml.includes('BẢNG ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KỲ'), 'Word should include Bảng đặc tả');
+  assert(g8WordHtml.includes('Lưu ý:'), 'Word should include notice notes under tables');
+  assert(g8WordHtml.includes('4 MC (B) (NLa)'), 'Word should format Grade 8 exact cell 4 MC (B) (NLa)');
+  assert(g8WordHtml.includes('1 ES (NLa)'), 'Word should format Grade 8 exact essay 1 ES (NLa)');
+  assert(g8WordHtml.includes('16 câu B = 40%'), 'Word should format Grade 8 exact percentage row');
+  console.log('PASS matrix UI: specGridHtml and Grade 8 exact layout Word export passed');
 }

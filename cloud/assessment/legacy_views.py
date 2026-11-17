@@ -17,7 +17,7 @@ from workspace.access import workspace_for
 from workspace.models import AuditEvent, Workspace
 from .answer_access import can_view_answers
 from workspace.views import api_view, payload
-from .legacy_storage import APP_DIR, bank_for_user, reset_test_bank
+from .legacy_storage import APP_DIR, bank_for_user
 from .context import selected_course, course_context
 from workspace.models import Curriculum
 
@@ -79,7 +79,7 @@ def source_asset(request, asset):
 
 
 class DjangoHandler(Handler):
-    def __init__(self, request, service, test_mode=False, course=None):
+    def __init__(self, request, service, course=None):
         self.request = request
         self.command = request.method
         self.path = request.get_full_path()
@@ -87,15 +87,6 @@ class DjangoHandler(Handler):
         self.server = SimpleNamespace(service=service, matrix_service=MatrixService(service,
             authored_grades=tuple(service.context.get('allowed_grades', [9])) if not service.school_profile else (9,)), public_dir=PUBLIC)
         self.response = None
-        if test_mode:
-            self.server.test_service = service
-            self.server.test_matrix_service = self.server.matrix_service
-            def reset():
-                fresh = reset_test_bank(request.user, course)
-                self.server.test_service = fresh
-                self.server.test_matrix_service = MatrixService(fresh,
-                    authored_grades=tuple(fresh.context.get('allowed_grades', [9])) if not fresh.school_profile else (9,))
-            self.server.reset_test_sandbox = reset
 
     def _json(self, value, status=200):
         if self.request.path == '/api/state' and isinstance(value, dict):
@@ -145,10 +136,8 @@ UNLOCKED_ROUTES = {'ai/status', 'ai/generate-by-outcome', 'ai/parse-raw', 'ai/ge
 
 def _run_handler(request, workspace):
     course = selected_course(request)
-    test_mode = request.headers.get('X-Test-Mode') == '1' or any(
-        request.GET.get(key) == '1' for key in ('test_mode', 'test'))
-    service = bank_for_user(request.user, course, test_mode=test_mode)
-    handler = DjangoHandler(request, service, test_mode=test_mode, course=course)
+    service = bank_for_user(request.user, course)
+    handler = DjangoHandler(request, service, course=course)
     handler.ai_scope = f'ws{workspace.pk}'
     handler.audit_events = []
     request._audit_events = handler.audit_events

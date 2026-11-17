@@ -788,10 +788,9 @@ function syncEditedQuestionsFromSheet(sheet,record){
       tips:['Khối THPT có thể ghi nhận kết quả cụm chuyên đề học tập như 1 đầu điểm ĐĐGtx (Điều 6.3).',
         'Tổng quan chỉ cảnh báo khi thiếu đầu điểm, không chặn thao tác.']},
   };
-  const TEST_MODE_TIP='Đang ở Chế độ Test: dữ liệu là bản sao, mọi thao tác không ảnh hưởng ngân hàng thật. Bấm "🔄 Làm mới dữ liệu test" để chép lại bản sao mới.';
-  function screenGuide(tab,opts){
+  function screenGuide(tab){
     const g=SCREEN_GUIDES[tab]||SCREEN_GUIDES.overview;
-    return {...g,tips:(opts&&opts.testMode)?[TEST_MODE_TIP,...g.tips]:g.tips.slice()};
+    return {...g,tips:g.tips.slice()};
   }
   const api={questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}

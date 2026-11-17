@@ -18,7 +18,7 @@
 7. [Quy Chuẩn Xuất Bản Hồ Sơ & Gói LMS](#7-quy-chuẩn-xuất-bản-hồ-sơ--gói-lms)
 8. [Tích Hợp Trí Tuệ Nhân Tạo (Gemini AI Assistant)](#8-tích-hợp-trí-tuệ-nhân-tạo-gemini-ai-assistant)
 9. [Đặc Tả Hệ Thống API RESTful](#9-đặc-tả-hệ-thống-api-restful)
-10. [Hộp Cát Kiểm Thử (Test Sandbox Mode) & Dữ Liệu Mẫu](#10-hộp-cát-kiểm-thử-test-sandbox-mode--dữ-liệu-mẫu)
+10. [Chế Độ Ngoại Tuyến (Bản GitHub Pages) & Dữ Liệu Mẫu](#10-chế-độ-ngoại-tuyến-bản-github-pages--dữ-liệu-mẫu)
 11. [Chiến Lược Kiểm Thử Tự Động (Automated Test Suites)](#11-chiến-lược-kiểm-thử-tự-động-automated-test-suites)
 12. [Hướng Dẫn Vận Hành & Triển Khai (Local & Cloud)](#12-hướng-dẫn-vận-hành--triển-khai-local--cloud)
 
@@ -151,7 +151,6 @@ ngan-hang-de-web/
 │   ├── reuse.py                # Cảnh báo tái sử dụng câu hỏi trong vòng 365 ngày
 │   ├── kttx.py                 # Quản lý kiểm tra thường xuyên theo Thông tư 22
 │   ├── answer_access.py        # Kiểm soát quyền hiển thị và xuất đáp án
-│   ├── test_seed.py            # Dữ liệu hạt giống khởi tạo cho chế độ hộp cát (Sandbox)
 │   └── errors.py               # Định nghĩa các lớp lỗi nghiệp vụ ServiceError
 │
 ├── matrices/                   # PHÂN HỆ QUẢN LÝ MA TRẬN & BẢNG ĐẶC TẢ (Matrix Studio)
@@ -371,7 +370,7 @@ Phân hệ `ai_assistant.py` tích hợp mô hình ngôn ngữ lớn **Google Ge
 Máy chủ `server.py` tiếp nhận và xử lý các endpoint chuẩn RESTful:
 
 ### 9.1. Quản lý Trạng thái & Kiểm tra Thường xuyên
-- `GET /api/state`: Trả về toàn bộ trạng thái hệ thống: ngân hàng câu hỏi, danh sách ma trận, đề thi, đề cương, danh mục kiểm duyệt checklist, chế độ test mode và cờ phân quyền xem đáp án.
+- `GET /api/state`: Trả về toàn bộ trạng thái hệ thống: ngân hàng câu hỏi, danh sách ma trận, đề thi, đề cương, danh mục kiểm duyệt checklist, cờ phân quyền xem đáp án.
 - `GET /api/kttx` & `POST /api/kttx/save`: Quản lý các hoạt động kiểm tra thường xuyên theo lớp và theo học kỳ (TT 22 Điều 6).
 - `POST /api/kttx/delete`: Xóa bản ghi KTTX.
 
@@ -419,15 +418,13 @@ Máy chủ `server.py` tiếp nhận và xử lý các endpoint chuẩn RESTful:
 
 ---
 
-## 10. HỘP CÁT KIỂM THỬ (TEST SANDBOX MODE) & DỮ LIỆU MẪU
+## 10. CHẾ ĐỘ NGOẠI TUYẾN (BẢN GITHUB PAGES) & DỮ LIỆU MẪU
 
-Hệ thống tích hợp sẵn tính năng **Hộp cát kiểm thử (Test Sandbox)** thông minh:
-- **Kích hoạt:** Gửi kèm header `X-Test-Mode: 1` hoặc tham số URL `?test_mode=1`.
-- **Nguyên lý hoạt động:**
-  - Hệ thống tự động tạo một vùng nhớ và thư mục dữ liệu sandbox hoàn toàn độc lập với dữ liệu thật của giáo viên.
-  - Tự động nạp bản sao PPCT và ngân hàng câu hỏi mẫu Tin học 10 tự sinh (`domain/test_seed.py`) đã được phê duyệt sẵn.
-  - Cho phép giáo viên thoải mái trải nghiệm, thử nghiệm các tính năng tạo ma trận, lập đề cương, tạo bộ đề, khóa đề, xuất gói ZIP mà **hoàn toàn không làm ảnh hưởng hay sai lệch dữ liệu khảo thí thật** của Nhà trường.
-- **Làm mới hộp cát:** Bấm nút `Đặt lại dữ liệu thử nghiệm` (`POST /api/test/reset`) để đưa môi trường test về trạng thái sạch sẽ ban đầu.
+Chế độ Test (hộp cát kiểm thử) đã được **gỡ hoàn toàn** khỏi giao diện, `server.py`, lõi Django và cơ sở dữ liệu (migration `0006` xóa dữ liệu vùng Test, `0007` bỏ cột `is_test_mode`). Thay vào đó, bản web tĩnh trên GitHub Pages có **chế độ ngoại tuyến**:
+- Khi chưa đăng nhập hoặc không có mạng, giáo viên dùng thử ngay; mọi dữ liệu lưu trong `localStorage` của trình duyệt (`public/firebase-bridge.js`).
+- Banner "Đang dùng chế độ ngoại tuyến" nhắc dữ liệu chỉ nằm trên máy này, kèm nút **Tải bản sao lưu** và **Khôi phục từ tệp** (tệp `.json`, định dạng `exammatrix-offline-backup`).
+- Đăng nhập Firebase là tùy chọn để đồng bộ lên đám mây. Đăng xuất sẽ quay về dữ liệu ngoại tuyến, không giữ dữ liệu của tài khoản vừa thoát.
+- Dữ liệu mẫu dùng cho kiểm thử hoặc trình diễn phải là dữ liệu tự biên soạn (`seed_subject_samples`).
 
 ---
 

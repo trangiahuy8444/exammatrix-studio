@@ -38,23 +38,9 @@
 
   function initLocalWorkspace() {
     try {
-      let cached = null;
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(localCacheKey)) {
-          const raw = localStorage.getItem(k);
-          if (raw) {
-            try {
-              const parsed = JSON.parse(raw);
-              if (parsed && (parsed.bank?.questions?.length || parsed.bank?.ppct?.lessons?.length || parsed.matrices?.length)) {
-                cached = parsed;
-                break;
-              }
-            } catch(e) {}
-          }
-        }
-      }
-      if (!cached) cached = getStorageData('offline');
+      // Chỉ nạp dữ liệu ngoại tuyến. Dữ liệu của từng tài khoản được nạp riêng khi đăng nhập,
+      // để người dùng chưa đăng nhập không nhìn thấy dữ liệu của tài khoản khác trên cùng máy.
+      const cached = getStorageData('offline');
       if (cached) {
         if (cached.bank?.questions) currentWorkspaceData.bank.questions = cached.bank.questions;
         if (cached.bank?.ppct) currentWorkspaceData.bank.ppct = cached.bank.ppct;
@@ -172,7 +158,6 @@
           },
           review_checklist: [],
           can_view_answers: true,
-          is_test_mode: false,
           exams: currentWorkspaceData.exams || [],
           revisions: currentWorkspaceData.revisions || [],
           matrices: currentWorkspaceData.matrices || [],
@@ -905,7 +890,116 @@
     }
   }
 
-  if (!isConfigured) return;
+  // ===========================================================================
+  // CHẾ ĐỘ NGOẠI TUYẾN: dữ liệu lưu trong localStorage của trình duyệt này
+  // ===========================================================================
+  const OFFLINE_BACKUP_FORMAT = 'exammatrix-offline-backup';
+
+  function applyWorkspaceToStore() {
+    if (!window.store) return;
+    window.store.bank = {
+      ...window.store.bank,
+      questions: currentWorkspaceData.bank.questions,
+      ppct: currentWorkspaceData.bank.ppct
+    };
+    window.store.exams = currentWorkspaceData.exams;
+    window.store.revisions = currentWorkspaceData.revisions;
+    window.store.matrixRecords = currentWorkspaceData.matrices;
+    if (typeof window.render === 'function') window.render();
+  }
+
+  // Đưa không gian làm việc trong bộ nhớ về dữ liệu ngoại tuyến (khi đăng xuất hoặc khôi phục tệp).
+  // Sửa tại chỗ để window.FirebaseState.currentData vẫn trỏ đúng đối tượng.
+  function resetToOfflineWorkspace() {
+    currentWorkspaceData.bank = { questions: [], ppct: { lessons: [] } };
+    currentWorkspaceData.exams = [];
+    currentWorkspaceData.revisions = [];
+    currentWorkspaceData.matrices = [];
+    initLocalWorkspace();
+    applyWorkspaceToStore();
+  }
+
+  function showOfflineBanner(show) {
+    if (!isStaticHost) return;
+    const banner = document.getElementById('offline-banner');
+    if (banner) banner.hidden = !show;
+  }
+
+  function isValidOfflineBackup(payload) {
+    const d = payload && payload.data;
+    return Boolean(payload && payload.format === OFFLINE_BACKUP_FORMAT && d &&
+      d.bank && Array.isArray(d.bank.questions) &&
+      Array.isArray(d.exams) && Array.isArray(d.revisions) && Array.isArray(d.matrices));
+  }
+
+  function setupOfflineBanner() {
+    const loginBtn = document.getElementById('btn-offline-login');
+    const backupBtn = document.getElementById('btn-offline-backup');
+    const restoreBtn = document.getElementById('btn-offline-restore');
+    const fileInput = document.getElementById('offline-restore-file');
+    if (loginBtn) {
+      loginBtn.onclick = () => {
+        if (document.getElementById('firebase-login-modal')) showLoginModal(true);
+        else showToast('Cần kết nối mạng để đăng nhập. Hiện vẫn dùng được chế độ ngoại tuyến.', 'error');
+      };
+    }
+    if (backupBtn) {
+      backupBtn.onclick = () => {
+        const payload = {
+          format: OFFLINE_BACKUP_FORMAT,
+          version: 1,
+          saved_at: new Date().toISOString(),
+          data: currentWorkspaceData
+        };
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'exammatrix_ngoai_tuyen_' + new Date().toISOString().slice(0, 10) + '.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast('Đã tải bản sao lưu dữ liệu ngoại tuyến.');
+      };
+    }
+    if (restoreBtn && fileInput) {
+      restoreBtn.onclick = () => fileInput.click();
+      fileInput.onchange = async () => {
+        const file = fileInput.files && fileInput.files[0];
+        fileInput.value = '';
+        if (!file) return;
+        if (file.size > 20 * 1024 * 1024) {
+          showToast('Tệp sao lưu quá lớn (tối đa 20 MB).', 'error');
+          return;
+        }
+        let payload = null;
+        try { payload = JSON.parse(await file.text()); } catch (e) { payload = null; }
+        if (!isValidOfflineBackup(payload)) {
+          showToast('Tệp không phải bản sao lưu ngoại tuyến hợp lệ của ExamMatrix Studio.', 'error');
+          return;
+        }
+        if (!confirm('Khôi phục sẽ THAY THẾ toàn bộ dữ liệu ngoại tuyến hiện có trên trình duyệt này bằng nội dung trong tệp. Tiếp tục?')) return;
+        const d = payload.data;
+        saveStorageData('offline', {
+          bank: { questions: d.bank.questions, ppct: d.bank.ppct || { lessons: [] } },
+          exams: d.exams,
+          revisions: d.revisions,
+          matrices: d.matrices
+        });
+        resetToOfflineWorkspace();
+        showToast('Đã khôi phục dữ liệu ngoại tuyến từ tệp sao lưu.');
+      };
+    }
+  }
+
+  setupOfflineBanner();
+
+  // Chỉ chạy đăng nhập Firebase trên trang tĩnh (GitHub Pages, localhost, file:); máy chủ Django có tài khoản riêng.
+  if (!isConfigured || !isStaticHost) {
+    showOfflineBanner(true);
+    return;
+  }
 
   // 2. Khởi tạo Firebase SDK
   const firebaseVersion = '10.13.0';
@@ -934,18 +1028,24 @@
       setDoc
     });
 
+    let hadUser = false;
     onAuthStateChanged(auth, async (user) => {
       window.FirebaseState.user = user;
       updateUserUI(user);
       if (user) {
+        hadUser = true;
+        showOfflineBanner(false);
         console.log('[Firebase Bridge] Giáo viên đăng nhập:', user.email);
         await loadFromFirestore(user, db, { doc, getDoc, setDoc });
       } else {
-        showLoginModal(true);
+        // Chưa đăng nhập (hoặc vừa đăng xuất): dùng ngoại tuyến, không tự bật hộp đăng nhập.
+        if (hadUser) { hadUser = false; resetToOfflineWorkspace(); }
+        showOfflineBanner(true);
       }
     });
   }).catch(err => {
     console.warn('[Firebase Bridge] Lỗi tải SDK:', err);
+    showOfflineBanner(true); // Không có mạng hoặc không tải được Firebase: vẫn dùng ngoại tuyến
   });
 
   // Thông báo Toast trang nhã (thay thế popup alert)
@@ -1034,7 +1134,7 @@
       btn.className = 'topbar-btn auth-logout-btn';
       showLoginModal(false);
     } else {
-      badge.innerHTML = `<span class="auth-offline-dot"></span><span class="auth-status-text">Chưa đăng nhập</span>`;
+      badge.innerHTML = `<span class="auth-offline-dot"></span><span class="auth-status-text">Ngoại tuyến</span>`;
       btn.textContent = 'Đăng nhập';
       btn.className = 'topbar-btn topbar-btn-primary auth-login-btn';
     }
@@ -1085,7 +1185,7 @@
           <button type="button" id="fb-btn-register-submit" class="button" style="flex:1;padding:9px;font-weight:600;border:1px solid #c5d8ea;">Tạo tài khoản mới</button>
         </div>
         <div style="text-align:center;margin-top:2px;">
-          <button type="button" id="fb-btn-close-modal" class="button quiet" style="font-size:11px;color:#718096;text-decoration:underline;cursor:pointer;">Đóng (Dùng thử ngoại tuyến)</button>
+          <button type="button" id="fb-btn-close-modal" class="button quiet" style="font-size:11px;color:#718096;text-decoration:underline;cursor:pointer;">Đóng và dùng ngoại tuyến</button>
         </div>
       </form>
     `;
@@ -1101,6 +1201,18 @@
       const code = err.code || '';
       if (code.includes('operation-not-allowed')) {
         return 'Chưa bật phương thức này trong Firebase Console. Thầy vui lòng vào Firebase Console > Authentication > Sign-in method và Bật (Enable) Email/Password hoặc Google.';
+      }
+      if (code.includes('unauthorized-domain')) {
+        return 'Tên miền "' + window.location.hostname + '" chưa được phép đăng nhập. Quản trị viên cần vào Firebase Console > Authentication > Settings > Authorized domains và thêm tên miền này. Trong lúc chờ, Thầy/Cô vẫn dùng được chế độ ngoại tuyến.';
+      }
+      if (code.includes('network-request-failed')) {
+        return 'Không kết nối được mạng. Thầy/Cô vẫn dùng được chế độ ngoại tuyến; dữ liệu lưu ngay trên trình duyệt này.';
+      }
+      if (code.includes('too-many-requests')) {
+        return 'Thử đăng nhập quá nhiều lần. Vui lòng đợi vài phút rồi thử lại.';
+      }
+      if (code.includes('invalid-api-key') || code.includes('api-key-not-valid')) {
+        return 'Khóa cấu hình Firebase không hợp lệ. Vui lòng liên hệ quản trị viên.';
       }
       if (code.includes('popup-closed-by-user')) {
         return 'Cửa sổ đăng nhập Google đã đóng.';

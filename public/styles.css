@@ -276,15 +276,6 @@ nav a[aria-current=page] {
   border-color: #005391 !important;
   color: #ffffff !important;
 }
-.topbar-btn-test {
-  background: #fefce8 !important;
-  border-color: #fde047 !important;
-  color: #854d0e !important;
-}
-.topbar-btn-test:hover {
-  background: #fef08a !important;
-  border-color: #eab308 !important;
-}
 .topbar-btn.icon-only {
   width: 34px;
   min-width: 34px;

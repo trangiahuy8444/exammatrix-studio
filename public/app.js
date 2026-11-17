@@ -26,11 +26,12 @@ const statusNames={draft:'Bản nháp',pending_review:'Chờ duyệt',needs_revi
 const typeNames={MC:'Trắc nghiệm',ES:'Tự luận / thực hành'};
 const periodNames={TX:'Thường xuyên',GK1:'Giữa học kì I',CK1:'Cuối học kì I',GK2:'Giữa học kì II',CK2:'Cuối học kì II'};
 function browserValue(storage,key){try{return window[storage].getItem(key);}catch{return null;}}
-const store={context:{},bank:null,exams:[],revisions:[],templates:[],tab:'overview',selected:new Set(),selectedSubject:browserValue('localStorage','exammatrix_active_subject')||(typeof location!=='undefined'&&new URLSearchParams(location.search).get('subject'))||'Tin học',filters:{grade:'',lesson:'',type:'',level:'',status:'active',search:'',subject:''},page:1,ppctGrade:10,ppctSubject:'Tin học',revisionGrade:10,examDraft:{grade:10,exam_type:'GK1',template_id:'',revision_id:'',title:'',duration:45,seed:'2026',similarity_percent:90,similarity_mode:'min',blueprint:[]},editing:null,busy:false,testPpctLoaded:false,isTestMode:Boolean(browserValue('sessionStorage','exammatrix_test_mode')==='1'||typeof location!=='undefined'&&new URLSearchParams(location.search).get('test')==='1')};
+const store={context:{},bank:null,exams:[],revisions:[],templates:[],tab:'overview',selected:new Set(),selectedSubject:browserValue('localStorage','exammatrix_active_subject')||(typeof location!=='undefined'&&new URLSearchParams(location.search).get('subject'))||'Tin học',filters:{grade:'',lesson:'',type:'',level:'',status:'active',search:'',subject:''},page:1,ppctGrade:10,ppctSubject:'Tin học',revisionGrade:10,examDraft:{grade:10,exam_type:'GK1',template_id:'',revision_id:'',title:'',duration:45,seed:'2026',similarity_percent:90,similarity_mode:'min',blueprint:[]},editing:null,busy:false,testPpctLoaded:false};
+window.store=store; // firebase-bridge.js cần đọc/ghi store để cập nhật giao diện sau khi đăng nhập, đăng xuất hoặc khôi phục tệp
 const opt=(value,label,selected=false)=>`<option value="${esc(value)}"${selected?' selected':''}>${esc(label)}</option>`;
 const badge=q=>{const s=C.reviewStatusOf(q);return `<span class="badge ${esc(s)}">${esc(statusNames[s]||s)}</span>`;};
 const courseID=document.querySelector('meta[name="curriculum-id"]')?.content||'';
-const apiUrl=path=>{let p=C.scopedUrl(path,courseID);if(store.isTestMode){const sep=p.includes('?')?'&':'?';p=p+sep+'test_mode=1';}return p;};
+const apiUrl=path=>C.scopedUrl(path,courseID);
 const subject=record=>record?.subject_name||(store.context.curriculum_id?store.context.subject_name:null)||store.selectedSubject||store.context.subject_name||'Tin học';
 const grades=()=>C.contextGrades(store.context);
 const schoolProfile=()=>store.context.school_profile!==false;
@@ -82,7 +83,6 @@ async function request(path,body){
    return await window.FirebaseClient.handle(path, body);
  }
  const h=body===undefined?{}:C.jsonHeaders(document.querySelector('meta[name="csrf-token"]')?.content);
- if(store.isTestMode)h['X-Test-Mode']='1';
  const response=await fetch(apiUrl(path),{method:body===undefined?'GET':'POST',headers:h,body:body===undefined?undefined:JSON.stringify(body)});
  let data;try{data=await response.json();}catch{throw new Error('Không đọc được phản hồi từ ứng dụng. Hãy kiểm tra máy chủ cục bộ.');}
  if(!response.ok){const error=new Error(data.error||'Không thực hiện được yêu cầu.');error.details=data.details;throw error;}return data;
@@ -94,7 +94,7 @@ async function mutate(path,body,onSuccess){
  catch(e){notify(detailError(e),true);const form=$('#edit-dialog[open] #form-error');if(form){form.hidden=false;form.textContent=detailError(e);}return null;}
  finally{store.busy=false;document.querySelectorAll('dialog form button[type=submit],#save-revision').forEach(b=>b.disabled=false);updateGenerationState();}
 }
-function examDraftScope(){return {workspace:document.querySelector('meta[name="workspace-scope"]')?.content||'',curriculum:store.context.curriculum_id||courseID,subject:subject(),test:store.isTestMode};}
+function examDraftScope(){return {workspace:document.querySelector('meta[name="workspace-scope"]')?.content||'',curriculum:store.context.curriculum_id||courseID,subject:subject()};}
 function examDraftContext(){const own=inDraftSubject;return {grades:grades(),lessons:lessons(store.examDraft.grade),revisions:store.revisions.filter(own),matrices:(store.matrixRecords||[]).filter(own),templates:store.templates.filter(own)};}
 function restoreExamDraft(){
  const scope=examDraftScope();let saved=null;
@@ -121,10 +121,8 @@ document.addEventListener('change',event=>{if(event.target.closest?.('#exam-form
 async function load(initial=false){
  $('#refresh').disabled=true;if(initial)$('#loading').hidden=false;
  try{const data=await request('/api/state');store.context=data.context||{};store.bank=data.bank;store.reviewChecklist=data.review_checklist||[];store.canViewAnswers=data.can_view_answers!==false;
- store.isTestMode=Boolean(data.is_test_mode);try{sessionStorage.setItem('exammatrix_test_mode',store.isTestMode?'1':'0');}catch{}
  if(store.context.curriculum_id){store.selectedSubject=store.context.subject_name;store.ppctSubject=store.context.subject_name;}
  const picker=$('#global-subject-select');if(picker){picker.value=subject();picker.disabled=Boolean(store.context.curriculum_id);}
- $('#test-mode-banner').hidden=!store.isTestMode;
  if(initial){
   const uploadedGrades=(store.bank?.ppct?.lessons||[]).map(l=>Number(l.grade)).filter(Boolean);
   const g=uploadedGrades.includes(8)?8:(uploadedGrades[0]||grades().find(x=>x===8)||grades()[0]);
@@ -3576,7 +3574,7 @@ initBackupManager();
 function renderScreenGuide() {
   const pane = $('#help-pane-current');
   if (!pane) return;
-  const g = C.screenGuide(store.tab, {testMode: !!store.isTestMode});
+  const g = C.screenGuide(store.tab);
   pane.innerHTML = `<div class="callout"><strong>${esc(g.title)}</strong><p>${esc(g.purpose)}</p></div>
     <h3>Các bước thực hiện</h3><ol>${g.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>
     ${g.tips.length ? `<h3>Lưu ý</h3><ul>${g.tips.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
@@ -3636,76 +3634,6 @@ function initUserGuide() {
   }
 }
 initUserGuide();
-
-// Test Mode (Clean Slate Sandbox) Integration
-function initTestMode() {
-  const toggleBtn = $('#btn-toggle-test-mode');
-  const banner = $('#test-mode-banner');
-  const exitBtn = $('#btn-exit-test-mode');
-  const resetBtn = $('#btn-reset-test-data');
-
-  function updateUi() {
-    if (store.isTestMode) {
-      if (banner) banner.hidden = false;
-      if (toggleBtn) {
-        toggleBtn.textContent = '🧪 Đang ở Chế độ Test';
-        toggleBtn.style.background = '#ffeeba';
-        toggleBtn.style.color = '#856404';
-        toggleBtn.style.borderColor = '#c58919';
-      }
-    } else {
-      if (banner) banner.hidden = true;
-      if (toggleBtn) {
-        toggleBtn.textContent = '🧪 Chế độ Test';
-        toggleBtn.style.background = '#fffdf5';
-        toggleBtn.style.color = '#9a6700';
-        toggleBtn.style.borderColor = '#e0c885';
-      }
-    }
-  }
-
-  async function setTestMode(active) {
-    saveBrowserExamDraft();
-    store.isTestMode = Boolean(active);
-    try{sessionStorage.setItem('exammatrix_test_mode', store.isTestMode ? '1' : '0');}catch{}
-    updateUi();
-    await load(true);
-    if (store.isTestMode) {
-      notify('Đã chuyển sang Chế độ Test: có sẵn bản sao PPCT và câu hỏi để thử; mọi thao tác không ảnh hưởng ngân hàng thật.');
-    } else {
-      notify('Đã quay về Môi trường Dữ liệu Thật (Chính thức).');
-    }
-  }
-
-  if (toggleBtn) {
-    toggleBtn.onclick = () => setTestMode(!store.isTestMode);
-  }
-  if (exitBtn) {
-    exitBtn.onclick = () => setTestMode(false);
-  }
-  if (resetBtn) {
-    resetBtn.onclick = async () => {
-      if (!confirm('Làm mới Chế độ Test? Đề, đề cương, ma trận thử sẽ bị xóa; câu hỏi và PPCT được chép lại mới từ ngân hàng thật.')) return;
-      try {
-        const res = await request('/api/test/reset', {});
-        if (res && res.state) {
-          store.bank = res.state.bank;
-          store.exams = res.state.exams || [];
-          store.revisions = res.state.revisions || [];
-          store.selected.clear();
-          render();
-          notify('Đã làm mới Chế độ Test bằng bản sao mới của ngân hàng.');
-        }
-      } catch (err) {
-        notify('Lỗi khi làm mới dữ liệu test: ' + err.message, true);
-      }
-    };
-  }
-
-  updateUi();
-}
-initTestMode();
-
 function setGlobalSubject(subj) {
   if (!subj) return;
   saveBrowserExamDraft();

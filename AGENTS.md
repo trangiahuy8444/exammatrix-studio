@@ -62,7 +62,7 @@ Toàn bộ nghiệp vụ được thiết kế theo mô hình tách biệt giữ
 
 1. **Tuyệt đối không commit dữ liệu nhạy cảm vào Git:**
    - Thư mục `data/` thật, tệp cơ sở dữ liệu SQLite, bản sao lưu, ngân hàng câu hỏi thật `NGAN_HANG_CAU_HOI_HK1_V1.json` và hồ sơ nộp trong `../06_Kiem_tra_va_Danh_gia/` KHÔNG ĐƯỢC PHÉP commit vào Git.
-   - Dữ liệu mẫu dùng cho test hoặc demo phải là dữ liệu tự biên soạn minh họa (`domain/test_seed.py`, `seed_subject_samples`).
+   - Dữ liệu mẫu dùng cho test hoặc demo phải là dữ liệu tự biên soạn minh họa (`seed_subject_samples`).
 2. **Quyền riêng tư và bảo mật đề thi:**
    - Học sinh và tài khoản không có quyền `answers` tuyệt đối không được xem đáp án, rubric hoặc metadata đánh dấu đáp án đúng trong file Word/PDF/Zip.
    - Đề thi chính thức chỉ được sử dụng các câu hỏi đã được phê duyệt (`status == 'approved'`).

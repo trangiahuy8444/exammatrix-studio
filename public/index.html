@@ -89,10 +89,6 @@
 
     <!-- Nhóm Trạng thái & Tiện ích -->
     <div class="topbar-btn-group">
-      <button id="btn-toggle-test-mode" class="topbar-btn topbar-btn-test" type="button" title="Chuyển chế độ dùng thử (không ảnh hưởng dữ liệu thật)">
-        <span class="btn-icon">🧪</span>
-        <span class="btn-text">Dùng thử</span>
-      </button>
       <button id="refresh" class="topbar-btn icon-only" type="button" title="Tải lại dữ liệu">
         <span class="btn-icon">🔄</span>
       </button>
@@ -103,17 +99,16 @@
   </div>
 </header>
 <main id="main" tabindex="-1">
-  <div id="test-mode-banner" hidden style="background:#fff3cd;border:1px solid #ffeeba;border-radius:8px;color:#856404;padding:12px 18px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;font-size:13px;box-shadow:0 2px 8px rgba(133,100,4,0.08)">
-    <div style="display:flex;align-items:center;gap:12px">
-      <span style="font-size:22px">🧪</span>
-      <div>
-        <strong style="font-size:14px;color:#664d03">ĐANG Ở CHẾ ĐỘ TEST (THỬ NGHIỆM) — BẢN SAO ĐỂ THỬ</strong>
-        <p style="margin:2px 0 0;font-size:12px;color:#856404">Có sẵn bản sao PPCT và câu hỏi của ngân hàng thật (ngân hàng thật chưa có câu thì dùng câu mẫu tự soạn); đề, đề cương và ma trận bắt đầu trống. Mọi thao tác thêm/sửa/xóa chỉ lưu tại vùng thử nghiệm và KHÔNG ảnh hưởng đến dữ liệu thật.</p>
-      </div>
+  <div id="offline-banner" hidden role="status" style="background:#eef6fd;border:1px solid #c6daed;border-radius:8px;color:#24364a;padding:12px 18px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px">
+    <div style="min-width:240px;flex:1">
+      <strong style="font-size:14px">Đang dùng chế độ ngoại tuyến</strong>
+      <p style="margin:2px 0 0;font-size:12px">Dữ liệu chỉ lưu trên trình duyệt này (localStorage). Xóa dữ liệu trình duyệt hoặc đổi máy sẽ mất dữ liệu, nên hãy tải bản sao lưu thường xuyên. Đăng nhập để đồng bộ lên đám mây.</p>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button type="button" id="btn-reset-test-data" class="button danger" style="padding:5px 12px;font-size:12px;font-weight:600">🔄 Làm mới dữ liệu test</button>
-      <button type="button" id="btn-exit-test-mode" class="button" style="padding:5px 12px;font-size:12px;font-weight:600;background:#fff;border-color:#d0dbe5">↩️ Về Dữ liệu Thật</button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button type="button" id="btn-offline-login" class="button primary" style="padding:5px 12px;font-size:12px;font-weight:600">Đăng nhập</button>
+      <button type="button" id="btn-offline-backup" class="button" style="padding:5px 12px;font-size:12px;font-weight:600">⬇ Tải bản sao lưu</button>
+      <button type="button" id="btn-offline-restore" class="button" style="padding:5px 12px;font-size:12px;font-weight:600">⬆ Khôi phục từ tệp</button>
+      <input type="file" id="offline-restore-file" accept="application/json,.json" hidden>
     </div>
   </div>
   <div id="notice" role="status" aria-live="polite" hidden></div>

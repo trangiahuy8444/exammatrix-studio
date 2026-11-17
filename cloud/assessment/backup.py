@@ -99,7 +99,7 @@ def create_backup(out_dir):
                 on_disk[key] = sha256(raw)
             payload = dict(id=str(state.id), workspace=str(state.workspace_id), owner=state.workspace.owner.get_username(),
                            curriculum=str(state.curriculum_id) if state.curriculum_id else None,
-                           is_test_mode=state.is_test_mode, revision=state.revision, documents=state.documents,
+                           revision=state.revision, documents=state.documents,
                            sources=by_state.get(state.id, {}), disk_sources=on_disk)
             _write(root, Path('states')/f'{state.id}.json',
                    json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=1).encode('utf-8'), files)

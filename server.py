@@ -5,7 +5,6 @@ import argparse
 import json
 import mimetypes
 import re
-import shutil
 import sys
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -13,7 +12,6 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 from bank_service import BankService, ServiceError
 from domain.answer_access import redact_answers
-from domain.test_seed import seed_bank, install_sample
 from exports import export_document
 from matrices.service import MatrixService
 from matrices.http import handle_matrix_get,handle_matrix_post
@@ -127,12 +125,6 @@ class Handler(BaseHTTPRequestHandler):
         self.do_GET()
 
     def _get_services(self):
-        query = parse_qs(urlsplit(self.path).query)
-        is_test = self.headers.get('X-Test-Mode') == '1' or any(query.get(k) == ['1'] for k in ('test_mode', 'test'))
-        if is_test:
-            if not hasattr(self.server, 'test_service'):
-                raise ServiceError('Môi trường thử chưa được thiết lập; không ghi vào ngân hàng thật.', status=400)
-            return self.server.test_service, self.server.test_matrix_service
         return self.server.service, self.server.matrix_service
 
     def do_GET(self):
@@ -145,7 +137,6 @@ class Handler(BaseHTTPRequestHandler):
                 state=service.state();state['matrices']=self.matrix_service.list()
                 from domain.review import CHECKLIST
                 state['review_checklist']=[dict(item) for item in CHECKLIST]
-                state['is_test_mode'] = (service == getattr(self.server, 'test_service', None))
                 state['can_view_answers'] = self._can_view_answers()
                 return self._json(state)
             if path == '/api/kttx':
@@ -153,12 +144,6 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/ai/status':
                 from ai_assistant import ai_status
                 return self._json(ai_status(self._ai_scope()))
-            if path == '/api/test/status':
-                return self._json({
-                    'test_mode_available': True,
-                    'is_test_active': (service == getattr(self.server, 'test_service', None)),
-                    'test_questions': len(self.server.test_service.state()['bank']['questions']) if hasattr(self.server, 'test_service') else 0
-                })
             if handle_matrix_get(self,path,parse_qs(url.query)):
                 return
             if path == '/api/bank/export':
@@ -243,15 +228,6 @@ class Handler(BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             service, self.matrix_service = self._get_services()
             service.actor = self._actor()
-            if path == '/api/test/reset':
-                if service is not getattr(self.server, 'test_service', None):
-                    raise ServiceError('Chỉ được làm sạch dữ liệu khi đang ở chế độ Test.', status=400)
-                if hasattr(self.server, 'reset_test_sandbox'):
-                    self.server.reset_test_sandbox()
-                clean_state = self.server.test_service.state()
-                clean_state['matrices'] = self.server.test_matrix_service.list()
-                clean_state['is_test_mode'] = True
-                return self._json({'ok': True, 'state': clean_state})
             if handle_matrix_post(self,path,payload):
                 return
             if path == '/api/questions/save':
@@ -419,33 +395,6 @@ class Handler(BaseHTTPRequestHandler):
             self._error(ServiceError('Không thể lưu dữ liệu; bản đang dùng được giữ nguyên nếu ghi chưa hoàn tất.', {'reason': type(exc).__name__}, 409))
 
 
-def setup_test_sandbox(base_dir, bank_source=DEFAULT_BANK, clean=False):
-    sandbox_dir = Path(base_dir) / 'test_sandbox'
-    sandbox_bank = sandbox_dir / 'bank.json'
-    if clean or not sandbox_bank.exists():
-        if sandbox_dir.exists() and clean:
-            shutil.rmtree(sandbox_dir)
-        sandbox_dir.mkdir(parents=True, exist_ok=True)
-        (sandbox_dir / 'matrices').mkdir(parents=True, exist_ok=True)
-        # Vùng Test bắt đầu bằng BẢN SAO PPCT, câu hỏi và ma trận của ngân hàng thật (đề, đề cương trống).
-        try:
-            live = json.loads(Path(bank_source).read_text(encoding='utf-8'))
-        except (OSError, ValueError):
-            live = {}
-        sandbox_bank.write_text(json.dumps(seed_bank(live), ensure_ascii=False, indent=2), encoding='utf-8')
-        (sandbox_dir / 'records.json').write_text('[]', encoding='utf-8')
-        (sandbox_dir / 'matrices' / 'records.json').write_text('[]', encoding='utf-8')
-        live_matrices = Path(base_dir) / 'matrices'
-        if (live_matrices / 'records.json').exists():  # ma trận cần có để thử tạo đề cương và đề theo ma trận
-            shutil.copytree(live_matrices, sandbox_dir / 'matrices', dirs_exist_ok=True)
-        curr_file = Path(base_dir) / 'curricula.json'
-        if curr_file.exists():
-            shutil.copy2(curr_file, sandbox_dir / 'curricula.json')
-        if not live.get('questions'):
-            install_sample(BankService(sandbox_bank, sandbox_dir))
-    return sandbox_bank, sandbox_dir
-
-
 def create_server(bank_path=DEFAULT_BANK, data_dir=None, templates_path=None, public_dir=None, port=8765):
     data_directory = Path(data_dir or APP_DIR/'data').resolve()
     service = BankService(bank_path, data_directory, templates_path)
@@ -456,16 +405,6 @@ def create_server(bank_path=DEFAULT_BANK, data_dir=None, templates_path=None, pu
     server.service = service
     server.matrix_service = MatrixService(service)
     server.public_dir = public
-
-    def reset_sandbox():
-        t_bank, t_dir = setup_test_sandbox(data_directory, bank_source=bank_path, clean=True)
-        server.test_service = BankService(t_bank, t_dir, templates_path)
-        server.test_matrix_service = MatrixService(server.test_service)
-
-    t_bank, t_dir = setup_test_sandbox(data_directory, bank_source=bank_path, clean=False)
-    server.test_service = BankService(t_bank, t_dir, templates_path)
-    server.test_matrix_service = MatrixService(server.test_service)
-    server.reset_test_sandbox = reset_sandbox
     return server
 
 

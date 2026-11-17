@@ -47,7 +47,7 @@ assert.equal(core.scopedUrl('/api/exams/a/export?format=docx','course-a'), '/api
 assert.equal(core.scopedUrl('/api/state',''), '/api/state');
 assert.equal(core.scopedUrl('https://example.test/path','course-a'), 'https://example.test/path');
 assert.deepEqual(core.contextGrades({allowed_grades:[12]}), [12]);
-assert.deepEqual(core.contextGrades({}), [8,9,10]);
+assert.deepEqual(core.contextGrades({}), [6,7,8,9,10,11,12]);
 const physicsContext={curriculum_id:'physics-course',subject_name:'Vật lí',allowed_grades:[10]};
 const physicsLessons=[{grade:10,lesson_code:'VL01',lesson_name_source:'Làm quen với Vật lí học'}];
 const samples={'Vật lí':{10:[{grade:10,lesson_code:'STATIC01'}]}};

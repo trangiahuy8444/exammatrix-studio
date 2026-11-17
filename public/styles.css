@@ -382,3 +382,160 @@ nav a[aria-current=page] {
   border-color: #15803d !important;
   background: #f0fdf4 !important;
 }
+
+/* ==========================================================================
+   ADAPTIVE SIDEBAR TOGGLE & RESPONSIVE DRAWER (10/11/2026)
+   ========================================================================== */
+.sidebar-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  min-height: 38px !important;
+  padding: 0 !important;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #102d4a;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+.sidebar-toggle-btn:hover {
+  background: #f0f7ff;
+  border-color: #0267b1;
+  color: #0267b1;
+}
+.sidebar-toggle-btn:focus-visible {
+  outline: 2px solid #0267b1;
+  outline-offset: 2px;
+}
+.sidebar-toggle-btn .toggle-icon {
+  font-size: 19px;
+  line-height: 1;
+}
+
+/* Smooth transitions for collapsible layout */
+.sidebar {
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.workspace {
+  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Desktop Collapsed Mode (Screen > 768px) */
+@media (min-width: 769px) {
+  body.sidebar-collapsed .sidebar {
+    width: 68px !important;
+    padding: 24px 10px !important;
+    align-items: center;
+  }
+  body.sidebar-collapsed .workspace {
+    margin-left: 68px !important;
+  }
+  body.sidebar-collapsed .brand {
+    justify-content: center;
+    padding: 0;
+  }
+  body.sidebar-collapsed .brand-text,
+  body.sidebar-collapsed .nav-caption,
+  body.sidebar-collapsed .sidebar-foot,
+  body.sidebar-collapsed .nav-label {
+    display: none !important;
+  }
+  body.sidebar-collapsed nav {
+    width: 100%;
+    align-items: center;
+  }
+  body.sidebar-collapsed nav a {
+    justify-content: center;
+    padding: 10px !important;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    position: relative;
+  }
+  body.sidebar-collapsed nav a .nav-icon {
+    font-size: 18px;
+    margin: 0;
+  }
+  /* Tooltip on hover when collapsed */
+  body.sidebar-collapsed nav a:hover::after {
+    content: attr(title);
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 12px;
+    background: #102d4a;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+    z-index: 100;
+  }
+}
+
+/* Mobile & Tablet Off-Canvas Drawer (Screen <= 768px) */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+    width: 260px !important;
+    height: 100vh !important;
+    z-index: 1000 !important;
+    transform: translateX(-100%);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 24px 18px !important;
+    background: #0f1e2f !important;
+  }
+  body.sidebar-mobile-open .sidebar {
+    transform: translateX(0) !important;
+  }
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(16, 45, 74, 0.55);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  body.sidebar-mobile-open .sidebar-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .workspace {
+    margin-left: 0 !important;
+  }
+  .sidebar .brand-text {
+    display: block !important;
+  }
+  .sidebar .nav-caption,
+  .sidebar .sidebar-foot {
+    display: block !important;
+  }
+  .sidebar nav {
+    flex-direction: column !important;
+    overflow-y: auto !important;
+  }
+  .sidebar nav a {
+    white-space: normal !important;
+    font-size: 14px !important;
+    padding: 12px 14px !important;
+  }
+  .sidebar .nav-label {
+    display: inline !important;
+  }
+}

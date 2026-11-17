@@ -1,0 +1,717 @@
+{
+  "format": "asian-school-matrix",
+  "schema_version": 1,
+  "matrix": {
+    "profile": "THPT",
+    "grade": 10,
+    "exam_type": "GK1",
+    "duration": 45,
+    "school_year": "2026-2027",
+    "title": "Ma trận & đặc tả Kiểm tra Giữa HK1 · Môn Tin học Khối 10",
+    "owner_name": "Tổ Tin học Á Châu",
+    "campus": "Cao Thắng",
+    "total_points": 10,
+    "lessons": [
+      {
+        "lesson_code": "B1",
+        "title": "Thông tin và xử lí thông tin",
+        "topic": "Chủ đề 1: Máy tính và xã hội tri thức"
+      },
+      {
+        "lesson_code": "B2",
+        "title": "Vai trò của thiết bị thông minh và tin học đối với xã hội",
+        "topic": "Chủ đề 1: Máy tính và xã hội tri thức"
+      },
+      {
+        "lesson_code": "B3",
+        "title": "Thực hành sử dụng thiết bị thông dụng",
+        "topic": "Chủ đề 1: Máy tính và xã hội tri thức"
+      },
+      {
+        "lesson_code": "B4",
+        "title": "Mạng máy tính trong cuộc sống hiện đại",
+        "topic": "Chủ đề 2: Mạng máy tính và Internet"
+      },
+      {
+        "lesson_code": "B5",
+        "title": "An toàn trên không gian mạng",
+        "topic": "Chủ đề 2: Mạng máy tính và Internet"
+      },
+      {
+        "lesson_code": "B6",
+        "title": "Thực hành khai thác tài nguyên trên Internet",
+        "topic": "Chủ đề 2: Mạng máy tính và Internet"
+      },
+      {
+        "lesson_code": "B7",
+        "title": "Ứng xử trên môi trường số. Nghĩa vụ tôn trọng bản quyền",
+        "topic": "Chủ đề 3: Đạo đức, pháp luật và văn hóa trong môi trường số"
+      },
+      {
+        "lesson_code": "B8",
+        "title": "Phần mềm thiết kế đồ họa",
+        "topic": "Chủ đề 4: Ứng dụng tin học"
+      }
+    ],
+    "requirements": [
+      {
+        "id": "R1",
+        "lesson_code": "B1",
+        "level": "Biết",
+        "text": "Biết được thông tin, dữ liệu và các bước cơ bản trong xử lí thông tin.",
+        "ppct_outcome_index": 0,
+        "competency": "NLa"
+      },
+      {
+        "id": "R2",
+        "lesson_code": "B1",
+        "level": "Hiểu",
+        "text": "Hiểu được ưu điểm của thiết bị số.",
+        "ppct_outcome_index": 0,
+        "competency": "NLa"
+      },
+      {
+        "id": "R3",
+        "lesson_code": "B1",
+        "level": "Vận dụng",
+        "text": "Giải thích các tình huống liên quan đến việc lưu trữ thông tin.",
+        "ppct_outcome_index": 0,
+        "competency": "NLa"
+      },
+      {
+        "id": "R4",
+        "lesson_code": "B2",
+        "level": "Biết",
+        "text": "Nhận biết thiết bị thông minh; nêu được vai trò của thiết bị thông minh trong cuộc cách mạng công nghiệp lần thứ tư.",
+        "ppct_outcome_index": 0,
+        "competency": "NLa"
+      },
+      {
+        "id": "R5",
+        "lesson_code": "B2",
+        "level": "Hiểu",
+        "text": "Hiểu được đặc điểm của Internet vạn vật (IoT) trong hệ thống.",
+        "ppct_outcome_index": 0,
+        "competency": "NLa"
+      },
+      {
+        "id": "R6",
+        "lesson_code": "B3",
+        "level": "Biết",
+        "text": "Biết được một số ứng dụng trên điện thoại thông minh.",
+        "ppct_outcome_index": 0,
+        "competency": "NLa"
+      },
+      {
+        "id": "R7",
+        "lesson_code": "B3",
+        "level": "Hiểu",
+        "text": "Hiểu được lợi ích của việc lưu trữ đám mây.",
+        "ppct_outcome_index": 0,
+        "competency": "NLa"
+      },
+      {
+        "id": "R8",
+        "lesson_code": "B3",
+        "level": "Vận dụng",
+        "text": "Áp dụng được việc lưu trữ dữ liệu trên Internet.",
+        "ppct_outcome_index": 0,
+        "competency": "NLa"
+      },
+      {
+        "id": "R9",
+        "lesson_code": "B4",
+        "level": "Biết",
+        "text": "Biết được mạng LAN, Internet và các loại dịch vụ đám mây cơ bản.",
+        "ppct_outcome_index": 0,
+        "competency": "NLa"
+      },
+      {
+        "id": "R10",
+        "lesson_code": "B4",
+        "level": "Hiểu",
+        "text": "Hiểu được lợi ích của việc tự đọc dữ liệu của các thiết bị.",
+        "ppct_outcome_index": 0,
+        "competency": "NLa"
+      },
+      {
+        "id": "R11",
+        "lesson_code": "B4",
+        "level": "Vận dụng",
+        "text": "Vận dụng kiến thức trong các tình huống liên quan đến lưu trữ dữ liệu đám mây.",
+        "ppct_outcome_index": 0,
+        "competency": "NLa"
+      },
+      {
+        "id": "R12",
+        "lesson_code": "B5",
+        "level": "Biết",
+        "text": "Biết nguy cơ khi tải phần mềm bẻ khóa, khả năng lây nhiễm của virus và cách lựa chọn quét virus.",
+        "ppct_outcome_index": 0,
+        "competency": "NLb"
+      },
+      {
+        "id": "R13",
+        "lesson_code": "B5",
+        "level": "Hiểu",
+        "text": "Hiểu tầm quan trọng của việc xác minh thông tin và khả năng lây nhiễm virus.",
+        "ppct_outcome_index": 0,
+        "competency": "NLb"
+      },
+      {
+        "id": "R14",
+        "lesson_code": "B5",
+        "level": "Vận dụng",
+        "text": "Vận dụng cách quét virus phù hợp trong thực tế.",
+        "ppct_outcome_index": 0,
+        "competency": "NLb"
+      },
+      {
+        "id": "R15",
+        "lesson_code": "B6",
+        "level": "Hiểu",
+        "text": "Hiểu cách thức hoạt động của Google Translate và bố cục tổ chức kho dữ liệu số.",
+        "ppct_outcome_index": 0,
+        "competency": "NLc"
+      },
+      {
+        "id": "R16",
+        "lesson_code": "B7",
+        "level": "Biết",
+        "text": "Biết quyền khi mua bản quyền phần mềm, quyền tác giả và điều kiện trở thành chủ sở hữu bản quyền phần mềm.",
+        "ppct_outcome_index": 0,
+        "competency": "NLb"
+      },
+      {
+        "id": "R17",
+        "lesson_code": "B7",
+        "level": "Hiểu",
+        "text": "Hiểu các hành vi, trường hợp vi phạm bản quyền.",
+        "ppct_outcome_index": 0,
+        "competency": "NLb"
+      },
+      {
+        "id": "R18",
+        "lesson_code": "B7",
+        "level": "Vận dụng",
+        "text": "Vận dụng hiểu biết về giấy phép bản quyền khi sử dụng tài nguyên số.",
+        "ppct_outcome_index": 0,
+        "competency": "NLb"
+      },
+      {
+        "id": "R19",
+        "lesson_code": "B8",
+        "level": "Biết",
+        "text": "Biết hình ảnh đồ họa được tạo thành từ điểm ảnh và phần mở rộng tệp của Inkscape.",
+        "ppct_outcome_index": 0,
+        "competency": "NLc"
+      },
+      {
+        "id": "R20",
+        "lesson_code": "B8",
+        "level": "Hiểu",
+        "text": "Hiểu tính năng của một số lệnh cơ bản trong Inkscape.",
+        "ppct_outcome_index": 0,
+        "competency": "NLc"
+      },
+      {
+        "id": "R21",
+        "lesson_code": "B8",
+        "level": "Vận dụng",
+        "text": "Vẽ được một số hình đơn giản trong phần mềm Inkscape.",
+        "ppct_outcome_index": 0,
+        "competency": "NLc"
+      }
+    ],
+    "slots": [
+      {
+        "id": "S1",
+        "kind": "MC",
+        "number": 1,
+        "parts": [
+          {
+            "id": "P1",
+            "label": "",
+            "requirement_id": "R1",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S2",
+        "kind": "MC",
+        "number": 2,
+        "parts": [
+          {
+            "id": "P2",
+            "label": "",
+            "requirement_id": "R1",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S3",
+        "kind": "MC",
+        "number": 3,
+        "parts": [
+          {
+            "id": "P3",
+            "label": "",
+            "requirement_id": "R2",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S4",
+        "kind": "MC",
+        "number": 4,
+        "parts": [
+          {
+            "id": "P4",
+            "label": "",
+            "requirement_id": "R4",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S5",
+        "kind": "MC",
+        "number": 5,
+        "parts": [
+          {
+            "id": "P5",
+            "label": "",
+            "requirement_id": "R4",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S6",
+        "kind": "MC",
+        "number": 6,
+        "parts": [
+          {
+            "id": "P6",
+            "label": "",
+            "requirement_id": "R5",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S7",
+        "kind": "MC",
+        "number": 7,
+        "parts": [
+          {
+            "id": "P7",
+            "label": "",
+            "requirement_id": "R7",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S8",
+        "kind": "MC",
+        "number": 8,
+        "parts": [
+          {
+            "id": "P8",
+            "label": "",
+            "requirement_id": "R9",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S9",
+        "kind": "MC",
+        "number": 9,
+        "parts": [
+          {
+            "id": "P9",
+            "label": "",
+            "requirement_id": "R9",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S10",
+        "kind": "MC",
+        "number": 10,
+        "parts": [
+          {
+            "id": "P10",
+            "label": "",
+            "requirement_id": "R10",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S11",
+        "kind": "MC",
+        "number": 11,
+        "parts": [
+          {
+            "id": "P11",
+            "label": "",
+            "requirement_id": "R12",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S12",
+        "kind": "MC",
+        "number": 12,
+        "parts": [
+          {
+            "id": "P12",
+            "label": "",
+            "requirement_id": "R13",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S13",
+        "kind": "MC",
+        "number": 13,
+        "parts": [
+          {
+            "id": "P13",
+            "label": "",
+            "requirement_id": "R15",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S14",
+        "kind": "MC",
+        "number": 14,
+        "parts": [
+          {
+            "id": "P14",
+            "label": "",
+            "requirement_id": "R15",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S15",
+        "kind": "MC",
+        "number": 15,
+        "parts": [
+          {
+            "id": "P15",
+            "label": "",
+            "requirement_id": "R16",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S16",
+        "kind": "MC",
+        "number": 16,
+        "parts": [
+          {
+            "id": "P16",
+            "label": "",
+            "requirement_id": "R17",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S17",
+        "kind": "MC",
+        "number": 17,
+        "parts": [
+          {
+            "id": "P17",
+            "label": "",
+            "requirement_id": "R19",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S18",
+        "kind": "MC",
+        "number": 18,
+        "parts": [
+          {
+            "id": "P18",
+            "label": "",
+            "requirement_id": "R19",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S19",
+        "kind": "MC",
+        "number": 19,
+        "parts": [
+          {
+            "id": "P19",
+            "label": "",
+            "requirement_id": "R20",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S20",
+        "kind": "YN",
+        "number": 1,
+        "parts": [
+          {
+            "id": "P20",
+            "label": "a",
+            "requirement_id": "R6",
+            "points": 0.25,
+            "indicator": ""
+          },
+          {
+            "id": "P21",
+            "label": "b",
+            "requirement_id": "R6",
+            "points": 0.25,
+            "indicator": ""
+          },
+          {
+            "id": "P22",
+            "label": "c",
+            "requirement_id": "R7",
+            "points": 0.25,
+            "indicator": ""
+          },
+          {
+            "id": "P23",
+            "label": "d",
+            "requirement_id": "R8",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S21",
+        "kind": "YN",
+        "number": 2,
+        "parts": [
+          {
+            "id": "P24",
+            "label": "a",
+            "requirement_id": "R12",
+            "points": 0.25,
+            "indicator": ""
+          },
+          {
+            "id": "P25",
+            "label": "b",
+            "requirement_id": "R12",
+            "points": 0.25,
+            "indicator": ""
+          },
+          {
+            "id": "P26",
+            "label": "c",
+            "requirement_id": "R13",
+            "points": 0.25,
+            "indicator": ""
+          },
+          {
+            "id": "P27",
+            "label": "d",
+            "requirement_id": "R14",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S22",
+        "kind": "YN",
+        "number": 3,
+        "parts": [
+          {
+            "id": "P28",
+            "label": "a",
+            "requirement_id": "R16",
+            "points": 0.25,
+            "indicator": ""
+          },
+          {
+            "id": "P29",
+            "label": "b",
+            "requirement_id": "R16",
+            "points": 0.25,
+            "indicator": ""
+          },
+          {
+            "id": "P30",
+            "label": "c",
+            "requirement_id": "R17",
+            "points": 0.25,
+            "indicator": ""
+          },
+          {
+            "id": "P31",
+            "label": "d",
+            "requirement_id": "R18",
+            "points": 0.25,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S23",
+        "kind": "ES",
+        "number": 1,
+        "parts": [
+          {
+            "id": "P32",
+            "label": "",
+            "requirement_id": "R3",
+            "points": 0.75,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S24",
+        "kind": "ES",
+        "number": 2,
+        "parts": [
+          {
+            "id": "P33",
+            "label": "",
+            "requirement_id": "R11",
+            "points": 0.75,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      },
+      {
+        "id": "S25",
+        "kind": "ES",
+        "number": 3,
+        "parts": [
+          {
+            "id": "P34",
+            "label": "",
+            "requirement_id": "R21",
+            "points": 0.75,
+            "indicator": ""
+          }
+        ],
+        "scoring": {
+          "mode": "sum_parts"
+        }
+      }
+    ]
+  }
+}

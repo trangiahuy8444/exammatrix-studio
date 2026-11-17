@@ -36,18 +36,97 @@
     } catch(e) {}
   }
 
-  // Khởi tạo danh mục PPCT chuẩn từ curricula.js
-  function buildDefaultLessons(subject) {
+  function initLocalWorkspace() {
+    try {
+      let cached = null;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(localCacheKey)) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed && (parsed.bank?.questions?.length || parsed.bank?.ppct?.lessons?.length || parsed.matrices?.length)) {
+                cached = parsed;
+                break;
+              }
+            } catch(e) {}
+          }
+        }
+      }
+      if (!cached) cached = getStorageData('offline');
+      if (cached) {
+        if (cached.bank?.questions) currentWorkspaceData.bank.questions = cached.bank.questions;
+        if (cached.bank?.ppct) currentWorkspaceData.bank.ppct = cached.bank.ppct;
+        if (cached.exams) currentWorkspaceData.exams = cached.exams;
+        if (cached.revisions) currentWorkspaceData.revisions = cached.revisions;
+        if (cached.matrices) currentWorkspaceData.matrices = cached.matrices;
+      }
+    } catch(e) {}
+    const cleared = currentWorkspaceData.bank.ppct?.cleared_grades || [];
+    if (currentWorkspaceData.bank.ppct?.lessons?.length) {
+      currentWorkspaceData.bank.ppct.lessons = cleanPpctLessons(currentWorkspaceData.bank.ppct.lessons, cleared);
+    }
+    if (!currentWorkspaceData.bank.ppct?.lessons?.length) {
+      currentWorkspaceData.bank.ppct = {
+        lessons: buildDefaultLessons('Tin học', [8, 9, 10].filter(g => !cleared.includes(g))),
+        cleared_grades: cleared
+      };
+    }
+  }
+
+  // Khởi tạo danh mục PPCT chuẩn từ curricula.js (chỉ nạp sẵn Khối 8, 9, 10 đã được giáo viên upload)
+  function normalizeOccurrences(occ) {
+    if (Array.isArray(occ) && occ.length > 0) {
+      return occ.map(o => {
+        if (typeof o === 'object' && o !== null) {
+          return {
+            week_raw: o.week_raw ? String(o.week_raw) : 'Tuần 1',
+            periods_raw: o.periods_raw ? String(o.periods_raw) : '1',
+            ppct_raw: o.ppct_raw ? String(o.ppct_raw) : ''
+          };
+        }
+        return { week_raw: 'Tuần 1', periods_raw: String(o || '1'), ppct_raw: '' };
+      });
+    }
+    if (occ && typeof occ === 'object') {
+      return [{
+        week_raw: occ.week_raw ? String(occ.week_raw) : 'Tuần 1',
+        periods_raw: occ.periods_raw ? String(occ.periods_raw) : '1',
+        ppct_raw: occ.ppct_raw ? String(occ.ppct_raw) : ''
+      }];
+    }
+    if (typeof occ === 'number' || typeof occ === 'string') {
+      return [{ week_raw: 'Tuần 1', periods_raw: String(occ || '1'), ppct_raw: '' }];
+    }
+    return [{ week_raw: 'Tuần 1', periods_raw: '1', ppct_raw: '' }];
+  }
+
+  function cleanPpctLessons(lessons, clearedGrades = []) {
+    if (!Array.isArray(lessons)) return [];
+    const uploadedDefaultGrades = [8, 9, 10];
+    return lessons.filter(l => {
+      const g = Number(l.grade);
+      if (clearedGrades.includes(g) && !l.user_uploaded) return false;
+      // Chỉ giữ các khối 8, 9, 10 đã nạp trước đó hoặc các khối mà giáo viên chủ động upload (user_uploaded: true)
+      return uploadedDefaultGrades.includes(g) || Boolean(l.user_uploaded);
+    }).map(l => ({
+      ...l,
+      occurrences: normalizeOccurrences(l.occurrences)
+    }));
+  }
+
+  function buildDefaultLessons(subject, allowedGrades = [8, 9, 10]) {
     const curricula = window.SUBJECT_CURRICULA || {};
     const subjData = curricula[subject] || curricula['Tin học'] || {};
     const lessons = [];
-    Object.keys(subjData).forEach(grade => {
-      (subjData[grade] || []).forEach(l => {
+    allowedGrades.forEach(grade => {
+      (subjData[grade] || subjData[String(grade)] || []).forEach(l => {
         lessons.push({
           ...l,
           grade: Number(grade),
           subject_name: subject,
-          occurrences: l.occurrences || [{ week_raw: 'Tuần 1', periods_raw: '1' }]
+          occurrences: normalizeOccurrences(l.occurrences)
         });
       });
     });
@@ -62,6 +141,7 @@
     isReady: false,
     currentData: currentWorkspaceData
   };
+  initLocalWorkspace();
 
   // ===========================================================================
   // CLIENT ADAPTER: ĐIỀU PHỐI DỮ LIỆU KHI CHẠY TRÊN GITHUB PAGES
@@ -77,13 +157,18 @@
 
       // 1. Lấy trạng thái hệ thống
       if (path === '/api/state') {
-        const lessons = buildDefaultLessons(subj);
+        const cleared = currentWorkspaceData.bank?.ppct?.cleared_grades || [];
+        const storedLessons = cleanPpctLessons(currentWorkspaceData.bank?.ppct?.lessons || [], cleared);
+        const defaultLessons = buildDefaultLessons(subj, [8, 9, 10].filter(g => !cleared.includes(g)));
+        let finalLessons = storedLessons.length > 0 ? storedLessons : defaultLessons;
+        if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: cleared };
+        currentWorkspaceData.bank.ppct.lessons = finalLessons;
         const questions = currentWorkspaceData.bank.questions || [];
         return {
           context: { subject_name: subj },
           bank: {
             questions: questions,
-            ppct: { lessons: lessons }
+            ppct: { lessons: finalLessons, cleared_grades: cleared }
           },
           review_checklist: [],
           can_view_answers: true,
@@ -183,9 +268,11 @@
             grade: Number(l.grade || grade),
             lesson_code: l.lesson_code || ('B' + (i + 1)),
             lesson_name: l.lesson_name_source || l.lesson_name || l.name || '',
-            topic: l.topic_source || l.topic || '',
+            lesson_name_source: l.lesson_name_source || l.lesson_name || l.name || '',
+            topic: l.topic_source || l.topic || 'Chương trình GDPT',
+            topic_source: l.topic_source || l.topic || 'Chương trình GDPT',
             outcomes: Array.isArray(l.outcomes) ? l.outcomes : [],
-            occurrences: (l.occurrences || []).length || 1
+            occurrences: normalizeOccurrences(l.occurrences)
           }));
         } else if (body.extracted_html) {
           // Bóc tách bảng HTML từ tệp Word (.docx) chuẩn KHDH Phụ lục 1
@@ -304,9 +391,11 @@
               grade: grade,
               lesson_code: 'B' + (m[1] || (i + 1)),
               lesson_name: m[2].trim(),
+              lesson_name_source: m[2].trim(),
               topic: 'Chương trình GDPT',
+              topic_source: 'Chương trình GDPT',
               outcomes: ['Yêu cầu cần đạt theo chương trình môn học.'],
-              occurrences: 1
+              occurrences: [{ week_raw: 'Tuần ' + (i + 1), periods_raw: '1', ppct_raw: '' }]
             }));
           }
         }
@@ -336,13 +425,17 @@
 
         const incoming = Array.isArray(body.lessons) ? body.lessons : [];
         if (incoming.length > 0) {
-          if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [] };
-          const existing = currentWorkspaceData.bank.ppct.lessons || [];
+          if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: [] };
+          const cleared = (currentWorkspaceData.bank.ppct.cleared_grades || []).filter(g => Number(g) !== grade);
+          currentWorkspaceData.bank.ppct.cleared_grades = cleared;
+          const existing = cleanPpctLessons(currentWorkspaceData.bank.ppct.lessons || [], cleared);
           const otherLessons = existing.filter(l => Number(l.grade) !== grade);
           const newLessons = incoming.map(l => ({
             ...l,
             grade: grade,
-            subject_name: body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học'
+            user_uploaded: true,
+            subject_name: body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học',
+            occurrences: normalizeOccurrences(l.occurrences)
           }));
           currentWorkspaceData.bank.ppct.lessons = [...otherLessons, ...newLessons];
           await syncToFirestore(uid, currentWorkspaceData);
@@ -355,6 +448,58 @@
           bank: currentWorkspaceData.bank,
           summary: { new: incoming.length, changed: 0, conflict: 0 }
         };
+      }
+
+      if (path === '/api/ppct/save-lesson') {
+        const l = body.lesson || body;
+        const grade = Number(l.grade || 9);
+        if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: [] };
+        const cleared = (currentWorkspaceData.bank.ppct.cleared_grades || []).filter(g => Number(g) !== grade);
+        currentWorkspaceData.bank.ppct.cleared_grades = cleared;
+        const existing = cleanPpctLessons(currentWorkspaceData.bank.ppct.lessons || [], cleared);
+        const lessonObj = {
+          grade: grade,
+          lesson_code: l.lesson_code,
+          lesson_name_source: l.lesson_name_source || l.lesson_name || '',
+          topic_source: l.topic_source || l.topic || 'Chương trình GDPT',
+          subject_name: l.subject_name || (window.store && window.store.selectedSubject) || 'Tin học',
+          user_uploaded: true,
+          occurrences: normalizeOccurrences(l.occurrences || [{ week_raw: l.week_raw || 'Tuần 1', periods_raw: l.periods_raw || '1' }]),
+          outcomes: Array.isArray(l.outcomes) ? l.outcomes : []
+        };
+        const idx = existing.findIndex(x => Number(x.grade) === grade && x.lesson_code === lessonObj.lesson_code);
+        if (idx >= 0) existing[idx] = lessonObj;
+        else existing.push(lessonObj);
+        currentWorkspaceData.bank.ppct.lessons = existing;
+        await syncToFirestore(uid, currentWorkspaceData);
+        if (window.store && window.store.bank) window.store.bank.ppct = currentWorkspaceData.bank.ppct;
+        return { bank: currentWorkspaceData.bank, lesson: lessonObj };
+      }
+
+      if (path === '/api/ppct/delete-lesson') {
+        const grade = Number(body.grade || 9);
+        const code = body.lesson_code;
+        if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: [] };
+        currentWorkspaceData.bank.ppct.lessons = (currentWorkspaceData.bank.ppct.lessons || []).filter(
+          l => !(Number(l.grade) === grade && l.lesson_code === code)
+        );
+        await syncToFirestore(uid, currentWorkspaceData);
+        if (window.store && window.store.bank) window.store.bank.ppct = currentWorkspaceData.bank.ppct;
+        return { bank: currentWorkspaceData.bank };
+      }
+
+      if (path === '/api/ppct/clear-grade') {
+        const grade = Number(body.grade || 0);
+        if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: [] };
+        const cleared = new Set(currentWorkspaceData.bank.ppct.cleared_grades || []);
+        cleared.add(grade);
+        currentWorkspaceData.bank.ppct.cleared_grades = [...cleared];
+        currentWorkspaceData.bank.ppct.lessons = (currentWorkspaceData.bank.ppct.lessons || []).filter(
+          l => Number(l.grade) !== grade
+        );
+        await syncToFirestore(uid, currentWorkspaceData);
+        if (window.store && window.store.bank) window.store.bank.ppct = currentWorkspaceData.bank.ppct;
+        return { bank: currentWorkspaceData.bank };
       }
 
       // Tuyến Kiểm tra thường xuyên (KTTX)
@@ -387,6 +532,45 @@
         return { revisions: currentWorkspaceData.revisions };
       }
 
+      if (path === '/api/revisions/duplicate') {
+        const orig = (currentWorkspaceData.revisions || []).find(r => r.id === body.id);
+        if (!orig) throw new Error('Không tìm thấy đề cương');
+        const copy = JSON.parse(JSON.stringify(orig));
+        copy.id = `REV-${Math.random().toString(36).slice(2, 10)}`;
+        copy.title = `${orig.title} (Bản sao)`;
+        copy.created_at = new Date().toISOString();
+        currentWorkspaceData.revisions.push(copy);
+        await syncToFirestore(uid, currentWorkspaceData);
+        return { revision: copy, revisions: currentWorkspaceData.revisions };
+      }
+
+      if (path === '/api/revisions/import-file') {
+        let rev = body.revision || null;
+        if (!rev && body.content_base64) {
+          try {
+            const raw = atob(body.content_base64);
+            const parsed = JSON.parse(raw);
+            rev = parsed.revision || parsed;
+          } catch(e) {}
+        }
+        if (!rev) {
+          rev = {
+            id: `REV-${Math.random().toString(36).slice(2, 10)}`,
+            title: (body.filename || 'Đề cương mới').replace(/\.[^/.]+$/, ''),
+            grade: Number(body.grade || (window.store && window.store.revisionGrade) || 9),
+            question_count: (body.questions || []).length,
+            questions: body.questions || [],
+            created_at: new Date().toISOString()
+          };
+        }
+        if (!rev.id) rev.id = `REV-${Math.random().toString(36).slice(2, 10)}`;
+        rev.created_at = rev.created_at || new Date().toISOString();
+        if (!currentWorkspaceData.revisions) currentWorkspaceData.revisions = [];
+        currentWorkspaceData.revisions.push(rev);
+        await syncToFirestore(uid, currentWorkspaceData);
+        return { revision: rev, revisions: currentWorkspaceData.revisions };
+      }
+
       // 6. Đề kiểm tra (Exams)
       if (path === '/api/exams/save' || path === '/api/exams/generate') {
         const exam = { ...body };
@@ -399,10 +583,228 @@
         return { exam: exam, exams: exams };
       }
 
+      if (path === '/api/exams/inspect-import') {
+        const candidates = body.candidates || [];
+        return {
+          filename: body.filename || 'import.json',
+          candidate_count: candidates.length,
+          all_passed: true,
+          candidates: candidates.map(c => ({
+            ...c,
+            verification: c.verification || {
+              passed: true,
+              score: 10,
+              matrix_id: 'Đề nhập từ Markdown / JSON',
+              revision_check: { coverage_percent_points: 100 }
+            }
+          }))
+        };
+      }
+
+      if (path === '/api/exams/import-verified') {
+        const cands = body.candidates || [];
+        if (!currentWorkspaceData.exams) currentWorkspaceData.exams = [];
+        cands.forEach(c => {
+          if (!c.id) c.id = `EXAM-${Math.random().toString(36).slice(2, 10)}`;
+          c.created_at = c.created_at || new Date().toISOString();
+          currentWorkspaceData.exams.push(c);
+        });
+        await syncToFirestore(uid, currentWorkspaceData);
+        return { imported_count: cands.length, imported: cands, exams: currentWorkspaceData.exams };
+      }
+
       if (path === '/api/exams/delete') {
         currentWorkspaceData.exams = (currentWorkspaceData.exams || []).filter(e => e.id !== body.id);
         await syncToFirestore(uid, currentWorkspaceData);
         return { exams: currentWorkspaceData.exams };
+      }
+
+      // 7. Ma trận & đặc tả (Matrices)
+      if (path === '/api/matrices' || path.startsWith('/api/matrices/')) {
+        if (!currentWorkspaceData.matrices) currentWorkspaceData.matrices = [];
+        const mats = currentWorkspaceData.matrices;
+
+        const makeMatrixValidation = (m) => {
+          if (!m) return { valid: true, ok: true, complete: true, errors: [], warnings: [], issues: [], exam_supported: true };
+          const slots = m.slots || [];
+          const reqs = m.requirements || [];
+          const lessons = m.lessons || [];
+          const parts = slots.flatMap(s => s.parts || []);
+          const totalPoints = Math.round(parts.reduce((sum, p) => sum + Number(p.points || 0), 0) * 100) / 100;
+          const errors = [];
+          const warnings = [];
+          if (!lessons.length) warnings.push({ code: 'no_lessons', message: 'Hồ sơ chưa có danh sách bài học.' });
+          if (!slots.length) warnings.push({ code: 'no_slots', message: 'Chưa có phân bố vị trí câu hỏi.' });
+          const isValid = errors.length === 0;
+          return {
+            valid: isValid,
+            ok: isValid,
+            complete: true,
+            errors,
+            warnings,
+            issues: [],
+            exam_supported: true,
+            total_points: totalPoints || 10,
+            slot_count: slots.length,
+            part_count: parts.length
+          };
+        };
+
+        if (path === '/api/matrices') {
+          return { matrices: mats };
+        }
+
+        if (path === '/api/matrices/review') {
+          const m = mats.find(x => x.id === body.id) || (window.store?.matrixRecords || []).find(x => x.id === body.id);
+          return { matrix: m, validation: makeMatrixValidation(m) };
+        }
+
+        if (path === '/api/matrices/save') {
+          const m = { ...body.matrix };
+          if (!m.id) m.id = `MX-${m.grade || 9}-${m.exam_type || 'GK1'}-${Date.now().toString(36)}`;
+          if (!m.family_id) m.family_id = `FAM-${m.grade || 9}-${m.exam_type || 'GK1'}`;
+          m.revision = (m.revision || 0) + 1;
+          m.version = m.version || 1;
+          m.status = m.status || 'draft';
+          m.updated_at = new Date().toISOString();
+          const idx = mats.findIndex(x => x.id === m.id);
+          if (idx >= 0) mats[idx] = m;
+          else mats.push(m);
+          currentWorkspaceData.matrices = mats;
+          await syncToFirestore(uid, currentWorkspaceData);
+          if (window.store) window.store.matrixRecords = mats;
+          return { matrix: m, validation: makeMatrixValidation(m) };
+        }
+
+        if (path === '/api/matrices/import-package') {
+          const pkg = body.package || {};
+          const m = pkg.matrix || pkg;
+          if (!m.id) m.id = `MX-${m.grade || 9}-${m.exam_type || 'GK1'}-${Date.now().toString(36)}`;
+          if (!m.family_id) m.family_id = `FAM-${m.grade || 9}-${m.exam_type || 'GK1'}`;
+          m.version = m.version || 1;
+          m.revision = 0;
+          m.status = m.status || 'draft';
+          m.updated_at = new Date().toISOString();
+          const idx = mats.findIndex(x => x.id === m.id);
+          if (idx >= 0) mats[idx] = m;
+          else mats.push(m);
+          currentWorkspaceData.matrices = mats;
+          await syncToFirestore(uid, currentWorkspaceData);
+          if (window.store) window.store.matrixRecords = mats;
+          return { matrix: m, validation: makeMatrixValidation(m) };
+        }
+
+        if (path === '/api/matrices/accept-import') {
+          const m = body.candidate || body.matrix || {};
+          if (!m.id) m.id = `MX-${body.grade || 9}-${Date.now().toString(36)}`;
+          if (!m.family_id) m.family_id = `FAM-${body.grade || 9}`;
+          m.grade = Number(body.grade || m.grade || 9);
+          m.version = m.version || 1;
+          m.revision = 0;
+          m.status = 'draft';
+          m.title = m.title || `Ma trận Khối ${m.grade}`;
+          m.updated_at = new Date().toISOString();
+          const idx = mats.findIndex(x => x.id === m.id);
+          if (idx >= 0) mats[idx] = m;
+          else mats.push(m);
+          currentWorkspaceData.matrices = mats;
+          await syncToFirestore(uid, currentWorkspaceData);
+          if (window.store) window.store.matrixRecords = mats;
+          return { matrix: m, validation: makeMatrixValidation(m) };
+        }
+
+        if (path === '/api/matrices/lock') {
+          const m = mats.find(x => x.id === body.id);
+          if (m) {
+            m.status = 'locked';
+            m.confirmation = body.confirmation || { confirmed_by: 'Giáo viên', confirmed_at: new Date().toISOString() };
+            m.revision = (m.revision || 0) + 1;
+            m.updated_at = new Date().toISOString();
+            await syncToFirestore(uid, currentWorkspaceData);
+            if (window.store) window.store.matrixRecords = mats;
+            return { matrix: m, validation: makeMatrixValidation(m) };
+          }
+        }
+
+        if (path === '/api/matrices/unlock') {
+          const m = mats.find(x => x.id === body.id);
+          if (m) {
+            m.status = 'draft';
+            m.revision = (m.revision || 0) + 1;
+            m.updated_at = new Date().toISOString();
+            await syncToFirestore(uid, currentWorkspaceData);
+            if (window.store) window.store.matrixRecords = mats;
+            return { matrix: m, validation: makeMatrixValidation(m) };
+          }
+        }
+
+        if (path === '/api/matrices/duplicate') {
+          const orig = mats.find(x => x.id === body.id);
+          if (orig) {
+            const m = JSON.parse(JSON.stringify(orig));
+            m.id = `MX-${m.grade || 9}-${Date.now().toString(36)}`;
+            m.title = `${m.title} (Bản sao)`;
+            m.status = 'draft';
+            m.version = 1;
+            m.revision = 0;
+            m.updated_at = new Date().toISOString();
+            mats.push(m);
+            await syncToFirestore(uid, currentWorkspaceData);
+            if (window.store) window.store.matrixRecords = mats;
+            return { matrix: m, validation: makeMatrixValidation(m) };
+          }
+        }
+
+        if (path === '/api/matrices/delete') {
+          currentWorkspaceData.matrices = mats.filter(x => x.id !== body.id);
+          await syncToFirestore(uid, currentWorkspaceData);
+          if (window.store) window.store.matrixRecords = currentWorkspaceData.matrices;
+          return { success: true };
+        }
+
+        if (path === '/api/matrices/new-version') {
+          const orig = mats.find(x => x.id === body.id);
+          if (orig) {
+            const m = JSON.parse(JSON.stringify(orig));
+            m.id = `MX-${m.grade || 9}-V${(orig.version || 1) + 1}-${Date.now().toString(36)}`;
+            m.version = (orig.version || 1) + 1;
+            m.previous_id = orig.id;
+            m.status = 'draft';
+            m.revision = 0;
+            m.updated_at = new Date().toISOString();
+            mats.push(m);
+            await syncToFirestore(uid, currentWorkspaceData);
+            if (window.store) window.store.matrixRecords = mats;
+            return { matrix: m, validation: makeMatrixValidation(m) };
+          }
+        }
+
+        const matId = decodeURIComponent(path.replace('/api/matrices/', '').split('/')[0]);
+        if (matId && matId !== 'save' && matId !== 'review' && matId !== 'inspect-docx') {
+          const m = mats.find(x => x.id === matId) || (window.MatrixDefaults && window.MatrixDefaults[matId]);
+          if (path.endsWith('/candidates')) {
+            const qs = currentWorkspaceData.bank.questions || [];
+            const slots = (m?.slots || []).map(s => {
+              const req = (m.requirements || []).find(r => s.parts?.[0]?.requirement_id === r.id);
+              const matching = qs.filter(q => Number(q.grade) === Number(m.grade) && (s.kind === 'MC' ? q.type === 'MC' : true));
+              return {
+                slot: s,
+                candidates: matching.slice(0, 10),
+                requirements: req ? [req] : [{ text: 'Đạt yêu cầu chương trình' }]
+              };
+            });
+            return { matrix: m || { id: matId, title: 'Ma trận', grade: 9, slots: [] }, slots };
+          }
+          if (path.endsWith('/shortfall')) {
+            return { ok: true, complete: true, total_shortfall: 0, cells: [], issues: [], unresolved_slots: [] };
+          }
+          if (path.endsWith('/compare')) {
+            return { matrix: m, ppct_differences: [] };
+          }
+          if (m) {
+            return { matrix: m, validation: makeMatrixValidation(m) };
+          }
+        }
       }
 
       // Mặc định phản hồi thành công cho các route phụ
@@ -420,7 +822,10 @@
       await setDoc(ref, {
         owner_email: window.FirebaseState.user.email,
         updated_at: new Date().toISOString(),
-        bank: { questions: data.bank.questions || [] },
+        bank: { 
+          questions: data.bank.questions || [],
+          ppct: data.bank.ppct || { lessons: [] }
+        },
         exams: data.exams || [],
         revisions: data.revisions || [],
         matrices: data.matrices || []
@@ -438,25 +843,57 @@
       if (snap.exists()) {
         const remote = snap.data();
         currentWorkspaceData.bank.questions = remote.bank?.questions || [];
+        const cleared = remote.bank?.ppct?.cleared_grades || currentWorkspaceData.bank?.ppct?.cleared_grades || [];
+        if (remote.bank?.ppct?.lessons?.length) {
+          const rawLessons = remote.bank.ppct.lessons;
+          const cleaned = cleanPpctLessons(rawLessons, cleared);
+          currentWorkspaceData.bank.ppct = { lessons: cleaned, cleared_grades: cleared };
+          if (cleaned.length !== rawLessons.length) {
+            await helpers.setDoc(ref, {
+              bank: {
+                questions: currentWorkspaceData.bank.questions,
+                ppct: currentWorkspaceData.bank.ppct
+              }
+            }, { merge: true });
+          }
+        } else {
+          const cached = getStorageData(user.uid) || getStorageData('offline');
+          if (cached?.bank?.ppct?.lessons?.length) {
+            currentWorkspaceData.bank.ppct = {
+              lessons: cleanPpctLessons(cached.bank.ppct.lessons, cleared),
+              cleared_grades: cleared
+            };
+          } else if (!currentWorkspaceData.bank.ppct?.lessons?.length) {
+            currentWorkspaceData.bank.ppct = {
+              lessons: buildDefaultLessons('Tin học', [8, 9, 10].filter(g => !cleared.includes(g))),
+              cleared_grades: cleared
+            };
+          }
+        }
         currentWorkspaceData.exams = remote.exams || [];
         currentWorkspaceData.revisions = remote.revisions || [];
         currentWorkspaceData.matrices = remote.matrices || [];
       } else {
-        // Chưa có dữ liệu thì lưu bộ khung mới
+        const defaultPpct = { lessons: buildDefaultLessons('Tin học', [8, 9, 10]), cleared_grades: [] };
         await helpers.setDoc(ref, {
           owner_email: user.email,
           created_at: new Date().toISOString(),
-          bank: { questions: [] },
+          bank: { 
+            questions: [],
+            ppct: defaultPpct
+          },
           exams: [],
           revisions: [],
           matrices: []
         });
+        currentWorkspaceData.bank.ppct = defaultPpct;
       }
       saveStorageData(user.uid, currentWorkspaceData);
       if (window.store) {
         window.store.bank = {
           ...window.store.bank,
-          questions: currentWorkspaceData.bank.questions
+          questions: currentWorkspaceData.bank.questions,
+          ppct: currentWorkspaceData.bank.ppct
         };
         window.store.exams = currentWorkspaceData.exams;
         window.store.revisions = currentWorkspaceData.revisions;

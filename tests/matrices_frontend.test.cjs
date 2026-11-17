@@ -55,3 +55,266 @@ console.log('PASS matrix UI: chọn riêng Vận dụng cao');
  assert.doesNotMatch(html,/Chưa thể kết luận/);
 }
 console.log('PASS matrix UI: báo cáo thiếu câu chưa đủ căn cứ và hiển thị mọi ý');
+
+// Test parseMatrixFromMarkdown with multi-table document and row-spanning
+{
+  const multiTableMd = `
+# MA TRẬN & ĐẶC TẢ GIỮA HỌC KỲ 1
+Môn: Tin học - Khối 9 - Năm học: 2026-2027
+
+## BẢNG 1: KHUNG MA TRẬN
+| TT | Chủ đề | Đơn vị kiến thức | Nhận biết | Thông hiểu | Vận dụng | Vận dụng cao | Tổng |
+|---|---|---|---|---|---|---|---|
+| 1 | Máy tính | Bài 1 | 2 | 1 | 0 | 0 | 3 |
+| | | Bài 2 | 1 | 2 | 1 | 0 | 4 |
+
+## BẢNG 2: BẢNG ĐẶC TẢ KĨ THUẬT
+| TT | Chủ đề | Bài học / Đơn vị kiến thức | Mức độ đánh giá | Yêu cầu cần đạt | Số câu hỏi | Câu hỏi trong đề | Điểm |
+|---|---|---|---|---|---|---|---|
+| 1 | Máy tính và cộng đồng | Bài 1: Thế giới kĩ thuật số | Nhận biết | - Nhận biết được một số thiết bị số thông dụng.<br>- Nêu được ưu điểm của thiết bị số. | 2 TN | Câu 1, Câu 2 | 0.5 |
+| | | | Thông hiểu | - Giải thích được vai trò mạng máy tính. | 1 TN | Câu 3 | 0.25 |
+| 2 | Tổ chức lưu trữ, tìm kiếm | Bài 2: Thông tin trong giải quyết vấn đề | Nhận biết | - Nhận biết được thông tin chất lượng. | 1 TN | Câu 4 | 0.25 |
+| | | | Thông hiểu | - Phân biệt tin thật và tin giả. | 2 TN | Câu 5, Câu 6 | 0.5 |
+| | | | Vận dụng | - Thực hành tìm kiếm thông tin an toàn. | 1 TL | Câu 1 TL | 1.0 |
+`;
+
+  const parsed = ui.parseMatrixFromMarkdown(multiTableMd, 9);
+  assert.ok(parsed && parsed.matrix, 'Phải bóc tách được ma trận từ tài liệu nhiều bảng');
+  assert.equal(parsed.matrix.grade, 9);
+  assert.equal(parsed.matrix.lessons.length, 2);
+  assert.equal(parsed.matrix.lessons[0].title, 'Thế giới kĩ thuật số');
+  assert.equal(parsed.matrix.lessons[0].topic, 'Máy tính và cộng đồng');
+  assert.equal(parsed.matrix.lessons[1].title, 'Thông tin trong giải quyết vấn đề');
+  assert.equal(parsed.matrix.lessons[1].topic, 'Tổ chức lưu trữ, tìm kiếm');
+
+  // Kiểm tra 6 yêu cầu cần đạt được phân tách chính xác (bao gồm tách <br>)
+  assert.equal(parsed.matrix.requirements.length, 6);
+  assert.equal(parsed.matrix.requirements[0].level, 'Biết');
+  assert.equal(parsed.matrix.requirements[1].level, 'Biết');
+  assert.equal(parsed.matrix.requirements[2].level, 'Hiểu');
+  assert.equal(parsed.matrix.requirements[5].level, 'Vận dụng');
+
+  // Kiểm tra 7 slots
+  assert.equal(parsed.matrix.slots.length, 7);
+  assert.equal(parsed.matrix.slots[6].kind, 'ES');
+  console.log('PASS matrix UI: parseMatrixFromMarkdown nhận diện chính xác tài liệu đa bảng và ô gộp dòng');
+}
+
+// Test parseMatrixFromMarkdown with hierarchical section markdown
+{
+  const sectionMd = `
+# MA TRẬN ĐỀ KIỂM TRA TIN HỌC 9
+Khối: 9
+
+## Chủ đề 1: Máy tính và cộng đồng
+### Bài 1: Thiết bị số
+- [Biết] [MC] Nhận biết được các loại thiết bị số. (2 câu · 0.5đ · Câu 1, Câu 2)
+- [Hiểu] [MC] Giải thích được cơ chế hoạt động mạng. (1 câu · 0.25đ · Câu 3)
+
+## Chủ đề 2: Dịch vụ đám mây
+### Bài 2: Lưu trữ trực tuyến
+- [Vận dụng] [ES] Thực hành chia sẻ thư mục bảo mật. (1 câu · 1.0đ · Câu 1 TL)
+`;
+
+  const parsed = ui.parseMatrixFromMarkdown(sectionMd, 9);
+  assert.ok(parsed && parsed.matrix);
+  assert.equal(parsed.matrix.lessons.length, 2);
+  assert.equal(parsed.matrix.requirements.length, 3);
+  assert.equal(parsed.matrix.slots.length, 4); // 2 câu Biết + 1 câu Hiểu + 1 câu Vận dụng
+  console.log('PASS matrix UI: parseMatrixFromMarkdown nhận diện chính xác Markdown phân cấp đề mục');
+
+  // Test buildMatrixView & generateMatrixWordHtml
+  const v = ui.buildMatrixView(parsed.matrix);
+  assert.ok(v.rows && v.rows.length === 2);
+  assert.equal(v.totals.items, 4);
+
+  const wordHtml = ui.generateMatrixWordHtml(parsed.matrix, 'all');
+  assert.ok(wordHtml.includes('KHUNG MA TRẬN ĐỀ KIỂM TRA ĐỊNH KỲ'));
+  assert.ok(wordHtml.includes('BẢNG ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KỲ'));
+  assert.ok(wordHtml.includes('TRƯỜNG QUỐC TẾ Á CHÂU'));
+  assert.ok(wordHtml.includes('Thiết bị số'));
+  assert.ok(wordHtml.includes('Lưu trữ trực tuyến'));
+
+  const standalone = ui.generateMatrixWordStandaloneHtml(parsed.matrix, 'all');
+  assert.ok(standalone.includes('xmlns:w="urn:schemas-microsoft-com:office:word"'));
+  assert.ok(standalone.includes('size: A4 landscape'));
+
+  // Test gộp ô theo Chủ đề (rowspan) khi có nhiều bài trong 1 chủ đề
+  const mdSameTopic = `
+# MA TRẬN ĐỀ KIỂM TRA TIN HỌC 9
+Khối: 9
+
+## Chủ đề 1: Máy tính và cộng đồng
+### Bài 1: Thiết bị số
+- [Biết] [MC] Thiết bị số. (1 câu · 0.25đ · Câu 1)
+### Bài 2: Mạng máy tính
+- [Hiểu] [MC] Mạng máy tính. (1 câu · 0.25đ · Câu 2)
+`;
+  const parsedSame = ui.parseMatrixFromMarkdown(mdSameTopic, 9);
+  const htmlSame = ui.generateMatrixWordHtml(parsedSame.matrix, 'all');
+  assert.ok(htmlSame.includes('rowspan="2"'), 'Cả Khung Ma trận và Bản đặc tả phải gộp ô TT và Chủ đề (rowspan=2)');
+  console.log('PASS matrix UI: buildMatrixView & generateMatrixWordHtml xuất chuẩn bố cục Word 2 bảng và tự động gộp ô theo chủ đề');
+
+  // Test web-native matrix creation & presets
+  assert.ok(ui.STANDARD_PRESETS, 'STANDARD_PRESETS must exist');
+  assert.ok(ui.STANDARD_PRESETS['8'], 'Preset for grade 8 must exist');
+  assert.ok(ui.STANDARD_PRESETS['9'], 'Preset for grade 9 must exist');
+  assert.ok(ui.STANDARD_PRESETS['10'], 'Preset for grade 10 must exist');
+
+  // Test newDraft for Grade 8
+  const draft8 = ui.newDraft(8, true);
+  assert.equal(draft8.grade, 8);
+  assert.equal(draft8.profile, 'THCS');
+  assert.equal(draft8.total_points, 10);
+  assert.equal(draft8.lessons.length, 5);
+  assert.equal(draft8.slots.length, 31);
+  const total8 = draft8.slots.flatMap(s => s.parts).reduce((sum, p) => sum + Number(p.points), 0);
+  assert.equal(total8, 10, 'Grade 8 preset must equal 10.0 points');
+
+  // Test newDraft for Grade 9
+  const draft9 = ui.newDraft(9, true);
+  assert.equal(draft9.grade, 9);
+  assert.equal(draft9.profile, 'THCS');
+  assert.equal(draft9.total_points, 10);
+  assert.equal(draft9.lessons.length, 5);
+  assert.equal(draft9.slots.length, 31);
+  const total9 = draft9.slots.flatMap(s => s.parts).reduce((sum, p) => sum + Number(p.points), 0);
+  assert.equal(total9, 10, 'Grade 9 preset must equal 10.0 points');
+
+  // Test newDraft presets for all grades 6 to 12
+  for (const g of [6, 7, 8, 9, 10, 11, 12]) {
+    assert.ok(ui.STANDARD_PRESETS[String(g)], `Preset for grade ${g} must exist`);
+    const d = ui.newDraft(g, true);
+    assert.equal(d.grade, g);
+    assert.equal(d.total_points, 10);
+    assert.equal(d.profile, g >= 10 ? 'THPT' : 'THCS');
+    const tot = d.slots.flatMap(s => s.parts).reduce((sum, p) => sum + Number(p.points), 0);
+    assert.equal(tot, 10, `Grade ${g} preset must sum to 10.0 points`);
+  }
+  console.log('PASS matrix UI: presets for all grades 6-12 verified at 10.0 points');
+
+  // Test clean draft creation (no initial pre-filled lessons or slots)
+  const cleanDraft = ui.newDraft(10, false);
+  assert.equal(cleanDraft.grade, 10);
+  assert.equal(cleanDraft.profile, 'THPT');
+  assert.equal(cleanDraft.lessons.length, 0, 'Clean draft must start with 0 lessons');
+  assert.equal(cleanDraft.slots.length, 0, 'Clean draft must start with 0 slots');
+  assert.equal(cleanDraft.requirements.length, 0, 'Clean draft must start with 0 requirements');
+  console.log('PASS matrix UI: clean draft creation starts empty with 0 lessons and 0 slots');
+
+  // Test updateSlotsFromGrid interactive adjustments
+  const testMatrix = ui.newDraft(8, true);
+  const initialSlots = testMatrix.slots.length;
+  // Reduce MC_B for B1 from 4 to 2
+  ui.updateSlotsFromGrid(testMatrix, 'B1', 'MC_B', 2);
+  assert.equal(testMatrix.slots.length, initialSlots - 2, 'Slots count should decrease by 2');
+  // Increase MC_B for B1 back to 4
+  ui.updateSlotsFromGrid(testMatrix, 'B1', 'MC_B', 4);
+  assert.equal(testMatrix.slots.length, initialSlots, 'Slots count should restore to initial count');
+  assert.equal(testMatrix.slots[0].id, 'S1');
+  assert.equal(testMatrix.slots[0].number, 1);
+  // Test sortLessonsByPpct when B2 is removed and re-added at the end (B1, B3, B4, B5, B2 -> B1, B2, B3, B4, B5)
+  const sortMatrix = ui.newDraft(9, false);
+  sortMatrix.lessons = [
+    { lesson_code: 'B1', title: 'Thế giới kĩ thuật số', topic: 'Chủ đề 1' },
+    { lesson_code: 'B3', title: 'Thực hành: Đánh giá chất lượng thông tin', topic: 'Chủ đề 2' },
+    { lesson_code: 'B4', title: 'Một số vấn đề pháp lý về sử dụng dịch vụ Internet', topic: 'Chủ đề 3' },
+    { lesson_code: 'B5', title: 'Tìm hiểu phần mềm mô phỏng', topic: 'Chủ đề 4' },
+    { lesson_code: 'B2', title: 'Thông tin trong giải quyết vấn đề', topic: 'Chủ đề 2' }
+  ];
+  ui.sortLessonsByPpct(sortMatrix);
+  assert.deepEqual(
+    sortMatrix.lessons.map(l => l.lesson_code),
+    ['B1', 'B2', 'B3', 'B4', 'B5'],
+    'Lessons should be sorted in natural PPCT order B1..B5'
+  );
+  console.log('PASS matrix UI: web-native matrix creation, Asian School presets, lesson sorting & 2D grid updates passed');
+
+  // Test interactive specGridHtml & fillLessonPpctRequirements & Grade 8 Word 100% exact format
+  const g8Preset = ui.STANDARD_PRESETS['8'];
+  assert(typeof ui.specGridHtml === 'function', 'specGridHtml should be exported');
+  assert(typeof ui.fillLessonPpctRequirements === 'function', 'fillLessonPpctRequirements should be exported');
+  const specHtml = ui.specGridHtml(g8Preset, false, false);
+  assert(specHtml.includes('Bảng 2: Bảng đặc tả đề kiểm tra trực quan'), 'Should render Table 2 header');
+  assert(specHtml.includes('Tự điền toàn bộ YCCĐ từ PPCT'), 'Should render 1-click auto-fill button');
+  assert(specHtml.includes('mx-spec-req-input'), 'Should render editable textareas for requirements');
+  assert(specHtml.includes('MC (B)'), 'Should format question count with level and competency');
+
+  const g8WordHtml = ui.generateMatrixWordHtml(g8Preset, 'all');
+  assert(g8WordHtml.includes('KHUNG MA TRẬN ĐỀ KIỂM TRA ĐỊNH KỲ'), 'Word should include Khung ma trận');
+  assert(g8WordHtml.includes('BẢNG ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KỲ'), 'Word should include Bảng đặc tả');
+  assert(g8WordHtml.includes('Lưu ý:'), 'Word should include notice notes under tables');
+  assert(g8WordHtml.includes('4 MC (B) (NLa)'), 'Word should format Grade 8 exact cell 4 MC (B) (NLa)');
+  assert(g8WordHtml.includes('1 ES (NLa)'), 'Word should format Grade 8 exact essay 1 ES (NLa)');
+  assert(g8WordHtml.includes('16 câu B = 40%'), 'Word should format Grade 8 exact percentage row');
+  console.log('PASS matrix UI: specGridHtml and Grade 8 exact layout Word export passed');
+
+  // Test two-stage locking: Table 1 (Matrix 2D) lock and Table 2 (Spec) lock
+  const draftMatrix = ui.newDraft(8, false);
+  draftMatrix.lessons = g8Preset.lessons;
+  draftMatrix.requirements = g8Preset.requirements;
+  draftMatrix.slots = g8Preset.slots;
+
+  // Unlocked state
+  const gridUnlockedHtml = ui.matrixGridHtml(draftMatrix, false, false);
+  assert(gridUnlockedHtml.includes('data-action="lock-matrix"'), 'Matrix 2D should have Lock Matrix button');
+  const specUnlockedHtml = ui.specGridHtml(draftMatrix, false, false);
+  assert(specUnlockedHtml.includes('data-action="lock-spec"'), 'Spec grid should have Lock Spec button');
+
+  // Matrix locked state (Table 1 locked, Table 2 remains editable)
+  draftMatrix.matrix_locked = true;
+  draftMatrix.spec_locked = false;
+  const gridLockedHtml = ui.matrixGridHtml(draftMatrix, true, false);
+  assert(gridLockedHtml.includes('🔒 Đã chốt Bảng ma trận 2D'), 'Matrix 2D should display locked badge');
+  assert(gridLockedHtml.includes('data-action="unlock-matrix"'), 'Matrix 2D should have unlock-matrix action');
+  assert(gridLockedHtml.includes('disabled'), 'Matrix 2D inputs should be disabled when locked');
+  
+  // Spec is still unlocked
+  const specStillUnlockedHtml = ui.specGridHtml(draftMatrix, false, false);
+  assert(specStillUnlockedHtml.includes('data-action="lock-spec"'), 'Spec should remain editable and have lock-spec action');
+
+  // Spec locked state
+  draftMatrix.spec_locked = true;
+  const specLockedHtml = ui.specGridHtml(draftMatrix, true, false);
+  assert(specLockedHtml.includes('🔒 Đã chốt Bảng đặc tả'), 'Spec grid should display locked badge');
+  assert(specLockedHtml.includes('data-action="unlock-spec"'), 'Spec grid should have unlock-spec action');
+  assert(specLockedHtml.includes('disabled'), 'Spec textareas should be disabled when locked');
+  console.log('PASS matrix UI: two-stage independent locking for Matrix 2D and Spec Grid passed');
+
+  // Test customizable question numbers by level and competency input in Spec Grid
+  const customSpecMatrix = ui.newDraft(8, false);
+  customSpecMatrix.lessons = g8Preset.lessons;
+  customSpecMatrix.requirements = JSON.parse(JSON.stringify(g8Preset.requirements));
+  customSpecMatrix.slots = g8Preset.slots;
+
+  // Unlocked editable state should have mx-spec-refs-input and exactly 1 mx-spec-comp-input per level
+  const editableSpecHtml = ui.specGridHtml(customSpecMatrix, false, false);
+  assert(editableSpecHtml.includes('mx-spec-refs-input'), 'Should render editable question input mx-spec-refs-input');
+  assert(editableSpecHtml.includes('mx-spec-comp-input'), 'Should render competency input mx-spec-comp-input');
+  assert(editableSpecHtml.includes('mx-competency-datalist'), 'Should include datalist with standard competencies NLa..NLe');
+  const b1BietCompInputs = (editableSpecHtml.match(/class="mx-spec-comp-input"[^>]*data-lesson-code="B1"[^>]*data-level="Biết"/g) || []).length;
+  assert.equal(b1BietCompInputs, 1, 'There should be exactly 1 competency input for B1 - Biết (no duplicates in MC column)');
+
+  // Set custom refs and custom competency for B1 - Biết
+  customSpecMatrix.custom_level_refs = { 'B1|Biết': 'Câu 1 - 4 (Tùy chỉnh)' };
+  customSpecMatrix.custom_level_comp = { 'B1|Biết': 'NLb' };
+  // Also update requirement
+  customSpecMatrix.requirements.forEach(r => {
+    if (r.lesson_code === 'B1' && r.level === 'Biết') {
+      r.custom_refs = 'Câu 1 - 4 (Tùy chỉnh)';
+      r.competency = 'NLb';
+    }
+  });
+
+  const updatedSpecHtml = ui.specGridHtml(customSpecMatrix, false, false);
+  assert(updatedSpecHtml.includes('Câu 1 - 4 (Tùy chỉnh)'), 'Spec grid should display customized question refs');
+  assert(updatedSpecHtml.includes('value="NLb"'), 'Spec grid competency input should have value NLb');
+  assert(updatedSpecHtml.includes('4 MC (B)'), 'Column should display question count');
+  assert(updatedSpecHtml.includes('reset-spec-refs'), 'Should render reset button when custom refs are set');
+
+  // Check Word export reflects the custom refs and custom competency
+  const updatedWordHtml = ui.generateMatrixWordHtml(customSpecMatrix, 'all');
+  assert(updatedWordHtml.includes('Câu 1 - 4 (Tùy chỉnh)'), 'Word export must reflect custom question refs');
+  assert(updatedWordHtml.includes('4 MC (B) (NLb)'), 'Word export must reflect customized competency (NLb)');
+  console.log('PASS matrix UI: customizable question numbers and competency in Table 2 passed');
+}

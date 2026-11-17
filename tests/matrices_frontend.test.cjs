@@ -318,3 +318,27 @@ Khối: 9
   assert(updatedWordHtml.includes('4 MC (B) (NLb)'), 'Word export must reflect customized competency (NLb)');
   console.log('PASS matrix UI: customizable question numbers and competency in Table 2 passed');
 }
+
+// Khung hướng dẫn nhập số liệu trên bảng ma trận 2D (hiện cả khi đã khóa) và thu phóng khung xem trước.
+{
+  const draft = ui.newDraft(8, false);
+  for (const locked of [false, true]) {
+    const html = ui.matrixGridHtml(draft, locked, false);
+    assert(html.includes('class="mx-help"'), 'Matrix 2D must render the help panel (locked=' + locked + ')');
+    assert(html.includes('Hướng dẫn nhập số liệu'), 'Help panel must have its summary text');
+    assert(html.includes('(1a, 1b)') && html.includes('(C1 - C4)'), 'Help must state the question-numbering rule');
+    assert(/10,0 điểm/.test(html), 'Help must state the 10.0-point total');
+    assert(!html.includes('<script'), 'Help must not use inline scripts (CSP)');
+  }
+  const fs = require('node:fs');
+  const js = fs.readFileSync(require('node:path').join(__dirname, '../public/matrices.js'), 'utf8');
+  const css = fs.readFileSync(require('node:path').join(__dirname, '../public/styles.css'), 'utf8');
+  assert(js.includes("action==='preview-zoom'"), 'Preview zoom action handler must exist');
+  assert(js.includes('PREVIEW_ZOOMS=[80,90,100,110,125,150]'), 'Zoom steps must be defined');
+  for (const z of [80, 90, 110, 125, 150]) {
+    assert(css.includes(`.mx-preview[data-zoom="${z}"] .mx-sheet-body{zoom:`), 'Missing zoom CSS for ' + z);
+  }
+  // Thu phóng chỉ là hiển thị: không được chèn style trực tiếp vào phần thân bảng sẽ được lưu/xuất.
+  assert(!/mx-sheet-body[^`]{0,40}style=/.test(js.slice(js.indexOf('function renderPreviewBox'), js.indexOf('function renderComparisonBox'))), 'Zoom must not add inline style to .mx-sheet-body');
+  console.log('PASS matrix UI: help panel and display-only preview zoom passed');
+}

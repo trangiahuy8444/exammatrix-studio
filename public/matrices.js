@@ -309,6 +309,16 @@
             <button type="button" class="danger quiet" data-action="clear-slots" title="Xóa trắng bài học và câu hỏi phân bố để làm lại từ đầu">🗑️ Làm trống ma trận</button>
           </div>
         </div>
+        <details class="mx-help" id="mx-grid-help">
+          <summary>❓ Hướng dẫn nhập số liệu vào bảng ma trận</summary>
+          <ol>
+            <li><strong>Chọn bài</strong> ở ô "Chọn bài đưa vào ma trận" rồi bấm "+ Thêm bài đã chọn" (hoặc "+ Tự nhập bài mới"). Bài mới hiện thành một hàng trong bảng.</li>
+            <li><strong>Nhập số câu</strong> vào từng ô theo dạng câu và mức độ nhận thức. Hệ thống tự cộng tổng số câu và tổng điểm ở hàng cuối.</li>
+            <li><strong>Điểm:</strong> mỗi câu trắc nghiệm nhiều lựa chọn là 0,25 điểm. Câu Đúng/Sai tính điểm theo thang bậc thang của CV 7991. Mục tiêu là <strong>tổng đúng 10,0 điểm</strong>; nếu thiếu hoặc vượt, hệ thống báo số điểm lệch.</li>
+            <li><strong>Mã câu:</strong> ở bảng đặc tả, mỗi mức độ có ô mã câu và ô năng lực để bạn sửa tay (có nút đặt lại về mặc định). Hãy ghi từng câu cụ thể, ví dụ <code>(1, 2, 3, 4)</code> hoặc <code>(1a, 1b)</code>, không ghi dải câu <code>(C1 - C4)</code>.</li>
+            <li><strong>Khóa:</strong> sau khi đủ số liệu, khóa ma trận 2D rồi khóa bảng đặc tả. Hai bảng khóa độc lập nhau; bảng đã khóa không sửa được cho đến khi mở khóa.</li>
+          </ol>
+        </details>
         ${!(locked || received) ? `
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#f1f7fd;border:1px solid #d5e6f7;border-radius:8px">
           <label for="mx-grid-add-lesson" style="font-weight:600;font-size:13px;color:var(--navy)">Chọn bài đưa vào ma trận:</label>
@@ -708,7 +718,8 @@
     `;
   }
 
-  const ui={container:null,ctx:null,records:[],editing:null,dirty:false,report:null,busy:false,filter:{},createGrade:8,importing:null,generation:null,comparison:null,previewState:null};
+  const PREVIEW_ZOOMS=[80,90,100,110,125,150];
+  const ui={container:null,ctx:null,records:[],editing:null,dirty:false,report:null,busy:false,filter:{},createGrade:8,importing:null,generation:null,comparison:null,previewState:null,previewZoom:100};
   const clone=v=>JSON.parse(JSON.stringify(v));
   const opt=(v,text,selected)=>`<option value="${E(v)}"${selected?' selected':''}>${E(text)}</option>`;
   const uid=p=>p+'-'+Math.random().toString(36).slice(2,11);
@@ -1797,11 +1808,13 @@
     const fmtKey=`matrix:${st.id}:${st.section}:${st.mode}`;
     const fmt=root.DocFormatter||root.BankCore?.DocFormatter;
     preview.hidden=false;preview.className='card mx-preview';
+    const zoomPct=PREVIEW_ZOOMS.includes(ui.previewZoom)?ui.previewZoom:100;preview.dataset.zoom=String(zoomPct);
     preview.innerHTML=`<div class="mx-panel-head"><div><p class="eyebrow">XEM TOÀN BỘ MA TRẬN & BẢNG ĐẶC TẢ</p><h2>${E(m.title)} · Khối ${m.grade} (${E(profileLabel(m.profile))})</h2></div><div class="actions"><button type="button" data-action="compare-id" data-id="${E(st.id)}">Đối chiếu bản gốc (2 cột)</button>${ui.editing?.id!==st.id?`<button type="button" data-open="${E(st.id)}">Mở biên tập</button>`:''}<button type="button" class="quiet" data-action="close-preview">Đóng khung xem</button></div></div>`+
     `<div class="mx-panel-toolbar"><div class="actions"><button type="button" class="${st.section==='all'?'primary':''}" data-action="preview-sec" data-sec="all">Toàn bộ bảng</button><button type="button" class="${st.section==='matrix'?'primary':''}" data-action="preview-sec" data-sec="matrix">Bảng ma trận</button><button type="button" class="${st.section==='specification'?'primary':''}" data-action="preview-sec" data-sec="specification">Bảng đặc tả</button>${m.profile==='THPT'?`<button type="button" class="${st.section==='competencies'?'primary':''}" data-action="preview-sec" data-sec="competencies">Bảng năng lực</button>`:''}</div>`+
     `<div class="actions">${hasRaw?`<button type="button" class="${st.mode==='web'?'primary':''}" data-action="preview-mode" data-mode="web">Bản chuẩn hóa Web (đánh số câu)</button><button type="button" class="${st.mode==='raw'?'primary':''}" data-action="preview-mode" data-mode="raw">Bảng nguyên trạng từ Word</button>`:''}<button type="button" class="button primary" data-action="download-preview-word">📄 Tải Word (.doc)</button></div></div>`+
     (fmt?fmt.toolbarHtml(fmtKey,false):'')+
     (issues.length?`<div class="mx-errors"><strong>Cảnh báo nguồn cần xác minh (${issues.length} mục):</strong><ul>${issues.map(x=>`<li>${E(x.message)}</li>`).join('')}</ul></div>`:'')+
+    `<div class="mx-zoom"><span>Cỡ hiển thị:</span><button type="button" class="quiet" data-action="preview-zoom" data-dir="-1" title="Thu nhỏ khung xem" aria-label="Thu nhỏ khung xem">A−</button><strong class="mx-zoom-val" aria-live="polite">${zoomPct}%</strong><button type="button" class="quiet" data-action="preview-zoom" data-dir="1" title="Phóng to khung xem" aria-label="Phóng to khung xem">A+</button><button type="button" class="quiet" data-action="preview-zoom" data-dir="0" title="Về 100%">Đặt lại</button><small>Chỉ đổi cỡ xem trên màn hình. Tệp Word/PDF vẫn giữ chuẩn: Times New Roman, lề trên/dưới 1,0 cm, khổ ngang.</small></div>`+
     `<div class="mx-sheet-body">${st.bodyHtml}</div>`;
     enhanceSheetTables(preview);
     const dlBtn=preview.querySelector('[data-action="download-preview-word"]');
@@ -1898,6 +1911,13 @@
     const open=event.target.closest('[data-open]');if(open){await run(()=>openRecord(open.dataset.open));return;}
     const b=event.target.closest('[data-action]');if(!b)return;event.preventDefault();const action=b.dataset.action;
     if(action==='close-preview'){ui.comparison=null;ui.previewState=null;const p=qs('#mx-preview');if(p)p.hidden=true;return;}
+    if(action==='preview-zoom'){
+      const p=qs('#mx-preview'),cur=PREVIEW_ZOOMS.includes(ui.previewZoom)?ui.previewZoom:100,dir=Number(b.dataset.dir);
+      const next=dir===0?100:PREVIEW_ZOOMS[Math.max(0,Math.min(PREVIEW_ZOOMS.length-1,PREVIEW_ZOOMS.indexOf(cur)+dir))];
+      ui.previewZoom=next;
+      if(p){p.dataset.zoom=String(next);const v=p.querySelector('.mx-zoom-val');if(v)v.textContent=next+'%';}
+      return;
+    }
     if(action==='cmp-left'&&ui.comparison){ui.comparison.leftMode=b.dataset.left;renderComparisonBox(false);return;}
     if(action==='cmp-zoom'&&ui.comparison){ui.comparison.zoom=!ui.comparison.zoom;renderComparisonBox(false);return;}
     if(action==='preview-sec'&&ui.previewState){await run(()=>openPreview(ui.previewState.id,b.dataset.sec,ui.previewState.mode));return;}

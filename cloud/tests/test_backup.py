@@ -10,6 +10,7 @@ from pathlib import Path
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import connection
 from django.test import TransactionTestCase
 
 from assessment.backup import create_backup, restore_backup, verify_backup
@@ -47,12 +48,18 @@ class BackupDrillTests(TransactionTestCase):
 
     def test_backup_contains_consistent_db_json_and_sources(self):
         manifest = create_backup(self.dir)
-        self.assertTrue(manifest['database']['included'])
         self.assertIn(f'sources/{self.state.pk}/matrices/sources/{DIGEST}.docx', manifest['files'])
-        db = sqlite3.connect(self.dir/'db.sqlite3')
-        self.assertEqual(db.execute('PRAGMA integrity_check').fetchone()[0], 'ok')
-        self.assertEqual(db.execute(f'SELECT count(*) FROM "{StoredSource._meta.db_table}"').fetchone()[0], 2)
-        db.close()
+        if connection.vendor == 'sqlite':
+            self.assertTrue(manifest['database']['included'])
+            db = sqlite3.connect(self.dir/'db.sqlite3')
+            self.assertEqual(db.execute('PRAGMA integrity_check').fetchone()[0], 'ok')
+            self.assertEqual(db.execute(f'SELECT count(*) FROM "{StoredSource._meta.db_table}"').fetchone()[0], 2)
+            db.close()
+        else:
+            # PostgreSQL: bản chụp CSDL do pg_dump hoặc Neon đảm nhiệm (mốc D); chỉ JSON và tệp nguồn nằm trong bản sao lưu này.
+            self.assertFalse(manifest['database']['included'])
+            self.assertEqual(manifest['database']['engine'], connection.vendor)
+            self.assertFalse((self.dir/'db.sqlite3').exists())
         report = verify_backup(self.dir)
         self.assertTrue(report['ok'], report)
         self.assertEqual(report['warnings'], [])

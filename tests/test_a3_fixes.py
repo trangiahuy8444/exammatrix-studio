@@ -52,7 +52,11 @@ class CurriculaSingleSourceTests(unittest.TestCase):
     def test_public_catalog_is_valid_json_payload(self):
         from bank_service import load_default_curricula
         catalog = load_default_curricula()
-        self.assertEqual(len(catalog), 8)
+        # Kiểm đúng danh sách môn (thay vì chỉ một con số) để thêm môn mới phải cập nhật có chủ ý.
+        self.assertEqual(set(catalog), {
+            'Tin học', 'Toán học', 'Vật lí', 'Hóa học', 'Sinh học',
+            'Ngữ văn', 'Tiếng Anh', 'Lịch sử', 'Địa lí'})
+        self.assertEqual(len(catalog), 9)
 
 
 class AnswerLetterTests(unittest.TestCase):

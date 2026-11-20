@@ -353,6 +353,11 @@ test('Bridge + Google Drive: isolates per-user Drives and brand-new account neve
   mock.registerUser('tok-b', { sub: 'user-b', email: 'user-b@school.edu.vn', name: 'Thầy B' });
 
   const h = bridgeHarness({ mockFetch: mock.fetchImpl });
+  h.window.SUBJECT_CURRICULA = {
+    'Tin học': {
+      8: [{ grade: 8, lesson_code: 'B1', lesson_name_source: 'Mẫu', topic_source: 'Chủ đề', outcomes: ['YCCĐ'], occurrences: [] }]
+    }
+  };
 
   const sessionA = {
     user: { uid: 'gdrive:user-a', email: 'user-a@school.edu.vn', displayName: 'Cô A' },
@@ -369,6 +374,9 @@ test('Bridge + Google Drive: isolates per-user Drives and brand-new account neve
   await h.window.FirebaseClient.loadFromGoogleDrive(sessionA);
   assert.equal(h.window.FirebaseState.currentData.bank.questions.length, 0);
   assert.equal(h.window.store.bank.questions.length, 0);
+  assert.equal(h.window.FirebaseState.currentData.bank.ppct.lessons.length, 0);
+  const stateA = await h.window.FirebaseClient.handle('/api/state');
+  assert.equal(stateA.bank.ppct.lessons.length, 0);
 
   // Nạp dữ liệu vào Drive của User A qua replaceWorkspaceData
   const sample = fixture();

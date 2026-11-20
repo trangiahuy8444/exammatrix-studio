@@ -209,7 +209,7 @@
     }
     if (!currentWorkspaceData.bank.ppct?.lessons?.length) {
       currentWorkspaceData.bank.ppct = {
-        lessons: buildDefaultLessons('Tin học', [8, 9, 10].filter(g => !cleared.includes(g))),
+        lessons: [],
         cleared_grades: cleared
       };
     }
@@ -313,9 +313,7 @@
       // 1. Lấy trạng thái hệ thống
       if (path === '/api/state') {
         const cleared = currentWorkspaceData.bank?.ppct?.cleared_grades || [];
-        const storedLessons = cleanPpctLessons(currentWorkspaceData.bank?.ppct?.lessons || [], cleared);
-        const defaultLessons = buildDefaultLessons(subj, [8, 9, 10].filter(g => !cleared.includes(g)));
-        let finalLessons = storedLessons.length > 0 ? storedLessons : defaultLessons;
+        const finalLessons = cleanPpctLessons(currentWorkspaceData.bank?.ppct?.lessons || [], cleared);
         if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: cleared };
         currentWorkspaceData.bank.ppct.lessons = finalLessons;
         const questions = currentWorkspaceData.bank.questions || [];
@@ -836,7 +834,7 @@
     const cached = await getBestCachedData(user.uid);
     const cacheAtStart = JSON.stringify(cached);
     const valid = data => data && data.bank && Array.isArray(data.bank.questions) && Array.isArray(data.bank.ppct?.lessons) && ['exams', 'revisions', 'matrices'].every(k => Array.isArray(data[k]));
-    const empty = () => ({ bank: { questions: [], ppct: { lessons: buildDefaultLessons('Tin học', [8, 9, 10]), cleared_grades: [] }, competency_catalogs: [] }, exams: [], revisions: [], matrices: [] });
+    const empty = () => ({ bank: { questions: [], ppct: { lessons: [], cleared_grades: [] }, competency_catalogs: [] }, exams: [], revisions: [], matrices: [] });
     const install = data => { currentWorkspaceData = JSON.parse(JSON.stringify(data)); window.FirebaseState.currentData = currentWorkspaceData; applyWorkspaceToStore(); };
 
     install(valid(cached) ? cached : empty());
@@ -926,7 +924,7 @@
   async function loadFromFirestore(user, db, helpers) {
     const cached=getStorageData(user.uid),cacheAtStart=JSON.stringify(cached);
     const valid=data=>data&&data.bank&&Array.isArray(data.bank.questions)&&Array.isArray(data.bank.ppct?.lessons)&&['exams','revisions','matrices'].every(k=>Array.isArray(data[k]));
-    const empty=()=>({bank:{questions:[],ppct:{lessons:buildDefaultLessons('Tin học',[8,9,10]),cleared_grades:[]}},exams:[],revisions:[],matrices:[]});
+    const empty=()=>({bank:{questions:[],ppct:{lessons:[],cleared_grades:[]}},exams:[],revisions:[],matrices:[]});
     const install=data=>{currentWorkspaceData=JSON.parse(JSON.stringify(data));window.FirebaseState.currentData=currentWorkspaceData;applyWorkspaceToStore();};
     install(valid(cached)?cached:empty());
     const status=document.getElementById('static-sync-status');

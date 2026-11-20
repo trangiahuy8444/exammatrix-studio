@@ -726,7 +726,7 @@
   const opt=(v,text,selected)=>`<option value="${E(v)}"${selected?' selected':''}>${E(text)}</option>`;
   const uid=p=>p+'-'+Math.random().toString(36).slice(2,11);
   const qs=s=>ui.container.querySelector(s);
-  const lessons=grade=>(Array.isArray(ui.ctx?.ppct?.lessons) ? ui.ctx.ppct.lessons : ((typeof window!=='undefined'&&window.SUBJECT_CURRICULA?.['Tin học']?.[grade]) || [])).filter(l=>Number(l.grade)===Number(grade));
+  const lessons=grade=>(Array.isArray(ui.ctx?.ppct?.lessons) ? ui.ctx.ppct.lessons : []).filter(l=>Number(l.grade)===Number(grade));
   function message(text,error=false){ui.ctx.notify(text,error);}
   function detail(e){const errors=e.details?.errors||e.details?.validation?.errors;return e.message+(errors?'\n'+errors.map(x=>x.message).join('\n'):'');}
   async function run(work){if(ui.busy)return;ui.busy=true;ui.container.querySelectorAll('button').forEach(b=>b.disabled=true);try{await work();}catch(e){message(detail(e),true);if(e.details?.errors){ui.report=e.details;renderReport();}}finally{ui.busy=false;ui.container.querySelectorAll('button').forEach(b=>b.disabled=false);restoreButtons();}}

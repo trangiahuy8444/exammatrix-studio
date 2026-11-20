@@ -1187,7 +1187,7 @@ function renderPPCT(){
  const ls=lessons(g, s);
  $('#ppct').innerHTML=title(`Chương trình môn ${s}`,'Phân phối chương trình',`Quản lý bài học, tuần, tiết và yêu cầu cần đạt môn ${s} Khối ${g}.`,
    `<div style="display:flex;gap:8px;flex-wrap:wrap">` +
-   (!ls.length ? `<button type="button" class="button" id="btn-load-sample-ppct" style="background:#eaf3fb;color:var(--blue,#0267b1);font-weight:600">📥 Nạp mẫu PPCT GDPT 2018 (Khối ${g})</button>` : `<button type="button" class="button danger quiet" id="btn-clear-grade-ppct">🗑️ Xóa PPCT Khối ${g}</button>`) +
+   (ls.length ? `<button type="button" class="button danger quiet" id="btn-clear-grade-ppct">🗑️ Xóa PPCT Khối ${g}</button>` : '') +
    `<button type="button" class="primary" id="add-ppct-lesson">+ Thêm bài học PPCT</button></div>`)+
  `<div class="card">
    <div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap">
@@ -1208,30 +1208,15 @@ function renderPPCT(){
          const weeks = [...new Set(occList.map(o=>o.week_raw).filter(Boolean))].map(esc).join('<br>') || '—';
          const periods = [...new Set(occList.map(o=>o.periods_raw).filter(Boolean))].map(esc).join(', ') || '—';
          return `<tr><td>${weeks}</td><td>${periods}</td><td><strong>${esc(l.lesson_code)} · ${esc(l.lesson_name_source || l.lesson_name || l.name)}</strong><p class="small muted">${esc(l.topic_source || '')}</p></td><td><ul>${(l.outcomes||[]).map(o=>`<li>${esc(o)}</li>`).join('')}</ul></td><td><div class="actions"><button type="button" class="export-link" data-edit-ppct="${esc(l.lesson_code)}" data-grade="${g}">Sửa</button><button type="button" class="export-link danger" data-del-ppct="${esc(l.lesson_code)}" data-grade="${g}">Xóa</button></div></td></tr>`;
-       }).join('') : '<tr><td colspan="5" class="empty" style="text-align:center;padding:24px">Chưa có bài học PPCT cho môn và khối này. Bấm "+ Thêm bài học PPCT" để bổ sung, hoặc bấm "Nạp mẫu PPCT GDPT 2018" để nạp nhanh khung bài học.</td></tr>'}</tbody>
+       }).join('') : '<tr><td colspan="5" class="empty" style="text-align:center;padding:24px">Chưa có bài học PPCT cho môn và khối này. Bấm "+ Thêm bài học PPCT" hoặc nhập tệp PPCT (JSON, Markdown, Word) ở bên dưới.</td></tr>'}</tbody>
      </table>
    </div>
  </div>
  ${ppctImportCard(g)}
- <div class="card"><h2>Hồ sơ nguồn</h2>${(store.bank.ppct?.sources||[]).filter(src=>Number(src.grade)===g && s==='Tin học').map(src=>`<p class="small">${esc(src.path||src.source_file||'')}${src.sha256?` <span class="muted">· SHA-256 ${esc(String(src.sha256).slice(0,12))}…</span>`:''}</p><p class="muted">${esc(src.approval_status||'Đối chiếu bản KHDH trong thư mục chuyên môn.')}</p>`).join('') || `<p class="muted">Khung chương trình chuẩn Giáo dục Phổ thông 2018 (Bộ GD&ĐT) cho môn ${esc(s)}.</p>`}</div>`;
+ <div class="card"><h2>Hồ sơ nguồn</h2>${(store.bank.ppct?.sources||[]).filter(src=>Number(src.grade)===g && s==='Tin học').map(src=>`<p class="small">${esc(src.path||src.source_file||'')}${src.sha256?` <span class="muted">· SHA-256 ${esc(String(src.sha256).slice(0,12))}…</span>`:''}</p><p class="muted">${esc(src.approval_status||'Đối chiếu bản KHDH trong thư mục chuyên môn.')}</p>`).join('') || `<p class="muted">Chưa có hồ sơ nguồn PPCT được tải lên cho môn ${esc(s)} Khối ${g}.</p>`}</div>`;
  $('#ppct-grade').onchange=e=>{store.ppctGrade=Number(e.target.value);renderPPCT();};
  $('#ppct-subject').onchange=e=>setGlobalSubject(e.target.value);
  $('#add-ppct-lesson').onclick=()=>openPPCTEditor(g,'',s);
- const sampleBtn=$('#btn-load-sample-ppct');
- if(sampleBtn)sampleBtn.onclick=async()=>{
-   const cat=(typeof window!=='undefined'&&window.SUBJECT_CURRICULA)||(store.subject_curricula||{});
-   const dLessons = (cat[s]?.[g] || cat[s]?.[String(g)] || []).map(l => ({ ...l, grade: g, subject_name: s, user_uploaded: true }));
-   if(dLessons.length){
-     if(!store.bank.ppct)store.bank.ppct={lessons:[]};
-     const others=(store.bank.ppct.lessons||[]).filter(l=>Number(l.grade)!==g);
-     store.bank.ppct.lessons=[...others,...dLessons];
-     await request('/api/ppct/apply-import',{grade:g,subject_name:s,lessons:dLessons});
-     renderPPCT();
-     notify(`Đã nạp mẫu chuẩn PPCT GDPT 2018 (${dLessons.length} bài học Khối ${g}).`);
-   } else {
-     store.testPpctLoaded=true;renderPPCT();notify(`Đã nạp mẫu PPCT GDPT 2018 cho môn ${s}.`);
-   }
- };
  const clearGradeBtn=$('#btn-clear-grade-ppct');
  if(clearGradeBtn)clearGradeBtn.onclick=async()=>{
    if(!confirm(`Bạn có chắc chắn muốn xóa toàn bộ ${ls.length} bài học PPCT của Khối ${g} để tải lại tệp mới không?`))return;

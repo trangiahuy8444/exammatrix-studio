@@ -1,0 +1,10 @@
+[
+  {"id":"E1","title":"Đề minh họa A","grade":9,"subject_name":"Tin học","exam_type":"GK1","duration":45,"questions":[
+    {"id":"Q1","type":"MC","level":"Biết","lesson_code":"B1","learning_outcome":"Nhận biết dữ liệu","points":4,"correct":0},
+    {"id":"Q2","type":"ES","level":"Hiểu","lesson_code":"B2","learning_outcome":"Giải thích thông tin","points":6,"rubric":"Nội dung không được trả trong báo cáo"}
+  ]},
+  {"id":"E2","title":"Đề minh họa B","grade":9,"subject_name":"Tin học","exam_type":"GK1","duration":45,"questions":[
+    {"id":"Q3","type":"MC","level":"Biết","lesson_code":"B1","learning_outcome":"Nhận biết dữ liệu","points":4},
+    {"id":"Q4","type":"ES","level":"Hiểu","lesson_code":"B2","learning_outcome":"Giải thích thông tin","points":6}
+  ]}
+]

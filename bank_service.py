@@ -596,6 +596,11 @@ class BankService:
     def import_bank(self, bank):
         with self.lock:
             checked = self._validate_bank(bank)
+            # Nhập câu hỏi không thay thế danh mục năng lực quản lý riêng.
+            current = self._load_bank()
+            checked.pop('competency_catalogs', None)
+            if 'competency_catalogs' in current:
+                checked['competency_catalogs'] = copy.deepcopy(current['competency_catalogs'])
             self._atomic_save(self.bank_path, checked)
             return copy.deepcopy(checked)
 
@@ -971,6 +976,14 @@ class BankService:
             records = self._records('revisions'); records.append(copy_rev)
             self._atomic_save(self.data_dir/'revisions.json', records)
             return copy.deepcopy(copy_rev)
+
+    def compare_exams(self, ids):
+        from domain.exam_comparison import compare_exams
+        if (not isinstance(ids, list) or not 2 <= len(ids) <= 6 or
+                any(not isinstance(i, str) or not i.strip() for i in ids) or len(set(ids)) != len(ids)):
+            raise ServiceError('Chọn từ 2 đến 6 đề khác nhau đã lưu để so sánh.')
+        with self.lock:
+            return compare_exams([self.get_record('exams', ident) for ident in ids])
 
     def get_record(self, name, ident):
         with self.lock:

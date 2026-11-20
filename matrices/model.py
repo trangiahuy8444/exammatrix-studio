@@ -3,6 +3,7 @@ import copy
 import hashlib
 import json
 import re
+import unicodedata
 from collections import defaultdict
 from decimal import Decimal
 from bank_service import ServiceError, number
@@ -19,7 +20,7 @@ CONTENT_FIELDS = ('profile', 'grade', 'school_year', 'exam_type', 'duration', 't
 
 
 # B3: chỉ tính vào hash khi có mặt, để hash của các ma trận đã khóa trước đây không đổi.
-OPTIONAL_CONTENT_FIELDS = ('allowed_kinds', 'scoring_policy', 'ratio_tolerance')
+OPTIONAL_CONTENT_FIELDS = ('allowed_kinds', 'scoring_policy', 'ratio_tolerance', 'competency_catalog', 'catalog_revision')
 
 
 def matrix_digest(matrix):
@@ -136,6 +137,22 @@ def validate_matrix(matrix, ppct, for_lock=False):
             error('lesson','lessons','Bài học trùng hoặc không thuộc PPCT của khối.');continue
         if not all(isinstance(l.get(k),str) and l[k].strip() for k in ('title','topic')):error('lesson_title','lessons','Cần tên bài và chủ đề.')
         lessons[code]=l
+    from .competency_catalog import validate_rows, validate_indicators
+    allowed_competencies = context.get('competencies', ('NLa','NLb','NLc','NLd','NLe'))
+    if 'competency_catalog' in m:
+        try:
+            snapshot = validate_rows(m['competency_catalog'], ('code', 'name'), 'Danh mục năng lực')
+            allowed_competencies = [r['code'] for r in snapshot]
+        except ServiceError as exc:
+            allowed_competencies = []
+            error('competency_catalog', 'competency_catalog', exc.error)
+    if 'catalog_revision' in m and (type(m['catalog_revision']) is not int or m['catalog_revision'] <= 0):
+        error('catalog_revision', 'catalog_revision', 'Phiên bản danh mục phải là số nguyên dương.')
+    if 'competency_catalog' in m:
+        try:
+            validate_indicators(arrays['indicator_catalog'], allowed_competencies)
+        except ServiceError as exc:
+            error('indicator_catalog', 'indicator_catalog', exc.error)
     reqs={}
     for r in arrays['requirements']:
         ident=r.get('id');code=r.get('lesson_code');i=r.get('ppct_outcome_index')
@@ -149,8 +166,10 @@ def validate_matrix(matrix, ppct, for_lock=False):
         if r.get('level') not in LEVELS:error('level','requirements.'+ident,'Mức độ không hợp lệ.')
         source=catalog.get((grade,code),{})
         if type(i) is not int or not 0<=i<len(source.get('outcomes',[])):error('outcome','requirements.'+ident,'Chọn YCCĐ nguồn trong PPCT đúng khối.')
-        if r.get('competency') not in context.get('competencies', ('NLa','NLb','NLc','NLd','NLe')):error('competency','requirements.'+ident,'Chọn thành phần năng lực hợp lệ.')
-    indicators={r.get('code'):r for r in arrays['indicator_catalog'] if isinstance(r.get('code'),str)}
+        if r.get('competency') not in allowed_competencies:error('competency','requirements.'+ident,'Chọn thành phần năng lực hợp lệ.')
+    indicators={r['code'].strip():r for r in arrays['indicator_catalog'] if isinstance(r.get('code'),str) and r['code'].strip()}
+    indicator_subject = unicodedata.normalize('NFC', str(context.get('subject_name') or subj)).strip().casefold()
+    indicators_required = m.get('profile') == 'THPT' and (indicator_subject == 'tin học' or bool(arrays['indicator_catalog']))
     ids=set(); numbers=defaultdict(list);total=Decimal(0);exam_supported=True
     try:
         kinds_allowed=allowed_kinds(m)
@@ -193,9 +212,15 @@ def validate_matrix(matrix, ppct, for_lock=False):
                 points=number(p.get('points'),'Điểm');total+=points
                 if points<=0:error('points','slots','Điểm mỗi ý phải lớn hơn 0.')
             except ServiceError:error('points','slots','Điểm mỗi ý phải là số hữu hạn.')
-            if m.get('profile')=='THPT':
-                ind=indicators.get(p.get('indicator')) if isinstance(p.get('indicator'),str) else None
-                if not ind or (r and ind.get('competency')!=r.get('competency')):error('indicator','slots','Mã chỉ báo không thuộc thành phần năng lực đã chọn.')
+            code = p.get('indicator')
+            if isinstance(code, str): code = code.strip()
+            if ('competency_catalog' in m and (bool(arrays['indicator_catalog']) or code is not None and code != '')) or (m.get('profile')=='THPT' and (indicators_required or code is not None and code != '')):
+                ind=indicators.get(code) if isinstance(code,str) else None
+                location=f"Câu {n} ({kind})"+(f" · ý {p['label']}" if p.get('label') else '')
+                path=f"slots.{sid}.parts.{pid}.indicator"
+                if not code:error('indicator',path,location+': chưa chọn mã chỉ báo trong danh mục.')
+                elif not ind:error('indicator',path,f'{location}: mã chỉ báo “{code}” không có trong danh mục.')
+                elif r and ind.get('competency')!=r.get('competency'):error('indicator',path,f"{location}: mã “{code}” thuộc năng lực {ind.get('competency')}, không khớp năng lực {r.get('competency')} của YCCĐ {rid}.")
     for kind,ns in numbers.items():
         if sorted(ns)!=list(range(1,len(ns)+1)):error('number_sequence','slots','Số câu trong mỗi dạng phải liên tục và không trùng.')
     if total!=10:error('total','slots','Phân bố hiện tại chưa đủ đúng 10 điểm.')

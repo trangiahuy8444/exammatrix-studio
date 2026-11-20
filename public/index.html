@@ -13,10 +13,20 @@
   <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
   <script src="./core.js" defer></script>
+  <script src="./exam-comparison.js" defer></script>
+  <script src="./competency-catalog.js" defer></script>
+  <script src="./competency-catalog-ui.js" defer></script>
+  <script src="./static-exam-engine.js" defer></script>
+  <script src="./static-exam-workflow.js" defer></script>
+  <script src="./static-exam-export.js" defer></script>
+  <script src="./static-api.js" defer></script>
+  <script src="./static-download.js" defer></script>
   <link rel="stylesheet" href="./matrices.css">
   <script src="./matrices.js" defer></script>
   <script src="./curricula.js" defer></script>
   <script src="./firebase-config.js" defer></script>
+  <script src="./google-drive-config.js" defer></script>
+  <script src="./google-drive-storage.js" defer></script>
   <script src="./firebase-bridge.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" defer></script>
@@ -102,7 +112,7 @@
   <div id="offline-banner" hidden role="status" style="background:#eef6fd;border:1px solid #c6daed;border-radius:8px;color:#24364a;padding:12px 18px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px">
     <div style="min-width:240px;flex:1">
       <strong style="font-size:14px">Đang dùng chế độ ngoại tuyến</strong>
-      <p style="margin:2px 0 0;font-size:12px">Dữ liệu chỉ lưu trên trình duyệt này (localStorage). Xóa dữ liệu trình duyệt hoặc đổi máy sẽ mất dữ liệu, nên hãy tải bản sao lưu thường xuyên. Đăng nhập để đồng bộ lên đám mây.</p>
+      <p style="margin:2px 0 0;font-size:12px">Dữ liệu chỉ lưu trên trình duyệt này (localStorage). Xóa dữ liệu trình duyệt hoặc đổi máy sẽ mất dữ liệu, nên hãy tải bản sao lưu thường xuyên. Đăng nhập Google để lưu trực tiếp vào Google Drive riêng của bạn.</p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button type="button" id="btn-offline-login" class="button primary" style="padding:5px 12px;font-size:12px;font-weight:600">Đăng nhập</button>
@@ -111,6 +121,7 @@
       <input type="file" id="offline-restore-file" accept="application/json,.json" hidden>
     </div>
   </div>
+  <div id="static-sync-status" role="status" class="callout warning" hidden></div>
   <div id="notice" role="status" aria-live="polite" hidden></div>
   <div id="loading" class="empty" role="status">Đang mở ngân hàng câu hỏi…</div>
   <section id="overview" class="view" hidden></section>
@@ -125,6 +136,10 @@
 <footer id="page-footer">Hệ thống Ngân hàng đề & Khảo thí · Môn <span id="footer-subject-name" style="font-weight:bold">Tin học</span> <span>Asian School · Năm học 2026–2027</span></footer>
 </div>
 <dialog id="detail-dialog" aria-labelledby="detail-title"><div id="detail-content"></div></dialog>
+<dialog id="exam-comparison-dialog" aria-labelledby="exam-comparison-title" style="width:min(1100px,94vw);max-width:94vw">
+ <div class="dialog-heading"><h2 id="exam-comparison-title">So sánh cấu trúc các đề</h2><button type="button" data-close="exam-comparison-dialog" class="quiet">Đóng</button></div>
+ <form id="exam-comparison-form"></form><div id="exam-comparison-result" aria-live="polite"></div>
+</dialog>
 <dialog id="edit-dialog" aria-labelledby="edit-title"><div class="dialog-heading"><h2 id="edit-title">Câu hỏi</h2><button type="button" data-close="edit-dialog" class="quiet">Đóng</button></div><form id="question-form"></form></dialog>
 <dialog id="ai-dialog" aria-labelledby="ai-title" style="max-width:920px;width:95vw;border-radius:14px;padding:26px;border:1px solid #dce5ee;box-shadow:0 16px 48px rgba(16,45,74,0.18)">
   <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;border-bottom:1px solid #e2e8f0;padding-bottom:14px">

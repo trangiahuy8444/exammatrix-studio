@@ -10,7 +10,7 @@ from .model import CONTENT_FIELDS, OPTIONAL_CONTENT_FIELDS, normalize_matrix, va
 
 def received_core(m):
     """Fields in a received source that local mapping must never rewrite."""
-    return dict(profile=m.get('profile'),grade=m.get('grade'),exam_type=m.get('exam_type'),
+    core = dict(profile=m.get('profile'),grade=m.get('grade'),exam_type=m.get('exam_type'),
         total_points=m.get('total_points'),duration=m.get('duration'),source=m.get('source'),
         lessons=[{k:l.get(k) for k in ('source_index','title','topic','spec_title','spec_topic')} for l in m.get('lessons',[])],
         requirements=[{k:r.get(k) for k in ('id','source_index','text','level','competency')} for r in m.get('requirements',[])],
@@ -18,11 +18,40 @@ def received_core(m):
                     parts=[{k:p.get(k) for k in ('id','label','points','indicator','source_index','source_level','source_competency')} for p in s.get('parts',[])]) for s in m.get('slots',[])],
         indicator_catalog=m.get('indicator_catalog'),issues=m.get('reconciliation',{}).get('issues'))
 
+    for key in ('competency_catalog', 'catalog_revision'):
+        if key in m:
+            core[key] = copy.deepcopy(m[key])
+    return core
+
 
 class MatrixService:
     def __init__(self,bank_service,authored_grades=(9,)):
         self.bank=bank_service;self.path=self.bank.data_dir/'matrices/records.json'
         self.authored_grades=tuple(authored_grades)
+
+    def get_catalog(self):
+        with self.bank.lock:
+            subject = self.bank.context.get('subject_name') or 'Tin học'
+            rows = self.bank._load_bank().get('competency_catalogs', [])
+            if not isinstance(rows, list):
+                raise ServiceError('Danh sách danh mục năng lực bị lỗi.', status=409)
+            return copy.deepcopy(next((r for r in rows if r.get('subject_name') == subject), None))
+
+    def save_catalog(self, catalog, expected_revision):
+        from .competency_catalog import validate_catalog
+        checked = validate_catalog(catalog)
+        with self.bank.lock:
+            current = self.get_catalog()
+            revision = current['revision'] if current else 0
+            if type(expected_revision) is not int or expected_revision != revision:
+                raise ServiceError('Danh mục đã thay đổi. Hãy tải lại trước khi lưu.', status=409)
+            subject = self.bank.context.get('subject_name') or 'Tin học'
+            bank = copy.deepcopy(self.bank._load_bank())
+            rows = bank.setdefault('competency_catalogs', [])
+            record = dict(checked, subject_name=subject, revision=revision + 1)
+            rows[:] = [r for r in rows if r.get('subject_name') != subject] + [record]
+            self.bank._atomic_save(self.bank.bank_path, bank)
+            return copy.deepcopy(record)
 
     def list(self):
         with self.bank.lock:
@@ -53,7 +82,7 @@ class MatrixService:
 
     def _shape(self,m):
         report=validate_matrix(m,self.bank.catalog)
-        structural={'shape','grade','profile','mode','exam_type','duration','points','slot_id','part_id','requirement_id','received_scope'}
+        structural={'shape','grade','profile','mode','exam_type','duration','points','slot_id','part_id','requirement_id','received_scope','competency_catalog','catalog_revision','indicator_catalog'}
         if any(e['code'] in structural for e in report['errors']):
             raise ServiceError('Hồ sơ chứa dữ liệu không hợp lệ.',report)
         try:json.dumps(m,allow_nan=False)

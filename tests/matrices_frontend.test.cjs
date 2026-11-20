@@ -2,6 +2,11 @@ const assert=require('node:assert/strict');
 let ui;
 try {ui=require('../public/matrices.js');}catch {ui=null;}
 assert.ok(ui,'Matrix UI helpers must be implemented');
+{
+ const m={profile:'THCS',grade:9,lessons:[{lesson_code:'B1',title:'Bài'}],requirements:[{id:'R1',lesson_code:'B1',level:'Biết',text:'YCCĐ'}],slots:[1,2].map(i=>({id:'S'+i,number:i,kind:'MC',parts:[{requirement_id:'R1',points:5}]}))};
+ const html=ui.matrixGridHtml(m,false,false);
+ assert.ok(html.includes('Phân bố riêng'));assert.ok(html.includes('10 điểm'));assert.ok(!html.includes('95%'));assert.ok(!html.includes('0.50đ'));
+}
 assert.deepEqual(ui.visibleActions({status:'locked',mode:'received'}),['preview','export','new-version','archive','use']);
 assert.ok(!ui.visibleActions({status:'locked',mode:'authored'}).includes('save'));
 assert.equal(ui.formatRefs([{number:1,label:'a'},{number:1,label:'b'}],'matrix'),'(1a, 1b)');

@@ -168,3 +168,4 @@ assert.equal(core.levelAfterTypeChange('Vận dụng cao','MC'),'Vận dụng ca
 
 // Rich question checks run with the established frontend validation command.
 require('./question_text_frontend.test.cjs');
+require('./exam_comparison.test.cjs');

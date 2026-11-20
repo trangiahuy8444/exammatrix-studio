@@ -251,6 +251,21 @@ def _spec(d,m,v):
 
 
 def _competencies(d,m,v):
+    if 'competency_catalog' in m:
+        names={r['code']:r['name'] for r in m['competency_catalog']}
+        def name(code):return names.get(code,code)+' ('+code+')' if code in names else code
+        t=_table(d,1+len(v['competencies']),[2.4,1.2,.8,2.8,11,5.6],1)
+        for cell,text in zip(t.rows[0].cells,('Dạng','Câu','Ý','Mức','Năng lực','Mã')):
+            _text(cell,text,True,True)
+        for i,part in enumerate(v['competencies'],1):
+            values=(NAMES[part['kind']],part['number'],part['label'],part['level'],name(part['competency']),part['indicator'])
+            for cell,text in zip(t.rows[i].cells,values):_text(cell,text)
+        d.add_page_break();h=d.add_heading('Mã hóa ma trận',level=1);h.alignment=1
+        codes=m.get('indicator_catalog',[]);t=_table(d,1+len(codes),[8,2,13.8],1)
+        for cell,text in zip(t.rows[0].cells,('Thành phần năng lực','Mã','Chỉ báo năng lực')):_text(cell,text,True,True)
+        for i,row in enumerate(codes,1):
+            for cell,text in zip(t.rows[i].cells,(name(row['competency']),row['code'],row['text'])):_text(cell,text)
+        return
     levels=_export_levels(m);level_count=len(levels);end=3+3*level_count
     t=_table(d,4+len(v['competencies']),[1.9,1.1,.7]+[1.7]*(3*level_count),4)
     _text(t.cell(0,0).merge(t.cell(3,0)),'Dạng thức',True,True)
@@ -278,7 +293,7 @@ def _competencies(d,m,v):
 
 
 def matrix_docx(matrix,ppct,section='all',mode='auto'):
-    if section not in ('all','matrix','specification','competencies') or (section=='competencies' and matrix.get('profile')!='THPT'):raise ServiceError('Phần xuất không phù hợp mẫu.')
+    if section not in ('all','matrix','specification','competencies') or (section=='competencies' and matrix.get('profile')!='THPT' and 'competency_catalog' not in matrix):raise ServiceError('Phần xuất không phù hợp mẫu.')
     if mode not in ('auto','raw','web'):raise ServiceError('Chế độ xem không hợp lệ.')
     m=matrix;d=_document();d.core_properties.title=m['title']
     period=matrix_period(m['exam_type'])
@@ -294,7 +309,7 @@ def matrix_docx(matrix,ppct,section='all',mode='auto'):
     v=None if raw_mode else matrix_view(m)
     wrote=False
     for part,title in [('matrix','MA TRẬN ĐỀ KIỂM TRA '),('competencies','MA TRẬN PHÂN BỐ THEO DẠNG THỨC CÂU HỎI VÀ CẤP ĐỘ TƯ DUY'),('specification','BẢNG ĐẶC TẢ ĐỀ KIỂM TRA ')]:
-        if section not in ('all',part) or (part=='competencies' and m['profile']!='THPT'):continue
+        if section not in ('all',part) or (part=='competencies' and m['profile']!='THPT' and 'competency_catalog' not in m):continue
         if wrote:d.add_page_break()
         _heading(d,title+(period if part!='competencies' else ''),m);wrote=True
         if raw_mode:

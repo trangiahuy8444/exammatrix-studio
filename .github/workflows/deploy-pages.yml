@@ -16,7 +16,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  verify-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Kiểm tra luồng Pages trước khi xuất bản
+        run: |
+          node tests/frontend.test.cjs
+          node tests/matrices_frontend.test.cjs
+          node --test tests/static_*.test.cjs
+
   deploy:
+    needs: verify-static
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

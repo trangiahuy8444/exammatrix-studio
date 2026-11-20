@@ -1,3 +1,33 @@
+## 19/11/2026 — Nạp danh mục năng lực và chỉ báo theo môn
+
+- Thêm đọc XLSX/CSV/TSV và bảng dán Word/Excel, xem trước/kiểm lỗi, lưu theo môn với kiểm phiên bản. Có mẫu CSV minh họa, không tự tạo mã chuẩn.
+- Áp dụng riêng vào bản nháp, chọn năng lực YCCĐ và chỉ báo theo danh mục. Snapshot được lưu/băm/xuất cùng ma trận; thư viện cập nhật không đổi bản khóa. Đồng bộ cache/Firestore giữ danh mục.
+- Rà soát và sửa nhập câu hỏi làm mất danh mục, bảo vệ snapshot nguồn nhận, kiểm lại snapshot qua đường nhập/lưu; hiển thị nội dung nhập như văn bản. Không ghi dữ liệu thật.
+- Python 445 (1 bỏ qua), Django 112/112, migration không đổi; kiểm frontend và Chromium/File đạt. Hướng dẫn và phạm vi: `acceptance/2026-11-19-vat-li/NAP_DANH_MUC.md`. Chưa commit/push hoặc nghiệm thu dữ liệu thật.
+
+## 19/11/2026 — Sửa lỗi chỉ báo chặn ma trận Vật lí THPT
+
+- Tái hiện quy tắc chỉ báo Tin học bị áp dụng sang môn khác. Sửa đồng bộ JavaScript/Python: môn khác không có danh mục được để trống; mã/danh mục đã khai vẫn kiểm năng lực YCCĐ. Giữ kiểm điểm và PPCT.
+- Lỗi khóa trả báo cáo chi tiết, chỉ rõ câu/ý và mã. Thêm hướng dẫn trên giao diện; không chỉnh dữ liệu đã lưu.
+- Kiểm thử mới Node 4/4, Python 3/3; toàn bộ kiểm thử tĩnh 57/57; kiểm giao diện hiện có đạt. Chromium mở File với dữ liệu minh họa khóa được Vật lí, tải lại giữ nguyên, mã sai bị chặn đúng. Biên bản: `acceptance/2026-11-19-vat-li/BIEN_BAN.md`. Chưa push; chưa nghiệm thu dữ liệu thật.
+
+## 19/11/2026 — Sửa luồng ra đề Pages sau kiểm tra thực tế
+
+- Thêm module engine, workflow, export, API và download tách riêng; bỏ phản hồi đạt/đủ/thành công mặc định, kiểm lại tệp nhập thay vì tin cờ client.
+- Sinh đề/bộ đề từ câu approved theo ma trận/YCCĐ, snapshot độc lập, duyệt với checklist, hash khóa và thứ tự phát hành. Thêm hoán vị bảo toàn đáp án, chuyển cả bộ nguyên tử và chặn sửa/xóa hồ sơ khóa.
+- DOCX/ZIP thực, tách đề học sinh/đáp án, quy đổi điểm rubric; xuất ma trận DOCX; cảnh báo cụ thể các thành phần thiếu. Không coi HTML `.doc` là DOCX.
+- Sửa nhận diện Python/Django trên localhost; tuần tự hóa và tách phản hồi, báo hết bộ nhớ/đồng bộ lỗi, giữ cache chưa đồng bộ khi mở lại. Bỏ fallback giao diện tự duyệt/ghi ngân hàng sau lỗi.
+- Kiểm trình duyệt bắt và sửa lỗi mặc định khối làm mất ma trận trong lựa chọn, tỷ lệ/điểm ma trận tùy biến dùng giả định cố định. Đã kiểm đường dẫn con kiểu Pages và tải tệp thật.
+- Bổ sung CI Node cho các module mới; workflow Pages phụ thuộc kiểm thử tĩnh. Chưa push/triển khai, chưa kiểm Firestore/PostgreSQL thật hoặc nghiệm thu Word/PDF; câu nhiều ý chưa hỗ trợ đầy đủ bị chặn. Chi tiết: `acceptance/2026-11-19-pages/BIEN_BAN.md`.
+
+## 19/11/2026 — Báo cáo so sánh cấu trúc các đề
+
+- Người dùng chọn báo cáo độ tương đương giữa các đề; mục tiêu giảm thời gian soạn và sai sót của giáo viên. Triển khai đối chiếu cấu trúc theo câu, không suy ra độ khó thực nghiệm.
+- Thêm lõi Python/JavaScript, API chỉ đọc và hộp chọn 2–6 đề trên Django/legacy/Pages. Đối chiếu bối cảnh, phân bố, ô kết hợp và trọng số từng câu; thiếu dữ liệu báo chưa đủ căn cứ. Không trả đáp án.
+- Rà soát độc lập phát hiện hai thiếu sót: tổng điểm ô che trọng số câu khác nhau và phép làm tròn JS lệch Python. Đã tái hiện bằng kiểm thử lỗi rồi sửa; kiểm đầu ra chéo 30 kịch bản.
+- Kế hoạch, cấu trúc và rủi ro: `docs/KE_HOACH_SO_SANH_DE.md`; kết quả cuối phiên: `acceptance/2026-11-19-so-sanh-de/BIEN_BAN.md`.
+- Dữ liệu thử tự soạn và CSDL thử trong thư mục tạm; không khôi phục hoặc migrate dữ liệu thật, không commit/push/triển khai. Chưa tự đánh dấu nghiệm thu giáo viên trong lộ trình.
+
 ## 08/11/2026 — Kiểm định trung thực ma trận & Hoàn thiện luồng kiểm thử đa môn
 
 - **Kiểm định nghiệp vụ trung thực**: Gỡ bỏ cơ chế ghi đè giả định `actual_levels = copy.deepcopy(expected_levels)` trong `docx_exam_importer.py`. Đo lường chính xác 100% mức độ nhận thức (Biết, Hiểu, Vận dụng, Vận dụng cao) cho từng câu hỏi và từng ý trắc nghiệm/tự luận, không che giấu hay phỏng đoán.

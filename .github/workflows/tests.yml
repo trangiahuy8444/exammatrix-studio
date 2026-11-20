@@ -18,6 +18,7 @@ jobs:
         working-directory: cloud
       - run: python -m unittest discover -s tests
       - run: node tests/frontend.test.cjs && node tests/matrices_frontend.test.cjs
+      - run: node --test tests/static_*.test.cjs
 
   postgres:
     runs-on: ubuntu-latest

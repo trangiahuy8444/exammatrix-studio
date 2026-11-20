@@ -5,6 +5,12 @@
 
 ## Hiện tại
 
+**19/11/2026 — nạp danh mục năng lực/chỉ báo:** đã triển khai theo thiết kế giáo viên đồng ý, kiểm bằng dữ liệu minh họa trên File/Chromium và Python/Django. Kế hoạch: `KE_HOACH_DANH_MUC_NANG_LUC.md`; hướng dẫn/kết quả: `../acceptance/2026-11-19-vat-li/NAP_DANH_MUC.md`. Chờ giáo viên thử tài liệu thật; chưa push và không đánh dấu nghiệm thu mốc C/D.
+
+**19/11/2026 — ổn định luồng Pages theo yêu cầu tiếp nối:** đã thay các nhánh kiểm định/sinh đề giả bằng xử lý thật, nối vòng đời, DOCX/ZIP, bảo vệ lưu cục bộ và thêm cổng kiểm thử cho workflow Pages. Kế hoạch: `KE_HOACH_ON_DINH_PAGES.md`; kết quả và phần chưa hỗ trợ: `../acceptance/2026-11-19-pages/BIEN_BAN.md`. Chưa triển khai hoặc nghiệm thu toàn bộ website, chưa thay các ô mốc C/D.
+
+**19/11/2026 — mở rộng theo lựa chọn giáo viên:** bổ sung báo cáo so sánh cấu trúc 2–6 đề, phục vụ giảm thời gian soạn và phát hiện sai sót. Kế hoạch/tệp/rủi ro: `KE_HOACH_SO_SANH_DE.md`; bằng chứng: `../acceptance/2026-11-19-so-sanh-de/BIEN_BAN.md`. Đây là đối chiếu cấu trúc theo câu, không phải kết luận độ khó thực nghiệm; chưa thay các dấu nghiệm thu mốc C/D.
+
 Đợt chức năng giữa kì Tin/Toán/Vật lí ngày 31/10 đã tích hợp và qua kiểm thử phần mềm; xem `../acceptance/2026-10-31-giua-ki-da-mon/BAN_GIAO.md`. Chưa thay các ô nghiệm thu giáo viên.
 
 **Phạm vi hiện hành — giáo viên điều chỉnh ngày 31/10/2026:** hoàn thiện chức năng ra đề giữa học kì cho nhiều môn. Chưa làm nội dung/đề/ma trận cuối HK1 và không tiếp tục đối soát CK1 thật. Dùng dữ liệu minh họa tự soạn để kiểm chức năng. Các yêu cầu CK1 còn xuất hiện trong phần kế hoạch cũ là phạm vi hoãn; chúng không được dùng để tự giao việc tiếp theo. Quyết định này ưu tiên hơn các mô tả cũ; chi tiết tại `docs/BOI_CANH.md`.

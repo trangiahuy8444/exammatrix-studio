@@ -5,6 +5,12 @@
 
 ## 1. Mục tiêu
 
+**Chốt 19/11/2026 — danh mục năng lực theo môn:** giáo viên đồng ý bổ sung nạp Excel/CSV hoặc dán bảng Word/Excel, xem trước và kiểm lỗi, lưu riêng theo môn và áp dụng vào bản nháp. Ma trận giữ snapshot danh mục đã dùng; cập nhật thư viện không đổi hồ sơ đã khóa. Nội dung mã lấy từ tài liệu giáo viên cung cấp, không suy diễn mã chuẩn Vật lí.
+
+**Tiếp nối 19/11/2026:** giáo viên yêu cầu sửa và kiểm trọn luồng trên bản Pages đang dùng. Ưu tiên bỏ các kết luận đạt giả, chỉ sinh từ câu đã duyệt, khóa/phát hành có điều kiện, xuất tệp thật và báo đúng tình trạng lưu. Làm trên mã local bằng dữ liệu minh họa; chưa có yêu cầu đẩy bản sửa lên GitHub/triển khai. Các dạng/phần chưa hỗ trợ phải bị chặn rõ, không suy ra đã hoàn thiện cả website.
+
+**Bổ sung 19/11/2026 theo giáo viên:** xây ứng dụng từ nhu cầu thực tế giáo viên mất nhiều thời gian soạn đề và dễ sai sót. Người dùng chọn chức năng báo cáo độ tương đương giữa các đề. Triển khai trước đối chiếu cấu trúc theo câu, chỉ rõ chênh lệch và thiếu căn cứ; đánh giá độ khó thực nghiệm cần dữ liệu học sinh và chưa thuộc lượt này.
+
 **Chuỗi nghiệp vụ:** Ngân hàng câu hỏi → Kiểm duyệt → Ma trận → Tạo đề → Kiểm tra → Khóa đề → Phát hành → Lưu vết.
 
 **Tiêu chí thành công trước mắt:** hoàn thiện các chức năng để giáo viên **nhiều môn học** tự biên soạn, kiểm định và xuất đề **giữa học kì**, từ thiết lập môn/chương trình, PPCT/YCCĐ, ngân hàng câu hỏi, ma trận, đề cương đến bộ đề và mã đề. Mọi đáp án truy vết được về câu hỏi đã duyệt. Kiểm thử bằng dữ liệu minh họa tự soạn; không yêu cầu có đề hoặc ma trận cuối kì thật.

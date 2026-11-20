@@ -61,6 +61,8 @@ flowchart LR
 
 ## 🛠️ Nghiệp vụ Chuyên sâu Tích hợp
 
+- **So sánh cấu trúc các đề:** tại mỗi đề đã lưu, bấm **So sánh với đề khác**, chọn 2–6 đề rồi bấm **So sánh các đề đã chọn**. Báo cáo từng cặp chỉ rõ lệch môn/khối/kỳ/thời lượng, số câu, điểm, dạng câu, mức độ, bài, YCCĐ và ô kết hợp. Có tỷ lệ dùng chung mã câu và cảnh báo cùng gia đình hoán vị. Thiếu dữ liệu sẽ báo **Chưa đủ căn cứ**; khớp cấu trúc theo câu chưa chứng minh độ khó tương đương và chưa kiểm từng ý. Hoạt động trên API Python và Pages/ngoại tuyến, không thay đề đã lưu. Chi tiết cấu trúc, rủi ro và phạm vi tại [kế hoạch so sánh đề](docs/KE_HOACH_SO_SANH_DE.md).
+
 - **Quản lý KTTX (Thông tư 22/2021 Điều 6):** Phân biệt rõ đầu điểm ghi sổ (THCS 2 bài/kỳ; THPT 3 bài/kỳ) với hoạt động kiểm tra thường xuyên; hỗ trợ cụm chuyên đề học tập THPT (Điều 6.3).
 - **Vòng đời Thẩm định Câu hỏi:** Quy trình gửi và duyệt (`draft` $\rightarrow$ `pending_review` $\rightarrow$ `approved`). Câu đã duyệt khi bị sửa nội dung sẽ tự động chuyển về `needs_review` để tránh lọt câu chưa thẩm định.
 - **Báo cáo Thiếu hụt Ngân hàng (B9 Shortfall Report):** Thống kê theo từng ô (bài $\times$ YCCĐ $\times$ dạng câu $\times$ mức độ), cảnh báo tức thì khi ngân hàng thiếu câu hỏi đã duyệt.
@@ -93,6 +95,12 @@ node tests/matrices_frontend.test.cjs
 ---
 
 ## 🌐 Triển khai Đám mây (Cloud Deployment)
+
+**Bản GitHub Pages/ngoại tuyến:** xử lý trên trình duyệt bằng các module `public/static-*`, khác với lõi Python của Django. Đã bổ sung kiểm tra ma trận/YCCĐ, thiếu câu đã duyệt, sinh đề/bộ đề thật, duyệt/khóa/phát hành, hoán vị và tải DOCX/ZIP từ snapshot. Đề trống, câu chưa duyệt, tệp nhập tự khai đạt và thao tác chưa hỗ trợ không được báo thành công.
+
+Chỉ dùng các phạm vi đã hỗ trợ: sinh MC, SHORT và tự luận một phần; câu Đúng/Sai hoặc câu nhiều phần chưa đủ ánh xạ bị chặn. DOCX/ZIP là tệp thật nhưng vẫn cần giáo viên kiểm trang và mẫu trường; đề cương hiện có cảnh báo thiếu logo/banner. Pages chưa tạo PDF qua Word, LMS/LaTeX hoặc bảng đối chiếu mã đề trong ZIP. Khi chưa đồng bộ được, tải bản sao lưu trước khi đổi máy. Chưa có bảo đảm ghi đồng thời nhiều thiết bị hay phân quyền duyệt độc lập như máy chủ.
+
+Kiểm thử Pages: `node --test tests/static_*.test.cjs`. Workflow Pages phải qua lượt kiểm thử này và hai bộ Node hiện có trước khi tải artifact. Bằng chứng và kịch bản trình duyệt: [biên bản ổn định Pages](acceptance/2026-11-19-pages/BIEN_BAN.md).
 
 - **Web Server:** Render (Web Service kết nối trực tiếp GitHub).
 - **Cơ sở dữ liệu:** Neon PostgreSQL (Serverless Postgres tại khu vực gần Singapore).

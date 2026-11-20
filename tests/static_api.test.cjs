@@ -1,0 +1,71 @@
+const assert=require('node:assert/strict');
+const {webcrypto}=require('node:crypto');
+globalThis.crypto=webcrypto;
+const api=require('../public/static-api.js');
+const engine=require('../public/static-exam-engine.js');
+const workflow=require('../public/static-exam-workflow.js');
+const env={engine,workflow,subject:'Tin học',actor:'Giáo viên minh họa'};
+function fixture(){
+ const questions=Array.from({length:4},(_,i)=>({id:`Q${i+1}`,grade:9,subject_name:'Tin học',type:'MC',level:'Biết',lesson_code:'B1',learning_outcome:'Nhận biết dữ liệu',question:`Câu minh họa ${i+1}?`,options:['A','B','C','D'],correct:0,review_status:'approved'}));
+ const matrix={id:'M1',family_id:'F1',title:'Ma trận minh họa',grade:9,subject_name:'Tin học',exam_type:'GK1',status:'draft',revision:1,version:1,
+  mode:'authored',profile:'THCS',school_year:'2026-2027',owner_name:'GV',campus:'Cao Thắng',duration:45,total_points:10,indicator_catalog:[],reconciliation:{confirmed:true,issues:[]},
+  lessons:[{lesson_code:'B1',title:'Dữ liệu',topic:'Dữ liệu'}],requirements:[{id:'R1',lesson_code:'B1',level:'Biết',text:'Nhận biết dữ liệu',ppct_outcome_index:0,competency:'NLa'}],
+  slots:[{id:'S1',kind:'MC',number:1,scoring:{mode:'sum_parts'},parts:[{id:'P1',requirement_id:'R1',points:5}]},{id:'S2',kind:'MC',number:2,scoring:{mode:'sum_parts'},parts:[{id:'P2',requirement_id:'R1',points:5}]}]};
+ return {bank:{questions,ppct:{lessons:[{grade:9,subject_name:'Tin học',lesson_code:'B1',lesson_name:'Dữ liệu',outcomes:['Nhận biết dữ liệu']}]}},matrices:[matrix],revisions:[],exams:[]};
+}
+async function main(){
+ let data=fixture();const initial=JSON.stringify(data);
+ await assert.rejects(api.handle('/api/not-supported',{},data,env));
+ await assert.rejects(api.handle('/api/exams/generate',{title:'Đề',grade:9,exam_type:'GK1',matrix_id:'M1'},data,env));
+ assert.equal(JSON.stringify(data),initial);
+ const empty=fixture();empty.matrices[0].slots=[];
+ const report=await api.handle('/api/matrices/M1/shortfall',undefined,empty,env);
+ assert.equal(report.response.complete,false);assert.equal(report.changed,false);
+ await assert.rejects(api.handle('/api/matrices/lock',{id:'M1',expected_revision:1,confirmation:{confirmed_by:'GV',confirmed_at:'2026-11-19',external_agreement:true}},empty,env));
+ let result=await api.handle('/api/matrices/lock',{id:'M1',expected_revision:1,confirmation:{confirmed_by:'GV',confirmed_at:'2026-11-19',external_agreement:true}},data,env);data=result.data;
+ assert.equal(result.response.matrix.status,'locked');
+ await assert.rejects(api.handle('/api/matrices/save',{matrix:{...data.matrices[0],status:'draft',slots:[]},expected_revision:2},data,env));
+ result=await api.handle('/api/revisions/save',{title:'Đề cương minh họa',grade:9,question_ids:['Q1','Q2','Q3','Q4']},data,env);data=result.data;
+ const revision=result.response.revision;assert.equal(revision.questions.length,4);
+ result=await api.handle('/api/exams/generate',{title:'Đề minh họa',grade:9,subject_name:'Tin học',exam_type:'GK1',duration:45,matrix_id:'M1',revision_id:revision.id,seed:'demo'},data,env);data=result.data;
+ const exam=result.response.exam;assert.equal(exam.questions.length,2);assert.equal(exam.total_points,10);
+ assert.equal(data.exams.length,1);assert.equal(JSON.stringify(fixture()),initial);
+ await assert.rejects(api.handle('/api/exams/transition',{id:exam.id,action:'publish'},data,env));
+ for(const action of ['submit','approve']){result=await api.handle('/api/exams/transition',{id:exam.id,action},data,env);data=result.data;}
+ assert.equal(result.response.exam.status,'locked');
+ await assert.rejects(api.handle('/api/exams/update',{id:exam.id,title:'Sửa lén'},data,env));
+ result=await api.handle('/api/revisions/transition',{id:revision.id,action:'publish'},data,env);data=result.data;
+ result=await api.handle('/api/exams/transition',{id:exam.id,action:'publish'},data,env);data=result.data;
+ assert.equal(result.response.exam.status,'published');
+ const frozen=JSON.stringify(data.exams[0].questions);
+ const bankQ=data.bank.questions[0];result=await api.handle('/api/questions/save',{question:{...bankQ,question:'Nội dung đã sửa',review_status:'approved'}},data,env);data=result.data;
+ assert.equal(result.response.question.review_status,'needs_review');assert.equal(JSON.stringify(data.exams[0].questions),frozen);
+ const missing=fixture();missing.matrices[0].status='locked';missing.bank.questions.forEach(q=>q.review_status='draft');
+ const before=JSON.stringify(missing);
+ await assert.rejects(api.handle('/api/exams/generate',{title:'Không đủ câu',grade:9,exam_type:'GK1',matrix_id:'M1'},missing,env));
+ assert.equal(JSON.stringify(missing),before);
+ const staged=fixture();staged.matrices[0].status='locked';
+ let stagedResult=await api.handle('/api/exams/generate',{title:'Tạo trước, gắn đề cương sau',grade:9,exam_type:'GK1',matrix_id:'M1'},staged,env);
+ let work=stagedResult.data;const unbound=stagedResult.response.exam.id;
+ stagedResult=await api.handle('/api/revisions/save',{title:'Đề cương sau',grade:9,question_ids:['Q1','Q2','Q3','Q4']},work,env);work=stagedResult.data;
+ stagedResult=await api.handle('/api/exams/verify',{id:unbound,revision_id:stagedResult.response.revision.id},work,env);work=stagedResult.data;
+ assert.equal(stagedResult.response.exam.verification.passed,true);
+ assert.equal(engine.verifyExam(work,work.exams[0]).passed,true);
+ const originalCorrect=Object.fromEntries(work.exams[0].questions.map(q=>[q.id,q.options[q.correct]]));
+ stagedResult=await api.handle('/api/exams/permute',{id:unbound,codes:['101','102'],num_variants:2,shuffle_questions:true,shuffle_options:true,seed:'test'},work,env);
+ work=stagedResult.data;assert.equal(stagedResult.response.result.exams.length,2);
+ for(const variant of stagedResult.response.result.exams){
+  assert.equal(variant.status,'drafting');assert.equal(engine.verifyExam(work,variant).passed,true);
+  for(const q of variant.questions)assert.equal(q.options[q.correct],originalCorrect[q.id]);
+  for(const action of ['submit','approve']){stagedResult=await api.handle('/api/exams/transition',{id:variant.id,action},work,env);work=stagedResult.data;}
+ }
+ let sets=fixture();sets.matrices[0].status='locked';
+ const setPayload={title:'Bộ đề minh họa',grade:9,exam_type:'GK1',matrix_id:'M1',exam_count:2,seed:'set'};
+ stagedResult=await api.handle('/api/exams/generate-set',setPayload,sets,env);sets=stagedResult.data;
+ assert.equal(stagedResult.response.exams.length,2);const setId=sets.exams[0].exam_set.id;
+ sets.exams[1].questions[0].question='Sửa để tái hiện lỗi';const savedSet=JSON.stringify(sets);
+ await assert.rejects(api.handle('/api/exams/set/transition',{set_id:setId,action:'submit'},sets,env));assert.equal(JSON.stringify(sets),savedSet);
+ console.log('PASS static API: ma trận → đề cương → sinh thật → khóa → phát hành; lỗi nguyên tử, bất biến snapshot và không tự duyệt câu');
+}
+if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1;});
+module.exports={fixture,main};

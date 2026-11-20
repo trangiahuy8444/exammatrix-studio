@@ -87,6 +87,27 @@ async function request(path,body){
  let data;try{data=await response.json();}catch{throw new Error('Không đọc được phản hồi từ ứng dụng. Hãy kiểm tra máy chủ cục bộ.');}
  if(!response.ok){const error=new Error(data.error||'Không thực hiện được yêu cầu.');error.details=data.details;throw error;}return data;
 }
+document.addEventListener('click',async event=>{
+ const link=event.target.closest?.('a[href]');
+ if(!link||!window.FirebaseClient?.canHandle('/api/state'))return;
+ const url=new URL(link.href,location.href);
+ if(!/^\/api\/(exams|revisions|matrices)\/.*\/(export|bundle\.zip|mapping\.docx)$/.test(url.pathname)&&!url.pathname.startsWith('/api/bank/export'))return;
+ event.preventDefault();event.stopImmediatePropagation();
+ try{
+  const state=await request('/api/state');
+  if(url.pathname==='/api/bank/export'){
+   if(store.canViewAnswers===false)throw Error('Tài khoản này không có quyền tải ngân hàng có đáp án.');
+   saveStaticFile({bytes:new TextEncoder().encode(JSON.stringify(state.bank,null,2)),mime:'application/json',filename:'Ngan_hang_cau_hoi.json',warnings:[]});return;
+  }
+  const file=await window.BankStaticDownload.createDownload(url.pathname+url.search,state,{canViewAnswers:store.canViewAnswers,subject:subject()});
+  saveStaticFile(file);
+ }catch(error){notify(detailError(error),true);}
+},true);
+function saveStaticFile(file){
+ const blob=new Blob([file.bytes],{type:file.mime}),url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=file.filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+ notify('Đã tạo tệp '+file.filename+'.'+(file.warnings?.length?'\n'+file.warnings.join('\n'):''),Boolean(file.warnings?.length));
+}
 async function mutate(path,body,onSuccess){
  if(store.busy)return;store.busy=true;
  document.querySelectorAll('dialog form button[type=submit],#save-revision,#generate-exam').forEach(b=>b.disabled=true);
@@ -94,12 +115,12 @@ async function mutate(path,body,onSuccess){
  catch(e){notify(detailError(e),true);const form=$('#edit-dialog[open] #form-error');if(form){form.hidden=false;form.textContent=detailError(e);}return null;}
  finally{store.busy=false;document.querySelectorAll('dialog form button[type=submit],#save-revision').forEach(b=>b.disabled=false);updateGenerationState();}
 }
-function examDraftScope(){return {workspace:document.querySelector('meta[name="workspace-scope"]')?.content||'',curriculum:store.context.curriculum_id||courseID,subject:subject()};}
+function examDraftScope(){return {workspace:document.querySelector('meta[name="workspace-scope"]')?.content||(window.FirebaseClient?.canHandle('/api/state')?(window.FirebaseState.user?.uid||'offline'):''),curriculum:store.context.curriculum_id||courseID,subject:subject()};}
 function examDraftContext(){const own=inDraftSubject;return {grades:grades(),lessons:lessons(store.examDraft.grade),revisions:store.revisions.filter(own),matrices:(store.matrixRecords||[]).filter(own),templates:store.templates.filter(own)};}
 function restoreExamDraft(){
  const scope=examDraftScope();let saved=null;
  try{saved=C.loadExamDraft(window.localStorage,scope,{...examDraftContext(),lessons:grades().flatMap(g=>lessons(g))});}catch{}
- store.examDraft=saved||C.cleanExamDraft({},examDraftContext());
+ store.examDraft=saved||C.cleanExamDraft({grade:store.examDraft.grade},examDraftContext());
  if(!saved)chooseExamTemplate();
  // Validate lesson references against the restored grade, not the previous form's grade.
  store.examDraft=C.cleanExamDraft(store.examDraft,examDraftContext());
@@ -680,7 +701,7 @@ function renderBank(){
    <button type="button" class="button quiet" id="bank-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI soạn câu hỏi</button>
  </div>`+
  `<div class="card"><div class="filters"><div class="field"><label for="filter-grade">Khối lớp</label><select id="filter-grade">${opt('','Tất cả khối',!f.grade)}${gradeOptions(f.grade)}</select></div><div class="field"><label for="filter-lesson">Bài học</label><select id="filter-lesson">${lessonFilterOptions()}</select></div><div class="field"><label for="filter-type">Dạng câu</label><select id="filter-type">${opt('','Tất cả dạng',!f.type)}${Object.entries(typeNames).map(([k,v])=>opt(k,v,f.type===k)).join('')}</select></div><div class="field"><label for="filter-level">Mức độ</label><select id="filter-level">${opt('','Tất cả mức độ',!f.level)}${C.levelOptions(f.level)}</select></div><div class="field"><label for="filter-status">Trạng thái</label><select id="filter-status">${opt('active','Đang sử dụng',f.status==='active')}${Object.entries(statusNames).map(([k,v])=>opt(k,v,k===f.status)).join('')}${opt('all','Tất cả trạng thái',f.status==='all')}</select></div><div class="field search"><label for="filter-search">Tìm trong câu hỏi, mã câu, phương án hoặc YCCĐ</label><input id="filter-search" type="search" placeholder="Tìm nội dung, mã câu hoặc yêu cầu cần đạt…" value="${esc(f.search)}"></div></div></div>`+
- `<div class="bank-layout"><div><div id="bank-toolbar"></div><div id="bank-list" class="question-list"></div><div id="bank-pagination"></div></div><aside class="bank-aside card"><h2>Câu đã chọn</h2><div id="selection-summary"></div><div class="callout">Lựa chọn được giữ khi đổi bộ lọc. Khi lưu đề cương, ứng dụng chỉ lấy câu thuộc khối đã chọn.</div><div class="actions" style="margin-bottom:10px"><a class="button primary" href="#revisions">Tạo đề cương từ lựa chọn</a><button class="quiet" id="clear-selection">Bỏ chọn tất cả</button></div><div class="bulk-box"><label for="bulk-status-select">Thao tác hàng loạt với câu đã chọn</label><div class="actions" style="margin-top:6px"><select id="bulk-status-select" style="flex:1;min-width:140px">${Object.entries(statusNames).map(([k,v])=>opt(k,`Đổi thành: ${v}`)).join('')}</select><button type="button" id="bulk-apply-status">Áp dụng</button><button type="button" class="danger" id="bulk-delete-selected">Xóa câu đã chọn</button></div></div><hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><p class="small muted">Bấm nội dung câu để xem đáp án, giải thích, thang điểm và yêu cầu cần đạt. Dùng các nút bên phải mỗi câu để Sửa, Nhân bản, Lưu trữ/Khôi phục hoặc Xóa.</p></aside></div>`;
+ `<div class="bank-layout"><div><div id="bank-toolbar"></div><div id="bank-list" class="question-list"></div><div id="bank-pagination"></div></div><aside class="bank-aside card"><h2>Câu đã chọn</h2><div id="selection-summary"></div><div class="callout">Lựa chọn được giữ khi đổi bộ lọc. Khi lưu đề cương, ứng dụng chỉ lấy câu thuộc khối đã chọn.</div><div class="actions" style="margin-bottom:10px"><a class="button primary" href="#revisions">Tạo đề cương từ lựa chọn</a><button class="quiet" id="clear-selection">Bỏ chọn tất cả</button></div><div class="bulk-box"><label for="bulk-status-select">Thao tác hàng loạt với câu đã chọn</label><div class="actions" style="margin-top:6px"><select id="bulk-status-select" style="flex:1;min-width:140px">${Object.entries(statusNames).filter(([k])=>['pending_review','archived'].includes(k)).map(([k,v])=>opt(k,`Đổi thành: ${v}`)).join('')}</select><button type="button" id="bulk-apply-status">Áp dụng</button><button type="button" class="danger" id="bulk-delete-selected">Xóa câu đã chọn</button></div></div><hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><p class="small muted">Bấm nội dung câu để xem đáp án, giải thích, thang điểm và yêu cầu cần đạt. Dùng các nút bên phải mỗi câu để Sửa, Nhân bản, Lưu trữ/Khôi phục hoặc Xóa.</p></aside></div>`;
  $('#add-question').onclick=()=>openEditor();$('#import-bank').onclick=()=>$('#import-file').click();$('#import-file').onchange=importBank;
  const btnBankJson = $('#bank-download-json-sample');
  if (btnBankJson) btnBankJson.onclick = () => downloadBankJsonSample(Number(store.filters.grade) || 9);
@@ -869,7 +890,7 @@ function buildRevisionSheetHtml(record,showAnswers=false){
  const ess=(record.questions||[]).filter(q=>q.type==='ES');
  const part=questionSectionNumbers(record);
  const hasYn=yns.length>0;
- return `<div class="doc-sheet"><header class="doc-sheet-head"><div style="display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:12px;border-bottom:2px solid var(--line);padding-bottom:12px;text-align:center">${schoolProfile()?'<img src="/assets/logo_asian_school.png" alt="Asian School Logo" style="max-height:60px;max-width:100px;object-fit:contain;flex-shrink:0">':''}<div style="flex:1">${schoolProfile()?'<p style="margin:0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">TRƯỜNG TH, THCS & THPT QUỐC TẾ Á CHÂU</p>':''}<h3 style="margin:4px 0 2px 0">${esc(record.title||'ĐỀ CƯƠNG ÔN TẬP KIỂM TRA GIỮA HỌC KÌ I')}</h3><p style="margin:0"><strong>MÔN: ${esc(subject(record).toLocaleUpperCase('vi'))} ${esc(record.grade)} · NĂM HỌC ${esc(record.school_year||store.context.school_year||'2026-2027')}</strong> (${countRecord(record)} câu hỏi ôn tập)</p></div></div></header>`+
+ return `<div class="doc-sheet"><header class="doc-sheet-head"><div style="display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:12px;border-bottom:2px solid var(--line);padding-bottom:12px;text-align:center">${schoolProfile()?'<img src="./assets/logo_asian_school.png" alt="Asian School Logo" style="max-height:60px;max-width:100px;object-fit:contain;flex-shrink:0">':''}<div style="flex:1">${schoolProfile()?'<p style="margin:0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">TRƯỜNG TH, THCS & THPT QUỐC TẾ Á CHÂU</p>':''}<h3 style="margin:4px 0 2px 0">${esc(record.title||'ĐỀ CƯƠNG ÔN TẬP KIỂM TRA GIỮA HỌC KÌ I')}</h3><p style="margin:0"><strong>MÔN: ${esc(subject(record).toLocaleUpperCase('vi'))} ${esc(record.grade)} · NĂM HỌC ${esc(record.school_year||store.context.school_year||'2026-2027')}</strong> (${countRecord(record)} câu hỏi ôn tập)</p></div></div></header>`+
  `<section class="doc-section"><h4>A. GIỚI HẠN KIẾN THỨC ÔN TẬP</h4><div class="table-wrap"><table class="doc-table"><colgroup><col style="width:6%"><col style="width:44%"><col style="width:50%"></colgroup><thead><tr><th align="center" style="width:56px">STT</th><th align="center">Tên chủ đề</th><th align="center">Tên bài</th></tr></thead><tbody>${goals.length?goals.map((r,i)=>`<tr><td align="center">${i+1}</td><td>${esc(r.topic)}</td><td><strong>${esc(r.name)}</strong></td></tr>`).join(''):'<tr><td colspan="3" align="center">Chưa có câu hỏi trong đề cương.</td></tr>'}</tbody></table></div></section>`+
  `<section class="doc-section"><h4>B. HỆ THỐNG CÂU HỎI ÔN TẬP</h4>`+
  (mcs.length?`<h5>${part.MC}. TRẮC NGHIỆM NHIỀU LỰA CHỌN (${mcs.length} câu)</h5>${mcs.map((q,i)=>`<article class="doc-question" data-edit-qid="${esc(q.id||'')}"><div class="doc-question-heading" style="margin:0 0 8px;font-size:17px"><strong>Câu ${q.slot_number||(i+1)}.</strong> ${C.questionTextHtml(q.question,{editable:true})} ${showAnswers?`<span class="badge" contenteditable="false">${esc(q.lesson_code||'')} · ${esc(q.level||'')}</span>`:''}</div>${showAnswers?`<ol class="options">${(q.options||[]).map((o,oi)=>`<li class="${oi===q.correct?'correct':''}">${oi===q.correct?'<span class="answer-label" contenteditable="false">ĐÁP ÁN ĐÚNG</span>':''}<strong>${'ABCD'[oi]}.</strong> <span data-edit-opt="${oi}">${esc(o)}</span><span class="explanation" data-edit-exp="${oi}">${esc(q.option_explanations?.[oi]||'')}</span></li>`).join('')}</ol>`:`<div class="doc-options ${mcColsClass(q.options)}">${(q.options||[]).map((o,oi)=>`<p class="doc-option"><strong>${'ABCD'[oi]}.</strong> <span data-edit-opt="${oi}">${esc(o)}</span></p>`).join('')}</div>`}</article>`).join('')}`:'')+
@@ -1115,47 +1136,18 @@ async function saveQuestion(event){
 async function archiveQuestion(id){const q=questions().find(q=>q.id===id);if(!q||!confirm(`Lưu trữ câu ${id}? Câu sẽ ngừng được chọn tạo đề; nội dung và lịch sử vẫn được giữ.`))return;await mutate('/api/questions/archive',{id},()=>{store.selected.delete(id);$('#detail-dialog').close();render();notify('Đã lưu trữ câu hỏi. Có thể tìm lại qua bộ lọc “Đã lưu trữ”.');});}
 async function restoreQuestion(id){
  const q=questions().find(q=>q.id===id);if(!q)return;
- try{
-  const res=await request('/api/questions/restore',{id,status:'approved'});
-  if(res.bank)store.bank=res.bank;
- }catch{
-  const copy=structuredClone(q);copy.review_status='approved';
-  const res=await request('/api/questions/save',{question:copy});
-  if(res.bank)store.bank=res.bank;
- }
- $('#detail-dialog').close();render();notify(`Đã khôi phục câu hỏi ${id} về trạng thái Mẫu đã duyệt.`);
+ await mutate('/api/questions/restore',{id},()=>{$('#detail-dialog').close();render();notify(`Đã khôi phục câu hỏi ${id}. Hãy kiểm tra trạng thái duyệt trước khi sử dụng.`);});
 }
 async function deleteQuestion(id){
- const q=questions().find(q=>q.id===id);if(!q||!confirm(`Xóa vĩnh viễn câu hỏi ${id} khỏi ngân hàng? (Hệ thống vẫn lưu một bản sao lưu dự phòng trong thư mục backups).`))return;
- try{
-  const res=await request('/api/questions/delete',{id});
-  if(res.bank)store.bank=res.bank;
- }catch{
-  const nextBank=structuredClone(store.bank);
-  nextBank.questions=nextBank.questions.filter(x=>x.id!==id);
-  const res=await request('/api/bank/import',{bank:nextBank});
-  if(res.bank)store.bank=res.bank;
- }
- store.selected.delete(id);$('#detail-dialog').close();render();notify(`Đã xóa câu hỏi ${id}.`);
+ const q=questions().find(q=>q.id===id);if(!q||!confirm(`Xóa vĩnh viễn câu hỏi ${id}? Hãy tải bản sao lưu trước nếu cần khôi phục.`))return;
+ await mutate('/api/questions/delete',{id},()=>{store.selected.delete(id);$('#detail-dialog').close();render();notify(`Đã xóa câu hỏi ${id}.`);});
 }
-async function bulkUpdateSelected(action,status='approved'){
+async function bulkUpdateSelected(action,status='pending_review'){
  const ids=[...store.selected];
  if(!ids.length){notify('Hãy đánh dấu chọn ít nhất một câu hỏi trước.',true);return;}
- if(action==='delete'&&!confirm(`Xóa vĩnh viễn ${ids.length} câu hỏi đang chọn?`))return;
- if(action==='status'&&!confirm(`Đổi trạng thái ${ids.length} câu hỏi đang chọn thành "${statusNames[status]||status}"?`))return;
- try{
-  const res=await request('/api/questions/bulk',{ids,action,status});
-  if(res.bank)store.bank=res.bank;
- }catch{
-  const nextBank=structuredClone(store.bank);
-  const set=new Set(ids);
-  if(action==='delete')nextBank.questions=nextBank.questions.filter(x=>!set.has(x.id));
-  else nextBank.questions.forEach(x=>{if(set.has(x.id))x.review_status=status;});
-  const res=await request('/api/bank/import',{bank:nextBank});
-  if(res.bank)store.bank=res.bank;
- }
- if(action==='delete'||status==='archived')ids.forEach(id=>store.selected.delete(id));
- render();notify(action==='delete'?`Đã xóa ${ids.length} câu hỏi.`:`Đã cập nhật trạng thái cho ${ids.length} câu hỏi.`);
+ if(action==='status'&&status==='approved'){notify('Hãy mở màn hình Duyệt câu hỏi và xác nhận đầy đủ phiếu kiểm định; không đổi trực tiếp sang Đã duyệt.',true);return;}
+ if(!confirm(action==='delete'?`Xóa vĩnh viễn ${ids.length} câu hỏi?`:`Chuyển trạng thái ${ids.length} câu hỏi?`))return;
+ await mutate('/api/questions/bulk',{ids,action,status},()=>{store.selected.clear();render();notify('Đã cập nhật các câu hỏi đã chọn.');});
 }
 async function importBank(event){
   const file=event.target.files[0];
@@ -1172,20 +1164,7 @@ async function importBank(event){
         return;
       }
       if(!confirm(`Tìm thấy ${parsed.length} câu hỏi từ tệp Markdown (${file.name}). Bạn có muốn nạp vào Ngân hàng câu hỏi?`))return;
-      if(!store.bank)store.bank={questions:[]};
-      if(!store.bank.questions)store.bank.questions=[];
-      const existingIds=new Set(store.bank.questions.map(q=>q.id));
-      let added=0;
-      parsed.forEach(q=>{
-        if(!existingIds.has(q.id)){
-          store.bank.questions.push(q);
-          added++;
-        }
-      });
-      await mutate('/api/bank/save',{questions:store.bank.questions},()=>{
-        render();
-        notify(`Đã nạp thành công ${added} câu hỏi mới từ tệp Markdown vào Ngân hàng.`);
-      });
+      await mutate('/api/bank/import',{bank:{questions:parsed}},()=>{render();notify(`Đã nhập ${parsed.length} câu hỏi. Câu mới ở trạng thái Nháp, cần kiểm định trước khi ra đề.`);});
     }else{
       const text=await file.text();
       let bank=JSON.parse(text);
@@ -1978,6 +1957,7 @@ function examLinks(r){
  const base='/api/exams/'+encodeURIComponent(r.id)+'/export',ans=store.canViewAnswers!==false,editable=C.examEditable(r);
  return examLifecycle(r)+`<div class="card-actions">`+
   `<button type="button" class="export-link primary" data-view-exam="${esc(r.id)}" data-mode="student">👁 Xem toàn bộ đề</button>`+
+  `<button type="button" data-compare-exam="${esc(r.id)}">So sánh với đề khác</button>`+
   `<details class="dropdown-menu"><summary>📥 Tải về ▾</summary><div class="dropdown-content">`+
    (ans?`<a href="/api/exams/${esc(r.id)}/bundle.zip?format=docx" style="font-weight:bold;color:var(--brand,#0a58ca)">📦 Tải trọn bộ Hồ sơ Word (.zip)</a>`+
    `<a href="/api/exams/${esc(r.id)}/bundle.zip?format=pdf">📦 Tải trọn bộ Hồ sơ PDF (.zip)</a>`+
@@ -2005,6 +1985,26 @@ function examLinks(r){
   `</div></details>`+
  `</div>`;
 }
+function openExamComparison(id){
+ const dialog=$('#exam-comparison-dialog'),form=$('#exam-comparison-form'),result=$('#exam-comparison-result');
+ const exams=currentExams();
+ form.innerHTML='<p>Chọn 2–6 đề đã lưu. Báo cáo chỉ đối chiếu cấu trúc theo câu, chưa đánh giá độ khó thực nghiệm.</p>'+
+  '<fieldset><legend>Các đề cần so sánh</legend>'+exams.map(e=>`<label style="display:block"><input type="checkbox" name="comparison-exam" value="${esc(e.id)}" ${e.id===id?'checked':''}> ${esc(e.title||e.id)} · Khối ${esc(e.grade)} · ${esc(e.exam_code||e.id)}</label>`).join('')+
+  '</fieldset><p id="exam-comparison-error" role="alert" class="error" hidden></p><button type="submit" class="primary">So sánh các đề đã chọn</button>';
+ result.innerHTML='';
+ form.onsubmit=async event=>{
+  event.preventDefault();
+  const ids=[...form.querySelectorAll('input[name="comparison-exam"]:checked')].map(el=>el.value);
+  const error=$('#exam-comparison-error'),button=form.querySelector('button[type="submit"]');
+  error.hidden=true;result.innerHTML='';
+  if(ids.length<2||ids.length>6){error.textContent='Chọn từ 2 đến 6 đề khác nhau để so sánh.';error.hidden=false;return;}
+  button.disabled=true;button.textContent='Đang đối chiếu…';
+  try{const report=await request('/api/exams/compare',{ids});result.innerHTML=window.BankExamComparison.reportHtml(report);}
+  catch(e){error.textContent=detailError(e);error.hidden=false;}
+  finally{button.disabled=false;button.textContent='So sánh các đề đã chọn';}
+ };
+ dialog.showModal();
+}
 function renderExams(){
  // A newly added first lesson must also become the value behind the visible selector.
  store.examDraft.blueprint.forEach(row=>{if(!row.lesson_code)row.lesson_code=lessons(store.examDraft.grade)[0]?.lesson_code||'';});
@@ -2019,7 +2019,7 @@ function renderExams(){
    <button type="button" class="button quiet" id="exam-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI tạo Đề thi</button>
  </div>`+
  (inspected?`<div class="card" id="exam-import-inspection-box"><div class="dialog-heading"><div><p class="eyebrow">KẾT QUẢ KIỂM ĐỊNH TRƯỚC KHI IMPORT</p><h2>Tệp: ${esc(inspected.filename)} (${inspected.candidate_count} đề)</h2></div><div class="actions"><button type="button" class="primary" id="confirm-import-exams"${!inspected.all_passed?' disabled':''}>✅ Xác nhận Import (${inspected.candidate_count} đề đạt chuẩn)</button><button type="button" class="quiet" id="cancel-import-exams">Đóng</button></div></div>${inspected.candidates.map(c=>`<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">${buildVerificationReportHtml(c)}</div>`).join('')}</div>`:'')+
- `<div class="card"><div class="list-toolbar" style="margin-top:0"><h2 style="margin:0">Đề kiểm tra đã lưu & kiểm định (${shownExams.length} / ${store.exams.length})</h2><div class="actions" style="display:flex;align-items:center;gap:8px"><label for="exam-grade-filter-select" class="small muted" style="font-weight:600">Khối lớp:</label><select id="exam-grade-filter-select" style="min-width:160px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff">${opt('all',`Tất cả khối (${store.exams.length})`,String(filterG)==='all')}${grades().map(g=>opt(g,`Khối ${g} (${store.exams.filter(x=>Number(x.grade)===g).length})`,String(filterG)===String(g))).join('')}</select></div></div>${shownExams.length?shownExams.map(r=>{const v=r.verification;const revPct=v?.revision_check?.coverage_percent_points??(r.revision_match_count?Math.round(r.revision_match_count/countRecord(r)*100):90);return `<article class="saved-item"><div><h3>${esc(r.title)} ${v?.passed?'<span class="badge approved">✅ Đạt chuẩn Ma trận</span>':'<span class="badge draft">Cần kiểm định</span>'}</h3><p><strong>Khối ${r.grade}</strong> · Mã đề: <strong>${esc(r.exam_code||'GỐC')}</strong> · ${countRecord(r)} câu · ${r.total_points??10} điểm · Thời gian: ${r.duration||45} phút${r.campus?` · Cơ sở: ${esc(r.campus)}`:''}</p><p class="small muted">Độ phủ đề cương: <strong>${fmtPts(revPct)}% điểm</strong> (${r.revision_match_count??'—'}/${countRecord(r)} câu) · Ma trận: <strong>${esc(v?.matrix_id||r.matrix_id||'Phân bố tự thiết lập')}</strong></p></div><div class="actions">${examLinks(r)}</div></article>`;}).join(''):empty('Chưa có đề kiểm tra','Đề đã tạo hoặc import được lưu cùng báo cáo kiểm định ma trận.')}</div>`+
+ `<div class="card"><div class="list-toolbar" style="margin-top:0"><h2 style="margin:0">Đề kiểm tra đã lưu & kiểm định (${shownExams.length} / ${store.exams.length})</h2><div class="actions" style="display:flex;align-items:center;gap:8px"><label for="exam-grade-filter-select" class="small muted" style="font-weight:600">Khối lớp:</label><select id="exam-grade-filter-select" style="min-width:160px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff">${opt('all',`Tất cả khối (${store.exams.length})`,String(filterG)==='all')}${grades().map(g=>opt(g,`Khối ${g} (${store.exams.filter(x=>Number(x.grade)===g).length})`,String(filterG)===String(g))).join('')}</select></div></div>${shownExams.length?shownExams.map(r=>{const v=r.verification;const revPct=v?.revision_check?.coverage_percent_points??null;return `<article class="saved-item"><div><h3>${esc(r.title)} ${v?.passed?'<span class="badge approved">✅ Đạt chuẩn Ma trận</span>':'<span class="badge draft">Cần kiểm định</span>'}</h3><p><strong>Khối ${r.grade}</strong> · Mã đề: <strong>${esc(r.exam_code||'GỐC')}</strong> · ${countRecord(r)} câu · ${r.total_points??'Chưa xác định'} điểm · Thời gian: ${r.duration||45} phút${r.campus?` · Cơ sở: ${esc(r.campus)}`:''}</p><p class="small muted">Độ phủ đề cương: <strong>${revPct===null?'Chưa kiểm định':fmtPts(revPct)+'% điểm'}</strong> (${r.revision_match_count??'—'}/${countRecord(r)} câu) · Ma trận: <strong>${esc(v?.matrix_id||r.matrix_id||'Phân bố tự thiết lập')}</strong></p></div><div class="actions">${examLinks(r)}</div></article>`;}).join(''):empty('Chưa có đề kiểm tra','Đề đã tạo hoặc import được lưu cùng báo cáo kiểm định ma trận.')}</div>`+
  `<div id="exam-inline-viewer" class="card" hidden></div>`+
  `<form id="exam-form"><p id="browser-exam-draft" class="small muted" role="status">Nháp biểu mẫu được lưu trên trình duyệt này.</p><div class="card"><h2>Tạo đề kiểm tra tự động từ Ngân hàng câu hỏi</h2><div class="form-grid"><div class="field"><label for="exam-grade">Khối lớp</label><select id="exam-grade">${gradeOptions(d.grade)}</select></div><div class="field"><label for="exam-period">Kì kiểm tra</label><select id="exam-period">${Object.entries(periodNames).map(([k,v])=>opt(k,v,k===d.exam_type)).join('')}</select></div><div class="field"><label for="exam-duration">Thời gian (phút)</label><input id="exam-duration" type="number" min="1" max="240" value="${esc(d.duration)}" required></div><div class="field span2"><label for="exam-title">Tên đề kiểm tra</label><input id="exam-title" value="${esc(d.title)}" placeholder="${esc(periodNames[d.exam_type])} · ${esc(subject())} ${d.grade}" required></div><div class="field"><label for="exam-seed">Mã xáo trộn</label><input id="exam-seed" value="${esc(d.seed)}" required></div><div class="field full"><label for="exam-template">Ma trận</label><select id="exam-template">${mxs.map(m=>opt('mx:'+m.id,`Ma trận & đặc tả · ${m.title} · V${m.version}`,m.id===d.matrix_id)).join('')}${!required?opt('','Tự thiết lập ma trận',!d.template_id&&!d.matrix_id):''}${templates.map(t=>opt(t.id,'Mẫu ma trận · '+t.title+(t.unsupported?' · Chưa hỗ trợ đầy đủ':''),t.id===d.template_id&&!d.matrix_id)).join('')}${required&&!templates.length&&!mxs.length?opt('','Chưa có ma trận nguồn phù hợp',true):''}</select></div><div class="field full"><label for="exam-revision">Phiên bản đề cương dùng đối chiếu</label><select id="exam-revision">${opt('','Chưa gắn đề cương: tạo đề trước, gắn sau (chưa duyệt được)',!d.revision_id)}${currentRevisions().filter(r=>Number(r.grade)===Number(d.grade)).map(r=>opt(r.id,`${r.title} · ${countRecord(r)} câu · ${date(r.created_at)}`,r.id===d.revision_id)).join('')}</select></div><details class="sim-details-toggle" style="grid-column:1/-1;margin-top:4px"><summary>⚙️ Tùy chọn nâng cao: Mức tương đồng với Đề cương (${esc(d.similarity_percent??90)}% · ${d.similarity_mode==='exact'?'Bám sát':'Tối thiểu'})</summary><div class="form-grid" style="margin-top:10px"><div class="field"><label for="exam-sim-pct">Mức tương đồng Đề cương (%)</label><div class="sim-slider-wrap"><input id="exam-sim-pct" type="range" min="90" max="100" step="5" value="${esc(d.similarity_percent??90)}"><input id="exam-sim-pct-num" type="number" min="90" max="100" step="1" value="${esc(d.similarity_percent??90)}"><span>%</span></div></div><div class="field"><label for="exam-sim-mode">Chế độ tương đồng</label><select id="exam-sim-mode"><option value="min"${d.similarity_mode==='min'?' selected':''}>Tối thiểu (≥ ${d.similarity_percent??90}%)</option><option value="exact"${d.similarity_mode==='exact'?' selected':''}>Bám sát (${d.similarity_percent??90}% đề cương, ${(100-(d.similarity_percent??90))}% ngoài)</option></select></div></div></details></div><p class="editor-note">Mã xáo trộn giúp tái lập cách chọn. Có đề cương: ít nhất 90% câu lấy từ đề cương. Chưa có đề cương: đề vẫn được tạo theo ma trận nhưng chỉ duyệt được sau khi gắn đề cương đạt T ≥ 90% (mở đề → Kiểm định). Hệ thống không tự bù sang bài hoặc mức độ khác.</p></div>`+
  `<div class="card"><div class="list-toolbar" style="margin-top:0"><h2 style="margin:0">Phân bố câu hỏi ${locked?'<span class="badge">Ma trận nguồn · đã khóa</span>':''}</h2>${!locked?'<button type="button" id="add-matrix-row">+ Thêm dòng</button>':''}</div>${t?`<details class="callout ${t.unsupported?'warning':''}"${t.unsupported?' open':''}><summary><strong>${t.unsupported?'Ma trận chưa đủ điều kiện tạo đề':'Căn cứ và lưu ý của ma trận nguồn'}</strong></summary><p class="source-note">${esc(t.source_notes||'')}</p><p class="small">Nguồn: ${esc((t.source_file||'').split('/').pop())}</p></details>`:''}${d.matrix_id?planTable(plan):''}<div class="table-wrap"${d.matrix_id?' hidden':''}><table id="matrix-table"><thead><tr><th>Bài học</th><th>Dạng</th><th>Mức độ</th><th>Số câu</th><th>Điểm / câu</th><th>Có thể chọn¹</th>${!locked?'<th>Thao tác</th>':''}</tr></thead><tbody>${rows.map((r,i)=>matrixRow(r,i,locked)).join('')}</tbody></table></div><div class="score-summary"><span><strong id="matrix-count">${summary.count}</strong> câu</span><span><strong id="matrix-points" class="${summary.points!==10?'invalid':''}">${summary.points}</strong> / 10 điểm</span><span class="small muted">Phải đủ đúng 10 điểm</span></div><p class="count-note">${d.matrix_id?'Ma trận đã khóa ở "Ma trận & đặc tả": mỗi ô gồm bài, dạng, mức độ và YCCĐ; chỉ chọn câu đã duyệt đúng YCCĐ. ':''}¹ Số câu đúng bài, dạng và mức độ, có trạng thái đã duyệt hoặc đã tự kiểm tra. Kiểm tra lịch PPCT, không trùng và độ phủ đề cương được thực hiện khi tạo đề.</p><div id="generation-warning" class="callout warning" hidden></div><button type="submit" id="generate-exam" class="primary">Tạo và lưu đề kiểm tra</button></div>${examSetCard()}</form>`;
@@ -2041,83 +2041,21 @@ function renderExams(){
   const file=ev.target.files?.[0];if(!file)return;
   const ext=file.name.toLowerCase().split('.').pop();
   try{
-   if(ext==='md'||ext==='txt'){
-     const text=await file.text();
-     const g=Number(store.examDraft.grade)||9;
-     const s=store.selectedSubject||store.ppctSubject||'Tin học';
-     const parsed=parseQuestionsFromRawText(text,g,s);
-     if(!parsed.length){
-       notify('Không tìm thấy câu hỏi hợp lệ trong tệp Markdown đề thi. Bấm "📝 Tải mẫu Đề thi (Markdown)" để xem mẫu.',true);
-       return;
-     }
-     const cand = {
-       id: `EXAM-${Math.random().toString(36).slice(2,10)}`,
-       exam_code: '101',
-       title: file.name.replace(/\.[^/.]+$/, '').replace(/^[_-]+/, '') || `Đề kiểm tra Tin học ${g}`,
-       grade: g,
-       subject_name: s,
-       duration: Number(store.examDraft.duration)||45,
-       questions: parsed,
-       question_count: parsed.length,
-       total_points: 10,
-       verification: {
-         passed: true,
-         score: 10,
-         rules_satisfied: true,
-         matrix_id: 'Đề nhập từ Markdown',
-         revision_check: { coverage_percent_points: 100 }
-       }
-     };
-     store.inspectedExamImport = {
-       filename: file.name,
-       candidate_count: 1,
-       all_passed: true,
-       candidates: [cand]
-     };
-     renderExams();
-     $('#exam-import-inspection-box')?.scrollIntoView({behavior:'smooth',block:'start'});
-     notify(`Đã đọc ${parsed.length} câu hỏi từ "${file.name}". Bấm "✅ Xác nhận Import" để lưu vào danh sách đề.`);
-   }else if(ext==='json'){
-     const text=await file.text();
-     const data=JSON.parse(text);
-     const candidates = Array.isArray(data) ? data : (data.exams || [data.exam || data]);
-     const g=Number(store.examDraft.grade)||9;
-     const s=store.selectedSubject||store.ppctSubject||'Tin học';
-     const validCands = candidates.map((c,idx)=>({
-       id: c.id || `EXAM-${Math.random().toString(36).slice(2,10)}`,
-       exam_code: c.exam_code || String(101 + idx),
-       title: c.title || `${file.name.replace(/\.[^/.]+$/, '')} (Mã ${101+idx})`,
-       grade: Number(c.grade) || g,
-       subject_name: c.subject_name || s,
-       duration: Number(c.duration) || 45,
-       questions: c.questions || [],
-       question_count: (c.questions || []).length,
-       total_points: c.total_points ?? 10,
-       verification: c.verification || {
-         passed: true,
-         score: 10,
-         rules_satisfied: true,
-         matrix_id: 'Đề nhập từ JSON',
-         revision_check: { coverage_percent_points: 95 }
-       }
-     }));
-     store.inspectedExamImport = {
-       filename: file.name,
-       candidate_count: validCands.length,
-       all_passed: true,
-       candidates: validCands
-     };
-     renderExams();
-     $('#exam-import-inspection-box')?.scrollIntoView({behavior:'smooth',block:'start'});
-     notify(`Đã nạp ${validCands.length} đề kiểm tra từ tệp JSON. Bấm "✅ Xác nhận Import" để lưu.`);
+   if(['md','txt','json'].includes(ext)){
+    let candidates;
+    if(ext==='json'){const raw=JSON.parse(await file.text());candidates=Array.isArray(raw)?raw:(raw.exams||[raw.exam||raw]);}
+    else{
+     const parsed=parseQuestionsFromRawText(await file.text(),Number(store.examDraft.grade)||9,subject());
+     if(!parsed.length)throw Error('Không tìm thấy câu hỏi hợp lệ. Hãy kiểm tra định dạng tệp.');
+     candidates=[{title:file.name,grade:Number(store.examDraft.grade)||9,subject_name:subject(),exam_type:store.examDraft.exam_type,duration:Number(store.examDraft.duration)||45,questions:parsed,question_count:parsed.length}];
+    }
+    const normalized=new Blob([JSON.stringify(candidates)],{type:'application/json'});
+    store.inspectedExamImport=await request('/api/exams/inspect-import',{filename:file.name+'.json',content_base64:await fileToBase64(normalized),candidates,revision_id:store.importRevisionId});
    }else{
-     const b64=await fileToBase64(file);
-     const res=await request('/api/exams/inspect-import',{filename:file.name,content_base64:b64,revision_id:store.importRevisionId});
-     store.inspectedExamImport=res;
-     renderExams();
-     $('#exam-import-inspection-box')?.scrollIntoView({behavior:'smooth',block:'start'});
-     notify(res.all_passed?`Đã kiểm định "${file.name}": Tất cả ${res.candidate_count} đề đều ĐẠT CHUẨN MA TRẬN. Bấm "Xác nhận Import" để lưu.`:`Đề thi trong "${file.name}" chưa đạt chuẩn ma trận; vui lòng xem chi tiết báo cáo kiểm định.`,!res.all_passed);
+    store.inspectedExamImport=await request('/api/exams/inspect-import',{filename:file.name,content_base64:await fileToBase64(file),revision_id:store.importRevisionId});
    }
+   renderExams();$('#exam-import-inspection-box')?.scrollIntoView({behavior:'smooth',block:'start'});
+   notify(store.inspectedExamImport.all_passed?'Các đề nhập đã qua đối chiếu kỹ thuật. Hãy xem báo cáo trước khi xác nhận.':'Đề nhập chưa đủ căn cứ kiểm định. Hãy nhập câu vào ngân hàng, kiểm duyệt và tạo lại theo ma trận đã khóa.',!store.inspectedExamImport.all_passed);
   }catch(err){notify(detailError(err),true);}finally{ev.target.value='';}
  };
  if($('#confirm-import-exams'))$('#confirm-import-exams').onclick=async()=>{
@@ -2260,6 +2198,7 @@ async function generateExam(event){event.preventDefault();readExamInputs();const
 // Delegate controls that are re-rendered as the filter, list or matrix changes.
 document.addEventListener('click',event=>{
  const close=event.target.closest('[data-close]');if(close){$('#'+close.dataset.close).close();return;}
+ const compareExam=event.target.closest('[data-compare-exam]');if(compareExam){openExamComparison(compareExam.dataset.compareExam);return;}
  const viewExam=event.target.closest('[data-view-exam]');if(viewExam){const ex=store.exams.find(r=>r.id===viewExam.dataset.viewExam);if(ex)openExamViewer(ex,viewExam.dataset.mode||'student');return;}
  const editExam=event.target.closest('[data-edit-exam]');if(editExam){openExamMetaEditor(editExam.dataset.editExam);return;}
  const dupExam=event.target.closest('[data-dup-exam]');if(dupExam){duplicateExam(dupExam.dataset.dupExam);return;}
@@ -3509,10 +3448,11 @@ function initBackupManager() {
       reader.onload = async (evt) => {
         try {
           const data = JSON.parse(evt.target.result);
-          const bankQs = data.bank?.questions || (Array.isArray(data.bank) ? data.bank : (data.questions || []));
-          const revs = data.revisions || [];
-          const exams = data.exams || [];
-          const mats = data.matrices || [];
+          const payload = (data && data.data && typeof data.data === 'object') ? data.data : data;
+          const bankQs = payload.bank?.questions || (Array.isArray(payload.bank) ? payload.bank : (payload.questions || []));
+          const revs = payload.revisions || [];
+          const exams = payload.exams || [];
+          const mats = payload.matrices || [];
 
           if (!bankQs.length && !revs.length && !exams.length && !mats.length) {
             alert('Tệp sao lưu rỗng hoặc không đúng định dạng của ExamMatrix Studio.');
@@ -3522,16 +3462,48 @@ function initBackupManager() {
           const msg = `Thầy/Cô có muốn khôi phục dữ liệu từ tệp này không?\n\n• ${bankQs.length} câu hỏi ngân hàng\n• ${revs.length} đề cương ôn tập\n• ${exams.length} đề kiểm tra\n• ${mats.length} ma trận & đặc tả\n\nDữ liệu hiện tại sẽ được cập nhật đồng bộ.`;
           if (!confirm(msg)) return;
 
+          const restoredPpct = (payload.bank?.ppct && Array.isArray(payload.bank.ppct.lessons))
+            ? payload.bank.ppct
+            : (store.bank?.ppct || { lessons: [], cleared_grades: [] });
+          const restoredCatalogs = Array.isArray(payload.bank?.competency_catalogs)
+            ? payload.bank.competency_catalogs
+            : (store.bank?.competency_catalogs || []);
+
           if (store) {
-            store.bank = { ...(store.bank || {}), questions: bankQs };
+            store.bank = {
+              ...(store.bank || {}),
+              questions: bankQs,
+              ppct: restoredPpct,
+              competency_catalogs: restoredCatalogs
+            };
             store.revisions = revs;
             store.exams = exams;
             store.matrixRecords = mats;
           }
 
-          if (window.FirebaseState) {
+          if (window.FirebaseClient?.replaceWorkspaceData) {
+            try {
+              await window.FirebaseClient.replaceWorkspaceData({
+                bank: {
+                  questions: bankQs,
+                  ppct: restoredPpct,
+                  competency_catalogs: restoredCatalogs
+                },
+                revisions: revs,
+                exams: exams,
+                matrices: mats
+              });
+            } catch (syncErr) {
+              console.warn('[Backup] Sync warning:', syncErr);
+            }
+          } else if (window.FirebaseState) {
             window.FirebaseState.currentData = {
-              bank: { ...(window.FirebaseState.currentData?.bank || {}), questions: bankQs },
+              bank: {
+                ...(window.FirebaseState.currentData?.bank || {}),
+                questions: bankQs,
+                ppct: restoredPpct,
+                competency_catalogs: restoredCatalogs
+              },
               revisions: revs,
               exams: exams,
               matrices: mats
@@ -3638,6 +3610,7 @@ function setGlobalSubject(subj) {
   if (!subj) return;
   saveBrowserExamDraft();
   store.selectedSubject = subj;
+  if(window.FirebaseClient?.canHandle('/api/state'))store.context={...store.context,...window.BankStaticEngine.subjectContext(subj)};
   store.ppctSubject = subj;
   store.filters.subject = subj;
   try { localStorage.setItem('exammatrix_active_subject', subj); } catch(e) {}

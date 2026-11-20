@@ -40,6 +40,12 @@ class HttpTests(unittest.TestCase):
         for path in ['/canonical.json','/data/bank.json','/../canonical.json','/%2e%2e/canonical.json','/leak.json','/tests/test_http.py']:
             self.assertEqual(self.call(path)[0],404,path)
 
+    def test_original_shell_marks_python_host(self):
+        (self.public/'index.html').write_text('<html><head></head><body>Minh họa</body></html>')
+        status, body, _ = self.call('/')
+        self.assertEqual(status, 200)
+        self.assertIn(b'<meta name="app-host" content="python">', body)
+
     def test_cross_origin_and_nonlocal_host_cannot_mutate(self):
         before=self.bank.read_bytes()
         for headers in [{'Origin':'https://evil.example'},{'Origin':'null'},{'Host':'evil.example'},{'Origin':'http://localhost:9999'}]:

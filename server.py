@@ -215,7 +215,10 @@ class Handler(BaseHTTPRequestHandler):
             mime = mimetypes.guess_type(target.name)[0] or 'application/octet-stream'
             if mime.startswith('text/') or mime in ('application/javascript', 'application/json'):
                 mime += '; charset=utf-8'
-            return self._send(target.read_bytes(), mime)
+            raw = target.read_bytes()
+            if target == (public/'index.html').resolve():
+                raw = raw.replace(b'</head>', b'<meta name="app-host" content="python"></head>', 1)
+            return self._send(raw, mime)
         except ServiceError as exc:
             self._error(exc)
         except (OSError, ValueError, TypeError, KeyError) as exc:
@@ -276,6 +279,8 @@ class Handler(BaseHTTPRequestHandler):
                     payload['_matrix'] = usable_matrix(service, self.matrix_service, payload['matrix_id'])
             if path == '/api/revisions/propose':
                 return self._json(service.propose_revision(payload))
+            if path == '/api/exams/compare':
+                return self._json(service.compare_exams(payload.get('ids')))
             if path == '/api/exams/generate':
                 return self._json({'exam': service.generate_exam(payload)})
             if path == '/api/exams/generate-set':

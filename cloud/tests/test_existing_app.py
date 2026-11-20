@@ -44,6 +44,7 @@ class ExistingAppTests(TestCase):
         self.assertContains(response, 'id="question-form"')
         self.assertContains(response, '/core.js')
         self.assertContains(response, 'name="csrf-token"')
+        self.assertContains(response, 'name="workspace-scope"')
         self.assertEqual(b''.join(self.client.get('/app.js').streaming_content),
                          (bank_for_user(self.a).app_dir/'public/app.js').read_bytes())
 

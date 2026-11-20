@@ -1344,9 +1344,42 @@ function ppctImportCard(g){
  const issuesList=(r&&Array.isArray(r.issues))?r.issues:[];
  const rows=lessonsList.map(x=>{
    const [label,cls]=PPCT_STATUS[x.status]||[x.status,''];
-   const detail=x.status==='conflict'?esc(x.conflict?.reason||'')+(x.conflict?.outcomes?`<ul>${x.conflict.outcomes.map(o=>`<li>${esc(o)}</li>`).join('')}</ul>`:'')
-     :(x.changes||[]).map(c=>`<div><strong>${esc(c.field)}:</strong> ${Array.isArray(c.new)?`${c.old.length} → ${c.new.length} YCCĐ<ul>${c.new.filter(o=>!c.old.includes(o)).map(o=>`<li>+ ${esc(o)}</li>`).join('')}${c.old.filter(o=>!c.new.includes(o)).map(o=>`<li>− ${esc(o)}</li>`).join('')}</ul>`:`${esc(c.old)} → ${esc(c.new)}`}</div>`).join('')||(x.status==='new'?`${(x.outcomes||[]).length} YCCĐ · ${calcOccurrencesPeriods(x.occurrences)} tiết`:'');
-   return `<tr><td><span class="badge ${cls}">${esc(label)}</span></td><td>Khối ${esc(x.grade)} · <strong>${esc(x.lesson_code)}</strong></td><td>${esc(x.lesson_name)}<p class="small muted">${esc(x.topic||"")}</p></td><td class="small">${detail}</td></tr>`;
+   const outcomes = Array.isArray(x.outcomes) ? x.outcomes.map(o => String(o || '').trim()).filter(Boolean) : [];
+   const outcomesHtml = outcomes.length
+     ? `<ul style="margin:4px 0 0;padding-left:18px;line-height:1.55">${outcomes.map(o => `<li style="margin-bottom:3px">${esc(o)}</li>`).join('')}</ul>`
+     : `<p style="margin:4px 0 0;color:#b45309">⚠️ Chưa có yêu cầu cần đạt (YCCĐ).</p>`;
+   const periodCount = typeof x.occurrences === 'number' ? x.occurrences : calcOccurrencesPeriods(x.occurrences);
+   const occMeta = Array.isArray(x.occurrences) ? (() => {
+     const ws = [...new Set(x.occurrences.map(o => String(o?.week_raw || '').trim()).filter(Boolean))];
+     const ps = [...new Set(x.occurrences.map(o => String(o?.periods_raw || '').trim()).filter(Boolean))];
+     const parts = [];
+     if (ws.length) parts.push((/^tuần/i.test(ws[0]) ? '' : 'Tuần ') + ws.join(', '));
+     if (ps.length) parts.push((/^tiết/i.test(ps[0]) ? '' : 'Tiết ') + ps.join(', '));
+     return parts.join(' · ');
+   })() : '';
+   const metaLine = `<div class="muted" style="font-size:12px;margin-bottom:4px"><strong>${outcomes.length} YCCĐ</strong> · ${periodCount} tiết${occMeta ? ` · ${esc(occMeta)}` : ''}</div>`;
+   let detail = '';
+   if (x.status === 'conflict') {
+     detail = `<div style="color:#b91c1c;font-weight:600">${esc(x.conflict?.reason || '')}</div>`
+       + (Array.isArray(x.conflict?.outcomes) && x.conflict.outcomes.length
+         ? `<ul style="margin:4px 0 0;padding-left:18px;color:#b91c1c">${x.conflict.outcomes.map(o => `<li>${esc(o)}</li>`).join('')}</ul>`
+         : '')
+       + (outcomes.length ? `<details style="margin-top:6px"><summary style="cursor:pointer;color:#0267b1;font-size:12px">Xem ${outcomes.length} YCCĐ trong tệp tải lên</summary>${outcomesHtml}</details>` : '');
+   } else if (x.status === 'changed') {
+     const changes = Array.isArray(x.changes) ? x.changes : [];
+     const hasOutcomeChange = changes.some(c => Array.isArray(c.new));
+     const changesHtml = changes.map(c => `<div><strong>${esc(c.field)}:</strong> ${Array.isArray(c.new)
+       ? `${c.old.length} → ${c.new.length} YCCĐ<ul style="margin:4px 0 0;padding-left:18px;line-height:1.5">${c.new.filter(o => !c.old.includes(o)).map(o => `<li style="color:#166534">+ ${esc(o)}</li>`).join('')}${c.old.filter(o => !c.new.includes(o)).map(o => `<li style="color:#b91c1c">− ${esc(o)}</li>`).join('')}</ul>`
+       : `${esc(c.old)} → ${esc(c.new)}`}</div>`).join('');
+     detail = changesHtml + (hasOutcomeChange
+       ? (outcomes.length ? `<details style="margin-top:6px"><summary style="cursor:pointer;color:#0267b1;font-size:12px">Xem đủ ${outcomes.length} YCCĐ sau khi cập nhật</summary>${outcomesHtml}</details>` : '')
+       : `<div class="muted" style="font-size:12px;margin-top:6px"><strong>${outcomes.length} YCCĐ hiện tại:</strong></div>${outcomesHtml}`);
+   } else if (x.status === 'unchanged') {
+     detail = `<div class="muted" style="font-size:12px;margin-bottom:4px"><strong>${outcomes.length} YCCĐ</strong> · Không thay đổi${occMeta ? ` · ${esc(occMeta)}` : ''}</div>${outcomesHtml}`;
+   } else {
+     detail = `${metaLine}${outcomesHtml}`;
+   }
+   return `<tr><td><span class="badge ${cls}">${esc(label)}</span></td><td style="white-space:nowrap">Khối ${esc(x.grade)} · <strong>${esc(x.lesson_code)}</strong></td><td><strong>${esc(x.lesson_name)}</strong><p class="small muted">${esc(x.topic||"")}</p></td><td>${detail}</td></tr>`;
  }).join('');
  return `<div class="card"><h2>Nhập PPCT từ JSON, Markdown hoặc Word</h2>
   <p class="muted">Khuyên dùng <strong>JSON</strong> (chuẩn xác 100%) hoặc <strong>Markdown (.md)</strong> (dễ đọc/sửa) để nạp tức thì và tránh lỗi định dạng ngầm của Word. Vẫn hỗ trợ tệp Word KHDH Phụ lục 1 (.docx). Khối lớp tự động nhận diện theo tên tệp hoặc theo Khối ${esc(g)} đang chọn.</p>
@@ -1368,7 +1401,7 @@ function ppctImportCard(g){
   ${r?`<button type="button" class="primary" id="ppct-import-apply" ${sm.new+sm.changed?'':'disabled'}>Xác nhận nhập (${sm.new} bài mới, ${sm.changed} bài thay đổi)</button><button type="button" class="quiet" id="ppct-import-cancel">Hủy</button>`:''}</div>
   ${r?`<p class="callout">Tệp ${esc(r.filename||'Đã nạp')} · Khối ${gradesList.map(esc).join(', ')} · ${lessonsList.length} bài: ${sm.new} mới, ${sm.changed} thay đổi, ${sm.unchanged} giữ nguyên, ${sm.conflict} xung đột. Bài xung đột được bỏ qua; bài đang có mà tệp không nhắc đến được giữ nguyên.</p>
   ${issuesList.length?`<ul class="mx-errors">${issuesList.map(i=>`<li>${esc(i.message||i)}</li>`).join('')}</ul>`:''}
-  <div class="table-wrap"><table><thead><tr><th>Kết quả</th><th>Mã bài</th><th>Bài / chủ đề</th><th>Chi tiết</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="empty" style="text-align:center;padding:16px">Không tìm thấy danh mục bài học PPCT trong tệp này. Nếu đây là tệp Đề thi / Ma trận, thầy/cô vui lòng dùng nút "✨ AI Nhập đề" trên thanh trên cùng để nạp câu hỏi vào ngân hàng.</td></tr>'}</tbody></table></div>`:""}
+  <div class="table-wrap"><table class="ppct-table"><thead><tr><th>Kết quả</th><th>Mã bài</th><th>Bài / chủ đề</th><th>Yêu cầu cần đạt (YCCĐ) &amp; Chi tiết</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="empty" style="text-align:center;padding:16px">Không tìm thấy danh mục bài học PPCT trong tệp này. Nếu đây là tệp Đề thi / Ma trận, thầy/cô vui lòng dùng nút "✨ AI Nhập đề" trên thanh trên cùng để nạp câu hỏi vào ngân hàng.</td></tr>'}</tbody></table></div>`:""}
  </div>`;
 }
 function bindPpctImport(g){

@@ -543,3 +543,152 @@ test('Bridge + Google Drive: rejects and rolls back when BOTH localStorage quota
   );
   assert.equal(h.window.FirebaseState.currentData.bank.questions[0].question, originalText);
 });
+
+test('PPCT import preview normalizes outcomes and renders full YCCD content across statuses', async () => {
+  const mock = createMockDriveServer();
+  const h = bridgeHarness({ mockFetch: mock.fetchImpl });
+
+  const report = await h.window.FirebaseClient.handle('/api/ppct/inspect-import', {
+    filename: 'ppct_khoi_8.json',
+    grade: 8,
+    subject_name: 'Tin học',
+    json: {
+      lessons: [
+        {
+          grade: 8,
+          lesson_code: 'B1',
+          lesson_name_source: 'Bài 1. Lịch sử công cụ tính toán',
+          topic_source: 'Chủ đề 1. Máy tính và cộng đồng',
+          occurrences: [{ week_raw: '1', periods_raw: '1, 2' }],
+          outcomes: [
+            'Trình bày được sơ lược lịch sử phát triển máy tính',
+            'Nêu được ví dụ <script>alert(1)</script> tác động của công nghệ'
+          ]
+        },
+        {
+          grade: 8,
+          lesson_code: 'B2',
+          lesson_name_source: 'Bài 2. Thông tin trong môi trường số',
+          topic_source: 'Chủ đề 2. Tổ chức lưu trữ',
+          occurrences: '3',
+          outcomes: '- Nhận biết được thông tin số\n- Phân biệt được đặc điểm thông tin số'
+        }
+      ]
+    }
+  });
+
+  assert.equal(report.summary.new, 2);
+  assert.deepEqual([...report.lessons[0].outcomes], [
+    'Trình bày được sơ lược lịch sử phát triển máy tính',
+    'Nêu được ví dụ <script>alert(1)</script> tác động của công nghệ'
+  ]);
+  assert.deepEqual([...report.lessons[1].outcomes], [
+    'Nhận biết được thông tin số',
+    'Phân biệt được đặc điểm thông tin số'
+  ]);
+
+  const appSource = fs.readFileSync(require.resolve('../public/app.js'), 'utf8');
+  const occStart = appSource.indexOf('function safeLessonOccurrences(');
+  const occEnd = appSource.indexOf('const lessons=(g,subj)=>');
+  const cardStart = appSource.indexOf('const PPCT_STATUS=');
+  const cardEnd = appSource.indexOf('function bindPpctImport(');
+  assert.ok(occStart > 0 && occEnd > occStart);
+  assert.ok(cardStart > 0 && cardEnd > cardStart);
+
+  const previewReport = {
+    ...report,
+    summary: { new: 2, changed: 2, unchanged: 1, conflict: 1 },
+    lessons: [
+      ...report.lessons,
+      {
+        status: 'unchanged',
+        grade: 8,
+        lesson_code: 'B3',
+        lesson_name: 'Bài 3. Giữ nguyên',
+        topic: 'Chủ đề 2',
+        occurrences: 2,
+        outcomes: ['YCCĐ giữ nguyên để giáo viên đối chiếu']
+      },
+      {
+        status: 'changed',
+        grade: 8,
+        lesson_code: 'B4',
+        lesson_name: 'Bài 4. Thay đổi YCCĐ',
+        topic: 'Chủ đề 3',
+        occurrences: 1,
+        outcomes: ['YCCĐ giữ lại', 'YCCĐ mới thêm'],
+        changes: [
+          {
+            field: 'Yêu cầu cần đạt',
+            old: ['YCCĐ giữ lại', 'YCCĐ cũ bị bỏ'],
+            new: ['YCCĐ giữ lại', 'YCCĐ mới thêm']
+          }
+        ]
+      },
+      {
+        status: 'changed',
+        grade: 8,
+        lesson_code: 'B5',
+        lesson_name: 'Bài 5. Đổi tên bài',
+        topic: 'Chủ đề 3',
+        occurrences: 1,
+        outcomes: ['YCCĐ hiện tại vẫn phải hiện rõ'],
+        changes: [
+          { field: 'Tên bài', old: 'Tên cũ', new: 'Bài 5. Đổi tên bài' }
+        ]
+      },
+      {
+        status: 'conflict',
+        grade: 8,
+        lesson_code: 'B6',
+        lesson_name: 'Bài 6. Xung đột',
+        topic: 'Chủ đề 4',
+        occurrences: 1,
+        outcomes: ['YCCĐ mới trong tệp xung đột'],
+        conflict: {
+          reason: 'Yêu cầu cần đạt đang có câu hỏi sử dụng sẽ bị bỏ hoặc thay.',
+          outcomes: ['YCCĐ đang có câu hỏi sử dụng']
+        }
+      },
+      {
+        status: 'new',
+        grade: 8,
+        lesson_code: 'B7',
+        lesson_name: 'Bài 7. Thiếu YCCĐ',
+        topic: 'Chủ đề 4',
+        occurrences: [{ week_raw: '10', periods_raw: '10' }],
+        outcomes: []
+      }
+    ]
+  };
+
+  const sandbox = {
+    store: { ppctImport: { report: previewReport } },
+    esc: core.escapeHtml
+  };
+  vm.runInNewContext(
+    `${appSource.slice(occStart, occEnd)}\n${appSource.slice(cardStart, cardEnd)}`,
+    sandbox
+  );
+  const html = sandbox.ppctImportCard(8);
+
+  assert.match(html, /<table class="ppct-table">/);
+  assert.match(html, /<th>Yêu cầu cần đạt \(YCCĐ\) &amp; Chi tiết<\/th>/);
+  assert.doesNotMatch(html, /<td class="small">/);
+  assert.ok(html.includes('Trình bày được sơ lược lịch sử phát triển máy tính'));
+  assert.ok(html.includes('Nêu được ví dụ &lt;script&gt;alert(1)&lt;/script&gt; tác động của công nghệ'));
+  assert.equal(html.includes('<script>alert(1)</script>'), false);
+  assert.ok(html.includes('Nhận biết được thông tin số'));
+  assert.ok(html.includes('Phân biệt được đặc điểm thông tin số'));
+  assert.ok(html.includes('Tuần 1 · Tiết 1, 2'));
+  assert.ok(html.includes('2 YCCĐ</strong> · 2 tiết'));
+  assert.ok(html.includes('YCCĐ giữ nguyên để giáo viên đối chiếu'));
+  assert.ok(html.includes('+ YCCĐ mới thêm'));
+  assert.ok(html.includes('− YCCĐ cũ bị bỏ'));
+  assert.ok(html.includes('Xem đủ 2 YCCĐ sau khi cập nhật'));
+  assert.ok(html.includes('YCCĐ hiện tại vẫn phải hiện rõ'));
+  assert.ok(html.includes('Yêu cầu cần đạt đang có câu hỏi sử dụng sẽ bị bỏ hoặc thay.'));
+  assert.ok(html.includes('YCCĐ đang có câu hỏi sử dụng'));
+  assert.ok(html.includes('Xem 1 YCCĐ trong tệp tải lên'));
+  assert.ok(html.includes('Chưa có yêu cầu cần đạt (YCCĐ).'));
+});

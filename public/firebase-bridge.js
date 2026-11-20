@@ -359,7 +359,11 @@
             lesson_name_source: l.lesson_name_source || l.lesson_name || l.name || '',
             topic: l.topic_source || l.topic || 'Chương trình GDPT',
             topic_source: l.topic_source || l.topic || 'Chương trình GDPT',
-            outcomes: Array.isArray(l.outcomes) ? l.outcomes : [],
+            outcomes: Array.isArray(l.outcomes)
+              ? l.outcomes.map(o => String(o || '').trim()).filter(Boolean)
+              : (typeof l.outcomes === 'string'
+                  ? l.outcomes.split(/\r?\n/).map(o => o.trim().replace(/^[-*•+]\s*/, '')).filter(Boolean)
+                  : []),
             occurrences: normalizeOccurrences(l.occurrences)
           }));
         } else if (body.extracted_html) {

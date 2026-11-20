@@ -1189,7 +1189,8 @@ function renderPPCT(){
    `<div style="display:flex;gap:8px;flex-wrap:wrap">` +
    (ls.length ? `<button type="button" class="button danger quiet" id="btn-clear-grade-ppct">🗑️ Xóa PPCT Khối ${g}</button>` : '') +
    `<button type="button" class="primary" id="add-ppct-lesson">+ Thêm bài học PPCT</button></div>`)+
- `<div class="card">
+ `${ppctImportCard(g)}
+ <div class="card">
    <div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap">
      <div class="field" style="min-width:200px">
        <label for="ppct-subject" style="display:block;font-weight:600;margin-bottom:4px">Môn học</label>
@@ -1208,11 +1209,10 @@ function renderPPCT(){
          const weeks = [...new Set(occList.map(o=>o.week_raw).filter(Boolean))].map(esc).join('<br>') || '—';
          const periods = [...new Set(occList.map(o=>o.periods_raw).filter(Boolean))].map(esc).join(', ') || '—';
          return `<tr><td>${weeks}</td><td>${periods}</td><td><strong>${esc(l.lesson_code)} · ${esc(l.lesson_name_source || l.lesson_name || l.name)}</strong><p class="small muted">${esc(l.topic_source || '')}</p></td><td><ul>${(l.outcomes||[]).map(o=>`<li>${esc(o)}</li>`).join('')}</ul></td><td><div class="actions"><button type="button" class="export-link" data-edit-ppct="${esc(l.lesson_code)}" data-grade="${g}">Sửa</button><button type="button" class="export-link danger" data-del-ppct="${esc(l.lesson_code)}" data-grade="${g}">Xóa</button></div></td></tr>`;
-       }).join('') : '<tr><td colspan="5" class="empty" style="text-align:center;padding:24px">Chưa có bài học PPCT cho môn và khối này. Bấm "+ Thêm bài học PPCT" hoặc nhập tệp PPCT (JSON, Markdown, Word) ở bên dưới.</td></tr>'}</tbody>
+       }).join('') : '<tr><td colspan="5" class="empty" style="text-align:center;padding:24px">Chưa có bài học PPCT cho môn và khối này. Bấm "+ Thêm bài học PPCT" hoặc nhập tệp PPCT (JSON, Markdown, Word) ở khung phía trên.</td></tr>'}</tbody>
      </table>
    </div>
  </div>
- ${ppctImportCard(g)}
  <div class="card"><h2>Hồ sơ nguồn</h2>${(store.bank.ppct?.sources||[]).filter(src=>Number(src.grade)===g && s==='Tin học').map(src=>`<p class="small">${esc(src.path||src.source_file||'')}${src.sha256?` <span class="muted">· SHA-256 ${esc(String(src.sha256).slice(0,12))}…</span>`:''}</p><p class="muted">${esc(src.approval_status||'Đối chiếu bản KHDH trong thư mục chuyên môn.')}</p>`).join('') || `<p class="muted">Chưa có hồ sơ nguồn PPCT được tải lên cho môn ${esc(s)} Khối ${g}.</p>`}</div>`;
  $('#ppct-grade').onchange=e=>{store.ppctGrade=Number(e.target.value);renderPPCT();};
  $('#ppct-subject').onchange=e=>setGlobalSubject(e.target.value);
@@ -1225,7 +1225,7 @@ function renderPPCT(){
    }
    await request('/api/ppct/clear-grade',{grade:g,subject_name:s});
    renderPPCT();
-   notify(`Đã xóa PPCT Khối ${g}. Bạn có thể tải tệp mới cho Khối ${g} ở bên dưới.`);
+   notify(`Đã xóa PPCT Khối ${g}. Bạn có thể tải tệp mới cho Khối ${g} ở khung phía trên.`);
  };
  bindPpctImport(g);
 }
@@ -1350,10 +1350,19 @@ function ppctImportCard(g){
  }).join('');
  return `<div class="card"><h2>Nhập PPCT từ JSON, Markdown hoặc Word</h2>
   <p class="muted">Khuyên dùng <strong>JSON</strong> (chuẩn xác 100%) hoặc <strong>Markdown (.md)</strong> (dễ đọc/sửa) để nạp tức thì và tránh lỗi định dạng ngầm của Word. Vẫn hỗ trợ tệp Word KHDH Phụ lục 1 (.docx). Khối lớp tự động nhận diện theo tên tệp hoặc theo Khối ${esc(g)} đang chọn.</p>
+  <div style="background:#eef6fd;border:1px solid #c6daed;border-radius:8px;padding:12px 16px;margin:12px 0;color:#1e293b;font-size:13px;line-height:1.6">
+    <strong>🤖 Hướng dẫn thầy/cô dùng AI (Gemini / ChatGPT / Claude) chuyển Word sang JSON để tải lên:</strong>
+    <ol style="margin:6px 0 0;padding-left:20px">
+      <li>Bấm nút <strong>📋 Chép Prompt AI chuyển Word → JSON</strong> bên dưới.</li>
+      <li>Mở <strong>Gemini</strong>, <strong>ChatGPT</strong> hoặc <strong>Claude</strong>, dán câu lệnh (Prompt) vào khung chat rồi <strong>đính kèm tệp Word KHDH Phụ lục 1 (<code>.docx</code>)</strong> (hoặc copy bảng PPCT trong Word dán xuống cuối câu lệnh) và gửi.</li>
+      <li>Lưu đoạn mã <strong>JSON</strong> AI trả về thành tệp đuôi <strong><code>.json</code></strong> <em>(ví dụ: <code>ppct_khoi_${esc(g)}.json</code> — có thể yêu cầu AI tạo tệp <code>.json</code> để tải trực tiếp, hoặc dán vào Notepad / TextEdit chế độ văn bản thuần rồi lưu đuôi <code>.json</code>)</em>.</li>
+      <li>Bấm <strong>Choose File</strong> bên dưới để chọn tệp <code>.json</code> vừa lưu → bấm <strong>Đọc và đối chiếu</strong> → kiểm tra kết quả rồi bấm <strong>Xác nhận nhập</strong>.</li>
+    </ol>
+  </div>
   <div style="display:flex;gap:10px;margin:10px 0 14px;flex-wrap:wrap">
     <button type="button" class="button quiet" id="ppct-download-json-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📥 Tải mẫu PPCT (JSON)</button>
     <button type="button" class="button quiet" id="ppct-download-md-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📝 Tải mẫu PPCT (Markdown)</button>
-    <button type="button" class="button quiet" id="ppct-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI tạo PPCT</button>
+    <button type="button" class="button quiet" id="ppct-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI chuyển Word → JSON</button>
   </div>
   <div class="actions"><input type="file" id="ppct-import-file" accept=".docx,.json,.md,.txt"><button type="button" class="button" id="ppct-import-inspect">Đọc và đối chiếu</button>
   ${r?`<button type="button" class="primary" id="ppct-import-apply" ${sm.new+sm.changed?'':'disabled'}>Xác nhận nhập (${sm.new} bài mới, ${sm.changed} bài thay đổi)</button><button type="button" class="quiet" id="ppct-import-cancel">Hủy</button>`:''}</div>
@@ -1519,7 +1528,11 @@ function bindPpctImport(g){
  if (copyPrompt) {
    copyPrompt.onclick = async () => {
      const curGrade = Number(g || store.ppctGrade || 9);
-     const promptText = `Hãy đọc nội dung Kế hoạch dạy học (KHDH Phụ lục 1) môn ${subject()} Khối ${curGrade} dưới đây và xuất ra tệp JSON chuẩn cho hệ thống ExamMatrix Studio:
+     const promptText = `Hãy đọc tệp Word Kế hoạch dạy học (KHDH Phụ lục 1) đính kèm hoặc bảng nội dung môn ${subject()} Khối ${curGrade} dưới đây và chuyển đổi sang định dạng JSON chuẩn UTF-8 cho hệ thống ExamMatrix Studio.
+
+Yêu cầu bắt buộc:
+1. Giữ nguyên đầy đủ 100% số bài học (kể cả tiết ôn tập, kiểm tra giữa kỳ/cuối kỳ nếu có) và giữ nguyên văn từng Yêu cầu cần đạt (outcomes), không tóm tắt hay bỏ sót ý nào.
+2. Ghi đúng schema JSON sau:
 {
   "grade": ${curGrade},
   "subject_name": "${subject()}",
@@ -1537,11 +1550,12 @@ function bindPpctImport(g){
     }
   ]
 }
-Dưới đây là nội dung KHDH cần chuyển đổi:
-[DÁN NỘI DUNG KHDH VÀO ĐÂY]`;
+3. Chỉ xuất ra DUY NHẤT một khối mã JSON hợp lệ, không kèm lời giải thích ngoài khối JSON. Nếu công cụ có hỗ trợ tạo tệp tải về, hãy xuất giúp tôi thành tệp tên ppct_khoi_${curGrade}.json.
+
+(Nếu không đính kèm tệp .docx, hãy dán bảng KHDH vào bên dưới dòng này):`;
      try {
        await navigator.clipboard.writeText(promptText);
-       notify('📋 Đã sao chép câu lệnh mẫu (Prompt) tạo PPCT cho ChatGPT/Gemini!');
+       notify('📋 Đã sao chép Prompt AI chuyển Word → JSON cho Gemini/ChatGPT/Claude!');
      } catch (e) {
        notify('Không thể sao chép tự động: ' + e.message, true);
      }

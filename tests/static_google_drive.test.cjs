@@ -465,3 +465,73 @@ test('Bridge + Google Drive: does not intercept Django server host', () => {
   const djangoHost = bridgeHarness({ server: true });
   assert.equal(djangoHost.window.FirebaseClient.canHandle('/api/state'), false);
 });
+
+test('Bridge + Google Drive: load and sync succeed even when localStorage quota is full', async () => {
+  const mock = createMockDriveServer();
+  mock.registerUser('tok-a', { sub: 'user-a', email: 'user-a@school.edu.vn', name: 'Cô A' });
+
+  const h = bridgeHarness({ quota: true, mockFetch: mock.fetchImpl });
+  const sessionA = {
+    user: { uid: 'gdrive:user-a', email: 'user-a@school.edu.vn', displayName: 'Cô A' },
+    accessToken: 'tok-a',
+    expiresAt: Date.now() + 3600 * 1000,
+    folderId: null,
+    fileId: null,
+    fetchImpl: mock.fetchImpl
+  };
+  h.window.FirebaseState.provider = 'google-drive';
+  h.window.FirebaseState.user = sessionA.user;
+  h.window.FirebaseState.driveSession = sessionA;
+
+  await h.window.FirebaseClient.loadFromGoogleDrive(sessionA);
+  assert.doesNotMatch(h.status.textContent, /Chưa tải được/);
+  assert.match(h.status.textContent, /Đã kết nối Google Drive riêng/);
+
+  const synced = await h.window.FirebaseClient.syncCurrentData();
+  assert.equal(synced.ok, true);
+  assert.equal(synced.pending, false);
+  assert.ok(sessionA.fileId);
+  const driveFiles = [...mock.drives.get('user-a').files.values()];
+  assert.equal(driveFiles.length, 1);
+  assert.equal(driveFiles[0].name, 'exammatrix-workspace.json');
+
+  const seed = fixture();
+  await h.window.FirebaseClient.replaceWorkspaceData(seed);
+  const q0 = seed.bank.questions[0];
+  await h.window.FirebaseClient.handle('/api/questions/save', {
+    question: { ...q0, question: 'Lưu thành công dù localStorage đầy' }
+  });
+  const loadedAfter = await driveStorage.readWorkspace('tok-a', { fetchImpl: mock.fetchImpl });
+  assert.equal(loadedAfter.data.bank.questions[0].question, 'Lưu thành công dù localStorage đầy');
+});
+
+test('Bridge + Google Drive: rejects and rolls back when BOTH localStorage quota and Google Drive fail', async () => {
+  const mock = createMockDriveServer();
+  mock.registerUser('tok-a', { sub: 'user-a', email: 'user-a@school.edu.vn', name: 'Cô A' });
+
+  const h = bridgeHarness({ quota: true, mockFetch: mock.fetchImpl });
+  const sessionA = {
+    user: { uid: 'gdrive:user-a', email: 'user-a@school.edu.vn', displayName: 'Cô A' },
+    accessToken: 'tok-a',
+    expiresAt: Date.now() + 3600 * 1000,
+    folderId: null,
+    fileId: null,
+    fetchImpl: mock.fetchImpl
+  };
+  h.window.FirebaseState.provider = 'google-drive';
+  h.window.FirebaseState.user = sessionA.user;
+  h.window.FirebaseState.driveSession = sessionA;
+
+  const seed = fixture();
+  await h.window.FirebaseClient.replaceWorkspaceData(seed);
+  const originalText = seed.bank.questions[0].question;
+
+  mock.expireToken('tok-a');
+  await assert.rejects(
+    h.window.FirebaseClient.handle('/api/questions/save', {
+      question: { ...seed.bank.questions[0], question: 'Không được phép giữ lại nếu cả hai đều lỗi' }
+    }),
+    /bộ nhớ trình duyệt cũng đầy/
+  );
+  assert.equal(h.window.FirebaseState.currentData.bank.questions[0].question, originalText);
+});

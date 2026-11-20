@@ -93,6 +93,102 @@
     }
   }
 
+  const IDB_NAME = 'exammatrix_drive_cache_v1';
+  const IDB_STORE = 'workspaces';
+
+  function openCacheDb() {
+    return new Promise((resolve) => {
+      try {
+        if (typeof indexedDB === 'undefined') return resolve(null);
+        const req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(IDB_STORE)) {
+            db.createObjectStore(IDB_STORE, { keyPath: 'uid' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      } catch (e) {
+        resolve(null);
+      }
+    });
+  }
+
+  async function idbGet(uid) {
+    const db = await openCacheDb();
+    if (!db) return null;
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = (val) => {
+        if (settled) return;
+        settled = true;
+        try { db.close(); } catch (e) {}
+        resolve(val);
+      };
+      try {
+        const tx = db.transaction(IDB_STORE, 'readonly');
+        const req = tx.objectStore(IDB_STORE).get(uid || 'offline');
+        req.onsuccess = () => done(req.result ? req.result.data : null);
+        req.onerror = () => done(null);
+        tx.onabort = () => done(null);
+        tx.onerror = () => done(null);
+      } catch (e) {
+        done(null);
+      }
+    });
+  }
+
+  async function idbSet(uid, data) {
+    const db = await openCacheDb();
+    if (!db) return false;
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = (ok) => {
+        if (settled) return;
+        settled = true;
+        try { db.close(); } catch (e) {}
+        resolve(ok);
+      };
+      try {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.oncomplete = () => done(true);
+        tx.onerror = () => done(false);
+        tx.onabort = () => done(false);
+        tx.objectStore(IDB_STORE).put({
+          uid: uid || 'offline',
+          data: JSON.parse(JSON.stringify(data)),
+          saved_at: new Date().toISOString()
+        });
+      } catch (e) {
+        done(false);
+      }
+    });
+  }
+
+  async function trySaveLocalCache(uid, data) {
+    let lsOk = false;
+    try {
+      saveStorageData(uid, data);
+      lsOk = true;
+    } catch (e) {
+      lsOk = false;
+    }
+    const idbOk = await idbSet(uid, data);
+    return { lsOk, idbOk, saved: lsOk || idbOk };
+  }
+
+  async function getBestCachedData(uid) {
+    const lsData = getStorageData(uid);
+    const idbData = await idbGet(uid);
+    if (lsData && idbData) {
+      const lsTs = Date.parse(lsData._sync?.saved_at || '') || 0;
+      const idbTs = Date.parse(idbData._sync?.saved_at || '') || 0;
+      return idbTs > lsTs ? idbData : lsData;
+    }
+    return idbData || lsData || null;
+  }
+
   function initLocalWorkspace() {
     try {
       // Chỉ nạp dữ liệu ngoại tuyến. Dữ liệu của từng tài khoản được nạp riêng khi đăng nhập,
@@ -607,12 +703,11 @@
 
   // Đồng bộ lên Google Drive riêng (hoặc Cloud Firestore nếu dùng Firebase)
   async function syncToFirestore(uid, data) {
-    data._sync = { pending: uid !== 'offline', saved_at: new Date().toISOString() };
-    saveStorageData(uid, data);
-
     const driveSession = window.FirebaseState.driveSession;
     const isDriveMode = window.FirebaseState.provider === 'google-drive' || Boolean(driveSession?.accessToken);
     if (isDriveMode) {
+      data._sync = { pending: true, provider: 'google-drive', saved_at: new Date().toISOString() };
+      const localBefore = await trySaveLocalCache(uid, data);
       const hint = document.getElementById('static-sync-status');
       const driveCfg = getGoogleDriveSettings();
       const tokenExpired = !driveSession?.accessToken || (driveSession.expiresAt && driveSession.expiresAt <= Date.now());
@@ -622,8 +717,10 @@
           driveSession.expiresAt = 0;
           saveDriveSession(driveSession);
         }
-        data._sync.pending = true;
-        saveStorageData(uid, data);
+        if (!localBefore.saved) {
+          updateDriveSyncButton();
+          throw new Error('Phiên Google Drive đã hết hạn và bộ nhớ trình duyệt đang đầy. Hãy đăng nhập Google lại hoặc tải bản sao lưu trước khi thao tác tiếp.');
+        }
         if (hint) {
           hint.hidden = false;
           hint.textContent = 'Phiên Google Drive đã hết hạn. Dữ liệu đã lưu trên trình duyệt nhưng chưa đồng bộ — hãy bấm "Đồng bộ Drive" để đăng nhập lại trước khi đổi máy.';
@@ -663,28 +760,43 @@
           saved_at: data._sync.saved_at,
           synced_at: result.updatedAt
         };
-        saveStorageData(uid, data);
+        const localAfter = await trySaveLocalCache(uid, data);
         if (hint) {
           hint.hidden = false;
-          hint.textContent = `Đã lưu trên trình duyệt và đồng bộ vào Google Drive riêng của bạn (${driveCfg.folderName}/${driveCfg.fileName}).`;
+          hint.textContent = localAfter.saved
+            ? `Đã lưu trên trình duyệt và đồng bộ vào Google Drive riêng của bạn (${driveCfg.folderName}/${driveCfg.fileName}).`
+            : `Đã đồng bộ thành công vào Google Drive riêng của bạn (${driveCfg.folderName}/${driveCfg.fileName}). Bộ nhớ đệm localStorage đang đầy nhưng dữ liệu chính đã được lưu an toàn trên Drive.`;
         }
       } catch (e) {
-        if (e && (e.code === 'DRIVE_AUTH_EXPIRED' || e.status === 401)) {
+        const isAuthExpired = Boolean(e && (e.code === 'DRIVE_AUTH_EXPIRED' || e.status === 401));
+        if (isAuthExpired) {
           driveSession.accessToken = '';
           driveSession.expiresAt = 0;
           saveDriveSession(driveSession);
+        }
+        if (!localBefore.saved) {
           if (hint) {
             hint.hidden = false;
-            hint.textContent = 'Phiên Google Drive đã hết hạn. Dữ liệu đã lưu trên trình duyệt nhưng chưa đồng bộ — hãy bấm "Đồng bộ Drive" để đăng nhập lại trước khi đổi máy.';
+            hint.textContent = isAuthExpired
+              ? 'Phiên Google Drive đã hết hạn và bộ nhớ trình duyệt đang đầy. Hãy đăng nhập lại trước khi thao tác tiếp.'
+              : `Chưa đồng bộ được lên Google Drive (${e?.message || 'lỗi kết nối'}) và bộ nhớ trình duyệt cũng đầy.`;
           }
-        } else if (hint) {
+          updateDriveSyncButton();
+          throw new Error(`Chưa đồng bộ được lên Google Drive (${e?.message || 'lỗi kết nối'}) và bộ nhớ trình duyệt cũng đầy. Không có dữ liệu nào bị ghi đè; hãy kiểm tra mạng và tải bản sao lưu.`);
+        }
+        if (hint) {
           hint.hidden = false;
-          hint.textContent = 'Đã lưu trên trình duyệt nhưng chưa đồng bộ lên Google Drive. Hãy tải bản sao lưu và kiểm tra kết nối trước khi đổi máy.';
+          hint.textContent = isAuthExpired
+            ? 'Phiên Google Drive đã hết hạn. Dữ liệu đã lưu trên trình duyệt nhưng chưa đồng bộ — hãy bấm "Đồng bộ Drive" để đăng nhập lại trước khi đổi máy.'
+            : `Đã lưu trên trình duyệt nhưng chưa đồng bộ lên Google Drive (${e?.message || 'lỗi kết nối'}). Hãy tải bản sao lưu và kiểm tra kết nối trước khi đổi máy.`;
         }
       }
       updateDriveSyncButton();
       return;
     }
+
+    data._sync = { pending: uid !== 'offline', saved_at: new Date().toISOString() };
+    saveStorageData(uid, data);
 
     if (!window.FirebaseState.user || !window.FirebaseState.db || !window.FirebaseState._firestoreHelpers) return;
     try {
@@ -721,7 +833,8 @@
     const user = session && session.user;
     if (!user || !user.uid) return;
     const status = document.getElementById('static-sync-status');
-    const cached = getStorageData(user.uid), cacheAtStart = JSON.stringify(cached);
+    const cached = await getBestCachedData(user.uid);
+    const cacheAtStart = JSON.stringify(cached);
     const valid = data => data && data.bank && Array.isArray(data.bank.questions) && Array.isArray(data.bank.ppct?.lessons) && ['exams', 'revisions', 'matrices'].every(k => Array.isArray(data[k]));
     const empty = () => ({ bank: { questions: [], ppct: { lessons: buildDefaultLessons('Tin học', [8, 9, 10]), cleared_grades: [] }, competency_catalogs: [] }, exams: [], revisions: [], matrices: [] });
     const install = data => { currentWorkspaceData = JSON.parse(JSON.stringify(data)); window.FirebaseState.currentData = currentWorkspaceData; applyWorkspaceToStore(); };
@@ -746,46 +859,13 @@
     }
 
     const driveCfg = getGoogleDriveSettings();
+    let result;
     try {
-      const result = await window.GoogleDriveStorage.readWorkspace(session.accessToken, {
+      result = await window.GoogleDriveStorage.readWorkspace(session.accessToken, {
         folderName: driveCfg.folderName,
         fileName: driveCfg.fileName,
         fetchImpl: opts.fetchImpl || session.fetchImpl
       });
-      if (window.FirebaseState.user?.uid !== user.uid) return;
-      const latest = getStorageData(user.uid);
-      if (JSON.stringify(latest) !== cacheAtStart && valid(latest)) {
-        install(latest);
-        updateDriveSyncButton();
-        return;
-      }
-
-      session.folderId = result.folderId;
-      session.fileId = result.fileId;
-      session.modifiedTime = result.modifiedTime || null;
-      saveDriveSession(session);
-
-      if (result.exists && valid(result.data)) {
-        install({
-          bank: result.data.bank,
-          exams: result.data.exams,
-          revisions: result.data.revisions,
-          matrices: result.data.matrices,
-          _sync: { pending: false, provider: 'google-drive', synced_at: result.updatedAt || new Date().toISOString() }
-        });
-        saveStorageData(user.uid, currentWorkspaceData);
-        if (status) {
-          status.hidden = false;
-          status.textContent = `Đã tải dữ liệu từ Google Drive riêng của bạn (${driveCfg.folderName}/${driveCfg.fileName}).`;
-        }
-      } else {
-        currentWorkspaceData._sync = { pending: false, provider: 'google-drive' };
-        saveStorageData(user.uid, currentWorkspaceData);
-        if (status) {
-          status.hidden = false;
-          status.textContent = `Đã kết nối Google Drive riêng. Tài khoản mới chưa có dữ liệu; hệ thống sẽ tự tạo tệp trong thư mục ${driveCfg.folderName} khi bạn lưu.`;
-        }
-      }
     } catch (error) {
       if (window.FirebaseState.user?.uid === user.uid) {
         if (error && (error.code === 'DRIVE_AUTH_EXPIRED' || error.status === 401)) {
@@ -798,8 +878,45 @@
           }
         } else if (status) {
           status.hidden = false;
-          status.textContent = 'Chưa tải được dữ liệu từ Google Drive. Đang giữ bản trên máy của tài khoản hiện tại; hãy kiểm tra kết nối và tải bản sao lưu.';
+          status.textContent = `Chưa tải được dữ liệu từ Google Drive (${error?.message || 'lỗi kết nối'}). Đang giữ bản trên máy của tài khoản hiện tại; hãy kiểm tra kết nối và tải bản sao lưu.`;
         }
+      }
+      updateDriveSyncButton();
+      return;
+    }
+
+    if (window.FirebaseState.user?.uid !== user.uid) return;
+    const latest = await getBestCachedData(user.uid);
+    if (JSON.stringify(latest) !== cacheAtStart && valid(latest)) {
+      install(latest);
+      updateDriveSyncButton();
+      return;
+    }
+
+    session.folderId = result.folderId;
+    session.fileId = result.fileId;
+    session.modifiedTime = result.modifiedTime || null;
+    saveDriveSession(session);
+
+    if (result.exists && valid(result.data)) {
+      install({
+        bank: result.data.bank,
+        exams: result.data.exams,
+        revisions: result.data.revisions,
+        matrices: result.data.matrices,
+        _sync: { pending: false, provider: 'google-drive', synced_at: result.updatedAt || new Date().toISOString() }
+      });
+      await trySaveLocalCache(user.uid, currentWorkspaceData);
+      if (status) {
+        status.hidden = false;
+        status.textContent = `Đã tải dữ liệu từ Google Drive riêng của bạn (${driveCfg.folderName}/${driveCfg.fileName}).`;
+      }
+    } else {
+      currentWorkspaceData._sync = { pending: false, provider: 'google-drive' };
+      await trySaveLocalCache(user.uid, currentWorkspaceData);
+      if (status) {
+        status.hidden = false;
+        status.textContent = `Đã kết nối Google Drive riêng (${driveCfg.folderName}). Tài khoản mới chưa có tệp dữ liệu; bấm "Đồng bộ Drive" hoặc lưu câu hỏi đầu tiên để tạo ${driveCfg.fileName}.`;
       }
     }
     updateDriveSyncButton();

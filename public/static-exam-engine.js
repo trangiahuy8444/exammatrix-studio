@@ -95,7 +95,15 @@
     if(Number(m.total_points)!==10)error('total','total_points','Tổng điểm phải bằng 10.');
     if(!Array.isArray(kinds(m))||!kinds(m).length||kinds(m).some(k=>!KINDS.includes(k)))error('allowed_kinds','allowed_kinds','Danh sách dạng câu không hợp lệ.');
     const ls=new Set(),rs=new Map(),ids=new Set(),partids=new Set(),numbers={};
-    for(const l of arrays.lessons){if(!text(l.lesson_code)||ls.has(l.lesson_code)||!lesson(ppct,m,l.lesson_code))error('lesson','lessons','Bài học trùng hoặc không thuộc PPCT đúng môn, khối.');ls.add(l.lesson_code);if(!text(l.title)||!text(l.topic))error('lesson_title','lessons','Cần tên bài và chủ đề.');}
+    for(const l of arrays.lessons){
+      const ppctLesson=lesson(ppct,m,l.lesson_code);
+      if(!text(l.lesson_code)||ls.has(l.lesson_code)||!ppctLesson)error('lesson','lessons','Bài học trùng hoặc không thuộc PPCT đúng môn, khối.');
+      if(m.exam_type!=='TX'&&ppctLesson&&(ppctLesson.section==='elective_topic'||/^(?:CD|CĐ)\d/i.test(l.lesson_code||''))){
+        error('elective_in_periodic','lessons','Cụm chuyên đề học tập không thuộc phạm vi đánh giá định kỳ (TT 22/2021, Điều 7, khoản 1). Chỉ sử dụng cho kiểm tra thường xuyên (TX).');
+      }
+      ls.add(l.lesson_code);
+      if(!text(l.title)||!text(l.topic))error('lesson_title','lessons','Cần tên bài và chủ đề.');
+    }
     for(const r of arrays.requirements){if(!text(r.id)||rs.has(r.id))error('requirement_id','requirements','Mã YCCĐ trống hoặc trùng.');rs.set(r.id,r);const l=lesson(ppct,m,r.lesson_code);
       if(!ls.has(r.lesson_code)||!l)error('lesson','requirements','YCCĐ chưa gắn bài đúng môn, khối.');
       if(!Number.isInteger(r.ppct_outcome_index)||!text(list(l?.outcomes)[r.ppct_outcome_index]))error('outcome','requirements','Chọn YCCĐ nguồn trong PPCT.');

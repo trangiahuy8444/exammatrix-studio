@@ -151,6 +151,149 @@ function ppctLessonFields(l) {
     notesText: notes.join('\n')
   };
 }
+function normalizePpctSection(lessonOrSection, lessonCode = '', lessonName = '', topic = '') {
+  const isObj = lessonOrSection && typeof lessonOrSection === 'object';
+  const raw = String(isObj ? (lessonOrSection.section || '') : (lessonOrSection || '')).trim().toLowerCase();
+  if (['core', 'elective_topic', 'review', 'assessment'].includes(raw)) return raw;
+  if (['chuyen_de', 'chuyên đề', 'special_topic', 'elective', 'chuyen_de_hoc_tap', 'cdht'].includes(raw)) return 'elective_topic';
+  if (['on_tap', 'ôn tập', 'luyen_tap', 'luyện tập'].includes(raw)) return 'review';
+  if (['kiem_tra', 'kiểm tra', 'danh_gia', 'đánh giá', 'periodic'].includes(raw)) return 'assessment';
+  const code = String(isObj ? (lessonOrSection.lesson_code || '') : lessonCode).trim();
+  const name = String(isObj ? (lessonOrSection.lesson_name_source || lessonOrSection.lesson_name || lessonOrSection.name || '') : lessonName).trim();
+  const tp = String(isObj ? (lessonOrSection.topic_source || lessonOrSection.topic || '') : topic).trim();
+  if (/^(?:CD|CĐ)\d/i.test(code) || /^\s*Chuyên\s*đề\b/i.test(name) || /chuyên\s*đề\s*học\s*tập|chuyên\s*đề\s*lựa\s*chọn/i.test(tp)) {
+    return 'elective_topic';
+  }
+  if (/^KT(?:GK|CK)[12]$/i.test(code) || /^\s*Kiểm\s*tra\s*(?:giữa|cuối)?\s*h?[kìỳ]/i.test(name)) {
+    return 'assessment';
+  }
+  if (/^(?:OT|LT)(?:_HK[12])?(?:_\d+)?$/i.test(code) || /^\s*(?:Ôn\s*tập|Luyện\s*tập)\b/i.test(name)) {
+    return 'review';
+  }
+  return 'core';
+}
+function detectPpctOrientation(text = '') {
+  const low = String(text || '').trim().toLowerCase().replace(/_/g, ' ');
+  if (!low) return '';
+  if (low.includes('tin học ứng dụng') || /\bict\b/.test(low)) return 'ICT';
+  if (low.includes('khoa học máy tính') || /\bcs\b/.test(low)) return 'CS';
+  return '';
+}
+function expectedNlsLevelForGrade(grade) {
+  const g = Number(grade) || 0;
+  if (g >= 1 && g <= 5) return g <= 3 ? 'CB1' : 'CB2';
+  if (g <= 7) return 'TC1';
+  if (g <= 9) return 'TC2';
+  return 'NC1';
+}
+function ppctNumericPeriods(lesson) {
+  const occs = Array.isArray(lesson?.occurrences) ? lesson.occurrences : [];
+  if (occs.length) {
+    let sum = 0;
+    let hasExplicitDur = false;
+    for (const o of occs) {
+      const d = String(o?.duration_raw ?? o?.num_periods ?? o?.so_tiet ?? '').trim();
+      if (/^\d+$/.test(d)) {
+        sum += Number(d);
+        hasExplicitDur = true;
+      }
+    }
+    if (hasExplicitDur) return sum;
+  }
+  const f = ppctLessonFields(lesson);
+  if (/^\d+$/.test(String(f.duration || '').trim())) return Number(f.duration);
+  return 0;
+}
+function validatePpctCompliance(grade, subjectName, items) {
+  const g = Number(grade) || 0;
+  const subj = String(subjectName || 'Tin học').trim() || 'Tin học';
+  const isTin = subj.toLowerCase().includes('tin');
+  const list = Array.isArray(items) ? items : [];
+  const coreItems = list.filter(l => normalizePpctSection(l) !== 'elective_topic');
+  const electiveItems = list.filter(l => normalizePpctSection(l) === 'elective_topic');
+  const assessmentItems = list.filter(l => normalizePpctSection(l) === 'assessment');
+  const corePeriods = coreItems.reduce((s, l) => s + ppctNumericPeriods(l), 0);
+  const electivePeriods = electiveItems.reduce((s, l) => s + ppctNumericPeriods(l), 0);
+  const orientations = [...new Set(electiveItems.map(l => {
+    const o = String(l.orientation || '').trim();
+    return detectPpctOrientation(o) || o || detectPpctOrientation(`${l.topic_source || ''} ${l.lesson_name_source || ''}`);
+  }).filter(Boolean))];
+  const expectedNls = expectedNlsLevelForGrade(g);
+  const wrongNls = [];
+  const wrongAi = [];
+  for (const l of list) {
+    const text = ppctLessonFields(l).competencies.join('\n');
+    const nlsMatches = text.match(/\b\d+\.\d+\.(CB\d|TC\d|NC\d)[a-z]?\b/gi) || [];
+    for (const m of nlsMatches) {
+      const lv = m.split('.')[2]?.slice(0, 3).toUpperCase();
+      if (lv && lv !== expectedNls && !wrongNls.includes(m)) wrongNls.push(m);
+    }
+    const aiMatches = text.match(/\b(\d{1,2})\.[A-D][1-5]\.(?:MR)?\d+\b/g) || [];
+    for (const m of aiMatches) {
+      const aiGrade = Number(m.split('.')[0]);
+      if (g > 0 && aiGrade !== g && !wrongAi.includes(m)) wrongAi.push(m);
+    }
+  }
+  const alerts = [];
+  if (list.length > 0) {
+    if (isTin && g >= 6 && g <= 9) {
+      if (corePeriods === 35) {
+        alerts.push({ level: 'ok', text: 'Tổng thời lượng cốt lõi đạt chuẩn 35 tiết/năm (TT 32/2018/TT-BGDĐT Mục VII.2).' });
+      } else {
+        alerts.push({ level: 'warn', text: `Tổng tiết cốt lõi hiện là ${corePeriods} tiết (chuẩn THCS Tin học: 35 tiết/năm theo TT 32/2018 Mục VII.2 — kiểm tra cột Số tiết kể cả tiết Ôn tập & Kiểm tra định kỳ).` });
+      }
+    } else if (isTin && g >= 10 && g <= 12) {
+      if (corePeriods === 70) {
+        alerts.push({ level: 'ok', text: 'Tổng thời lượng cốt lõi đạt chuẩn 70 tiết/năm (TT 32/2018/TT-BGDĐT Mục VII.2).' });
+      } else {
+        alerts.push({ level: 'warn', text: `Tổng tiết cốt lõi hiện là ${corePeriods} tiết (chuẩn THPT Tin học: 70 tiết/năm theo TT 32/2018 Mục VII.2).` });
+      }
+    }
+    if (g >= 10 && g <= 12) {
+      if (!electiveItems.length) {
+        alerts.push({ level: 'info', text: `Chưa có Mục II.2 Chuyên đề lựa chọn (Phụ lục I CV 5512). Nếu trường tổ chức cụm Chuyên đề học tập Tin học Khối ${g}, cần đủ 3 chuyên đề = 35 tiết (10–10–15 tiết) theo TT 32/2018.` });
+      } else if (electivePeriods === 35) {
+        alerts.push({ level: 'ok', text: `Cụm Chuyên đề học tập: ${electiveItems.length} chuyên đề · 35 tiết (đạt chuẩn TT 32/2018; đánh giá theo ĐĐGtx — TT 22/2021 Điều 6.3, không KTĐK GK/CK theo Điều 7.1).` });
+      } else {
+        alerts.push({ level: 'warn', text: `Chuyên đề học tập hiện có ${electiveItems.length} chuyên đề · ${electivePeriods} tiết. Theo TT 32/2018 (Mục IV.2.1 & VII.2.d), cụm CĐHT trọn vẹn ở THPT gồm 3 chuyên đề = 35 tiết (10–10–15 tiết); nếu chỉ trích dạy tăng cường, giữ ghi chú rõ nguồn.` });
+      }
+    } else if (g >= 6 && g <= 9 && electiveItems.length > 0) {
+      alerts.push({ level: 'warn', text: `Phát hiện ${electiveItems.length} dòng Chuyên đề học tập ở Khối ${g}. Theo Phụ lục I (Mục II.2) CV 5512 và TT 32/2018, cấp THCS không có Chuyên đề học tập lựa chọn.` });
+    }
+    if (wrongNls.length) {
+      alerts.push({ level: 'warn', text: `Mã Năng lực số chưa đúng bậc chuẩn Khối ${g} (${expectedNls} theo Phụ lục CV 3456/BGDĐT-GDPT): ${wrongNls.slice(0, 6).join(', ')}.` });
+    }
+    if (wrongAi.length) {
+      alerts.push({ level: 'warn', text: `Mã Giáo dục AI khác Khối ${g} (Phụ lục QĐ 2422/QĐ-BGDĐT): ${wrongAi.slice(0, 6).join(', ')}.` });
+    }
+  }
+  return {
+    grade: g,
+    subjectName: subj,
+    coreCount: coreItems.length,
+    electiveCount: electiveItems.length,
+    assessmentCount: assessmentItems.length,
+    corePeriods,
+    electivePeriods,
+    orientations,
+    expectedNls,
+    alerts
+  };
+}
+function renderPpctComplianceBanner(summary) {
+  if (!summary) return '';
+  const g = summary.grade;
+  const orientLabel = summary.orientations?.length ? summary.orientations.join(', ') : '';
+  const badges = [
+    `Cấp ${g >= 10 ? 'THPT' : 'THCS'} · Chuẩn NLS: ${summary.expectedNls}`,
+    `Cốt lõi: ${summary.coreCount} mục (${summary.corePeriods} tiết)`,
+    ...(g >= 10 || summary.electiveCount > 0 ? [`Chuyên đề: ${summary.electiveCount} mục (${summary.electivePeriods} tiết)${orientLabel ? ' · ' + orientLabel : ''}`] : [])
+  ];
+  const alertsHtml = (summary.alerts || []).length
+    ? `<ul class="ppct-compliance-list">${summary.alerts.map(a => `<li class="ppct-alert-${esc(a.level)}">${a.level === 'ok' ? '✅' : (a.level === 'warn' ? '⚠️' : 'ℹ️')} ${esc(a.text)}</li>`).join('')}</ul>`
+    : '';
+  return `<div class="ppct-compliance-box"><div class="ppct-compliance-chips">${badges.map(b => `<span class="badge">${esc(b)}</span>`).join('')}</div>${alertsHtml}</div>`;
+}
 const lessons=(g,subj)=>{
   const s=subj||store.selectedSubject||subject();
   let list = [];
@@ -159,8 +302,21 @@ const lessons=(g,subj)=>{
   } else {
     list = (store.bank?.ppct?.lessons||[]).filter(l=>(!g||Number(l.grade)===Number(g))&&((l.subject_name===s)||(!l.subject_name&&s==='Tin học')));
   }
-  return list.map(l => ({ ...l, occurrences: safeLessonOccurrences(l.occurrences) }));
+  return list.map(l => ({ ...l, section: normalizePpctSection(l), occurrences: safeLessonOccurrences(l.occurrences) }));
 };
+function instructionalLessons(g, subj, { includeElective = true } = {}) {
+  return lessons(g, subj).filter(l => {
+    const sec = normalizePpctSection(l);
+    if (sec === 'assessment' || sec === 'review') return false;
+    if (!includeElective && sec === 'elective_topic') return false;
+    return true;
+  });
+}
+function lessonOptionLabel(l) {
+  const sec = normalizePpctSection(l);
+  const name = l.lesson_name_source || l.lesson_name || l.name || '';
+  return (sec === 'elective_topic' ? '[CĐHT] ' : '') + `${l.lesson_code} · ${name}`;
+}
 const questions=()=>{
   const all=store.bank?.questions||[];
   const s=subject();
@@ -215,10 +371,10 @@ async function mutate(path,body,onSuccess){
  finally{store.busy=false;document.querySelectorAll('dialog form button[type=submit],#save-revision').forEach(b=>b.disabled=false);updateGenerationState();}
 }
 function examDraftScope(){return {workspace:document.querySelector('meta[name="workspace-scope"]')?.content||(window.FirebaseClient?.canHandle('/api/state')?(window.FirebaseState.user?.uid||'offline'):''),curriculum:store.context.curriculum_id||courseID,subject:subject()};}
-function examDraftContext(){const own=inDraftSubject;return {grades:grades(),lessons:lessons(store.examDraft.grade),revisions:store.revisions.filter(own),matrices:(store.matrixRecords||[]).filter(own),templates:store.templates.filter(own)};}
+function examDraftContext(){const own=inDraftSubject;const allowElective=store.examDraft.exam_type==='TX';return {grades:grades(),lessons:instructionalLessons(store.examDraft.grade,undefined,{includeElective:allowElective}),revisions:store.revisions.filter(own),matrices:(store.matrixRecords||[]).filter(own),templates:store.templates.filter(own)};}
 function restoreExamDraft(){
  const scope=examDraftScope();let saved=null;
- try{saved=C.loadExamDraft(window.localStorage,scope,{...examDraftContext(),lessons:grades().flatMap(g=>lessons(g))});}catch{}
+ try{saved=C.loadExamDraft(window.localStorage,scope,{...examDraftContext(),lessons:grades().flatMap(g=>instructionalLessons(g,undefined,{includeElective:true}))});}catch{}
  store.examDraft=saved||C.cleanExamDraft({grade:store.examDraft.grade},examDraftContext());
  if(!saved)chooseExamTemplate();
  // Validate lesson references against the restored grade, not the previous form's grade.
@@ -815,7 +971,7 @@ function renderBank(){
  $('#bulk-delete-selected').onclick=()=>bulkUpdateSelected('delete');
  renderBankList();
 }
-function lessonFilterOptions(){const f=store.filters;const unique=new Map(lessons(f.grade).map(l=>[l.lesson_code,l]));return opt('','Tất cả bài',!f.lesson)+[...unique.values()].map(l=>opt(l.lesson_code,`${l.lesson_code} · ${l.lesson_name_source}`,f.lesson===l.lesson_code)).join('');}
+function lessonFilterOptions(){const f=store.filters;const unique=new Map(instructionalLessons(f.grade,undefined,{includeElective:true}).map(l=>[l.lesson_code,l]));return opt('','Tất cả bài',!f.lesson)+[...unique.values()].map(l=>opt(l.lesson_code,lessonOptionLabel(l),f.lesson===l.lesson_code)).join('');}
 function renderBankList(){
  const result=filtered(),size=15,pages=Math.max(1,Math.ceil(result.length/size));store.page=Math.min(store.page,pages);const slice=result.slice((store.page-1)*size,store.page*size);
  $('#bank-toolbar').innerHTML=`<div class="list-toolbar"><span><strong>${result.length}</strong> câu khớp bộ lọc</span><div class="actions"><button id="select-filter" class="quiet">Chọn tất cả câu đang lọc</button><button id="reset-filter" class="quiet">Đặt lại bộ lọc</button></div></div>`;
@@ -1213,7 +1369,7 @@ function openEditor(id,duplicate=false){
  $('#edit-grade').onchange=()=>editorLessons('',0);$('#edit-lesson').onchange=()=>editorOutcomes(0);$('#edit-type').onchange=()=>{renderAnswerEditor($('#edit-type').value);$('#edit-mode').value=$('#edit-type').value==='MC'?'Trắc nghiệm':'Tự luận';$('#edit-level').value=C.levelAfterTypeChange($('#edit-level').value,$('#edit-type').value);};$('#question-form').onsubmit=saveQuestion;
  $('#detail-dialog').close();$('#edit-dialog').showModal();
 }
-function editorLessons(code,index,outcome){const ls=lessons($('#edit-grade').value);$('#edit-lesson').innerHTML=ls.map(l=>opt(l.lesson_code,l.lesson_name_source,l.lesson_code===code)).join('');editorOutcomes(index,outcome);}
+function editorLessons(code,index,outcome){const ls=instructionalLessons($('#edit-grade').value,undefined,{includeElective:true});$('#edit-lesson').innerHTML=ls.map(l=>opt(l.lesson_code,lessonOptionLabel(l),l.lesson_code===code)).join('');editorOutcomes(index,outcome);}
 function editorOutcomes(index=0,outcome){const l=lessons($('#edit-grade').value).find(l=>l.lesson_code===$('#edit-lesson').value);const outcomes=l?.outcomes||[];let n=Number.isInteger(index)?index:outcomes.indexOf(outcome);if(n<0)n=0;$('#edit-outcome').innerHTML=outcomes.map((s,i)=>opt(i,s,i===n)).join('');}
 function renderAnswerEditor(type){
  const q=store.editing;
@@ -1225,7 +1381,11 @@ async function saveQuestion(event){
  const lesson=lessons(q.grade).find(l=>l.lesson_code===q.lesson_code);q.learning_outcome=lesson?.outcomes?.[q.outcome_index]||'';q.lesson_name=lesson?.lesson_name_source||'';q.topic_source=lesson?.topic_source||'';
  const occ=safeLessonOccurrences(lesson?.occurrences);
  q.source_file=lesson?.source_file||'';q.source_rows=occ.map(r=>({table_index:r.table_index,row_index:r.row_index,week_raw:r.week_raw,periods_raw:r.periods_raw}));q.semester=1;
- const lessonPeriods=occ.flatMap(r=>String(r.ppct_raw||r.periods_raw||'').match(/\d+/g)||[]).map(Number);if(lessonPeriods.length){q.first_ppct_period=Math.min(...lessonPeriods);q.after_hk1_exam=q.first_ppct_period>=(q.grade===10?32:16);}
+ const lessonPeriods=occ.flatMap(r=>String(r.ppct_raw||r.periods_raw||'').match(/\d+/g)||[]).map(Number);
+ const ck1Lesson=lessons(q.grade).find(l=>l.lesson_code==='KTCK1');
+ const ck1Periods=safeLessonOccurrences(ck1Lesson?.occurrences||[]).flatMap(r=>String(r.ppct_raw||r.periods_raw||'').match(/\d+/g)||[]).map(Number).filter(n=>n>0);
+ const ck1Limit=ck1Periods.length?Math.min(...ck1Periods):(q.grade>=10?32:16);
+ if(lessonPeriods.length){q.first_ppct_period=Math.min(...lessonPeriods);q.after_hk1_exam=q.first_ppct_period>=ck1Limit;}
 
  if(q.type==='MC'){q.options=[0,1,2,3].map(i=>f.get('option'+i).trim());q.correct=Number(f.get('correct'));q.option_explanations=[0,1,2,3].map(i=>f.get('explanation'+i).trim());delete q.rubric;delete q.equivalent_answer_policy;}else{q.rubric=[0,1,2,3].map(i=>({criterion:f.get('rubric'+i).trim(),points:.25}));q.equivalent_answer_policy=f.get('equivalent_answer_policy').trim();delete q.options;delete q.correct;delete q.option_explanations;}
  const result=await mutate('/api/questions/save',{question:q},res=>{$('#edit-dialog').close();render();
@@ -1283,19 +1443,114 @@ function renderPpctListCell(items, emptyText = '—') {
   if (items.length === 1) return esc(items[0]);
   return `<ul>${items.map(item => `<li>${esc(item)}</li>`).join('')}</ul>`;
 }
+function ppctSectionTagHtml(l) {
+  const sec = normalizePpctSection(l);
+  if (sec === 'elective_topic') {
+    const orient = l.orientation ? ` · ${l.orientation}` : '';
+    return `<span class="ppct-tag ppct-tag-elective">CĐHT${esc(orient)}</span>`;
+  }
+  if (sec === 'assessment') return '<span class="ppct-tag ppct-tag-assessment">KT định kỳ</span>';
+  if (sec === 'review') return '<span class="ppct-tag ppct-tag-review">Ôn tập</span>';
+  return '';
+}
 function renderPPCT(){
  const g=store.ppctGrade;
  const s=store.selectedSubject || store.ppctSubject || 'Tin học';
  store.ppctSubject = s;
  const allSubjects=['Tin học', 'Toán học', 'Vật lí', 'Hóa học', 'Sinh học', 'Ngữ văn', 'Tiếng Anh', 'Lịch sử', 'Địa lí'];
  const ls=lessons(g, s);
- $('#ppct').innerHTML=title(`Chương trình môn ${s}`,'Phân phối chương trình',`Kế hoạch dạy học (Phụ lục 1 — Công văn 5512/BGDĐT-GDTrH, Thông tư 02/2025/TT-BGDĐT về Năng lực số và Quyết định 2422/QĐ-BGDĐT về Giáo dục AI) môn ${s} Khối ${g}.`,
+ const coreRows = ls.filter(l => normalizePpctSection(l) !== 'elective_topic');
+ const electiveRows = ls.filter(l => normalizePpctSection(l) === 'elective_topic');
+ const assessmentRows = ls.filter(l => normalizePpctSection(l) === 'assessment');
+ const compliance = validatePpctCompliance(g, s, ls);
+ const isTHPT = Number(g) >= 10;
+ const isTin = s.toLowerCase().includes('tin');
+
+ const renderCoreRowHtml = l => {
+   const f = ppctLessonFields(l);
+   const notesHtml = f.notes.length ? f.notes.map(esc).join('<br>') : '<span class="muted">—</span>';
+   const tagHtml = ppctSectionTagHtml(l);
+   return `<tr><td class="ppct-col-week">${f.weeksHtml}</td><td class="ppct-col-lesson"><strong>${esc(l.lesson_code)}</strong> ${tagHtml} <strong>· ${esc(l.lesson_name_source || l.lesson_name || l.name)}</strong><p class="small muted">${esc(l.topic_source || '')}</p></td><td class="ppct-col-duration">${esc(f.duration)}</td><td class="ppct-col-ppct">${esc(f.ppct)}</td><td class="ppct-col-outcomes">${f.outcomes.length ? `<ul>${f.outcomes.map(o=>`<li>${esc(o)}</li>`).join('')}</ul>` : '<span class="muted">—</span>'}</td><td class="ppct-col-nls">${renderPpctListCell(f.competencies)}</td><td class="ppct-col-notes">${notesHtml}</td><td class="ppct-col-actions"><div class="actions"><button type="button" class="export-link" data-edit-ppct="${esc(l.lesson_code)}" data-grade="${g}">Sửa</button><button type="button" class="export-link danger" data-del-ppct="${esc(l.lesson_code)}" data-grade="${g}">Xóa</button></div></td></tr>`;
+ };
+
+ const renderElectiveRowHtml = (l, idx) => {
+   const f = ppctLessonFields(l);
+   const sttOrWeek = f.weeksHtml !== '—' ? f.weeksHtml : String(idx + 1);
+   const notesHtml = f.notes.length ? f.notes.map(esc).join('<br>') : '<span class="muted">—</span>';
+   const tagHtml = ppctSectionTagHtml(l);
+   return `<tr><td class="ppct-col-week">${sttOrWeek}</td><td class="ppct-col-lesson"><strong>${esc(l.lesson_code)}</strong> ${tagHtml} <strong>· ${esc(l.lesson_name_source || l.lesson_name || l.name)}</strong><p class="small muted">${esc(l.topic_source || 'Chuyên đề học tập lựa chọn')}</p></td><td class="ppct-col-duration">${esc(f.duration)}</td><td class="ppct-col-outcomes">${f.outcomes.length ? `<ul>${f.outcomes.map(o=>`<li>${esc(o)}</li>`).join('')}</ul>` : '<span class="muted">—</span>'}</td><td class="ppct-col-nls">${renderPpctListCell(f.competencies)}</td><td class="ppct-col-notes">${notesHtml}</td><td class="ppct-col-actions"><div class="actions"><button type="button" class="export-link" data-edit-ppct="${esc(l.lesson_code)}" data-grade="${g}">Sửa</button><button type="button" class="export-link danger" data-del-ppct="${esc(l.lesson_code)}" data-grade="${g}">Xóa</button></div></td></tr>`;
+ };
+
+ const periodicSlots = [
+   { code: 'KTGK1', title: 'Kiểm tra giữa học kì I', defaultWeek: 'Tuần 10' },
+   { code: 'KTCK1', title: 'Kiểm tra cuối học kì I', defaultWeek: 'Tuần 16' },
+   { code: 'KTGK2', title: 'Kiểm tra giữa học kì II', defaultWeek: 'Tuần 26' },
+   { code: 'KTCK2', title: 'Kiểm tra cuối học kì II', defaultWeek: 'Tuần 31' }
+ ];
+ const defaultTestDuration = (isTin || (compliance.corePeriods > 0 && compliance.corePeriods <= 70))
+   ? '45 phút'
+   : (compliance.corePeriods > 70 ? '60–90 phút' : '45–90 phút (TT 22/2021 Điều 7.1)');
+ const periodicRowsHtml = periodicSlots.map(slot => {
+   const found = assessmentRows.find(x => String(x.lesson_code || '').toUpperCase() === slot.code);
+   const f = found ? ppctLessonFields(found) : null;
+   const timeAt = found
+     ? `${f.weeksHtml !== '—' ? f.weeksHtml : slot.defaultWeek}${f.ppct && f.ppct !== '—' ? `<br><span class="small muted">Tiết PPCT: ${esc(f.ppct)}</span>` : ''}`
+     : `<span class="muted">${esc(slot.defaultWeek)} (dự kiến)</span>`;
+   const yccdHtml = (found && f.outcomes.length)
+     ? `<ul>${f.outcomes.map(o => `<li>${esc(o)}</li>`).join('')}</ul>`
+     : '<span class="muted">Đánh giá các YCCĐ tính đến thời điểm kiểm tra theo ma trận &amp; bản đặc tả (CV 7991/BGDĐT-GDTrH).</span>';
+   const formText = (found && f.notes.length)
+     ? f.notes.map(esc).join('<br>')
+     : (isTHPT
+       ? 'Viết / Thực hành trên máy (TNKQ + Đúng/Sai + Tự luận theo CV 7991)'
+       : 'Viết / Thực hành trên máy (TNKQ + Tự luận theo TT 22/2021)');
+   return `<tr><td><strong>${esc(found?.lesson_name_source || slot.title)}</strong></td><td class="ppct-col-duration">${esc(defaultTestDuration)}</td><td class="ppct-col-week">${timeAt}</td><td>${yccdHtml}</td><td>${formText}</td></tr>`;
+ }).join('');
+
+ const electiveCardHtml = (isTHPT || electiveRows.length > 0) ? `
+ <div class="card">
+   <div class="ppct-section-header">
+     <div>
+       <h2>Mục II.2 · Chuyên đề học tập lựa chọn ${compliance.orientations.length ? `<span class="ppct-tag ppct-tag-orient">Định hướng ${esc(compliance.orientations.join(', '))}</span>` : ''}</h2>
+       <p class="small muted" style="margin:4px 0 0">Phụ lục I (Mục II.2) CV 5512 &amp; TT 32/2018 (35 tiết/cụm = 3 chuyên đề 10–10–15 tiết). Theo TT 22/2021: cụm CĐHT tính <strong>01 ĐĐGtx</strong> (Điều 6.3), <strong>không kiểm tra định kỳ</strong> (Điều 7.1).</p>
+     </div>
+     <div class="actions">
+       <span class="badge">${electiveRows.length} chuyên đề · ${compliance.electivePeriods} tiết</span>
+       <button type="button" class="primary" id="add-ppct-elective">+ Thêm chuyên đề THPT</button>
+     </div>
+   </div>
+   <div class="table-wrap">
+     <table class="ppct-table ppct-khdh-table ppct-elective-table">
+       <thead><tr><th class="ppct-col-week">STT / Tuần</th><th class="ppct-col-lesson">Chuyên đề học tập</th><th class="ppct-col-duration">Số tiết</th><th class="ppct-col-outcomes">Yêu cầu cần đạt</th><th class="ppct-col-nls">Phát triển năng lực số &amp; AI</th><th class="ppct-col-notes">Ghi chú</th><th class="ppct-col-actions">Thao tác</th></tr></thead>
+       <tbody>${electiveRows.length ? electiveRows.map(renderElectiveRowHtml).join('') : '<tr><td colspan="7" class="empty" style="text-align:center;padding:18px">Chưa có chuyên đề học tập lựa chọn cho Khối ' + esc(g) + '. Nếu trường dạy cụm Chuyên đề Tin học (Tin học ứng dụng ICT hoặc Khoa học máy tính CS), bấm "+ Thêm chuyên đề THPT" hoặc nhập tệp Word/JSON có Bảng Chuyên đề lựa chọn.</td></tr>'}</tbody>
+     </table>
+   </div>
+ </div>` : '';
+
+ const periodicCardHtml = `
+ <div class="card">
+   <div class="ppct-section-header">
+     <div>
+       <h2>Mục II.3 · Kiểm tra, đánh giá định kỳ (Phụ lục I CV 5512 &amp; TT 22/2021 Điều 7)</h2>
+       <p class="small muted" style="margin:4px 0 0">Tổng hợp mốc kiểm tra định kỳ trong học kì. Không tổ chức kiểm tra định kỳ riêng đối với Cụm chuyên đề học tập (Điều 7.1 TT 22/2021) và Giáo dục AI (Mục VI.1 QĐ 2422).</p>
+     </div>
+     <span class="badge">${assessmentRows.length}/4 mốc đã nạp từ PPCT</span>
+   </div>
+   <div class="table-wrap">
+     <table class="ppct-table ppct-periodic-table">
+       <thead><tr><th>Bài kiểm tra, đánh giá</th><th class="ppct-col-duration">Thời gian</th><th class="ppct-col-week">Thời điểm</th><th>Yêu cầu cần đạt</th><th>Hình thức</th></tr></thead>
+       <tbody>${periodicRowsHtml}</tbody>
+     </table>
+   </div>
+ </div>`;
+
+ $('#ppct').innerHTML=title(`Chương trình môn ${s}`,'Phân phối chương trình',`Kế hoạch dạy học (Phụ lục I — CV 5512/BGDĐT-GDTrH, TT 32/2018, TT 22/2021, TT 02/2025 &amp; CV 3456 về Năng lực số, QĐ 2422 &amp; CV 5588 về Giáo dục AI) môn ${s} Khối ${g}.`,
    `<div style="display:flex;gap:8px;flex-wrap:wrap">` +
    (ls.length ? `<button type="button" class="button danger quiet" id="btn-clear-grade-ppct">🗑️ Xóa PPCT Khối ${g}</button>` : '') +
    `<button type="button" class="primary" id="add-ppct-lesson">+ Thêm bài học PPCT</button></div>`)+
  `${ppctImportCard(g)}
  <div class="card">
-   <div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+   <div style="display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap">
      <div class="field" style="min-width:200px">
        <label for="ppct-subject" style="display:block;font-weight:600;margin-bottom:4px">Môn học</label>
        <select id="ppct-subject" ${store.context.curriculum_id?'disabled':''} style="width:100%;padding:8px">${allSubjects.map(sub=>opt(sub,sub,sub===s)).join('')}</select>
@@ -1305,24 +1560,29 @@ function renderPPCT(){
        <select id="ppct-grade" style="width:100%;padding:8px">${gradeOptions(g)}</select>
      </div>
    </div>
+   ${renderPpctComplianceBanner(compliance)}
+   <div class="ppct-section-header" style="margin-top:14px">
+     <h2>Mục II.1 · Phân phối chương trình cốt lõi</h2>
+     <span class="badge">${coreRows.length} mục · ${compliance.corePeriods} tiết</span>
+   </div>
    <div class="table-wrap">
      <table class="ppct-table ppct-khdh-table">
        <thead><tr><th class="ppct-col-week">Tuần</th><th class="ppct-col-lesson">Bài học</th><th class="ppct-col-duration">Số tiết</th><th class="ppct-col-ppct">PPCT</th><th class="ppct-col-outcomes">Yêu cầu cần đạt</th><th class="ppct-col-nls">Phát triển năng lực số &amp; AI</th><th class="ppct-col-notes">Ghi chú</th><th class="ppct-col-actions">Thao tác</th></tr></thead>
-       <tbody>${ls.length ? ls.map(l=>{
-         const f = ppctLessonFields(l);
-         const notesHtml = f.notes.length ? f.notes.map(esc).join('<br>') : '<span class="muted">—</span>';
-         return `<tr><td class="ppct-col-week">${f.weeksHtml}</td><td class="ppct-col-lesson"><strong>${esc(l.lesson_code)} · ${esc(l.lesson_name_source || l.lesson_name || l.name)}</strong><p class="small muted">${esc(l.topic_source || '')}</p></td><td class="ppct-col-duration">${esc(f.duration)}</td><td class="ppct-col-ppct">${esc(f.ppct)}</td><td class="ppct-col-outcomes">${f.outcomes.length ? `<ul>${f.outcomes.map(o=>`<li>${esc(o)}</li>`).join('')}</ul>` : '<span class="muted">—</span>'}</td><td class="ppct-col-nls">${renderPpctListCell(f.competencies)}</td><td class="ppct-col-notes">${notesHtml}</td><td class="ppct-col-actions"><div class="actions"><button type="button" class="export-link" data-edit-ppct="${esc(l.lesson_code)}" data-grade="${g}">Sửa</button><button type="button" class="export-link danger" data-del-ppct="${esc(l.lesson_code)}" data-grade="${g}">Xóa</button></div></td></tr>`;
-       }).join('') : '<tr><td colspan="8" class="empty" style="text-align:center;padding:24px">Chưa có bài học PPCT cho môn và khối này. Bấm "+ Thêm bài học PPCT" hoặc nhập tệp PPCT (JSON, Markdown, Word) ở khung phía trên.</td></tr>'}</tbody>
+       <tbody>${coreRows.length ? coreRows.map(renderCoreRowHtml).join('') : '<tr><td colspan="8" class="empty" style="text-align:center;padding:24px">Chưa có bài học PPCT cho môn và khối này. Bấm "+ Thêm bài học PPCT" hoặc nhập tệp PPCT (JSON, Markdown, Word) ở khung phía trên.</td></tr>'}</tbody>
      </table>
    </div>
  </div>
+ ${electiveCardHtml}
+ ${periodicCardHtml}
  <div class="card"><h2>Hồ sơ nguồn</h2>${(store.bank.ppct?.sources||[]).filter(src=>Number(src.grade)===g && s==='Tin học').map(src=>`<p class="small">${esc(src.path||src.source_file||'')}${src.sha256?` <span class="muted">· SHA-256 ${esc(String(src.sha256).slice(0,12))}…</span>`:''}</p><p class="muted">${esc(src.approval_status||'Đối chiếu bản KHDH trong thư mục chuyên môn.')}</p>`).join('') || `<p class="muted">Chưa có hồ sơ nguồn PPCT được tải lên cho môn ${esc(s)} Khối ${g}.</p>`}</div>`;
  $('#ppct-grade').onchange=e=>{store.ppctGrade=Number(e.target.value);renderPPCT();};
  $('#ppct-subject').onchange=e=>setGlobalSubject(e.target.value);
- $('#add-ppct-lesson').onclick=()=>openPPCTEditor(g,'',s);
+ $('#add-ppct-lesson').onclick=()=>openPPCTEditor(g,'',s,'core');
+ const addElectiveBtn=$('#add-ppct-elective');
+ if(addElectiveBtn)addElectiveBtn.onclick=()=>openPPCTEditor(g,'',s,'elective_topic');
  const clearGradeBtn=$('#btn-clear-grade-ppct');
  if(clearGradeBtn)clearGradeBtn.onclick=async()=>{
-   if(!confirm(`Bạn có chắc chắn muốn xóa toàn bộ ${ls.length} bài học PPCT môn ${s} Khối ${g} để tải lại tệp mới không?`))return;
+   if(!confirm(`Bạn có chắc chắn muốn xóa toàn bộ ${ls.length} mục PPCT (cốt lõi và chuyên đề) môn ${s} Khối ${g} để tải lại tệp mới không?`))return;
    if(store.bank?.ppct?.lessons){
      store.bank.ppct.lessons=store.bank.ppct.lessons.filter(l=>!(((l.subject_name||'Tin học')===s)&&Number(l.grade)===g));
    }
@@ -1332,54 +1592,109 @@ function renderPPCT(){
  };
  bindPpctImport(g);
 }
-// Nhập PPCT từ JSON, Markdown (.md) hoặc Word (bảng KHDH Phụ lục 1 đủ 7 cột)
+// Nhập PPCT từ JSON, Markdown (.md) hoặc Word (Phụ lục I CV 5512: Bảng II.1 cốt lõi 7 cột + Bảng II.2 Chuyên đề THPT)
 function parsePpctFromMarkdown(text, defaultGrade) {
   if (!text || typeof text !== 'string') return [];
   const lines = text.split(/\r?\n/);
   const lessonsMap = new Map();
   let currentTopic = 'Chương trình GDPT';
+  let currentOrientation = '';
+  let currentSemester = 1;
 
   const splitCellItems = (raw, minLen = 2) => String(raw || '')
     .split(/(?:<br\s*\/?>|\n|\r)\s*(?:[-–*•+]\s*)?|\.\s*[-–*•+]\s*/)
     .map(o => o.replace(/<[^>]*>/g, '').trim().replace(/^[-–*•+]\s*/, '').trim())
     .filter(o => o.length >= minLen);
 
-  const tableRows = lines.filter(l => l.trim().startsWith('|') && l.trim().endsWith('|'));
-  if (tableRows.length >= 2) {
-    let colMap = null;
-    for (const r of tableRows) {
-      const cells = r.split('|').slice(1, -1).map(c => c.trim());
+  const cleanTitle = (s) => String(s || '')
+    .replace(/\s*\((?:tt|tiếp(?:\s*theo)?|t|tiết\s*\d+)\)?\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const parseMdRowCells = (line) => line.trim().split('|').slice(1, -1).map(c => c.trim());
+
+  let inAnyTable = false;
+  let tableMode = 'core'; // 'core' | 'elective'
+  let colMap = null;
+  let sectionHeading = '';
+
+  const buildColMap = (cells) => {
+    const map = { stt: -1, week: -1, lesson: -1, duration: -1, ppct: -1, outcomes: -1, nls: -1, notes: -1, equipment: -1 };
+    cells.forEach((h, idx) => {
+      const low = h.toLowerCase();
+      if (map.stt < 0 && /^(?:stt|tt|st)$/.test(low)) map.stt = idx;
+      else if (map.ppct < 0 && /\bppct\b/i.test(low)) map.ppct = idx;
+      else if (map.week < 0 && /(?:tuần|thời\s*điểm|week)/i.test(low)) map.week = idx;
+      else if (map.duration < 0 && /(?:số\s*tiết|thời\s*lượng|duration|^tiết$)/i.test(low)) map.duration = idx;
+      else if (map.outcomes < 0 && /(?:yêu\s*cầu\s*cần\s*đạt|yccđ|yccd|outcomes|mục\s*tiêu)/i.test(low)) map.outcomes = idx;
+      else if (map.nls < 0 && /(?:năng\s*lực\s*số|nls|\bai\b)/i.test(low)) map.nls = idx;
+      else if (map.equipment < 0 && /(?:thiết\s*bị|đồ\s*dùng\s*dạy\s*học)/i.test(low)) map.equipment = idx;
+      else if (map.notes < 0 && /(?:ghi\s*chú|note)/i.test(low)) map.notes = idx;
+      else if (map.lesson < 0 && /(?:chuyên\s*đề|bài\s*học|tên\s*bài|bài\s*dạy|nội\s*dung|lesson)/i.test(low)) map.lesson = idx;
+    });
+    return map;
+  };
+
+  const hasPipeTable = lines.some(l => { const t = l.trim(); return t.startsWith('|') && t.endsWith('|'); });
+  if (hasPipeTable) {
+    for (const rawLine of lines) {
+      const t = rawLine.trim();
+      if (!t) continue;
+      if (!(t.startsWith('|') && t.endsWith('|'))) {
+        inAnyTable = false;
+        colMap = null;
+        if (/^#{1,4}\s*/.test(t) || /chuyên\s*đề\s*(?:học\s*tập|lựa\s*chọn)/i.test(t)) {
+          sectionHeading = t.replace(/^#{1,4}\s*/, '').trim();
+          const hOrient = detectPpctOrientation(sectionHeading);
+          if (hOrient) currentOrientation = hOrient;
+          if (/chuyên\s*đề\s*(?:học\s*tập|lựa\s*chọn)/i.test(sectionHeading)) {
+            currentTopic = sectionHeading;
+          }
+        }
+        continue;
+      }
+
+      const cells = parseMdRowCells(t);
       if (!cells.length) continue;
       if (cells.every(c => !c || /^:?-+:?$/.test(c))) continue;
 
-      const isHeaderRow = cells.some(c => /(?:bài\s*học|tên\s*bài)/i.test(c))
+      const isElectiveHdr = cells.some(c => /(?:chuyên\s*đề|tên\s*bài\s*dạy)/i.test(c))
+        && cells.some(c => /(?:số\s*tiết|thời\s*lượng)/i.test(c))
+        && cells.some(c => /(?:yêu\s*cầu\s*cần\s*đạt|yccđ|yccd)/i.test(c))
+        && !cells.some(c => /(?:tuần|week)/i.test(c));
+      const isCoreHdr = cells.some(c => /(?:bài\s*học|tên\s*bài|bài\s*dạy)/i.test(c))
         && cells.some(c => /(?:tuần|yêu\s*cầu\s*cần\s*đạt|yccđ|ppct|số\s*tiết)/i.test(c));
-      if (isHeaderRow) {
-        colMap = { week: -1, lesson: -1, duration: -1, ppct: -1, outcomes: -1, nls: -1, notes: -1 };
-        cells.forEach((h, idx) => {
-          const low = h.toLowerCase();
-          if (colMap.week < 0 && /(?:tuần|thời\s*điểm|week)/i.test(low)) colMap.week = idx;
-          else if (colMap.lesson < 0 && /(?:bài\s*học|tên\s*bài|nội\s*dung|lesson)/i.test(low)) colMap.lesson = idx;
-          else if (colMap.duration < 0 && /(?:số\s*tiết|thời\s*lượng|duration)/i.test(low)) colMap.duration = idx;
-          else if (colMap.ppct < 0 && /(?:^ppct$|tiết\s*ppct|\bppct\b)/i.test(low)) colMap.ppct = idx;
-          else if (colMap.outcomes < 0 && /(?:yêu\s*cầu\s*cần\s*đạt|yccđ|yccd|outcomes)/i.test(low)) colMap.outcomes = idx;
-          else if (colMap.nls < 0 && /(?:năng\s*lực\s*số|nls|\bai\b)/i.test(low)) colMap.nls = idx;
-          else if (colMap.notes < 0 && /(?:ghi\s*chú|note)/i.test(low)) colMap.notes = idx;
-          else if (colMap.duration < 0 && /^tiết$/i.test(low)) colMap.duration = idx;
-        });
+
+      if (isElectiveHdr || isCoreHdr) {
+        inAnyTable = true;
+        tableMode = isElectiveHdr ? 'elective' : 'core';
+        colMap = buildColMap(cells);
+        if (tableMode === 'elective' && !/chuyên\s*đề/i.test(currentTopic)) {
+          currentTopic = sectionHeading || 'Chuyên đề học tập lựa chọn';
+        }
         continue;
       }
 
       const distinctNonEmpty = [...new Set(cells.filter(Boolean))];
       if (!distinctNonEmpty.length) continue;
-      if (distinctNonEmpty.length <= 2 && /^Học\s*k[ìi]\s*(?:I{1,2}|[12])\b/i.test(distinctNonEmpty[0])) continue;
+      const mSem = distinctNonEmpty[0].match(/^\s*Học\s*k[ìỳ]\s*(I{1,2}|[12])\b/i);
+      if (distinctNonEmpty.length <= 2 && mSem) {
+        currentSemester = (mSem[1].toUpperCase() === 'II' || mSem[1] === '2') ? 2 : 1;
+        continue;
+      }
+      if (distinctNonEmpty.length <= 2 && /chuyên\s*đề\s*(?:học\s*tập|lựa\s*chọn)/i.test(distinctNonEmpty[0])) {
+        currentTopic = distinctNonEmpty[0];
+        currentOrientation = detectPpctOrientation(currentTopic) || currentOrientation;
+        continue;
+      }
       if (distinctNonEmpty.length <= 2 && /^Chủ\s*đề/i.test(distinctNonEmpty[0])) {
         currentTopic = distinctNonEmpty[0];
         continue;
       }
 
-      let weekRaw = '', lessonRaw = '', durationRaw = '', ppctRaw = '', outcomesRaw = '', competenciesRaw = '', notesRaw = '';
+      let stt = '', weekRaw = '', lessonRaw = '', durationRaw = '', ppctRaw = '', outcomesRaw = '', competenciesRaw = '', notesRaw = '';
       if (colMap && colMap.lesson >= 0) {
+        stt = colMap.stt >= 0 ? (cells[colMap.stt] || '') : '';
         weekRaw = colMap.week >= 0 ? (cells[colMap.week] || '') : '';
         lessonRaw = cells[colMap.lesson] || '';
         durationRaw = colMap.duration >= 0 ? (cells[colMap.duration] || '') : '';
@@ -1387,6 +1702,15 @@ function parsePpctFromMarkdown(text, defaultGrade) {
         outcomesRaw = colMap.outcomes >= 0 ? (cells[colMap.outcomes] || '') : '';
         competenciesRaw = colMap.nls >= 0 ? (cells[colMap.nls] || '') : '';
         notesRaw = colMap.notes >= 0 ? (cells[colMap.notes] || '') : '';
+        const equipRaw = colMap.equipment >= 0 ? (cells[colMap.equipment] || '').trim() : '';
+        if (equipRaw) notesRaw = [notesRaw.trim(), 'Thiết bị: ' + equipRaw].filter(Boolean).join('; ');
+      } else if (tableMode === 'elective' || (cells.length >= 4 && /^\d+$/.test(cells[0]) && /^Chuyên\s*đề/i.test(cells[1] || ''))) {
+        stt = cells[0] || '';
+        lessonRaw = cells[1] || '';
+        durationRaw = cells[2] || '';
+        outcomesRaw = cells[3] || '';
+        competenciesRaw = cells[4] || '';
+        notesRaw = cells[5] || '';
       } else if (cells.length >= 6) {
         weekRaw = cells[0] || '';
         lessonRaw = cells[1] || '';
@@ -1418,25 +1742,77 @@ function parsePpctFromMarkdown(text, defaultGrade) {
       if (!lessonRaw) continue;
 
       let lessonCode = '';
-      const mCode = lessonRaw.match(/^(?:Bài|Chủ\s*đề)\s*([0-9]+[a-zA-Z]?)/i);
-      if (mCode) lessonCode = 'B' + mCode[1];
-      else if (/Kiểm\s*tra\s*giữa\s*h?k?1/i.test(lessonRaw)) lessonCode = 'KTGK1';
-      else if (/Kiểm\s*tra\s*h?k?1|Kiểm\s*tra\s*cuối\s*h?k?1/i.test(lessonRaw)) lessonCode = 'KTCK1';
-      else if (/Kiểm\s*tra\s*giữa\s*h?k?2/i.test(lessonRaw)) lessonCode = 'KTGK2';
-      else if (/Kiểm\s*tra\s*h?k?2|Kiểm\s*tra\s*cuối\s*h?k?2/i.test(lessonRaw)) lessonCode = 'KTCK2';
-      else if (/Ôn\s*tập/i.test(lessonRaw)) lessonCode = 'OT';
-      else lessonCode = 'B' + (lessonsMap.size + 1);
+      let cleanName = '';
+      let section = 'core';
+      let orientation = '';
+      let topicForRow = currentTopic;
 
-      let cleanName = lessonRaw.replace(/^(?:Bài|Chủ\s*đề)\s*[0-9]+[a-zA-Z]?[:.]?\s*/i, '')
-                               .replace(/\s*\(tiết\s*\d+\)/i, '')
-                               .trim();
-      if (!cleanName) cleanName = lessonRaw;
+      const mElective = lessonRaw.match(/^\s*Chuyên\s*đề\s*(\d+[a-zA-Z]?)\s*[-–.:]?\s*(.+)$/i);
+      const mBai = lessonRaw.match(/^\s*(?:(?:Bài|Bải)|Chủ\s*đề\s*[0-9]+\s*[-–.:]\s*(?:Bài|Bải))\s*([0-9]+[a-zA-Z]?)\s*[-–.:]?\s*(.+)$/i);
 
-      const outcomes = splitCellItems(outcomesRaw, 5);
+      if (tableMode === 'elective' || mElective) {
+        section = 'elective_topic';
+        if (mElective) {
+          lessonCode = 'CD' + mElective[1].toLowerCase();
+          cleanName = cleanTitle(`Chuyên đề ${mElective[1]}: ${mElective[2]}`);
+        } else if (stt && /^\d+[a-zA-Z]?$/.test(stt.trim())) {
+          lessonCode = 'CD' + stt.trim().toLowerCase();
+          cleanName = cleanTitle(lessonRaw);
+        } else {
+          const nextIdx = Array.from(lessonsMap.keys()).filter(k => /^CD\d/i.test(k)).length + 1;
+          lessonCode = 'CD' + nextIdx;
+          cleanName = cleanTitle(lessonRaw);
+        }
+        orientation = currentOrientation || detectPpctOrientation(currentTopic) || detectPpctOrientation(sectionHeading) || detectPpctOrientation(lessonRaw);
+        topicForRow = (/chuyên\s*đề/i.test(currentTopic) ? currentTopic : '') || sectionHeading || 'Chuyên đề học tập lựa chọn';
+      } else if (mBai) {
+        section = 'core';
+        lessonCode = 'B' + mBai[1];
+        cleanName = lessonRaw.replace(/^(?:Bài|Bải|Chủ\s*đề)\s*[0-9]+[a-zA-Z]?[:.]?\s*/i, '').replace(/\s*\((?:tt|tiếp(?:\s*theo)?|t|tiết\s*\d+)\)?\s*$/i, '').trim() || cleanTitle(lessonRaw);
+      } else if (/Kiểm\s*tra\b/i.test(lessonRaw)) {
+        section = 'assessment';
+        const lowL = lessonRaw.toLowerCase();
+        let semNum = currentSemester;
+        if (/(?:hk|học\s*k[ìỳ])\s*(?:ii|2)\b|\b(?:hk)?2\b/.test(lowL)) semNum = 2;
+        else if (/(?:hk|học\s*k[ìỳ])\s*(?:i|1)\b|\b(?:hk)?1\b/.test(lowL)) semNum = 1;
+        lessonCode = (lowL.includes('giữa') ? 'KTGK' : 'KTCK') + semNum;
+        cleanName = cleanTitle(lessonRaw);
+        topicForRow = 'Đánh giá định kỳ';
+      } else if (/^(?:Ôn\s*tập|Luyện\s*tập)\b/i.test(lessonRaw)) {
+        section = 'review';
+        const isCont = /\s*\((?:tt|tiếp(?:\s*theo)?|t|tiết\s*\d+)\)?\s*$/i.test(lessonRaw);
+        const prefix = /^Luyện\s*tập\b/i.test(lessonRaw) ? 'LT' : 'OT';
+        const baseCode = `${prefix}_HK${currentSemester}`;
+        if (lessonsMap.has(baseCode) && !isCont) {
+          let suffix = 2;
+          while (lessonsMap.has(`${baseCode}_${suffix}`)) suffix += 1;
+          lessonCode = `${baseCode}_${suffix}`;
+        } else {
+          lessonCode = baseCode;
+        }
+        cleanName = cleanTitle(lessonRaw);
+        topicForRow = currentTopic || 'Ôn tập, củng cố';
+      } else {
+        const mChude = lessonRaw.match(/^Chủ\s*đề\s*([0-9]+[a-zA-Z]?)[:.]?\s*(.+)$/i);
+        if (mChude) {
+          lessonCode = 'B' + mChude[1];
+          cleanName = cleanTitle(mChude[2]) || cleanTitle(lessonRaw);
+        } else {
+          lessonCode = 'B' + (lessonsMap.size + 1);
+          cleanName = cleanTitle(lessonRaw);
+        }
+      }
+
+      let outcomes = splitCellItems(outcomesRaw, 4);
+      if (!outcomes.length) {
+        if (section === 'assessment') outcomes = ['Kiểm tra, đánh giá định kỳ theo ma trận và bản đặc tả.'];
+        else if (section === 'review') outcomes = ['Hệ thống hóa, củng cố kiến thức và kĩ năng đã học.'];
+      }
       const comps = splitCellItems(competenciesRaw, 2);
       const cleanNote = notesRaw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       const periodsRaw = ppctRaw || durationRaw || '1';
       const occEntry = {
+        semester: currentSemester,
         week_raw: weekRaw,
         duration_raw: durationRaw,
         ppct_raw: ppctRaw,
@@ -1461,12 +1837,15 @@ function parsePpctFromMarkdown(text, defaultGrade) {
             ex.notes = prevNotes.join('; ');
           }
         }
+        if (orientation && !ex.orientation) ex.orientation = orientation;
       } else {
         lessonsMap.set(lessonCode, {
           grade: Number(defaultGrade),
           lesson_code: lessonCode,
           lesson_name_source: cleanName,
-          topic_source: currentTopic,
+          topic_source: topicForRow,
+          section,
+          orientation,
           occurrences: [occEntry],
           outcomes,
           digital_competencies: comps,
@@ -1475,17 +1854,30 @@ function parsePpctFromMarkdown(text, defaultGrade) {
       }
     }
   } else {
-    const blocks = text.split(/\n(?=#{1,3}\s*|\*\*Bài)/i);
+    const blocks = text.split(/\n(?=#{1,3}\s*|\*\*(?:Bài|Chuyên\s*đề))/i);
     for (const b of blocks) {
       const bTrim = b.trim();
       if (!bTrim) continue;
-      const mHeader = bTrim.match(/^(?:#{1,3}\s*|\*\*)?(?:Bài\s*([0-9]+[a-zA-Z]?)|KTGK1|KTCK1|KTGK2|KTCK2|Ôn tập)[:.]?\s*([^\n*]+)/i);
-      if (!mHeader) continue;
-      const codeNum = mHeader[1];
-      const lessonCode = codeNum ? ('B' + codeNum) : (bTrim.includes('KTGK1') ? 'KTGK1' : bTrim.includes('KTCK1') ? 'KTCK1' : 'B' + (lessonsMap.size + 1));
-      const cleanName = mHeader[2].trim().replace(/\*\*$/, '');
+      const mElectiveHdr = bTrim.match(/^(?:#{1,3}\s*|\*\*)?Chuyên\s*đề\s*([0-9]+[a-zA-Z]?)[:.]?\s*([^\n*]+)/i);
+      const mHeader = bTrim.match(/^(?:#{1,3}\s*|\*\*)?(?:(?:Bài|Bải)\s*([0-9]+[a-zA-Z]?)|KTGK1|KTCK1|KTGK2|KTCK2|Ôn tập)[:.]?\s*([^\n*]+)/i);
+      if (!mElectiveHdr && !mHeader) continue;
+      let lessonCode, cleanName, section, defaultTopic;
+      if (mElectiveHdr) {
+        lessonCode = 'CD' + mElectiveHdr[1];
+        cleanName = `Chuyên đề ${mElectiveHdr[1]}: ${mElectiveHdr[2].trim().replace(/\*\*$/, '')}`;
+        section = 'elective_topic';
+        defaultTopic = 'Chuyên đề học tập lựa chọn';
+      } else {
+        const codeNum = mHeader[1];
+        lessonCode = codeNum ? ('B' + codeNum) : (bTrim.includes('KTGK1') ? 'KTGK1' : bTrim.includes('KTCK1') ? 'KTCK1' : bTrim.includes('KTGK2') ? 'KTGK2' : bTrim.includes('KTCK2') ? 'KTCK2' : 'OT_HK1');
+        cleanName = mHeader[2].trim().replace(/\*\*$/, '');
+        section = normalizePpctSection('', lessonCode, cleanName, '');
+        defaultTopic = 'Chương trình GDPT';
+      }
       const mTopic = bTrim.match(/(?:Chủ đề|Topic)\s*[:=]\s*([^\n]+)/i);
-      const topic = mTopic ? mTopic[1].trim() : 'Chương trình GDPT';
+      const topic = mTopic ? mTopic[1].trim() : defaultTopic;
+      const mOrient = bTrim.match(/(?:Định hướng|Orientation)\s*[:=]\s*([^\n]+)/i);
+      const orientation = detectPpctOrientation(mOrient ? mOrient[1] : topic) || (mOrient ? mOrient[1].trim() : '');
       const mWeek = bTrim.match(/(?:Tuần|Week)\s*[:=]\s*([^\n,]+)/i);
       const mDuration = bTrim.match(/(?:Số tiết|Duration)\s*[:=]\s*([^\n,]+)/i);
       const mPpct = bTrim.match(/(?:PPCT)\s*[:=]\s*([^\n,]+)/i);
@@ -1493,7 +1885,7 @@ function parsePpctFromMarkdown(text, defaultGrade) {
       const mNls = bTrim.match(/(?:Phát triển năng lực số(?:\s*&\s*AI)?|Năng lực số|NLS)\s*[:=]\s*([^\n]+)/i);
       const mNote = bTrim.match(/(?:Ghi chú|Notes?)\s*[:=]\s*([^\n]+)/i);
       const outcomeMatches = [...bTrim.matchAll(/(?:^|\n)\s*[-*]\s*(?:YCCĐ|Yêu cầu cần đạt)?[:.]?\s*([^\n]+)/gi)];
-      const outcomes = outcomeMatches.map(m => m[1].trim()).filter(o => o.length > 5 && !/^(?:Mã bài|Chủ đề|Tuần|Số tiết|PPCT|Tiết|Năng lực số|Phát triển năng lực số|Ghi chú)/i.test(o));
+      const outcomes = outcomeMatches.map(m => m[1].trim()).filter(o => o.length > 5 && !/^(?:Mã bài|Chủ đề|Tuần|Số tiết|PPCT|Tiết|Định hướng|Năng lực số|Phát triển năng lực số|Ghi chú)/i.test(o));
       const durationRaw = mDuration ? mDuration[1].trim() : '';
       const ppctRaw = mPpct ? mPpct[1].trim() : (mPeriods ? mPeriods[1].trim() : '');
       const comps = mNls ? ppctNormalizeTextList(mNls[1]) : [];
@@ -1504,8 +1896,10 @@ function parsePpctFromMarkdown(text, defaultGrade) {
         lesson_code: lessonCode,
         lesson_name_source: cleanName,
         topic_source: topic,
+        section,
+        orientation,
         occurrences: [{
-          week_raw: mWeek ? mWeek[1].trim() : '1',
+          week_raw: mWeek ? mWeek[1].trim() : (section === 'elective_topic' ? '' : '1'),
           duration_raw: durationRaw,
           ppct_raw: ppctRaw,
           periods_raw: ppctRaw || durationRaw || '1',
@@ -1527,7 +1921,14 @@ function ppctImportCard(g){
  const sm=(r&&r.summary)?r.summary:{new:0,changed:0,unchanged:0,conflict:0};
  const gradesList=(r&&Array.isArray(r.grades))?r.grades:[g];
  const issuesList=(r&&Array.isArray(r.issues))?r.issues:[];
- const rows=lessonsList.map(x=>{
+ const curSubject = r?.subject_name || store?.selectedSubject || store?.ppctSubject || 'Tin học';
+ const previewGrade = Number(gradesList[0] || g || 9);
+ const previewCompliance = r ? validatePpctCompliance(previewGrade, curSubject, lessonsList) : null;
+ const corePreviewList = lessonsList.filter(x => normalizePpctSection(x) !== 'elective_topic');
+ const electivePreviewList = lessonsList.filter(x => normalizePpctSection(x) === 'elective_topic');
+ const isHighSchoolView = Number(g) >= 10 || previewGrade >= 10;
+
+ const buildPreviewCells = (x) => {
    const f = ppctLessonFields(x);
    const outcomesHtml = f.outcomes.length
      ? `<ul>${f.outcomes.map(o => `<li>${esc(o)}</li>`).join('')}</ul>`
@@ -1537,7 +1938,7 @@ function ppctImportCard(g){
 
    const nameChange = changeByField('Tên bài');
    const topicChange = changeByField('Chủ đề');
-   const lessonCellHtml = `Khối ${esc(x.grade)} · <strong>${esc(x.lesson_code)}</strong><br><strong>${esc(x.lesson_name)}</strong>`
+   const lessonCellHtml = `Khối ${esc(x.grade)} · <strong>${esc(x.lesson_code)}</strong><br><strong>${esc(x.lesson_name || x.lesson_name_source)}</strong>`
      + (x.topic ? `<p class="small muted">${esc(x.topic)}</p>` : '')
      + (nameChange ? `<div class="small" style="margin-top:4px"><strong>Tên bài:</strong> ${esc(nameChange.old)} → ${esc(nameChange.new)}</div>` : '')
      + (topicChange ? `<div class="small" style="margin-top:2px"><strong>Chủ đề:</strong> ${esc(topicChange.old)} → ${esc(topicChange.new)}</div>` : '');
@@ -1575,17 +1976,33 @@ function ppctImportCard(g){
      notesCellHtml += `<div class="small" style="margin-top:4px;color:#0267b1">${esc(notesChange.old || '(trống)')} → ${esc(notesChange.new || '(trống)')}</div>`;
    }
 
-   return `<tr><td class="ppct-col-week">${f.weeksHtml}</td><td class="ppct-col-lesson">${lessonCellHtml}</td><td class="ppct-col-duration">${esc(f.duration)}</td><td class="ppct-col-ppct">${esc(f.ppct)}</td><td class="ppct-col-outcomes">${outcomeCellHtml}</td><td class="ppct-col-nls">${nlsCellHtml}</td><td class="ppct-col-notes">${notesCellHtml}</td></tr>`;
+   return { f, lessonCellHtml, outcomeCellHtml, nlsCellHtml, notesCellHtml };
+ };
+
+ const coreRowsHtml = corePreviewList.map(x => {
+   const c = buildPreviewCells(x);
+   return `<tr><td class="ppct-col-week">${c.f.weeksHtml}</td><td class="ppct-col-lesson">${c.lessonCellHtml}</td><td class="ppct-col-duration">${esc(c.f.duration)}</td><td class="ppct-col-ppct">${esc(c.f.ppct)}</td><td class="ppct-col-outcomes">${c.outcomeCellHtml}</td><td class="ppct-col-nls">${c.nlsCellHtml}</td><td class="ppct-col-notes">${c.notesCellHtml}</td></tr>`;
  }).join('');
+
+ const electiveRowsHtml = electivePreviewList.map((x, idx) => {
+   const c = buildPreviewCells(x);
+   const sttOrWeek = c.f.weeksHtml !== '—' ? c.f.weeksHtml : String(idx + 1);
+   return `<tr><td class="ppct-col-week">${sttOrWeek}</td><td class="ppct-col-lesson">${c.lessonCellHtml}</td><td class="ppct-col-duration">${esc(c.f.duration)}</td><td class="ppct-col-outcomes">${c.outcomeCellHtml}</td><td class="ppct-col-nls">${c.nlsCellHtml}</td><td class="ppct-col-notes">${c.notesCellHtml}</td></tr>`;
+ }).join('');
+
+ const electivePreviewBlock = electivePreviewList.length
+   ? `<div class="ppct-section-header" style="margin-top:16px"><h3>Mục II.2 · Chuyên đề học tập lựa chọn THPT (${electivePreviewList.length} chuyên đề · ${previewCompliance?.electivePeriods || 0} tiết${previewCompliance?.orientations?.length ? ' · ' + esc(previewCompliance.orientations.join(', ')) : ''})</h3></div><div class="table-wrap"><table class="ppct-table ppct-khdh-table ppct-elective-table"><thead><tr><th class="ppct-col-week">STT / Tuần</th><th class="ppct-col-lesson">Chuyên đề học tập</th><th class="ppct-col-duration">Số tiết</th><th class="ppct-col-outcomes">Yêu cầu cần đạt</th><th class="ppct-col-nls">Phát triển năng lực số &amp; AI</th><th class="ppct-col-notes">Ghi chú</th></tr></thead><tbody>${electiveRowsHtml}</tbody></table></div>`
+   : '';
+
  return `<div class="card"><h2>Nhập PPCT từ JSON, Markdown hoặc Word</h2>
-  <p class="muted">Khuyên dùng <strong>JSON</strong> (chuẩn xác 100%) hoặc <strong>Markdown (.md)</strong> (dễ đọc/sửa) đủ <strong>7 cột chuẩn Phụ lục 1 (CV 5512, TT 02/2025 &amp; QĐ 2422)</strong> để nạp tức thì và tránh lỗi định dạng ngầm của Word. Vẫn hỗ trợ tệp Word KHDH Phụ lục 1 (.docx). Khối lớp tự động nhận diện theo tên tệp hoặc theo Khối ${esc(g)} đang chọn.</p>
+  <p class="muted">Khuyên dùng <strong>JSON</strong> (chuẩn xác 100%) hoặc <strong>Markdown (.md)</strong> (dễ đọc/sửa) đủ <strong>7 cột chuẩn Phụ lục I (CV 5512, TT 02/2025 &amp; QĐ 2422)</strong>${isHighSchoolView ? ' kèm <strong>Bảng II.2 Chuyên đề lựa chọn THPT</strong> (TT 32/2018 &amp; TT 22/2021)' : ''} để nạp tức thì và tránh lỗi định dạng ngầm của Word. Vẫn hỗ trợ tệp Word KHDH Phụ lục 1 (.docx). Khối lớp tự động nhận diện theo tên tệp hoặc theo Khối ${esc(g)} đang chọn.</p>
   <div style="background:#eef6fd;border:1px solid #c6daed;border-radius:8px;padding:12px 16px;margin:12px 0;color:#1e293b;font-size:13px;line-height:1.6">
     <strong>🤖 Hướng dẫn thầy/cô dùng AI (Gemini / ChatGPT / Claude) chuyển Word sang JSON để tải lên:</strong>
     <ol style="margin:6px 0 0;padding-left:20px">
-      <li>Bấm nút <strong>📋 Chép Prompt AI chuyển Word → JSON</strong> bên dưới.</li>
-      <li>Mở <strong>Gemini</strong>, <strong>ChatGPT</strong> hoặc <strong>Claude</strong>, dán câu lệnh (Prompt) vào khung chat rồi <strong>đính kèm tệp Word KHDH Phụ lục 1 (<code>.docx</code>)</strong> (hoặc copy bảng PPCT trong Word dán xuống cuối câu lệnh) và gửi.</li>
-      <li>Lưu đoạn mã <strong>JSON</strong> AI trả về thành tệp đuôi <strong><code>.json</code></strong> <em>(ví dụ: <code>ppct_khoi_${esc(g)}.json</code> — có thể yêu cầu AI tạo tệp <code>.json</code> để tải trực tiếp, hoặc dán vào Notepad / TextEdit chế độ văn bản thuần rồi lưu đuôi <code>.json</code>)</em>.</li>
-      <li>Bấm <strong>Choose File</strong> bên dưới để chọn tệp <code>.json</code> vừa lưu → bấm <strong>Đọc và đối chiếu</strong> → kiểm tra đủ 7 cột rồi bấm <strong>Xác nhận nhập</strong>.</li>
+      <li>Bấm nút <strong>📋 Chép Prompt AI chuyển Word → JSON</strong> bên dưới (Prompt tự động điều chỉnh theo cấp THCS / THPT).</li>
+      <li>Mở <strong>Gemini</strong>, <strong>ChatGPT</strong> hoặc <strong>Claude</strong>, dán câu lệnh (Prompt) vào khung chat rồi <strong>đính kèm tệp Word KHDH Phụ lục 1 (<code>.docx</code>)</strong> (hoặc copy cả bảng PPCT ${isHighSchoolView ? 'và bảng Chuyên đề lựa chọn ' : ''}trong Word dán xuống cuối câu lệnh) và gửi.</li>
+      <li>Lưu đoạn mã <strong>JSON</strong> AI trả về thành tệp đuôi <strong><code>.json</code></strong> <em>(ví dụ: <code>ppct_khoi_${esc(g)}.json</code>)</em>.</li>
+      <li>Bấm <strong>Choose File</strong> bên dưới để chọn tệp <code>.json</code> vừa lưu → bấm <strong>Đọc và đối chiếu</strong> → kiểm tra bảng xem trước rồi bấm <strong>Xác nhận nhập</strong>.</li>
     </ol>
   </div>
   <div style="display:flex;gap:10px;margin:10px 0 14px;flex-wrap:wrap">
@@ -1594,10 +2011,11 @@ function ppctImportCard(g){
     <button type="button" class="button quiet" id="ppct-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI chuyển Word → JSON</button>
   </div>
   <div class="actions"><input type="file" id="ppct-import-file" accept=".docx,.json,.md,.txt"><button type="button" class="button" id="ppct-import-inspect">Đọc và đối chiếu</button>
-  ${r?`<button type="button" class="primary" id="ppct-import-apply" ${sm.new+sm.changed?'':'disabled'}>Xác nhận nhập (${sm.new+sm.changed} bài học)</button><button type="button" class="quiet" id="ppct-import-cancel">Hủy</button>`:''}</div>
-  ${r?`<p class="callout">Tệp ${esc(r.filename||'Đã nạp')} · Khối ${gradesList.map(esc).join(', ')} · Đọc được ${lessonsList.length} bài học (đủ 7 cột chuẩn KHDH). Hãy kiểm tra lại nội dung bên dưới trước khi bấm Xác nhận nhập.${sm.conflict ? ` ⚠️ Có ${sm.conflict} bài xung đột sẽ bị bỏ qua.` : ''}</p>
+  ${r?`<button type="button" class="primary" id="ppct-import-apply" ${sm.new+sm.changed?'':'disabled'}>Xác nhận nhập (${sm.new+sm.changed} mục)</button><button type="button" class="quiet" id="ppct-import-cancel">Hủy</button>`:''}</div>
+  ${r?`<p class="callout">Tệp ${esc(r.filename||'Đã nạp')} · Khối ${gradesList.map(esc).join(', ')} · Đọc được ${corePreviewList.length} mục cốt lõi${electivePreviewList.length ? ` và ${electivePreviewList.length} chuyên đề lựa chọn` : ''} (tổng ${lessonsList.length} mục). Hãy kiểm tra lại nội dung bên dưới trước khi bấm Xác nhận nhập.${sm.conflict ? ` ⚠️ Có ${sm.conflict} mục xung đột sẽ bị bỏ qua.` : ''}</p>
+  ${renderPpctComplianceBanner(previewCompliance)}
   ${issuesList.length?`<ul class="mx-errors">${issuesList.map(i=>`<li>${esc(i.message||i)}</li>`).join('')}</ul>`:''}
-  <div class="table-wrap"><table class="ppct-table ppct-khdh-table"><thead><tr><th class="ppct-col-week">Tuần</th><th class="ppct-col-lesson">Bài học</th><th class="ppct-col-duration">Số tiết</th><th class="ppct-col-ppct">PPCT</th><th class="ppct-col-outcomes">Yêu cầu cần đạt</th><th class="ppct-col-nls">Phát triển năng lực số &amp; AI</th><th class="ppct-col-notes">Ghi chú</th></tr></thead><tbody>${rows || '<tr><td colspan="7" class="empty" style="text-align:center;padding:16px">Không tìm thấy danh mục bài học PPCT trong tệp này. Nếu đây là tệp Đề thi / Ma trận, thầy/cô vui lòng dùng nút "✨ AI Nhập đề" trên thanh trên cùng để nạp câu hỏi vào ngân hàng.</td></tr>'}</tbody></table></div>`:""}
+  <div class="table-wrap"><table class="ppct-table ppct-khdh-table"><thead><tr><th class="ppct-col-week">Tuần</th><th class="ppct-col-lesson">Bài học</th><th class="ppct-col-duration">Số tiết</th><th class="ppct-col-ppct">PPCT</th><th class="ppct-col-outcomes">Yêu cầu cần đạt</th><th class="ppct-col-nls">Phát triển năng lực số &amp; AI</th><th class="ppct-col-notes">Ghi chú</th></tr></thead><tbody>${coreRowsHtml || '<tr><td colspan="7" class="empty" style="text-align:center;padding:16px">Không tìm thấy danh mục bài học PPCT trong tệp này. Nếu đây là tệp Đề thi / Ma trận, thầy/cô vui lòng dùng nút "✨ AI Nhập đề" trên thanh trên cùng để nạp câu hỏi vào ngân hàng.</td></tr>'}</tbody></table></div>${electivePreviewBlock}`:""}
  </div>`;
 }
 function bindPpctImport(g){
@@ -1687,12 +2105,18 @@ function bindPpctImport(g){
  if (dlJson) {
    dlJson.onclick = () => {
      const curGrade = Number(g || store.ppctGrade || 9);
+     const nlsLvl = expectedNlsLevelForGrade(curGrade);
+     const aiCode = `${curGrade}.A1.1`;
+     const isThpt = curGrade >= 10;
      const sample = {
        grade: curGrade,
        subject_name: subject(),
+       ...(isThpt ? { orientation: 'ICT' } : {}),
        lessons: [
          {
            grade: curGrade,
+           section: "core",
+           ...(isThpt ? { orientation: 'ICT' } : {}),
            lesson_code: "B1",
            lesson_name_source: "Thế giới kĩ thuật số",
            topic_source: "Chủ đề 1: Máy tính và cộng đồng",
@@ -1703,13 +2127,15 @@ function bindPpctImport(g){
              "Giải thích được ích lợi của việc sử dụng thiết bị số trong học tập và đời sống."
            ],
            digital_competencies: [
-             "1.1.TC2a: Nhận diện và khai thác thiết bị số thông dụng an toàn.",
-             "5.1.TC2a: Đánh giá tác động của công nghệ số và AI trong đời sống."
+             `1.1.${nlsLvl}a: Nhận diện và khai thác thiết bị số thông dụng an toàn (TT 02/2025).`,
+             `${aiCode}: Đánh giá tác động và giới hạn của công nghệ số và AI (QĐ 2422).`
            ],
            notes: "Khai thác học liệu trực quan"
          },
          {
            grade: curGrade,
+           section: "core",
+           ...(isThpt ? { orientation: 'ICT' } : {}),
            lesson_code: "B2",
            lesson_name_source: "Thông tin trong giải quyết vấn đề",
            topic_source: "Chủ đề 2: Tổ chức lưu trữ, tìm kiếm và trao đổi thông tin",
@@ -1719,23 +2145,76 @@ function bindPpctImport(g){
              "Đánh giá được độ tin cậy của thông tin tìm kiếm được."
            ],
            digital_competencies: [
-             "1.2.TC2b: Đánh giá độ tin cậy của nguồn tin và kết quả do AI gợi ý."
+             `1.2.${nlsLvl}b: Đánh giá độ tin cậy của nguồn tin và kết quả do AI gợi ý.`
            ],
            notes: "Thực hành phòng máy"
          },
          {
            grade: curGrade,
+           section: "assessment",
            lesson_code: "KTGK1",
            lesson_name_source: "Kiểm tra giữa học kì 1",
            topic_source: "Đánh giá định kỳ",
            occurrences: [{ week_raw: "9", duration_raw: "1", ppct_raw: "18", periods_raw: "18" }],
            outcomes: [
-             "Đánh giá năng lực học sinh nửa đầu học kì 1 theo ma trận và bảng đặc tả."
+             "Đánh giá năng lực học sinh nửa đầu học kì 1 theo ma trận và bảng đặc tả (TT 22/2021)."
            ],
            digital_competencies: [],
            notes: "Theo kế hoạch khảo thí"
          }
-       ]
+       ],
+       ...(isThpt ? {
+         elective_topics: [
+           {
+             grade: curGrade,
+             section: "elective_topic",
+             orientation: "ICT",
+             lesson_code: "CD1",
+             lesson_name_source: "Chuyên đề 1: Thực hành sử dụng phần mềm quản trị dự án",
+             topic_source: "Chuyên đề lựa chọn",
+             occurrences: [{ week_raw: "", duration_raw: "10", ppct_raw: "", periods_raw: "10" }],
+             outcomes: [
+               "Sử dụng được phần mềm lập kế hoạch, phân công nhiệm vụ và theo dõi tiến độ dự án."
+             ],
+             digital_competencies: [
+               `2.2.${nlsLvl}a: Hợp tác nhóm trực tuyến qua công cụ quản trị dự án số.`
+             ],
+             notes: "Máy tính kết nối Internet (TT 32/2018 & TT 13/2022)"
+           },
+           {
+             grade: curGrade,
+             section: "elective_topic",
+             orientation: "ICT",
+             lesson_code: "CD2",
+             lesson_name_source: "Chuyên đề 2: Thực hành bảo vệ dữ liệu và quản trị cơ sở dữ liệu",
+             topic_source: "Chuyên đề lựa chọn",
+             occurrences: [{ week_raw: "", duration_raw: "10", ppct_raw: "", periods_raw: "10" }],
+             outcomes: [
+               "Thực hiện được sao lưu, khôi phục và phân quyền an toàn dữ liệu trên hệ quản trị CSDL."
+             ],
+             digital_competencies: [
+               `4.2.${nlsLvl}a: Bảo vệ dữ liệu cá nhân và phòng tránh rủi ro an toàn thông tin.`
+             ],
+             notes: "Thực hành phòng máy"
+           },
+           {
+             grade: curGrade,
+             section: "elective_topic",
+             orientation: "ICT",
+             lesson_code: "CD3",
+             lesson_name_source: "Chuyên đề 3: Thực hành thiết kế sản phẩm số đa phương tiện",
+             topic_source: "Chuyên đề lựa chọn",
+             occurrences: [{ week_raw: "", duration_raw: "15", ppct_raw: "", periods_raw: "15" }],
+             outcomes: [
+               "Thiết kế và xuất bản được sản phẩm số hoàn chỉnh đáp ứng yêu cầu thực tiễn."
+             ],
+             digital_competencies: [
+               `3.1.${nlsLvl}b: Sáng tạo nội dung số đa phương tiện có trách nhiệm bản quyền.`
+             ],
+             notes: "Tổng 35 tiết chuyên đề/năm"
+           }
+         ]
+       } : {})
      };
      const blob = new Blob([JSON.stringify(sample, null, 2)], { type: 'application/json' });
      const url = URL.createObjectURL(blob);
@@ -1744,7 +2223,7 @@ function bindPpctImport(g){
      a.download = `mau_ppct_khoi_${curGrade}.json`;
      a.click();
      URL.revokeObjectURL(url);
-     notify(`Đã tải xuống tệp mẫu mau_ppct_khoi_${curGrade}.json!`);
+     notify(`Đã tải xuống tệp mẫu mau_ppct_khoi_${curGrade}.json (bậc NLS ${nlsLvl}${isThpt ? ' + 3 Chuyên đề 35 tiết' : ''})!`);
    };
  }
 
@@ -1752,7 +2231,13 @@ function bindPpctImport(g){
  if (dlMd) {
    dlMd.onclick = () => {
      const curGrade = Number(g || store.ppctGrade || 9);
-     const sampleMd = `# Kế hoạch dạy học & PPCT môn ${subject()} Khối ${curGrade} (CV 5512, TT 02/2025 & QĐ 2422)\n\n| Tuần | Bài học | Số tiết | PPCT | Yêu cầu cần đạt | Phát triển năng lực số & AI | Ghi chú |\n|:---:|---|:---:|:---:|---|---|---|\n| 1 | Bài 1: Thế giới kĩ thuật số | 2 | 1, 2 | - Nhận biết được một số thiết bị số thông dụng.<br>- Nêu được ví dụ về thông tin trong môi trường số.<br>- Giải thích được ích lợi của việc sử dụng thiết bị số trong học tập và đời sống. | - 1.1.TC2a: Khai thác thiết bị số thông dụng.<br>- 5.1.TC2a: Đánh giá tác động của công nghệ số và AI. | Học liệu trực quan |\n| 2 | Bài 2: Thông tin trong giải quyết vấn đề | 2 | 3, 4 | - Sử dụng được các công cụ tìm kiếm nâng cao trên Internet.<br>- Đánh giá được độ tin cậy của thông tin tìm kiếm được. | - 1.2.TC2b: Kiểm chứng độ tin cậy nguồn tin và nội dung AI tạo. | Thực hành phòng máy |\n| 9 | Kiểm tra giữa học kì 1 | 1 | 18 | - Đánh giá năng lực học sinh nửa đầu học kì 1 theo ma trận và bảng đặc tả. | | Theo lịch khảo thí |\n`;
+     const nlsLvl = expectedNlsLevelForGrade(curGrade);
+     const aiCode = `${curGrade}.A1.1`;
+     const isThpt = curGrade >= 10;
+     const thptElectiveMd = isThpt
+       ? `\n## II.2. Chuyên đề học tập lựa chọn (35 tiết/năm — TT 32/2018 & TT 13/2022)\n\n| Chuyên đề | Số tiết | Thiết bị dạy học | Yêu cầu cần đạt | Phát triển năng lực số & AI | Ghi chú |\n|---|:---:|---|---|---|---|\n| Chuyên đề 1: Thực hành sử dụng phần mềm quản trị dự án | 10 | Máy tính kết nối Internet | - Sử dụng được phần mềm lập kế hoạch và theo dõi tiến độ dự án. | - 2.2.${nlsLvl}a: Hợp tác nhóm qua công cụ quản trị dự án số. | Định hướng ICT |\n| Chuyên đề 2: Thực hành bảo vệ dữ liệu và quản trị cơ sở dữ liệu | 10 | Phòng máy thực hành | - Thực hiện được sao lưu, khôi phục và phân quyền an toàn dữ liệu. | - 4.2.${nlsLvl}a: Bảo vệ dữ liệu và an toàn thông tin. | Định hướng ICT |\n| Chuyên đề 3: Thực hành thiết kế sản phẩm số đa phương tiện | 15 | Máy tính, phần mềm đồ họa | - Thiết kế và xuất bản được sản phẩm số hoàn chỉnh. | - 3.1.${nlsLvl}b: Sáng tạo nội dung số tuân thủ bản quyền. | Tổng 35 tiết chuyên đề |\n`
+       : '';
+     const sampleMd = `# Kế hoạch dạy học & PPCT môn ${subject()} Khối ${curGrade} (CV 5512, TT 02/2025 & QĐ 2422)\n\n${isThpt ? '## II.1. Phần cốt lõi (Định hướng Tin học ứng dụng — ICT)\n\n' : ''}| Tuần | Bài học | Số tiết | PPCT | Yêu cầu cần đạt | Phát triển năng lực số & AI | Ghi chú |\n|:---:|---|:---:|:---:|---|---|---|\n| 1 | Bài 1: Thế giới kĩ thuật số | 2 | 1, 2 | - Nhận biết được một số thiết bị số thông dụng.<br>- Nêu được ví dụ về thông tin trong môi trường số.<br>- Giải thích được ích lợi của việc sử dụng thiết bị số trong học tập và đời sống. | - 1.1.${nlsLvl}a: Khai thác thiết bị số thông dụng (TT 02/2025).<br>- ${aiCode}: Đánh giá tác động của công nghệ số và AI (QĐ 2422). | Học liệu trực quan |\n| 2 | Bài 2: Thông tin trong giải quyết vấn đề | 2 | 3, 4 | - Sử dụng được các công cụ tìm kiếm nâng cao trên Internet.<br>- Đánh giá được độ tin cậy của thông tin tìm kiếm được. | - 1.2.${nlsLvl}b: Kiểm chứng độ tin cậy nguồn tin và nội dung AI tạo. | Thực hành phòng máy |\n| 9 | Kiểm tra giữa học kì 1 | 1 | 18 | - Đánh giá năng lực học sinh nửa đầu học kì 1 theo ma trận và bảng đặc tả (TT 22/2021). | | Theo lịch khảo thí |\n${thptElectiveMd}`;
      const blob = new Blob([sampleMd], { type: 'text/markdown;charset=utf-8' });
      const url = URL.createObjectURL(blob);
      const a = document.createElement('a');
@@ -1768,18 +2253,28 @@ function bindPpctImport(g){
  if (copyPrompt) {
    copyPrompt.onclick = async () => {
      const curGrade = Number(g || store.ppctGrade || 9);
-     const promptText = `Hãy đọc tệp Word Kế hoạch dạy học (KHDH Phụ lục 1 theo Công văn 5512/BGDĐT-GDTrH, Thông tư 02/2025/TT-BGDĐT về Năng lực số và Quyết định 2422/QĐ-BGDĐT về Giáo dục AI) đính kèm hoặc bảng nội dung môn ${subject()} Khối ${curGrade} dưới đây và chuyển đổi sang định dạng JSON chuẩn UTF-8 cho hệ thống ExamMatrix Studio.
+     const nlsLvl = expectedNlsLevelForGrade(curGrade);
+     const isThpt = curGrade >= 10;
+     const levelRangeHint = curGrade <= 7 ? 'Khối 6–7: bậc TC1' : (curGrade <= 9 ? 'Khối 8–9: bậc TC2' : 'Khối 10–12: bậc NC1');
+     const electiveInstruction = isThpt
+       ? `\n3. Nếu tệp Word có bảng **Mục II.2. Chuyên đề học tập lựa chọn** (THPT theo TT 32/2018 & TT 13/2022, tổng 35 tiết/năm), hãy bóc tách riêng vào mảng "elective_topics" (mã "CD1", "CD2", "CD3", "section": "elective_topic", đúng "orientation": "ICT" hoặc "CS" theo tài liệu; nếu chưa chia tuần thì để "week_raw": "", "ppct_raw": "", "duration_raw": "<số tiết>").`
+       : '';
+     const electiveSchemaSnippet = isThpt
+       ? `,\n  "elective_topics": [\n    {\n      "grade": ${curGrade},\n      "section": "elective_topic",\n      "orientation": "ICT",\n      "lesson_code": "CD1",\n      "lesson_name_source": "Chuyên đề 1: Tên chuyên đề lựa chọn",\n      "topic_source": "Chuyên đề lựa chọn",\n      "occurrences": [{ "week_raw": "", "duration_raw": "10", "ppct_raw": "", "periods_raw": "10" }],\n      "outcomes": ["Yêu cầu cần đạt chuyên đề 1"],\n      "digital_competencies": ["2.2.${nlsLvl}a: Nội dung NLS chuyên đề (mảng rỗng [] nếu trống)"],\n      "notes": "Thiết bị dạy học / Ghi chú chuyên đề"\n    }\n  ]`
+       : '';
+     const promptText = `Hãy đọc tệp Word Kế hoạch dạy học (KHDH Phụ lục I theo Công văn 5512/BGDĐT-GDTrH, Thông tư 32/2018/TT-BGDĐT${isThpt ? ' & TT 13/2022/TT-BGDĐT' : ''}, Thông tư 22/2021/TT-BGDĐT, Thông tư 02/2025/TT-BGDĐT về Năng lực số [${levelRangeHint}] và Quyết định 2422/QĐ-BGDĐT về Giáo dục AI [${curGrade}.A1.x]) đính kèm hoặc bảng nội dung môn ${subject()} Khối ${curGrade} dưới đây và chuyển đổi sang định dạng JSON chuẩn UTF-8 cho hệ thống ExamMatrix Studio.
 
 Yêu cầu bắt buộc:
-1. Bóc tách ĐỦ 100% số bài học (kể cả tiết ôn tập, kiểm tra giữa kỳ/cuối kỳ nếu có) và ĐỦ cả 7 cột chuẩn KHDH Phụ lục 1: Tuần | Bài học | Số tiết | PPCT | Yêu cầu cần đạt | Phát triển năng lực số & AI | Ghi chú.
-2. Giữ nguyên văn từng Yêu cầu cần đạt (outcomes) và từng nội dung Phát triển năng lực số & AI (digital_competencies), không tóm tắt hay bỏ sót ý nào. Nếu một bài dạy qua nhiều tuần/tiết (dòng "(tt)"), giữ nguyên các tuần/tiết trong mảng occurrences hoặc gộp đúng tuần, tổng số tiết và dãy tiết PPCT của bài đó.
-3. Ghi đúng schema JSON sau:
+1. Bóc tách ĐỦ 100% số bài học phần cốt lõi (Mục II.1) và ĐỦ cả 7 cột chuẩn KHDH Phụ lục I: Tuần | Bài học | Số tiết | PPCT | Yêu cầu cần đạt | Phát triển năng lực số & AI | Ghi chú. Riêng tiết Ôn tập đặt mã "OT_HK1", "OT_HK2" với "section": "review"; tiết Kiểm tra định kỳ đặt mã "KTGK1", "KTCK1", "KTGK2", "KTCK2" với "section": "assessment".
+2. Giữ nguyên văn từng Yêu cầu cần đạt (outcomes) và từng nội dung Phát triển năng lực số & AI (digital_competencies, giữ nguyên mã bậc ${nlsLvl} và mã AI ${curGrade}.A1.x nếu có), không tóm tắt hay bỏ sót ý nào. Nếu một bài dạy qua nhiều tuần/tiết (dòng "(tt)"), giữ đủ các tuần/tiết trong mảng occurrences.${electiveInstruction}
+${isThpt ? '4' : '3'}. Ghi đúng schema JSON sau:
 {
   "grade": ${curGrade},
-  "subject_name": "${subject()}",
+  "subject_name": "${subject()}",${isThpt ? '\n  "orientation": "ICT",' : ''}
   "lessons": [
     {
       "grade": ${curGrade},
+      "section": "core",${isThpt ? '\n      "orientation": "ICT",' : ''}
       "lesson_code": "B1",
       "lesson_name_source": "Tên bài học",
       "topic_source": "Tên chủ đề",
@@ -1796,55 +2291,127 @@ Yêu cầu bắt buộc:
         "Yêu cầu cần đạt 2"
       ],
       "digital_competencies": [
-        "1.1.TC2a: Nội dung phát triển năng lực số & AI (mảng rỗng [] nếu cột này trống)"
+        "1.1.${nlsLvl}a: Nội dung phát triển năng lực số & AI (mảng rỗng [] nếu cột này trống)"
       ],
       "notes": "Ghi chú của bài (chuỗi rỗng \"\" nếu không có)"
     }
-  ]
+  ]${electiveSchemaSnippet}
 }
-4. Chỉ xuất ra DUY NHẤT một khối mã JSON hợp lệ, không kèm lời giải thích ngoài khối JSON. Nếu công cụ có hỗ trợ tạo tệp tải về, hãy xuất giúp tôi thành tệp tên ppct_khoi_${curGrade}.json.
+${isThpt ? '5' : '4'}. Chỉ xuất ra DUY NHẤT một khối mã JSON hợp lệ, không kèm lời giải thích ngoài khối JSON. Nếu công cụ có hỗ trợ tạo tệp tải về, hãy xuất giúp tôi thành tệp tên ppct_khoi_${curGrade}.json.
 
 (Nếu không đính kèm tệp .docx, hãy dán bảng KHDH vào bên dưới dòng này):`;
      try {
        await navigator.clipboard.writeText(promptText);
-       notify('📋 Đã sao chép Prompt AI chuyển Word → JSON đủ 7 cột cho Gemini/ChatGPT/Claude!');
+       notify(`📋 Đã sao chép Prompt AI chuyển Word → JSON chuẩn KHDH Khối ${curGrade} (NLS ${nlsLvl}${isThpt ? ' + CĐHT THPT' : ''})!`);
      } catch (e) {
        notify('Không thể sao chép tự động: ' + e.message, true);
      }
    };
  }
 }
-function openPPCTEditor(grade,code='',subj=''){
+function openPPCTEditor(grade,code='',subj='',defaultSection=''){
+ const curGrade = Number(grade || store.ppctGrade || 9);
  const s = subj || store.ppctSubject || 'Tin học';
- const existing=code?lessons(grade, s).find(l=>l.lesson_code===code):null;
- const fields=existing?ppctLessonFields(existing):{weeks:['Tuần 1'],duration:'2',ppct:'1, 2',outcomes:[],competencies:[],notesText:''};
+ const nextCdForGrade = gNum => {
+  let maxCd = 0;
+  for (const x of lessons(gNum, s)) {
+   const m = /^(?:CD|CĐ)(\d+)$/i.exec(String(x.lesson_code || '').trim());
+   if (m) maxCd = Math.max(maxCd, Number(m[1]));
+  }
+  return `CD${maxCd + 1}`;
+ };
+ const existing=code?lessons(curGrade, s).find(l=>l.lesson_code===code):null;
+ const inferredSection = existing?.section || defaultSection || (/^(?:CD|CĐ)\d/i.test(existing?.lesson_code || '') ? 'elective_topic' : (/^(?:OT|LT)/i.test(existing?.lesson_code || '') ? 'review' : (/^KT/i.test(existing?.lesson_code || '') ? 'assessment' : 'core')));
+ const curSection = normalizePpctSection(curGrade < 10 && inferredSection === 'elective_topic' ? 'core' : inferredSection);
+ const isElectiveInit = curSection === 'elective_topic';
+ const curOrientation = existing?.orientation || detectPpctOrientation(existing?.topic_source || '', s) || (curGrade >= 10 && isElectiveInit ? 'ICT' : '');
+ const fields=existing?ppctLessonFields(existing):{weeks:isElectiveInit?[]:['Tuần 1'],duration:isElectiveInit?'10':'2',ppct:isElectiveInit?'':'1, 2',outcomes:[],competencies:[],notesText:''};
  const occ=(existing?.occurrences||[])[0]||{};
- const weekVal=fields.weeks.length?fields.weeks.join(', '):(occ.week_raw||'Tuần 1');
- const durationVal=fields.duration!=='—'?fields.duration:(occ.duration_raw||'1');
- const ppctVal=fields.ppct!=='—'?fields.ppct:(occ.ppct_raw||occ.periods_raw||'1');
- $('#edit-title').textContent=existing?`Sửa bài học PPCT · ${existing.lesson_code}`:'Thêm bài học vào PPCT';
- $('#question-form').innerHTML=`<div id="form-error" class="callout error" role="alert" hidden></div><div class="form-grid"><div class="field"><label for="ppct-edit-grade">Khối lớp</label><select id="ppct-edit-grade" name="grade"${existing?' disabled':''}>${gradeOptions(grade)}</select></div><div class="field"><label for="ppct-edit-code">Mã bài (ví dụ: B1, B13)</label><input id="ppct-edit-code" name="lesson_code" value="${esc(existing?.lesson_code||'')}" ${existing?'readonly':''} required></div><div class="field"><label for="ppct-edit-week">Tuần</label><input id="ppct-edit-week" name="week_raw" value="${esc(weekVal)}" required></div><div class="field"><label for="ppct-edit-duration">Số tiết</label><input id="ppct-edit-duration" name="duration_raw" value="${esc(durationVal)}" required></div><div class="field"><label for="ppct-edit-ppct">PPCT</label><input id="ppct-edit-ppct" name="ppct_raw" value="${esc(ppctVal)}" required></div><div class="field"><label for="ppct-edit-topic">Chủ đề</label><input id="ppct-edit-topic" name="topic_source" value="${esc(existing?.topic_source||'')}" required></div><div class="field full"><label for="ppct-edit-name">Bài học</label><input id="ppct-edit-name" name="lesson_name_source" value="${esc(existing?.lesson_name_source||'')}" required></div><div class="field full"><label for="ppct-edit-outcomes">Yêu cầu cần đạt (mỗi dòng 1 yêu cầu)</label><textarea id="ppct-edit-outcomes" name="outcomes" rows="5" required>${esc((existing?.outcomes||[]).join('\n'))}</textarea></div><div class="field full"><label for="ppct-edit-nls">Phát triển năng lực số &amp; AI (mỗi dòng 1 nội dung — TT 02/2025 &amp; QĐ 2422)</label><textarea id="ppct-edit-nls" name="digital_competencies" rows="3">${esc(fields.competencies.join('\n'))}</textarea></div><div class="field full"><label for="ppct-edit-notes">Ghi chú</label><textarea id="ppct-edit-notes" name="notes" rows="2">${esc(fields.notesText)}</textarea></div></div><div class="dialog-bottom"><button type="button" data-close="edit-dialog">Hủy</button><button type="submit" class="primary">Lưu bài học PPCT</button></div>`;
+ const weekVal=isElectiveInit?(fields.weeks.length?fields.weeks.join(', '):(occ.week_raw||'')):(fields.weeks.length?fields.weeks.join(', '):(occ.week_raw||'Tuần 1'));
+ const durationVal=fields.duration!=='—'?fields.duration:(occ.duration_raw||(isElectiveInit?'10':'1'));
+ const ppctVal=isElectiveInit?(fields.ppct!=='—'?fields.ppct:(occ.ppct_raw||occ.periods_raw||'')):(fields.ppct!=='—'?fields.ppct:(occ.ppct_raw||occ.periods_raw||'1'));
+ const initialCode = existing ? existing.lesson_code : (isElectiveInit ? nextCdForGrade(curGrade) : '');
+ const initialTopic = existing?.topic_source || (isElectiveInit ? 'Chuyên đề lựa chọn' : '');
+ $('#edit-title').textContent=existing?`Sửa bài học PPCT · ${existing.lesson_code}`:(isElectiveInit?'Thêm chuyên đề lựa chọn THPT':'Thêm bài học vào PPCT');
+ $('#question-form').innerHTML=`<div id="form-error" class="callout error" role="alert" hidden></div><div class="form-grid"><div class="field"><label for="ppct-edit-grade">Khối lớp</label><select id="ppct-edit-grade" name="grade"${existing?' disabled':''}>${gradeOptions(curGrade)}</select></div><div class="field"><label for="ppct-edit-section">Phân mục PPCT (CV 5512)</label><select id="ppct-edit-section" name="section"><option value="core"${curSection==='core'?' selected':''}>Phần cốt lõi (Mục II.1)</option><option value="elective_topic"${curSection==='elective_topic'?' selected':''}${curGrade<10?' disabled':''}>Chuyên đề lựa chọn THPT (Mục II.2)</option><option value="review"${curSection==='review'?' selected':''}>Ôn tập học kì</option><option value="assessment"${curSection==='assessment'?' selected':''}>Kiểm tra định kì (GK/CK)</option></select></div><div class="field"><label for="ppct-edit-orientation">Định hướng THPT (TT 32/2018)</label><select id="ppct-edit-orientation" name="orientation"${curGrade<10?' disabled':''}><option value=""${curOrientation===''?' selected':''}>Chung / Chưa phân định hướng</option><option value="ICT"${curOrientation==='ICT'?' selected':''}>ICT — Tin học ứng dụng</option><option value="CS"${curOrientation==='CS'?' selected':''}>CS — Khoa học máy tính</option></select></div><div class="field"><label for="ppct-edit-code">Mã bài / Chuyên đề (B1, CD1, KTGK1...)</label><input id="ppct-edit-code" name="lesson_code" value="${esc(initialCode)}" ${existing?'readonly':''} required></div><div class="field"><label for="ppct-edit-week">Tuần <span class="small muted" id="ppct-week-hint">${isElectiveInit?'(Không bắt buộc với CĐHT)':''}</span></label><input id="ppct-edit-week" name="week_raw" value="${esc(weekVal)}" placeholder="${isElectiveInit?'Để trống nếu chưa chia tuần':''}"${isElectiveInit?'':' required'}></div><div class="field"><label for="ppct-edit-duration">Số tiết</label><input id="ppct-edit-duration" name="duration_raw" value="${esc(durationVal)}" required></div><div class="field"><label for="ppct-edit-ppct">PPCT <span class="small muted" id="ppct-ppct-hint">${isElectiveInit?'(Không bắt buộc với CĐHT)':''}</span></label><input id="ppct-edit-ppct" name="ppct_raw" value="${esc(ppctVal)}" placeholder="${isElectiveInit?'Để trống nếu chưa đánh tiết PPCT':''}"${isElectiveInit?'':' required'}></div><div class="field"><label for="ppct-edit-topic">Chủ đề</label><input id="ppct-edit-topic" name="topic_source" value="${esc(initialTopic)}" required></div><div class="field full"><label for="ppct-edit-name">Bài học / Tên chuyên đề</label><input id="ppct-edit-name" name="lesson_name_source" value="${esc(existing?.lesson_name_source||'')}" required></div><div class="field full"><label for="ppct-edit-outcomes">Yêu cầu cần đạt (mỗi dòng 1 yêu cầu)</label><textarea id="ppct-edit-outcomes" name="outcomes" rows="5" required>${esc((existing?.outcomes||[]).join('\n'))}</textarea></div><div class="field full"><label for="ppct-edit-nls">Phát triển năng lực số &amp; AI (mỗi dòng 1 nội dung — TT 02/2025 &amp; QĐ 2422)</label><textarea id="ppct-edit-nls" name="digital_competencies" rows="3">${esc(fields.competencies.join('\n'))}</textarea></div><div class="field full"><label for="ppct-edit-notes">Ghi chú / Thiết bị dạy học</label><textarea id="ppct-edit-notes" name="notes" rows="2">${esc(fields.notesText)}</textarea></div></div><div class="dialog-bottom"><button type="button" data-close="edit-dialog">Hủy</button><button type="submit" class="primary">Lưu bài học PPCT</button></div>`;
+ const gradeEl = $('#ppct-edit-grade');
+ const sectionEl = $('#ppct-edit-section');
+ const orientationEl = $('#ppct-edit-orientation');
+ const codeEl = $('#ppct-edit-code');
+ const weekEl = $('#ppct-edit-week');
+ const durationEl = $('#ppct-edit-duration');
+ const ppctEl = $('#ppct-edit-ppct');
+ const topicEl = $('#ppct-edit-topic');
+ const weekHintEl = $('#ppct-week-hint');
+ const ppctHintEl = $('#ppct-ppct-hint');
+ const syncPpctEditorMode = () => {
+  const gNow = Number(existing ? curGrade : (gradeEl?.value || curGrade));
+  const isThptNow = gNow >= 10;
+  const electiveOpt = sectionEl?.querySelector('option[value="elective_topic"]');
+  if (electiveOpt) electiveOpt.disabled = !isThptNow;
+  if (!isThptNow && sectionEl?.value === 'elective_topic') sectionEl.value = 'core';
+  if (orientationEl) {
+   orientationEl.disabled = !isThptNow;
+   if (!isThptNow) orientationEl.value = '';
+  }
+  const secNow = normalizePpctSection(sectionEl?.value || 'core');
+  const isEl = secNow === 'elective_topic';
+  if (weekEl) {
+   weekEl.required = !isEl;
+   weekEl.placeholder = isEl ? 'Để trống nếu chưa chia tuần' : '';
+  }
+  if (ppctEl) {
+   ppctEl.required = !isEl;
+   ppctEl.placeholder = isEl ? 'Để trống nếu chưa đánh tiết PPCT' : '';
+  }
+  if (weekHintEl) weekHintEl.textContent = isEl ? '(Không bắt buộc với CĐHT)' : '';
+  if (ppctHintEl) ppctHintEl.textContent = isEl ? '(Không bắt buộc với CĐHT)' : '';
+  if (!existing) {
+   if (isEl) {
+    if (codeEl && (!codeEl.value.trim() || /^CD\d+$/i.test(codeEl.value.trim()))) codeEl.value = nextCdForGrade(gNow);
+    if (topicEl && !topicEl.value.trim()) topicEl.value = 'Chuyên đề lựa chọn';
+    if (weekEl && weekEl.value.trim() === 'Tuần 1') weekEl.value = '';
+    if (ppctEl && ppctEl.value.trim() === '1, 2') ppctEl.value = '';
+    if (durationEl && durationEl.value.trim() === '2') durationEl.value = '10';
+    if (orientationEl && !orientationEl.value) orientationEl.value = 'ICT';
+   } else {
+    if (codeEl && /^CD\d+$/i.test(codeEl.value.trim())) codeEl.value = '';
+    if (topicEl && topicEl.value.trim() === 'Chuyên đề lựa chọn') topicEl.value = '';
+    if (weekEl && !weekEl.value.trim()) weekEl.value = 'Tuần 1';
+    if (ppctEl && !ppctEl.value.trim()) ppctEl.value = '1, 2';
+    if (durationEl && durationEl.value.trim() === '10') durationEl.value = '2';
+   }
+  }
+ };
+ gradeEl?.addEventListener('change', syncPpctEditorMode);
+ sectionEl?.addEventListener('change', syncPpctEditorMode);
  $('#question-form').onsubmit=async ev=>{
   ev.preventDefault();
   const f=new FormData(ev.target);
-  const weekRaw=f.get('week_raw').trim();
-  const durationRaw=f.get('duration_raw').trim();
-  const ppctRaw=f.get('ppct_raw').trim();
+  const gVal=Number(existing?curGrade:f.get('grade'));
+  const secVal=normalizePpctSection(f.get('section')||'core');
+  const oriVal=gVal>=10?String(f.get('orientation')||'').trim():'';
+  const weekRaw=String(f.get('week_raw')||'').trim();
+  const durationRaw=String(f.get('duration_raw')||'').trim();
+  const ppctRaw=String(f.get('ppct_raw')||'').trim();
   const payload={
-   grade:Number(existing?grade:f.get('grade')),
-   lesson_code:(existing?existing.lesson_code:f.get('lesson_code')).trim(),
-   lesson_name_source:f.get('lesson_name_source').trim(),
-   topic_source:f.get('topic_source').trim(),
+   grade:gVal,
+   subject_name:s,
+   section:secVal,
+   orientation:oriVal,
+   lesson_code:(existing?existing.lesson_code:String(f.get('lesson_code')||'')).trim(),
+   lesson_name_source:String(f.get('lesson_name_source')||'').trim(),
+   topic_source:String(f.get('topic_source')||'').trim(),
    week_raw:weekRaw,
    duration_raw:durationRaw,
    ppct_raw:ppctRaw,
-   periods_raw:ppctRaw || durationRaw || '1',
-   outcomes:f.get('outcomes').split('\n').map(x=>x.trim()).filter(Boolean),
-   digital_competencies:f.get('digital_competencies').split('\n').map(x=>x.trim()).filter(Boolean),
-   notes:f.get('notes').trim()
+   periods_raw:ppctRaw || durationRaw || (secVal==='elective_topic'?'10':'1'),
+   outcomes:String(f.get('outcomes')||'').split('\n').map(x=>x.trim()).filter(Boolean),
+   digital_competencies:String(f.get('digital_competencies')||'').split('\n').map(x=>x.trim()).filter(Boolean),
+   notes:String(f.get('notes')||'').trim()
   };
   await mutate('/api/ppct/save-lesson',{lesson:payload},()=>{
-   $('#edit-dialog').close();renderPPCT();notify('Đã lưu đầy đủ thông tin bài học theo 7 cột KHDH vào PPCT.');
+   $('#edit-dialog').close();renderPPCT();notify(`Đã lưu đầy đủ thông tin ${secVal==='elective_topic'?'chuyên đề lựa chọn':'bài học'} vào PPCT.`);
   });
  };
  $('#edit-dialog').showModal();
@@ -2269,7 +2836,8 @@ function openExamComparison(id){
 }
 function renderExams(){
  // A newly added first lesson must also become the value behind the visible selector.
- store.examDraft.blueprint.forEach(row=>{if(!row.lesson_code)row.lesson_code=lessons(store.examDraft.grade)[0]?.lesson_code||'';});
+ const availExamLessons=instructionalLessons(store.examDraft.grade,undefined,{includeElective:store.examDraft.exam_type==='TX'});
+ store.examDraft.blueprint.forEach(row=>{if(!row.lesson_code)row.lesson_code=availExamLessons[0]?.lesson_code||'';});
  const d=store.examDraft,t=selectedTemplate(),locked=Boolean(t?.locked)||Boolean(d.matrix_id),required=needsSource(d.grade,d.exam_type),templates=matchingTemplates(),mxs=usableMatrices(d.grade,d.exam_type),plan=examPlan(),rows=examRows(),summary=C.blueprintSummary(rows);
  const filterG=store.examFilterGrade||'all';
  const shownExams=store.exams.filter(r=>filterG==='all'||Number(r.grade)===Number(filterG));
@@ -2337,7 +2905,7 @@ function renderExams(){
  document.querySelectorAll('[data-exam-grade-filter]').forEach(btn=>{
   btn.onclick=()=>{store.examFilterGrade=btn.dataset.examGradeFilter;renderExams();};
  });
- $('#exam-grade').onchange=()=>{readExamInputs();d.grade=Number($('#exam-grade').value);d.revision_id='';d.set_rev='auto';d.set_counts={};d.title='';chooseExamTemplate();renderExams();};$('#exam-period').onchange=()=>{readExamInputs();d.exam_type=$('#exam-period').value;d.set_counts={};d.title='';chooseExamTemplate();renderExams();};$('#exam-template').onchange=()=>{readExamInputs();const v=$('#exam-template').value;d.matrix_id=v.startsWith('mx:')?v.slice(3):'';d.template_id=d.matrix_id?'':v;if(!d.template_id&&!d.matrix_id&&!d.blueprint.length)d.blueprint=[{lesson_code:lessons(d.grade)[0]?.lesson_code||'',type:'MC',level:'Biết',count:10,points_per_question:1}];renderExams();};$('#exam-revision').onchange=()=>{d.revision_id=$('#exam-revision').value;updateGenerationState();};
+ $('#exam-grade').onchange=()=>{readExamInputs();d.grade=Number($('#exam-grade').value);d.revision_id='';d.set_rev='auto';d.set_counts={};d.title='';chooseExamTemplate();renderExams();};$('#exam-period').onchange=()=>{readExamInputs();d.exam_type=$('#exam-period').value;d.set_counts={};d.title='';chooseExamTemplate();renderExams();};$('#exam-template').onchange=()=>{readExamInputs();const v=$('#exam-template').value;d.matrix_id=v.startsWith('mx:')?v.slice(3):'';d.template_id=d.matrix_id?'':v;if(!d.template_id&&!d.matrix_id&&!d.blueprint.length){const avail=instructionalLessons(d.grade,undefined,{includeElective:d.exam_type==='TX'});d.blueprint=[{lesson_code:avail[0]?.lesson_code||'',type:'MC',level:'Biết',count:10,points_per_question:1}];}renderExams();};$('#exam-revision').onchange=()=>{d.revision_id=$('#exam-revision').value;updateGenerationState();};
  const simRange=$('#exam-sim-pct');const simNum=$('#exam-sim-pct-num');
  if(simRange&&simNum){
   simRange.oninput=()=>{simNum.value=simRange.value;d.similarity_percent=Number(simRange.value);};
@@ -2345,7 +2913,7 @@ function renderExams(){
  }
  if($('#exam-sim-mode'))$('#exam-sim-mode').onchange=e=>{d.similarity_mode=e.target.value;};
  ['title','duration','seed'].forEach(k=>$('#exam-'+k).oninput=()=>{readExamInputs();updateGenerationState();});
- if($('#add-matrix-row'))$('#add-matrix-row').onclick=()=>{readExamInputs();d.blueprint.push({lesson_code:lessons(d.grade)[0]?.lesson_code||'',type:'MC',level:'Biết',count:1,points_per_question:.25});renderExams();};
+ if($('#add-matrix-row'))$('#add-matrix-row').onclick=()=>{readExamInputs();const avail=instructionalLessons(d.grade,undefined,{includeElective:d.exam_type==='TX'});d.blueprint.push({lesson_code:avail[0]?.lesson_code||'',type:'MC',level:'Biết',count:1,points_per_question:.25});renderExams();};
  if($('#matrix-table'))$('#matrix-table').onchange=event=>{const el=event.target;if(!el.dataset.row||locked)return;const i=Number(el.dataset.row),key=el.dataset.key;d.blueprint[i][key]=['count','points_per_question'].includes(key)?Number(el.value):el.value;if(key==='type')d.blueprint[i].level=C.levelAfterTypeChange(d.blueprint[i].level,el.value);readExamInputs();renderExams();};
  $('#exam-form').onsubmit=generateExam;updateGenerationState();bindExamSetCard();saveBrowserExamDraft();
  const activeExam=shownExams.find(r=>r.id===store.activeExamViewId)||shownExams[0];
@@ -2452,7 +3020,7 @@ function bindExamSetCard(){if(!$('#exam-set-card'))return;const d=examSetDefault
  $('#generate-set').onclick=generateExamSet;}
 async function generateExamSet(){readExamInputs();const d=examSetDefaults(),p=examSetProblems();if(p.length){notify(p.join('\n'),true);return;}const name=d.title.trim()||`${periodNames[d.exam_type]} · ${subject()} ${d.grade}`,cells=setPlan().data.cells;const payload={title:name,grade:Number(d.grade),exam_type:d.exam_type,duration:Number(d.duration),...examSourcePayload(),seed:d.seed,exam_count:Number(d.set_count),similarity_percent:Number(d.similarity_percent??90),...(d.set_rev==='auto'?{revision_counts:setCounts(cells)}:{revision_id:d.set_rev})};
  await mutate('/api/exams/generate-set',payload,res=>{store.exams=res.exams_all||store.exams;store.revisions=res.revisions||store.revisions;store.activeExamViewId=res.exams?.[0]?.id;renderExams();notify(`Đã tạo ${res.exams.length} đề${d.set_rev==='auto'?` và đề cương "${res.revision.title}" (${res.revision_size} câu)`:''}. Mỗi đề để ${res.outside_per_exam} câu ngoài đề cương.`+(res.warnings?.length?'\nLưu ý: '+res.warnings.join(' '):''),Boolean(res.warnings?.length));});}
-function matrixRow(r,i,locked){const key=`data-row="${i}"`,disabled=locked?' disabled':'';const count=questions().filter(q=>q.grade===Number(store.examDraft.grade)&&q.lesson_code===r.lesson_code&&q.type===r.type&&q.level===r.level&&q.review_status==='approved').length;return `<tr><td><select aria-label="Bài học dòng ${i+1}" ${key} data-key="lesson_code"${disabled}>${lessons(store.examDraft.grade).map(l=>opt(l.lesson_code,l.lesson_code+' · '+l.lesson_name_source,l.lesson_code===r.lesson_code)).join('')}</select></td><td><select aria-label="Dạng câu dòng ${i+1}" ${key} data-key="type"${disabled}>${['MC','ES'].map(v=>opt(v,v,v===r.type)).join('')}</select></td><td><select aria-label="Mức độ dòng ${i+1}" ${key} data-key="level"${disabled}>${C.levelOptions(r.level)}</select></td><td><input aria-label="Số câu dòng ${i+1}" ${key} data-key="count" type="number" min="1" step="1" value="${esc(r.count)}"${disabled}></td><td><input aria-label="Điểm mỗi câu dòng ${i+1}" ${key} data-key="points_per_question" type="number" min="0.01" step="0.01" value="${esc(r.points_per_question)}"${disabled}></td><td><span class="badge${count<r.count?' draft':''}">${count} câu</span></td>${!locked?`<td><button type="button" class="quiet danger" data-remove-row="${i}" aria-label="Bỏ dòng ${i+1}">Bỏ</button></td>`:''}</tr>`;}
+function matrixRow(r,i,locked){const key=`data-row="${i}"`,disabled=locked?' disabled':'';const count=questions().filter(q=>q.grade===Number(store.examDraft.grade)&&q.lesson_code===r.lesson_code&&q.type===r.type&&q.level===r.level&&q.review_status==='approved').length;const optsList=instructionalLessons(store.examDraft.grade,undefined,{includeElective:store.examDraft.exam_type==='TX'});const shownOpts=r.lesson_code&&!optsList.some(l=>l.lesson_code===r.lesson_code)?[...optsList,...lessons(store.examDraft.grade).filter(l=>l.lesson_code===r.lesson_code)]:optsList;return `<tr><td><select aria-label="Bài học dòng ${i+1}" ${key} data-key="lesson_code"${disabled}>${shownOpts.map(l=>opt(l.lesson_code,lessonOptionLabel(l),l.lesson_code===r.lesson_code)).join('')}</select></td><td><select aria-label="Dạng câu dòng ${i+1}" ${key} data-key="type"${disabled}>${['MC','ES'].map(v=>opt(v,v,v===r.type)).join('')}</select></td><td><select aria-label="Mức độ dòng ${i+1}" ${key} data-key="level"${disabled}>${C.levelOptions(r.level)}</select></td><td><input aria-label="Số câu dòng ${i+1}" ${key} data-key="count" type="number" min="1" step="1" value="${esc(r.count)}"${disabled}></td><td><input aria-label="Điểm mỗi câu dòng ${i+1}" ${key} data-key="points_per_question" type="number" min="0.01" step="0.01" value="${esc(r.points_per_question)}"${disabled}></td><td><span class="badge${count<r.count?' draft':''}">${count} câu</span></td>${!locked?`<td><button type="button" class="quiet danger" data-remove-row="${i}" aria-label="Bỏ dòng ${i+1}">Bỏ</button></td>`:''}</tr>`;}
 function readExamInputs(){const d=store.examDraft;if(!$('#exam-title'))return;d.title=$('#exam-title').value;d.duration=Number($('#exam-duration').value);d.seed=$('#exam-seed').value;d.revision_id=$('#exam-revision').value;if($('#exam-sim-pct-num'))d.similarity_percent=Number($('#exam-sim-pct-num').value);if($('#exam-sim-mode'))d.similarity_mode=$('#exam-sim-mode').value;}
 function generationProblems(){const d=store.examDraft,t=selectedTemplate(),rows=examRows(),summary=C.blueprintSummary(rows),p=[];if(C.templateBlocked(t))p.push('Chưa thể tạo đề từ ma trận này: các phần Đúng/Sai hoặc tự luận còn cần xác minh. Xem căn cứ ma trận phía trên. Có thể chọn kiểm tra Thường xuyên để tự thiết lập.');if(needsSource(d.grade,d.exam_type)&&!t&&!d.matrix_id)p.push('Kì kiểm tra này cần ma trận nguồn đã xác minh.');if(d.matrix_id){const pl=examPlan();if(!pl||pl.loading)p.push('Đang đọc ma trận…');else if(pl.error)p.push(pl.error);}if(!rows.length)p.push('Thêm ít nhất một dòng phân bố câu hỏi.');if(summary.points!==10)p.push(`Tổng hiện tại ${summary.points} điểm; cần đúng 10 điểm.`);if(rows.some(r=>!Number.isInteger(Number(r.count))||Number(r.count)<1||Number(r.points_per_question)<=0))p.push('Số câu phải là số nguyên dương và điểm mỗi câu phải lớn hơn 0.');return p;}
 function updateGenerationState(){if(!$('#generate-exam'))return;const p=generationProblems();$('#generate-exam').disabled=store.busy||Boolean(p.length);$('#generation-warning').hidden=!p.length;$('#generation-warning').textContent=p.join('\n');}
@@ -3502,7 +4070,7 @@ Dưới đây là đề thi cần chuyển đổi:
       parseBtn.disabled = true;
 
       try {
-        const listLessons = lessons(grade, subj) || [];
+        const listLessons = instructionalLessons(grade, subj, { includeElective: true }) || [];
         const lessonInfo = listLessons.map(l => `${l.lesson_code}: ${l.lesson_name_source || l.lesson_name || l.name}`).join('; ');
 
         const promptText = `Bạn là Trợ lý Khảo thí & Chuẩn hóa Ngân hàng đề của Trường Quốc tế Á Châu (Asian School), bám sát chương trình GDPT 2018 và Công văn 7991/BGDĐT.

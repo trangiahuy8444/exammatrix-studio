@@ -605,6 +605,7 @@ class BankService:
             return copy.deepcopy(checked)
 
     def save_ppct_lesson(self, payload):
+        from ppct_import import detect_orientation, normalize_section
         with self.lock:
             if not isinstance(payload, dict):
                 raise ServiceError('Dữ liệu bài học không hợp lệ.')
@@ -615,13 +616,16 @@ class BankService:
             code = self._text(payload.get('lesson_code'), 'Mã bài học')
             name = self._text(payload.get('lesson_name_source') or payload.get('lesson_name'), 'Tên bài học')
             topic = self._text(payload.get('topic_source') or payload.get('topic') or 'Chủ đề chung', 'Tên chủ đề')
+            section = normalize_section(payload.get('section') or '', code, name, topic)
+            raw_orient = str(payload.get('orientation') or '').strip()
+            orientation = detect_orientation(raw_orient) or raw_orient or (detect_orientation(topic) if section == 'elective_topic' else '')
             outcomes = payload.get('outcomes') or []
             if isinstance(outcomes, str):
                 outcomes = [x.strip() for x in outcomes.splitlines() if x.strip()]
             outcomes = [self._text(x, 'Yêu cầu cần đạt') for x in outcomes if str(x).strip()]
             if not outcomes:
                 raise ServiceError('Cần ít nhất một yêu cầu cần đạt cho bài học.')
-            week_raw = str(payload.get('week_raw') or 'Tuần 1').strip()
+            week_raw = str(payload.get('week_raw') or ('' if section == 'elective_topic' else 'Tuần 1')).strip()
             duration_raw = str(payload.get('duration_raw') or payload.get('num_periods') or payload.get('so_tiet') or '').strip()
             ppct_raw = str(payload.get('ppct_raw') or '').strip()
             periods_raw = str(payload.get('periods_raw') or ppct_raw or duration_raw or '1').strip()
@@ -660,6 +664,8 @@ class BankService:
                 existing['subject_name'] = subj
                 existing['lesson_name_source'] = name
                 existing['topic_source'] = topic
+                existing['section'] = section
+                existing['orientation'] = orientation
                 existing['outcomes'] = outcomes
                 existing['digital_competencies'] = digital_competencies
                 existing['notes'] = notes
@@ -676,6 +682,8 @@ class BankService:
                     lesson_code=code,
                     lesson_name_source=name,
                     topic_source=topic,
+                    section=section,
+                    orientation=orientation,
                     outcomes=outcomes,
                     digital_competencies=digital_competencies,
                     notes=notes,
@@ -786,22 +794,25 @@ class BankService:
         return None
 
     def _ppct_diff(self, bank, lessons, subject_name='Tin học'):
-        from ppct_import import same_name
+        from ppct_import import normalize_section, same_name
         current = {(normalize_subject_name(x.get('subject_name') or 'Tin học'), x.get('grade'), x.get('lesson_code')): x
                    for x in bank['ppct'].get('lessons', [])}
         rows = []
         for lesson in lessons:
             subj = normalize_subject_name(lesson.get('subject_name') or subject_name)
+            section = normalize_section(lesson.get('section') or '', lesson['lesson_code'], lesson['lesson_name_source'], lesson['topic_source'])
+            orientation = lesson.get('orientation') or ''
             key = (subj, lesson['grade'], lesson['lesson_code'])
             old = current.get(key)
             row = dict(grade=lesson['grade'], lesson_code=lesson['lesson_code'], subject_name=subj,
                        lesson_name=lesson['lesson_name_source'],
-                       topic=lesson['topic_source'], outcomes=lesson['outcomes'],
+                       topic=lesson['topic_source'], section=section, orientation=orientation,
+                       outcomes=lesson['outcomes'],
                        occurrences=lesson.get('occurrences') or [],
                        occurrences_count=len(lesson.get('occurrences') or []),
                        digital_competencies=lesson.get('digital_competencies') or [],
                        notes=lesson.get('notes') or '')
-            if not lesson['outcomes']:
+            if not lesson['outcomes'] and section not in ('assessment', 'review'):
                 row.update(status='conflict', conflict=dict(reason='Bài chưa có yêu cầu cần đạt.'))
             elif old is None:
                 row['status'] = 'new'
@@ -813,6 +824,10 @@ class BankService:
                     changes.append(dict(field='Chủ đề', old=old.get('topic_source', ''), new=lesson['topic_source']))
                 if old.get('outcomes', []) != lesson['outcomes']:
                     changes.append(dict(field='Yêu cầu cần đạt', old=old.get('outcomes', []), new=lesson['outcomes']))
+                if 'section' in old and old.get('section') != section:
+                    changes.append(dict(field='Phân loại', old=old.get('section') or 'core', new=section))
+                if 'orientation' in old and (old.get('orientation') or '') != orientation:
+                    changes.append(dict(field='Định hướng', old=old.get('orientation') or '', new=orientation))
                 old_comp = old.get('digital_competencies') or []
                 new_comp = lesson.get('digital_competencies') or []
                 if (('digital_competencies' in old) or not changes) and old_comp != new_comp:
@@ -838,7 +853,7 @@ class BankService:
 
     def apply_ppct_import(self, payload):
         """Thêm bài mới, cập nhật bài thay đổi; bỏ qua bài xung đột. Bài đang có mà tệp không nhắc tới được giữ nguyên."""
-        from ppct_import import same_name
+        from ppct_import import normalize_section, same_name
         with self.lock:
             lessons, issues, name, raw, subj = self._read_ppct_payload(payload)
             sha = hashlib.sha256(raw).hexdigest()
@@ -855,7 +870,10 @@ class BankService:
                 key = (normalize_subject_name(lesson.get('subject_name') or subj), lesson['grade'], lesson['lesson_code'])
                 entry = dict(grade=lesson['grade'], lesson_code=lesson['lesson_code'], subject_name=key[0],
                              lesson_name_source=lesson['lesson_name_source'],
-                             topic_source=lesson['topic_source'], outcomes=lesson['outcomes'],
+                             topic_source=lesson['topic_source'],
+                             section=normalize_section(lesson.get('section') or '', lesson['lesson_code'], lesson['lesson_name_source'], lesson['topic_source']),
+                             orientation=lesson.get('orientation') or '',
+                             outcomes=lesson['outcomes'],
                              digital_competencies=lesson.get('digital_competencies') or [],
                              notes=lesson.get('notes') or '',
                              source_file=lesson['source_file'],
@@ -1038,11 +1056,39 @@ class BankService:
             periods.extend(int(x) for x in re.findall(r'\d+', str(occurrence.get('ppct_raw') or occurrence.get('periods_raw', ''))))
         return min(periods) if periods else math.inf
 
+    def _exam_period_limit(self, grade, exam_type, subject_name='Tin học'):
+        """Mốc tiết kiểm tra định kỳ: ưu tiên lấy từ dòng KTxx trong PPCT thực tế; fallback Khối >=10 (70 tiết) / THCS (35 tiết)."""
+        subj = normalize_subject_name(subject_name)
+        defaults = {'GK1': 20, 'CK1': 32, 'GK2': 52, 'CK2': 62} if grade >= 10 else {'GK1': 10, 'CK1': 16, 'GK2': 26, 'CK2': 31}
+        if exam_type not in defaults:
+            return None
+        target_code = f'KT{exam_type}'
+        if (subj, grade, target_code) in self.lessons or (grade, target_code) in self.lessons:
+            first_p = self._first_period(grade, target_code, subj)
+            if math.isfinite(first_p):
+                return int(first_p)
+        return defaults[exam_type]
+
+    def _reject_elective_in_periodic(self, grade, exam_type, lesson_codes, subject_name='Tin học'):
+        if exam_type not in ('GK1', 'CK1', 'GK2', 'CK2'):
+            return
+        from ppct_import import normalize_section
+        subj = normalize_subject_name(subject_name)
+        for code in lesson_codes:
+            cat = self.lessons.get((subj, grade, code)) or self.lessons.get((grade, code)) or {}
+            if normalize_section(cat.get('section') or '', code, cat.get('lesson_name_source', ''), cat.get('topic_source', '')) == 'elective_topic':
+                raise ServiceError(
+                    'Cụm chuyên đề học tập không thuộc phạm vi đánh giá định kỳ (TT 22/2021, Điều 7, khoản 1). '
+                    'Chỉ sử dụng cho kiểm tra thường xuyên (TX).',
+                    {'lesson_code': code, 'exam_type': exam_type},
+                )
+
     def _cells_from_matrix(self, m, grade, exam_type):
         if m.get('grade') != grade or m.get('exam_type') != exam_type:
             raise ServiceError('Ma trận đã chọn khác khối hoặc kì kiểm tra.', {'matrix_id': m.get('id')})
         subj = normalize_subject_name(m.get('subject_name') or 'Tin học')
         reqs = {r['id']: r for r in m.get('requirements', [])}
+        self._reject_elective_in_periodic(grade, exam_type, [r.get('lesson_code', '') for r in reqs.values()], subj)
         cells, total = {}, Decimal(0)
         slot_ids = set()
         for slot in m.get('slots', []):
@@ -1135,6 +1181,7 @@ class BankService:
             has_lesson = (grade, l_code) in self.lessons or (subj, grade, l_code) in self.lessons
             if not isinstance(l_code, str) or not has_lesson or row.get('level') not in ALLOWED_LEVELS:
                 raise ServiceError('Bài hoặc mức độ ma trận không thuộc danh mục.')
+            self._reject_elective_in_periodic(grade, exam_type, [l_code], subj)
             count = row.get('count')
             if type(count) is not int or not 1 <= count <= 500:
                 raise ServiceError('Số câu phải là số nguyên từ 1 đến 500.')
@@ -1154,9 +1201,8 @@ class BankService:
         lesson, kind, level = key[:3]
         outcomes = set(key[3]) if len(key) > 3 else None
         subj = normalize_subject_name(subject_name)
-        limits = {'GK1': 20 if grade == 10 else 10, 'CK1': 32 if grade == 10 else 16,
-                  'GK2': 52 if grade == 10 else 26, 'CK2': 62 if grade == 10 else 31}
-        after_exam = self.school_profile and subj == 'Tin học' and exam_type in limits and self._first_period(grade, lesson, subj) >= limits[exam_type]
+        limit = self._exam_period_limit(grade, exam_type, subj)
+        after_exam = self.school_profile and subj == 'Tin học' and limit is not None and self._first_period(grade, lesson, subj) >= limit
         strict = [q for q in bank if normalize_subject_name(q.get('subject_name') or 'Tin học') == subj and
                   q['grade'] == grade and q['lesson_code'] == lesson and
                   q['type'] == kind and q['level'] == level and q.get('review_status') in EXAM_ELIGIBLE and

@@ -151,7 +151,7 @@ function createMockDriveServer() {
   return { drives, registerUser, expireToken, fetchImpl };
 }
 
-function bridgeHarness({ server = false, quota = false, mockFetch = null, initialLocal = null, initialSession = null, driveStorageOverrides = null } = {}) {
+function bridgeHarness({ server = false, quota = false, mockFetch = null, initialLocal = null, initialSession = null, driveStorageOverrides = null, domParser = null } = {}) {
   const localValues = initialLocal || new Map([['exammatrix_teacher_cache_offline', JSON.stringify(fixture())]]);
   const sessionValues = initialSession || new Map();
   const status = { hidden: true, textContent: '' };
@@ -183,6 +183,7 @@ function bridgeHarness({ server = false, quota = false, mockFetch = null, initia
     console,
     setTimeout,
     clearTimeout,
+    ...(domParser ? { DOMParser: domParser } : {}),
     fetch: mockFetch || (async () => { throw new Error('unexpected network'); }),
     document: {
       querySelector: () => (server ? {} : null),
@@ -942,3 +943,299 @@ test('Bridge + Google Drive: auto-refreshes token and syncs immediately on save 
   assert.equal(cachedPending._sync.pending, true);
   assert.equal(cachedPending.bank.questions[0].question, 'Không được ghi nhầm sang B');
 });
+
+function createTableDomParserMock() {
+  return class MockDOMParser {
+    parseFromString(html) {
+      const stripTags = (raw) => String(raw || '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>\s*<p[^>]*>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&nbsp;/g, ' ');
+      const tableMatches = Array.from(String(html || '').matchAll(/<table\b[^>]*>([\s\S]*?)<\/table>/gi));
+      const tables = tableMatches.map((tm) => {
+        const rowMatches = Array.from(tm[1].matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi));
+        const rows = rowMatches.map((rm) => {
+          const cellMatches = Array.from(rm[1].matchAll(/<(td|th)\b[^>]*>([\s\S]*?)<\/\1>/gi));
+          const cells = cellMatches.map((cm) => ({
+            innerHTML: cm[2],
+            textContent: stripTags(cm[2])
+          }));
+          return {
+            querySelectorAll: (sel) => (sel.includes('td') || sel.includes('th') ? cells : [])
+          };
+        });
+        return {
+          querySelector: (sel) => (sel === 'tr' ? (rows[0] || null) : null),
+          querySelectorAll: (sel) => (sel === 'tr' ? rows : [])
+        };
+      });
+      return {
+        querySelectorAll: (sel) => (sel === 'table' ? tables : [])
+      };
+    }
+  };
+}
+
+test('PPCT THPT: Bridge JSON elective_topics, extracted_html multi-table Word, and save-lesson section/orientation', async () => {
+  const h = bridgeHarness({ domParser: createTableDomParserMock() });
+
+  // 1. HTML bóc tách từ Word gồm Mục II.1 cốt lõi (có lỗi "Bải 13", Ôn tập, KTĐK) + Mục II.2 Chuyên đề (kèm Thiết bị dạy học)
+  const wordHtml = `
+    <p>II.1. Phần cốt lõi môn Tin học 11</p>
+    <table>
+      <tr><th>Tuần</th><th>Bài học</th><th>Số tiết</th><th>PPCT</th><th>Yêu cầu cần đạt</th><th>Phát triển năng lực số &amp; AI</th><th>Ghi chú</th></tr>
+      <tr><td colspan="7">Học kì 1</td></tr>
+      <tr><td colspan="7">Chủ đề 1. Máy tính và xã hội tri thức</td></tr>
+      <tr><td>1</td><td>Bài 1. Hệ điều hành</td><td>2</td><td>1, 2</td><td>- Trình bày được chức năng HĐH.</td><td>1.1.NC1a: Khai thác HĐH an toàn.</td><td></td></tr>
+      <tr><td>5</td><td>Bải 13. Cơ sở dữ liệu</td><td>2</td><td>9, 10</td><td>- Giải thích được khái niệm CSDL.</td><td>1.2.NC1b</td><td>Chính tả Bải</td></tr>
+      <tr><td>8</td><td>Ôn tập học kì 1</td><td>1</td><td>15</td><td>- Hệ thống kiến thức HK1.</td><td></td><td></td></tr>
+      <tr><td>9</td><td>Kiểm tra giữa HK1</td><td>1</td><td>16</td><td>- Đánh giá giữa học kì 1.</td><td></td><td>TT 22/2021</td></tr>
+    </table>
+    <p>II.2. Chuyên đề học tập lựa chọn (ICT)</p>
+    <table>
+      <tr><th>Chuyên đề</th><th>Số tiết</th><th>Thiết bị dạy học</th><th>Yêu cầu cần đạt</th><th>Phát triển năng lực số &amp; AI</th><th>Ghi chú</th></tr>
+      <tr><td>Chuyên đề 1: Quản trị dự án</td><td>10</td><td>Máy tính, mạng LAN</td><td>- Lập kế hoạch dự án bằng phần mềm.</td><td>2.2.NC1a</td><td></td></tr>
+      <tr><td>Chuyên đề 2: Bảo vệ dữ liệu</td><td>10</td><td>Phòng máy</td><td>- Sao lưu và phân quyền dữ liệu.</td><td>4.2.NC1a</td><td></td></tr>
+      <tr><td>Chuyên đề 3: Sản phẩm số</td><td>15</td><td>Máy tính</td><td>- Thiết kế sản phẩm số đa phương tiện.</td><td>3.1.NC1b</td><td>Tổng 35 tiết</td></tr>
+    </table>
+  `;
+  const htmlReport = await h.window.FirebaseClient.handle('/api/ppct/inspect-import', {
+    grade: 11,
+    subject_name: 'Tin học',
+    filename: 'KHDH_Tin_11_ICT.docx',
+    extracted_html: wordHtml
+  });
+  assert.deepEqual(
+    [...htmlReport.lessons.map(l => l.lesson_code)],
+    ['B1', 'B13', 'OT_HK1', 'KTGK1', 'CD1', 'CD2', 'CD3']
+  );
+  const byCodeHtml = Object.fromEntries(htmlReport.lessons.map(l => [l.lesson_code, l]));
+  assert.equal(byCodeHtml.B1.section, 'core');
+  assert.equal(byCodeHtml.OT_HK1.section, 'review');
+  assert.equal(byCodeHtml.KTGK1.section, 'assessment');
+  assert.equal(byCodeHtml.CD1.section, 'elective_topic');
+  assert.equal(byCodeHtml.CD1.orientation, 'ICT');
+  assert.ok(byCodeHtml.CD1.notes.includes('Máy tính, mạng LAN'));
+
+  // 2. Nhập JSON THPT có orientation + elective_topics và kiểm tra apply-import + save-lesson
+  const jsonReport = await h.window.FirebaseClient.handle('/api/ppct/inspect-import', {
+    grade: 10,
+    subject_name: 'Tin học',
+    filename: 'ppct_khoi_10_ict.json',
+    json: {
+      grade: 10,
+      subject_name: 'Tin học',
+      orientation: 'ICT',
+      lessons: [
+        {
+          grade: 10,
+          section: 'core',
+          lesson_code: 'B1',
+          lesson_name_source: 'Bài 1. Dữ liệu và thông tin',
+          topic_source: 'Chủ đề 1',
+          occurrences: [{ week_raw: '1', duration_raw: '2', ppct_raw: '1, 2' }],
+          outcomes: ['Phân biệt thông tin và dữ liệu'],
+          digital_competencies: ['1.1.NC1a: Tìm kiếm số'],
+          notes: ''
+        },
+        {
+          grade: 10,
+          section: 'assessment',
+          lesson_code: 'KTGK1',
+          lesson_name_source: 'Kiểm tra giữa HK1',
+          topic_source: 'Đánh giá định kỳ',
+          occurrences: [{ week_raw: '9', duration_raw: '1', ppct_raw: '18' }],
+          outcomes: ['Kiểm tra giữa kì 1'],
+          digital_competencies: [],
+          notes: ''
+        }
+      ],
+      elective_topics: [
+        {
+          grade: 10,
+          section: 'elective_topic',
+          orientation: 'ICT',
+          lesson_code: 'CD1',
+          lesson_name_source: 'Chuyên đề 1: Quản trị dự án',
+          topic_source: 'Chuyên đề lựa chọn',
+          occurrences: [{ week_raw: '', duration_raw: '10', ppct_raw: '' }],
+          outcomes: ['Lập kế hoạch dự án'],
+          digital_competencies: ['2.2.NC1a'],
+          notes: 'Phòng máy'
+        },
+        {
+          grade: 10,
+          section: 'elective_topic',
+          orientation: 'ICT',
+          lesson_code: 'CD2',
+          lesson_name_source: 'Chuyên đề 2: Bảng tính',
+          topic_source: 'Chuyên đề lựa chọn',
+          occurrences: [{ week_raw: '', duration_raw: '10', ppct_raw: '' }],
+          outcomes: ['Phân tích số liệu'],
+          digital_competencies: [],
+          notes: ''
+        },
+        {
+          grade: 10,
+          section: 'elective_topic',
+          orientation: 'ICT',
+          lesson_code: 'CD3',
+          lesson_name_source: 'Chuyên đề 3: Thiết kế tài liệu',
+          topic_source: 'Chuyên đề lựa chọn',
+          occurrences: [{ week_raw: '', duration_raw: '15', ppct_raw: '' }],
+          outcomes: ['Xuất bản tài liệu số'],
+          digital_competencies: [],
+          notes: ''
+        }
+      ]
+    }
+  });
+  assert.equal(jsonReport.summary.new, 5);
+  const applied = await h.window.FirebaseClient.handle('/api/ppct/apply-import', {
+    grade: 10,
+    subject_name: 'Tin học',
+    lessons: jsonReport.lessons
+  });
+  const stored10 = applied.bank.ppct.lessons.filter(l => Number(l.grade) === 10);
+  assert.equal(stored10.length, 5);
+  const cd1 = stored10.find(l => l.lesson_code === 'CD1');
+  assert.equal(cd1.section, 'elective_topic');
+  assert.equal(cd1.orientation, 'ICT');
+
+  // save-lesson thủ công cho chuyên đề mới không cần Tuần/PPCT
+  const afterSave = await h.window.FirebaseClient.handle('/api/ppct/save-lesson', {
+    lesson: {
+      grade: 10,
+      subject_name: 'Tin học',
+      section: 'elective_topic',
+      orientation: 'CS',
+      lesson_code: 'CD4',
+      lesson_name_source: 'Chuyên đề 4: Thuật toán nâng cao',
+      topic_source: 'Chuyên đề lựa chọn',
+      week_raw: '',
+      duration_raw: '10',
+      ppct_raw: '',
+      outcomes: ['Phân tích độ phức tạp thuật toán'],
+      digital_competencies: ['5.2.NC1a'],
+      notes: 'Định hướng CS'
+    }
+  });
+  const cd4 = afterSave.bank.ppct.lessons.find(l => Number(l.grade) === 10 && l.lesson_code === 'CD4');
+  assert.equal(cd4.section, 'elective_topic');
+  assert.equal(cd4.orientation, 'CS');
+  assert.equal(cd4.occurrences[0].week_raw, '');
+});
+
+test('PPCT THPT & THCS: parsePpctFromMarkdown multi-table, ppctImportCard compliance banner, and validateMatrix guard', () => {
+  const appSource = fs.readFileSync(require.resolve('../public/app.js'), 'utf8');
+  const occStart = appSource.indexOf('function safeLessonOccurrences(');
+  const occEnd = appSource.indexOf('const lessons=(g,subj)=>');
+  const helperStart = appSource.indexOf('function renderPpctListCell(');
+  const helperEnd = appSource.indexOf('function renderPPCT(');
+  const mdStart = appSource.indexOf('function parsePpctFromMarkdown(');
+  const cardStart = appSource.indexOf('function ppctImportCard(');
+  const cardEnd = appSource.indexOf('function bindPpctImport(');
+  const sandbox = {
+    store: {
+      ppctImport: null,
+      ppctGrade: 10,
+      ppctSubject: 'Tin học'
+    },
+    esc: core.escapeHtml
+  };
+  vm.runInNewContext(
+    `${appSource.slice(occStart, occEnd)}\n${appSource.slice(helperStart, helperEnd)}\n${appSource.slice(mdStart, cardEnd)}`,
+    sandbox
+  );
+
+  const mdThpt = `# Kế hoạch dạy học Tin học 10\n\n## II.1. Phần cốt lõi (ICT)\n\n| Tuần | Bài học | Số tiết | PPCT | Yêu cầu cần đạt | Phát triển năng lực số & AI | Ghi chú |\n|:---:|---|:---:|:---:|---|---|---|\n| 1 | Bài 1. Thông tin và xử lí thông tin | 2 | 1, 2 | - Phân biệt thông tin và dữ liệu | - 1.1.NC1a: Tìm kiếm số | Chuẩn bị |\n| 9 | Kiểm tra giữa học kì 1 | 1 | 18 | - Đánh giá GK1 | | |\n\n## II.2. Chuyên đề học tập lựa chọn (ICT)\n\n| Chuyên đề | Số tiết | Thiết bị dạy học | Yêu cầu cần đạt | Phát triển năng lực số & AI | Ghi chú |\n|---|:---:|---|---|---|---|\n| Chuyên đề 1: Quản trị dự án | 10 | Máy tính kết nối mạng | - Lập kế hoạch dự án | - 2.2.NC1a: Hợp tác số | ICT |\n| Chuyên đề 2: Bảo vệ dữ liệu | 10 | Phòng máy | - Sao lưu dữ liệu | - 4.2.NC1a: An toàn số | |\n| Chuyên đề 3: Thiết kế sản phẩm số | 15 | Phòng máy | - Thiết kế ấn phẩm số | - 3.1.NC1b: Sáng tạo số | |\n`;
+
+  const parsed = sandbox.parsePpctFromMarkdown(mdThpt, 10);
+  assert.deepEqual([...parsed.map(x => x.lesson_code)], ['B1', 'KTGK1', 'CD1', 'CD2', 'CD3']);
+  assert.equal(parsed[0].section, 'core');
+  assert.equal(parsed[1].section, 'assessment');
+  assert.equal(parsed[2].section, 'elective_topic');
+  assert.equal(parsed[2].orientation, 'ICT');
+  assert.ok(parsed[2].notes.includes('Máy tính kết nối mạng'));
+
+  // Kiểm định cảnh báo chuẩn 70+35 tiết và bậc NLS TC1/TC2/NC1
+  const badSummary = sandbox.validatePpctCompliance(10, 'Tin học', [
+    { grade: 10, lesson_code: 'B1', section: 'core', occurrences: [{ duration_raw: '2' }], digital_competencies: ['1.1.TC2a: Sai bậc lớp 10'] },
+    { grade: 10, lesson_code: 'CD1', section: 'elective_topic', occurrences: [{ duration_raw: '25' }], digital_competencies: [] }
+  ]);
+  assert.equal(badSummary.expectedNls, 'NC1');
+  assert.equal(badSummary.corePeriods, 2);
+  assert.equal(badSummary.electivePeriods, 25);
+  assert.ok(badSummary.alerts.some(a => a.text.includes('70 tiết')));
+  assert.ok(badSummary.alerts.some(a => a.text.includes('35 tiết')));
+  assert.ok(badSummary.alerts.some(a => a.text.includes('NC1') && a.text.includes('TC2')));
+
+  const goodSummary = sandbox.validatePpctCompliance(10, 'Tin học', [
+    { grade: 10, lesson_code: 'B1', section: 'core', occurrences: [{ duration_raw: '70' }], digital_competencies: ['1.1.NC1a: Đúng bậc THPT'] },
+    { grade: 10, lesson_code: 'CD1', section: 'elective_topic', occurrences: [{ duration_raw: '35' }], digital_competencies: [] }
+  ]);
+  assert.equal(goodSummary.alerts.some(a => a.level === 'err' || a.level === 'warn'), false);
+
+  // Giao diện xem trước nhập Khối 10: có banner hợp chuẩn, đủ 7 cột cốt lõi + bảng II.2 Chuyên đề, không có cột Kết quả
+  sandbox.store.ppctImport = {
+    report: {
+      filename: 'KHDH_10.md',
+      grades: [10],
+      subject_name: 'Tin học',
+      summary: { new: 5, changed: 0, unchanged: 0, conflict: 0 },
+      lessons: parsed.map(item => ({
+        ...item,
+        lesson_name: item.lesson_name_source,
+        topic: item.topic_source,
+        status: 'new'
+      }))
+    }
+  };
+  const previewHtml = sandbox.ppctImportCard(10);
+  assert.match(previewHtml, /class="ppct-compliance-box"/);
+  assert.match(previewHtml, /ppct-khdh-table/);
+  assert.match(previewHtml, /Mục II\.2 · Chuyên đề học tập lựa chọn THPT/);
+  assert.match(previewHtml, /ppct-elective-table/);
+  assert.doesNotMatch(previewHtml, /ppct-col-status|<th>Kết quả<\/th>/);
+  assert.doesNotMatch(previewHtml, /<td class="small">/);
+
+  // Guard ma trận: chặn Chuyên đề THPT trong kiểm tra định kỳ (GK/CK), cho phép ở kiểm tra thường xuyên (TX)
+  const d = fixture();
+  const ppctWithCd = {
+    lessons: [
+      {
+        grade: 10,
+        subject_name: 'Tin học',
+        lesson_code: 'CD1',
+        section: 'elective_topic',
+        orientation: 'ICT',
+        lesson_name_source: 'Chuyên đề 1: Quản trị dự án',
+        outcomes: ['Lập kế hoạch dự án']
+      }
+    ]
+  };
+  const matrixGk1 = {
+    ...d.matrices[0],
+    grade: 10,
+    exam_type: 'GK1',
+    lessons: [{ lesson_code: 'CD1', section: 'elective_topic', outcomes: ['Lập kế hoạch dự án'] }],
+    requirements: d.matrices[0].requirements.map(r => ({
+      ...r,
+      lesson_code: 'CD1',
+      learning_outcome: 'Lập kế hoạch dự án'
+    }))
+  };
+  const resGk1 = engine.validateMatrix(matrixGk1, ppctWithCd);
+  assert.equal(resGk1.valid, false);
+  const cdErr = resGk1.errors.find(e => e.code === 'elective_in_periodic');
+  assert.ok(cdErr);
+  assert.match(cdErr.message, /TT 22\/2021/);
+
+  const resTx = engine.validateMatrix({ ...matrixGk1, exam_type: 'TX' }, ppctWithCd);
+  assert.equal(resTx.errors.some(e => e.code === 'elective_in_periodic'), false);
+});
+

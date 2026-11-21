@@ -299,7 +299,7 @@
     const parts = (m.slots || []).flatMap(s => s.parts || []);
     const totalScore = Math.round(parts.reduce((sum, p) => sum + Number(p.points || 0), 0) * 100) / 100;
     const isPerfect10 = totalScore === 10;
-    const allPpctLessons = lessons(m.grade).slice().sort((a, b) => lessonNaturalSortKey(a, null) - lessonNaturalSortKey(b, null));
+    const allPpctLessons = selectableLessons(m.grade, m.exam_type).slice().sort((a, b) => lessonNaturalSortKey(a, null) - lessonNaturalSortKey(b, null));
     const addedCodes = new Set((m.lessons || []).map(x => x.lesson_code));
     const availPpctLessons = allPpctLessons.filter(l => !addedCodes.has(l.lesson_code));
     const firstAvailCode = availPpctLessons[0]?.lesson_code || '';
@@ -727,6 +727,25 @@
   const uid=p=>p+'-'+Math.random().toString(36).slice(2,11);
   const qs=s=>ui.container.querySelector(s);
   const lessons=grade=>(Array.isArray(ui.ctx?.ppct?.lessons) ? ui.ctx.ppct.lessons : []).filter(l=>Number(l.grade)===Number(grade));
+  function lessonSectionOf(l){
+    const raw=String(l?.section||'').trim().toLowerCase();
+    if(['core','elective_topic','review','assessment'].includes(raw))return raw;
+    const code=String(l?.lesson_code||'').trim(),name=String(l?.lesson_name_source||l?.lesson_name||'').trim(),tp=String(l?.topic_source||l?.topic||'').trim();
+    if(/^(?:CD|CĐ)\d/i.test(code)||/^\s*Chuyên\s*đề\b/i.test(name)||/chuyên\s*đề/i.test(tp))return 'elective_topic';
+    if(/^KT(?:GK|CK)[12]$/i.test(code)||/^\s*Kiểm\s*tra\b/i.test(name))return 'assessment';
+    if(/^(?:OT|LT)(?:_HK[12])?(?:_\d+)?$/i.test(code)||/^\s*(?:Ôn\s*tập|Luyện\s*tập)\b/i.test(name))return 'review';
+    return 'core';
+  }
+  function selectableLessons(grade,examType=ui.editing?.exam_type,keepCodes=[]){
+    const keep=new Set(Array.isArray(keepCodes)?keepCodes:[]);
+    return lessons(grade).filter(l=>{
+      if(keep.has(l.lesson_code))return true;
+      const sec=lessonSectionOf(l);
+      if(sec==='assessment'||sec==='review')return false;
+      if(sec==='elective_topic'&&examType&&examType!=='TX')return false;
+      return true;
+    });
+  }
   function message(text,error=false){ui.ctx.notify(text,error);}
   function detail(e){const errors=e.details?.errors||e.details?.validation?.errors;return e.message+(errors?'\n'+errors.map(x=>x.message).join('\n'):'');}
   async function run(work){if(ui.busy)return;ui.busy=true;ui.container.querySelectorAll('button').forEach(b=>b.disabled=true);try{await work();}catch(e){message(detail(e),true);if(e.details?.errors){ui.report=e.details;renderReport();}}finally{ui.busy=false;ui.container.querySelectorAll('button').forEach(b=>b.disabled=false);restoreButtons();}}
@@ -841,8 +860,8 @@
       <summary style="cursor:pointer;font-weight:600;color:var(--muted);font-size:13px">⚙️ Tùy chỉnh danh sách từng câu hỏi & chỉ báo nâng cao (Hệ thống đã tự động liên kết từ Bảng 1 & Bảng 2)</summary>
       <div style="margin-top:14px">
         <h3 id="mx-lessons">Bài học & yêu cầu cần đạt chi tiết</h3><p class="muted">Khối ${m.grade}. Thầy/Cô có thể chỉnh sửa trực tiếp ở Bảng 2 (Bảng đặc tả) phía trên hoặc tùy chỉnh tại đây.</p>
-        ${!protectedFields?`<div class="actions"><label for="mx-add-lesson">Bài cần thêm</label><select id="mx-add-lesson">${lessons(m.grade).filter(l=>!m.lessons.some(x=>x.lesson_code===l.lesson_code)).map(l=>opt(l.lesson_code,l.lesson_name_source,false)).join('')}</select><button data-action="add-lesson">+ Thêm bài</button></div>`:''}
-        ${m.lessons.map((lesson,i)=>`<article class="mx-lesson"><div class="dialog-heading" style="margin-bottom:8px"><h4>${E(lesson.title)}</h4>${!protectedFields?`<button type="button" class="quiet danger" data-action="remove-lesson" data-index="${i}">Xóa bài này</button>`:''}</div>${select('Đối chiếu bài PPCT '+(i+1),`lessons.${i}.lesson_code`,opt('','Chọn bài đối chiếu',!lesson.lesson_code)+lessons(m.grade).map(l=>opt(l.lesson_code,l.lesson_name_source,l.lesson_code===lesson.lesson_code)).join(''),locked)}${!received?`<div class="form-grid">${field('Tên bài hiển thị '+(i+1),`lessons.${i}.title`,lesson.title,'text',locked)}${field('Tên chủ đề '+(i+1),`lessons.${i}.topic`,lesson.topic,'text',locked)}</div>`:`<p class="muted">Nguồn: ${E(lesson.topic)}</p>`}
+        ${!protectedFields?`<div class="actions"><label for="mx-add-lesson">Bài cần thêm</label><select id="mx-add-lesson">${selectableLessons(m.grade,m.exam_type).filter(l=>!m.lessons.some(x=>x.lesson_code===l.lesson_code)).map(l=>opt(l.lesson_code,l.lesson_name_source,false)).join('')}</select><button data-action="add-lesson">+ Thêm bài</button></div>`:''}
+        ${m.lessons.map((lesson,i)=>`<article class="mx-lesson"><div class="dialog-heading" style="margin-bottom:8px"><h4>${E(lesson.title)}</h4>${!protectedFields?`<button type="button" class="quiet danger" data-action="remove-lesson" data-index="${i}">Xóa bài này</button>`:''}</div>${select('Đối chiếu bài PPCT '+(i+1),`lessons.${i}.lesson_code`,opt('','Chọn bài đối chiếu',!lesson.lesson_code)+selectableLessons(m.grade,m.exam_type,[lesson.lesson_code]).map(l=>opt(l.lesson_code,l.lesson_name_source,l.lesson_code===lesson.lesson_code)).join(''),locked)}${!received?`<div class="form-grid">${field('Tên bài hiển thị '+(i+1),`lessons.${i}.title`,lesson.title,'text',locked)}${field('Tên chủ đề '+(i+1),`lessons.${i}.topic`,lesson.topic,'text',locked)}</div>`:`<p class="muted">Nguồn: ${E(lesson.topic)}</p>`}
         ${m.requirements.map((r,ri)=>r.lesson_code===lesson.lesson_code&&(!received||r.source_index===lesson.source_index)?requirementEditor(r,ri,locked,received):'').join('')}
         ${!protectedFields?`<button data-action="add-requirement" data-index="${i}">+ Thêm yêu cầu / chỉ báo kiểm tra</button>`:''}</article>`).join('')}
         ${(m.profile==='THPT'||m.competency_catalog?.length)?`<h3>Danh mục chỉ báo năng lực</h3><p class="muted">Giữ nguyên mã và mô tả chỉ báo của nguồn. Bảng phân bố năng lực được dựng từ các vị trí đã gắn mã.</p>${m.indicator_catalog.map((c,i)=>`<div class="form-grid mx-indicator">${field('Mã chỉ báo '+(i+1),`indicator_catalog.${i}.code`,c.code,'text',protectedFields)}${select('Năng lực của mã '+(i+1),`indicator_catalog.${i}.competency`,competencyOptions(c.competency),protectedFields)}${field('Mô tả chỉ báo '+(i+1),`indicator_catalog.${i}.text`,c.text,'text',protectedFields)}${!protectedFields?`<div class="field" style="justify-content:flex-end"><button type="button" class="quiet danger" data-action="remove-indicator" data-index="${i}">Xóa mã</button></div>`:''}</div>`).join('')}${!protectedFields?'<button data-action="add-indicator">+ Thêm mã chỉ báo</button>':''}`:''}

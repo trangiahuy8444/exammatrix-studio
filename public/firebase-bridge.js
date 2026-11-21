@@ -102,7 +102,8 @@
     bank: { questions: [], ppct: { lessons: [] } },
     exams: [],
     revisions: [],
-    matrices: []
+    matrices: [],
+    kttx: []
   };
 
   function getStorageData(uid) {
@@ -229,6 +230,7 @@
         if (cached.exams) currentWorkspaceData.exams = cached.exams;
         if (cached.revisions) currentWorkspaceData.revisions = cached.revisions;
         if (cached.matrices) currentWorkspaceData.matrices = cached.matrices;
+        if (Array.isArray(cached.kttx)) currentWorkspaceData.kttx = cached.kttx;
       }
     } catch(e) {}
     const cleared = currentWorkspaceData.bank.ppct?.cleared_grades || [];
@@ -375,6 +377,116 @@
       });
     });
     return lessons;
+  }
+
+  const KTTX_FORMS = [
+    { key: 'hoi_dap', label: 'Hỏi – đáp' },
+    { key: 'viet', label: 'Viết' },
+    { key: 'thuyet_trinh', label: 'Thuyết trình' },
+    { key: 'thuc_hanh', label: 'Thực hành' },
+    { key: 'thi_nghiem', label: 'Thí nghiệm' },
+    { key: 'san_pham', label: 'Sản phẩm học tập' }
+  ];
+  const KTTX_CLUSTER_FORM = { key: 'cum_chuyen_de', label: 'Kết quả cụm chuyên đề học tập (THPT)', min_grade: 10 };
+  const KTTX_FORM_KEYS = [...KTTX_FORMS.map(f => f.key), KTTX_CLUSTER_FORM.key];
+  const KTTX_TIN_PERIODS = { 6: 35, 7: 35, 8: 35, 9: 35, 10: 70, 11: 70, 12: 70 };
+
+  function kttxGradesFor(subj) {
+    const ctxGrades = window.store?.context?.allowed_grades;
+    if (Array.isArray(ctxGrades) && ctxGrades.length) return ctxGrades.map(Number);
+    return window.BankStaticEngine?.subjectContext?.(subj)?.allowed_grades || [6, 7, 8, 9, 10, 11, 12];
+  }
+
+  function kttxPeriodsPerYear(grade, subj) {
+    const declared = window.store?.context?.policy?.periods_per_year;
+    if (declared && typeof declared === 'object') {
+      const v = declared[String(grade)];
+      if (Number.isInteger(v) && v > 0) return v;
+    }
+    if ((subj || 'Tin học') === 'Tin học') return KTTX_TIN_PERIODS[Number(grade)] ?? null;
+    return null;
+  }
+
+  function txCountPerSemester(periodsPerYear) {
+    if (!Number.isInteger(periodsPerYear) || periodsPerYear <= 0) return null;
+    if (periodsPerYear <= 35) return 2;
+    if (periodsPerYear <= 70) return 3;
+    return 4;
+  }
+
+  function kttxActivityTitle(subj, grade, k, semester) {
+    const shortSubj = (subj || 'Tin học') === 'Tin học' ? 'Tin' : subj;
+    return `${shortSubj} ${grade}_Kiểm tra thường xuyên ${k} - HK ${Number(semester) === 1 ? 'I' : 'II'}`;
+  }
+
+  function buildKttxState(workspace, subj) {
+    const allActs = Array.isArray(workspace?.kttx) ? workspace.kttx : [];
+    const activities = JSON.parse(JSON.stringify(allActs.filter(a => (a.subject_name || 'Tin học') === subj)));
+    const grades = kttxGradesFor(subj);
+    const forms = KTTX_FORMS.map(f => ({ ...f }));
+    if (grades.some(g => g >= KTTX_CLUSTER_FORM.min_grade)) forms.push({ ...KTTX_CLUSTER_FORM });
+    const ppctLessons = Array.isArray(workspace?.bank?.ppct?.lessons) ? workspace.bank.ppct.lessons : [];
+    const elective_topics_by_grade = {};
+    for (const l of ppctLessons) {
+      const lSubj = l.subject_name || 'Tin học';
+      if (lSubj !== subj) continue;
+      const lg = Number(l.grade);
+      if (!grades.includes(lg)) continue;
+      const code = String(l.lesson_code || '');
+      const sec = normalizePpctSection(l.section, code, l.lesson_name_source || l.lesson_name, l.topic_source || l.topic);
+      if (sec === 'elective_topic') {
+        const occ = Array.isArray(l.occurrences) && l.occurrences[0] ? l.occurrences[0] : {};
+        (elective_topics_by_grade[String(lg)] ||= []).push({
+          lesson_code: code,
+          lesson_name_source: l.lesson_name_source || l.lesson_name || code,
+          orientation: String(l.orientation || detectPpctOrientation(`${l.topic_source || ''} ${l.lesson_name_source || ''}`) || ''),
+          duration_raw: String(occ.duration_raw || '')
+        });
+      }
+    }
+    const overview = [];
+    for (const grade of grades) {
+      for (const semester of [1, 2]) {
+        const mine = activities.filter(a => Number(a.grade) === grade && Number(a.semester) === semester);
+        const classes = [...new Set(mine.map(a => a.class_name || ''))].sort();
+        if (!classes.length) classes.push('');
+        for (const className of classes) {
+          const acts = mine.filter(a => (a.class_name || '') === className);
+          const recorded = acts.filter(a => a.recorded && a.form !== KTTX_CLUSTER_FORM.key).length;
+          const cluster = acts.filter(a => a.recorded && a.form === KTTX_CLUSTER_FORM.key).length;
+          const perYear = kttxPeriodsPerYear(grade, subj);
+          const required = perYear ? txCountPerSemester(perYear) : null;
+          let message = '';
+          if (required === null) {
+            message = 'Môn chưa khai báo số tiết/năm học nên chưa tính được số ĐĐGtx cần có.';
+          } else if (recorded === required) {
+            message = `Đủ ${required} ĐĐGtx (TT 22/2021, Điều 6).`;
+          } else if (recorded < required) {
+            message = `Đã chọn ${recorded}/${required} ĐĐGtx — thiếu ${required - recorded}. Chỉ là cảnh báo.`;
+          } else {
+            message = `Đã chọn ${recorded} ĐĐGtx, nhiều hơn ${required} cần ghi sổ. Chỉ là cảnh báo.`;
+          }
+          if (cluster === 1) {
+            message += ' Thêm 01 lần ĐGtx từ kết quả cụm chuyên đề học tập (Điều 6, khoản 3).';
+          } else if (cluster > 1) {
+            message += ` Đang chọn ${cluster} kết quả cụm chuyên đề; chỉ ghi 01 kết quả cụm chuyên đề (Điều 6, khoản 3).`;
+          }
+          overview.push({
+            grade,
+            semester,
+            class_name: className,
+            periods_per_year: perYear,
+            required,
+            recorded,
+            cluster_recorded: cluster,
+            activities: acts.length,
+            ok: required !== null && recorded === required && cluster <= 1,
+            message
+          });
+        }
+      }
+    }
+    return { activities, forms, elective_topics_by_grade, overview };
   }
 
   // Khung trạng thái toàn cục
@@ -906,9 +1018,137 @@
         return { bank: currentWorkspaceData.bank };
       }
 
-      // Tuyến Kiểm tra thường xuyên (KTTX)
+      // Tuyến Kiểm tra thường xuyên (KTTX — TT 22/2021, Điều 6)
       if (path === '/api/kttx') {
-        throw new Error('Quản lý KTTX chưa được hỗ trợ trên bản Pages. Hãy dùng bản máy chủ; ứng dụng không kết luận dữ liệu KTTX bằng 0.');
+        if (!Array.isArray(currentWorkspaceData.kttx)) currentWorkspaceData.kttx = [];
+        return buildKttxState(currentWorkspaceData, subj);
+      }
+
+      if (path === '/api/kttx/save') {
+        const p = (body && body.activity && typeof body.activity === 'object') ? body.activity : (body || {});
+        if (!p || typeof p !== 'object' || Array.isArray(p)) {
+          throw new Error('Dữ liệu hoạt động KTTX không hợp lệ.');
+        }
+        const grade = Number(p.grade);
+        const allowedGrades = kttxGradesFor(subj);
+        if (!Number.isInteger(grade) || !allowedGrades.includes(grade)) {
+          throw new Error('Khối không thuộc chương trình đang chọn.');
+        }
+        const semester = Number(p.semester);
+        if (![1, 2].includes(semester)) {
+          throw new Error('Học kì phải là 1 hoặc 2.');
+        }
+        const k = Number(p.k);
+        if (!Number.isInteger(k) || k < 1 || k > 20) {
+          throw new Error('Số thứ tự bài KTTX phải từ 1 đến 20.');
+        }
+        if (!KTTX_FORM_KEYS.includes(p.form)) {
+          throw new Error('Hình thức phải theo TT 22/2021, Điều 6, khoản 1.');
+        }
+        if (p.form === KTTX_CLUSTER_FORM.key && grade < KTTX_CLUSTER_FORM.min_grade) {
+          throw new Error('Cụm chuyên đề học tập chỉ có ở cấp THPT (TT 22/2021, Điều 6, khoản 3).');
+        }
+        const maxNum = Number(String(p.max_score ?? '10').trim().replace(',', '.'));
+        if (!Number.isFinite(maxNum) || maxNum <= 0 || maxNum > 1000) {
+          throw new Error('Thang điểm tối đa phải lớn hơn 0 và không quá 1000.');
+        }
+        const maxScoreStr = String(maxNum);
+        const className = String(p.class_name || '').trim().slice(0, 30);
+        const examId = p.exam_id || null;
+        if (examId) {
+          const exam = (currentWorkspaceData.exams || []).find(e => e.id === examId);
+          if (!exam || exam.exam_type !== 'TX' || Number(exam.grade) !== grade) {
+            throw new Error('Chỉ gắn được đề kiểm tra thường xuyên (TX) cùng khối.');
+          }
+        }
+        const rawCodes = p.lesson_codes || [];
+        if (!Array.isArray(rawCodes)) {
+          throw new Error('Danh sách mã bài KTTX không hợp lệ.');
+        }
+        const lessonCodes = [];
+        for (const c of rawCodes) {
+          const sc = String(c || '').trim();
+          if (sc && !lessonCodes.includes(sc)) lessonCodes.push(sc);
+        }
+        let orientation = String(p.orientation || '').trim();
+        if (p.form === KTTX_CLUSTER_FORM.key && !orientation && lessonCodes.length) {
+          const ppctL = (currentWorkspaceData.bank?.ppct?.lessons || []).find(l =>
+            Number(l.grade) === grade && (l.subject_name || 'Tin học') === subj && l.lesson_code === lessonCodes[0]
+          );
+          if (ppctL) {
+            orientation = ppctL.orientation || detectPpctOrientation(`${ppctL.topic_source || ''} ${ppctL.lesson_name_source || ''}`) || '';
+          }
+        }
+        if (!Array.isArray(currentWorkspaceData.kttx)) currentWorkspaceData.kttx = [];
+        const records = currentWorkspaceData.kttx;
+        const ident = p.id || null;
+        const old = ident ? records.find(a => a.id === ident) : null;
+        if (ident && !old) {
+          const err = new Error('Không tìm thấy hoạt động KTTX.');
+          err.status = 404;
+          throw err;
+        }
+        const dup = records.find(a =>
+          a.id !== ident &&
+          (a.subject_name || 'Tin học') === subj &&
+          Number(a.grade) === grade &&
+          (a.class_name || '') === className &&
+          Number(a.semester) === semester &&
+          Number(a.k) === k
+        );
+        if (dup) {
+          const err = new Error(`Đã có TX${k}-HK${semester} cho khối ${grade}${className ? ' lớp ' + className : ''}.`);
+          err.status = 409;
+          throw err;
+        }
+        const nowIso = new Date().toISOString();
+        const activity = {
+          id: ident || ('KTTX-' + Math.random().toString(16).slice(2, 14)),
+          code: `TX${k}-HK${semester}`,
+          subject_name: subj,
+          grade,
+          semester,
+          k,
+          class_name: className,
+          form: p.form,
+          max_score: maxScoreStr,
+          recorded: p.recorded === true,
+          exam_id: examId,
+          lesson_codes: lessonCodes,
+          orientation,
+          note: String(p.note || '').trim().slice(0, 500),
+          title: kttxActivityTitle(subj, grade, k, semester),
+          created_at: old?.created_at || nowIso,
+          updated_at: nowIso,
+          updated_by: window.FirebaseState.user?.email || 'local'
+        };
+        const nextAll = records.filter(a => a.id !== activity.id).concat([activity]);
+        nextAll.sort((a, b) => (Number(a.grade) - Number(b.grade)) || String(a.class_name || '').localeCompare(String(b.class_name || '')) || (Number(a.semester) - Number(b.semester)) || (Number(a.k) - Number(b.k)));
+        currentWorkspaceData.kttx = nextAll;
+        await syncToFirestore(uid, currentWorkspaceData);
+        if ((window.FirebaseState.user?.uid || 'offline') !== uid) {
+          throw new Error('Tài khoản đã thay đổi trong khi lưu KTTX.');
+        }
+        if (window.store) window.store.kttxActivities = JSON.parse(JSON.stringify(nextAll));
+        return { activity: JSON.parse(JSON.stringify(activity)), ...buildKttxState(currentWorkspaceData, subj) };
+      }
+
+      if (path === '/api/kttx/delete') {
+        const ident = body && body.id;
+        if (!Array.isArray(currentWorkspaceData.kttx)) currentWorkspaceData.kttx = [];
+        const remaining = currentWorkspaceData.kttx.filter(a => a.id !== ident);
+        if (remaining.length === currentWorkspaceData.kttx.length) {
+          const err = new Error('Không tìm thấy hoạt động KTTX.');
+          err.status = 404;
+          throw err;
+        }
+        currentWorkspaceData.kttx = remaining;
+        await syncToFirestore(uid, currentWorkspaceData);
+        if ((window.FirebaseState.user?.uid || 'offline') !== uid) {
+          throw new Error('Tài khoản đã thay đổi trong khi xóa KTTX.');
+        }
+        if (window.store) window.store.kttxActivities = JSON.parse(JSON.stringify(remaining));
+        return buildKttxState(currentWorkspaceData, subj);
       }
 
       throw new Error('Thao tác này chưa được hỗ trợ trên bản Pages. Không có dữ liệu nào được thay đổi.');
@@ -973,7 +1213,10 @@
         },
         exams: Array.isArray(nextData.exams) ? nextData.exams : [],
         revisions: Array.isArray(nextData.revisions) ? nextData.revisions : [],
-        matrices: Array.isArray(nextData.matrices) ? nextData.matrices : []
+        matrices: Array.isArray(nextData.matrices) ? nextData.matrices : [],
+        kttx: Array.isArray(nextData.kttx)
+          ? nextData.kttx
+          : (Array.isArray(currentWorkspaceData.kttx) ? currentWorkspaceData.kttx : [])
       }));
       try {
         currentWorkspaceData = normalized;
@@ -1227,8 +1470,8 @@
     if (!user || !user.uid) return;
     const status = document.getElementById('static-sync-status');
     const valid = data => data && data.bank && Array.isArray(data.bank.questions) && Array.isArray(data.bank.ppct?.lessons) && ['exams', 'revisions', 'matrices'].every(k => Array.isArray(data[k]));
-    const empty = () => ({ bank: { questions: [], ppct: { lessons: [], cleared_grades: [] }, competency_catalogs: [] }, exams: [], revisions: [], matrices: [] });
-    const install = data => { currentWorkspaceData = JSON.parse(JSON.stringify(data)); window.FirebaseState.currentData = currentWorkspaceData; applyWorkspaceToStore(); };
+    const empty = () => ({ bank: { questions: [], ppct: { lessons: [], cleared_grades: [] }, competency_catalogs: [] }, exams: [], revisions: [], matrices: [], kttx: [] });
+    const install = data => { currentWorkspaceData = JSON.parse(JSON.stringify({ ...data, kttx: Array.isArray(data?.kttx) ? data.kttx : [] })); window.FirebaseState.currentData = currentWorkspaceData; applyWorkspaceToStore(); };
 
     const syncCached = getStorageData(user.uid);
     install(valid(syncCached) ? syncCached : empty());
@@ -1315,6 +1558,7 @@
         exams: result.data.exams,
         revisions: result.data.revisions,
         matrices: result.data.matrices,
+        kttx: Array.isArray(result.data.kttx) ? result.data.kttx : [],
         _sync: { pending: false, provider: 'google-drive', synced_at: result.updatedAt || new Date().toISOString() }
       });
       await trySaveLocalCache(user.uid, currentWorkspaceData);
@@ -1337,8 +1581,8 @@
   async function loadFromFirestore(user, db, helpers) {
     const cached=getStorageData(user.uid),cacheAtStart=JSON.stringify(cached);
     const valid=data=>data&&data.bank&&Array.isArray(data.bank.questions)&&Array.isArray(data.bank.ppct?.lessons)&&['exams','revisions','matrices'].every(k=>Array.isArray(data[k]));
-    const empty=()=>({bank:{questions:[],ppct:{lessons:[],cleared_grades:[]}},exams:[],revisions:[],matrices:[]});
-    const install=data=>{currentWorkspaceData=JSON.parse(JSON.stringify(data));window.FirebaseState.currentData=currentWorkspaceData;applyWorkspaceToStore();};
+    const empty=()=>({bank:{questions:[],ppct:{lessons:[],cleared_grades:[]}},exams:[],revisions:[],matrices:[],kttx:[]});
+    const install=data=>{currentWorkspaceData=JSON.parse(JSON.stringify({...data,kttx:Array.isArray(data?.kttx)?data.kttx:[]}));window.FirebaseState.currentData=currentWorkspaceData;applyWorkspaceToStore();};
     install(valid(cached)?cached:empty());
     const status=document.getElementById('static-sync-status');
     if(cached?._sync?.pending&&valid(cached)){
@@ -1353,7 +1597,7 @@
       if(snap.exists()){
         const remote=snap.data();
         if(!valid(remote))throw new Error('Dữ liệu đám mây chưa đúng định dạng.');
-        install({bank:remote.bank,exams:remote.exams,revisions:remote.revisions,matrices:remote.matrices,_sync:{pending:false}});
+        install({bank:remote.bank,exams:remote.exams,revisions:remote.revisions,matrices:remote.matrices,kttx:Array.isArray(remote.kttx)?remote.kttx:[],_sync:{pending:false}});
       }
       // Tài khoản mới chỉ nhận cache của chính UID đó hoặc dữ liệu rỗng; không lấy ngân hàng ngoại tuyến.
       // Không ghi hoặc dọn dữ liệu đám mây trong một thao tác đọc; lần lưu đầu sẽ tạo workspace.
@@ -1381,6 +1625,7 @@
     window.store.exams = snapshot.exams;
     window.store.revisions = snapshot.revisions;
     window.store.matrixRecords = snapshot.matrices;
+    window.store.kttxActivities = Array.isArray(snapshot.kttx) ? snapshot.kttx : [];
     window.store.plans={};window.store.selected=new Set();
     window.store.activeExamViewId=null;window.store.activeRevisionViewId=null;
     if(typeof window.restoreExamDraft==='function')window.restoreExamDraft();
@@ -1395,6 +1640,7 @@
     currentWorkspaceData.exams = [];
     currentWorkspaceData.revisions = [];
     currentWorkspaceData.matrices = [];
+    currentWorkspaceData.kttx = [];
     initLocalWorkspace();
     applyWorkspaceToStore();
   }

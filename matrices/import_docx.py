@@ -183,7 +183,7 @@ def _compact_exact_lesson(title,grade,ppct):
 
 def _inspect_compact(raw,filename,grade,ppct,pair,header):
     mi,mt,profile=pair[0];si,st,_=pair[1]
-    if (grade==10)!=(profile=='THPT'):raise ServiceError('Khối đã chọn khác mẫu ma trận 10/6 cột.')
+    if (grade>=10)!=(profile=='THPT'):raise ServiceError('Khối đã chọn khác mẫu ma trận 10/6 cột.')
     exam_type='CK1' if re.search(r'cuoi\s+(?:hoc\s+)?(?:ky|ki)\s*(?:i|1)\b|cuoi\s+hk\s*1',plain(header+' '+filename)) else 'GK1'
     m=normalize_matrix(dict(grade=grade,mode='received',profile=profile,
         title=f'Ma trận {"Cuối" if exam_type=="CK1" else "Giữa"} HK1 Tin học {grade}',
@@ -294,7 +294,7 @@ def _inspect_compact(raw,filename,grade,ppct,pair,header):
 
 
 def inspect_docx(raw,filename,grade,ppct):
-    if type(grade) is not int or grade not in (8,9,10):raise ServiceError('Chọn khối trước khi nhập mẫu.')
+    if type(grade) is not int or grade not in (6,7,8,9,10,11,12):raise ServiceError('Chọn khối trước khi nhập mẫu.')
     if not isinstance(raw,bytes) or not 0<len(raw)<=MAX_UPLOAD_BYTES:raise ServiceError('Tệp Word trống hoặc lớn hơn 8 MB.')
     try:
         with zipfile.ZipFile(io.BytesIO(raw)) as z:

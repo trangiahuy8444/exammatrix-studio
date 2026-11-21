@@ -18,7 +18,24 @@ async function main(){
  const h=harness();assert.equal(h.window.FirebaseClient.canHandle('/api/state'),true);
  await assert.rejects(h.window.FirebaseClient.handle('/api/unknown',{}));
  await assert.rejects(h.window.FirebaseClient.handle('/api/test/reset',{}));
- await assert.rejects(h.window.FirebaseClient.handle('/api/kttx'));
+ const kttxH=harness();
+ kttxH.window.FirebaseState.currentData.bank.ppct.lessons.push({
+  grade:10,subject_name:'Tin học',section:'elective_topic',orientation:'ICT',
+  lesson_code:'CD1',lesson_name_source:'Chuyên đề 1: Quản trị dự án',
+  occurrences:[{duration_raw:'10'}],outcomes:['Lập kế hoạch dự án']
+ });
+ const kt0=await kttxH.window.FirebaseClient.handle('/api/kttx');
+ assert.ok(Array.isArray(kt0.activities)&&Array.isArray(kt0.overview));
+ assert.equal(kt0.elective_topics_by_grade['10'][0].lesson_code,'CD1');
+ await assert.rejects(kttxH.window.FirebaseClient.handle('/api/kttx/save',{activity:{grade:8,semester:1,k:1,form:'cum_chuyen_de',max_score:'10',recorded:true}}));
+ const ktSaved=await kttxH.window.FirebaseClient.handle('/api/kttx/save',{activity:{grade:10,semester:1,k:1,form:'cum_chuyen_de',max_score:'20',recorded:true,lesson_codes:['CD1'],orientation:'ICT'}});
+ assert.equal(ktSaved.activity.orientation,'ICT');
+ assert.deepEqual([...ktSaved.activity.lesson_codes],['CD1']);
+ const kt1=await kttxH.window.FirebaseClient.handle('/api/kttx');
+ const row10=kt1.overview.find(r=>r.grade===10&&r.semester===1);
+ assert.equal(row10.cluster_recorded,1);
+ await kttxH.window.FirebaseClient.handle('/api/kttx/delete',{id:ktSaved.activity.id});
+ assert.equal((await kttxH.window.FirebaseClient.handle('/api/kttx')).activities.length,0);
  const inspected=await h.window.FirebaseClient.handle('/api/exams/inspect-import',{candidates:[{verification:{passed:true}}]});
  assert.equal(inspected.all_passed,false);
  await assert.rejects(h.window.FirebaseClient.handle('/api/exams/import-verified',{candidates:inspected.candidates}));

@@ -145,3 +145,33 @@ class StudyTopicClusterTests(unittest.TestCase):
             a = svc.save_kttx(dict(grade=10, semester=1, k=1, form='cum_chuyen_de', max_score='10', recorded=True))
             self.assertEqual(a['form'], 'cum_chuyen_de')
             self.assertIn('cum_chuyen_de', [f['key'] for f in svc.kttx_state()['forms']])
+
+    def test_elective_topics_by_grade_and_lesson_codes_persistence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data = fixture()
+            data['ppct']['lessons'].append({
+                'grade': 10,
+                'section': 'elective_topic',
+                'orientation': 'ICT',
+                'lesson_code': 'CD1',
+                'lesson_name_source': 'Chuyên đề 1: Quản trị dự án',
+                'topic_source': 'Chuyên đề lựa chọn',
+                'occurrences': [{'duration_raw': '10'}],
+                'outcomes': ['Lập kế hoạch dự án'],
+            })
+            root = Path(tmp)
+            bank = root / 'bank.json'
+            bank.write_text(json.dumps(data, ensure_ascii=False))
+            svc = BankService(bank, root / 'data')
+            st0 = svc.kttx_state()
+            self.assertEqual([x['lesson_code'] for x in st0['elective_topics_by_grade'].get('10', [])], ['CD1'])
+            saved = svc.save_kttx({
+                'grade': 10, 'semester': 1, 'k': 1, 'form': 'cum_chuyen_de',
+                'max_score': '20', 'recorded': True,
+                'lesson_codes': ['CD1', 'CD2'], 'orientation': 'ICT',
+            })
+            self.assertEqual(saved['lesson_codes'], ['CD1', 'CD2'])
+            self.assertEqual(saved['orientation'], 'ICT')
+            st1 = svc.kttx_state()
+            self.assertEqual(st1['activities'][0]['lesson_codes'], ['CD1', 'CD2'])
+            self.assertEqual(st1['activities'][0]['orientation'], 'ICT')

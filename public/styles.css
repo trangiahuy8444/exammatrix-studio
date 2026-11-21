@@ -584,3 +584,8 @@ nav a[aria-current=page] {
 .ppct-tag-review { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
 .ppct-tag-orient { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
 .ppct-periodic-table th, .ppct-periodic-table td { vertical-align: top; }
+.kttx-cluster-box { margin: 12px 0; padding: 12px 14px; background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; }
+.kttx-lesson-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.kttx-lesson-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; font-size: 13px; cursor: pointer; }
+.yn-edit-grid { display: flex; flex-direction: column; gap: 10px; }
+.yn-edit-row { display: grid; grid-template-columns: 56px 1fr 130px; gap: 10px; align-items: start; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }

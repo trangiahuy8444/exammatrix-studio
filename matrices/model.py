@@ -130,11 +130,21 @@ def validate_matrix(matrix, ppct, for_lock=False):
     try:
         if number(m.get('total_points'),'Tổng điểm') != 10:error('total','total_points','Tổng điểm phải bằng 10.')
     except ServiceError:error('points','total_points','Tổng điểm không hợp lệ.')
+    from ppct_import import normalize_section
     lessons = {}
     for l in arrays['lessons']:
         code=l.get('lesson_code')
         if not isinstance(code,str) or code in lessons or (grade,code) not in catalog:
             error('lesson','lessons','Bài học trùng hoặc không thuộc PPCT của khối.');continue
+        cat = catalog[(grade, code)]
+        sec = normalize_section(cat.get('section', ''), code, cat.get('lesson_name_source', ''), cat.get('topic_source', ''))
+        if sec == 'elective_topic':
+            if grade is not None and grade < 10:
+                error('elective_in_thcs', 'lessons', 'Cấp THCS không có cụm Chuyên đề học tập lựa chọn (TT 32/2018 & Phụ lục I CV 5512).')
+            elif m.get('exam_type') != 'TX':
+                error('elective_in_periodic', 'lessons', 'Cụm chuyên đề học tập không thuộc phạm vi đánh giá định kỳ (TT 22/2021, Điều 7, khoản 1). Chỉ sử dụng cho kiểm tra thường xuyên (TX).')
+        elif sec in ('assessment', 'review'):
+            error('lesson_non_instructional', 'lessons', 'Dòng Ôn tập / Kiểm tra định kỳ không dùng làm đơn vị kiến thức ra đề trong ma trận.')
         if not all(isinstance(l.get(k),str) and l[k].strip() for k in ('title','topic')):error('lesson_title','lessons','Cần tên bài và chủ đề.')
         lessons[code]=l
     from .competency_catalog import validate_rows, validate_indicators

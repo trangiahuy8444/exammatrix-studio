@@ -362,9 +362,9 @@ def _parse_question_block(paragraphs: list[str], grade: int, mc_answers: dict[in
             if slot_num in es_rubrics and es_rubrics[slot_num]:
                 current['rubric'] = copy.deepcopy(es_rubrics[slot_num])
             elif not current.get('rubric'):
-                pts = current.get('points', 0.75 if grade == 10 else 1.0)
+                pts = current.get('points', 0.75 if grade >= 10 else 1.0)
                 current['rubric'] = [{'criterion': 'Trả lời đúng đầy đủ các ý theo hướng dẫn chấm.', 'points': pts}]
-            current['max_score'] = current.get('points', 0.75 if grade == 10 else 1.0)
+            current['max_score'] = current.get('points', 0.75 if grade >= 10 else 1.0)
             current.setdefault('equivalent_answer_policy', 'Chấp nhận cách diễn đạt tương đương nếu đúng bản chất khoa học.')
         questions.append(current)
         current = None
@@ -404,7 +404,7 @@ def _parse_question_block(paragraphs: list[str], grade: int, mc_answers: dict[in
                     pts_raw = m_pts.group(1)
                     stem = m_pts.group(2).strip()
             pts = float(pts_raw.replace(',', '.')) if pts_raw else (
-                0.25 if section == 'MC' else (1.0 if section == 'YN' else (0.75 if grade == 10 else 1.0))
+                0.25 if section == 'MC' else (1.0 if section == 'YN' else (0.75 if grade >= 10 else 1.0))
             )
             current = {
                 'type': section,
@@ -452,13 +452,13 @@ def _parse_question_block(paragraphs: list[str], grade: int, mc_answers: dict[in
                 current['question'] = (current['question'] + '\n' + s).strip()
         elif current['type'] == 'ES':
             m_sub = re.match(r'^([a-c])\)\s*(.*)$', s, flags=re.I)
-            m_pt = re.search(r'\(([\d,.]+)\s*đ(?:iểm)?\)\s*$', s, flags=re.I) if (not m_sub and grade == 10) else None
-            if m_sub and grade == 10:
+            m_pt = re.search(r'\(([\d,.]+)\s*đ(?:iểm)?\)\s*$', s, flags=re.I) if (not m_sub and grade >= 10) else None
+            if m_sub and grade >= 10:
                 lbl = m_sub.group(1).lower()
                 sub_txt = m_sub.group(2).strip()
                 current['sub_items'].append({'label': lbl, 'text': sub_txt, 'points': 0.25, 'level': 'Vận dụng'})
                 current['question'] = (current['question'] + f'\n{lbl}) {sub_txt}').strip()
-            elif m_pt and grade == 10 and len(current.get('sub_items', [])) < 3:
+            elif m_pt and grade >= 10 and len(current.get('sub_items', [])) < 3:
                 lbl = chr(ord('a') + len(current['sub_items']))
                 sub_txt = s.strip()
                 pts = float(m_pt.group(1).replace(',', '.'))

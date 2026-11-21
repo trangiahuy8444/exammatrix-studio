@@ -394,5 +394,92 @@ class ImportFlowTests(unittest.TestCase):
             reloaded._cells_from_matrix(bad_matrix, 10, 'CK1')
 
 
+class FiveModulesUpgradeTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.dir = Path(self.tmp.name)
+
+    def test_validate_matrix_blocks_elective_in_thcs_periodic_and_non_instructional_lessons(self):
+        from matrices.model import validate_matrix
+
+        ppct = {
+            '_context': {'allowed_grades': (6, 7, 8, 9, 10, 11, 12)},
+            'lessons': [
+                {'grade': 8, 'lesson_code': 'CD1', 'section': 'elective_topic', 'lesson_name_source': 'Chuyên đề 1', 'topic_source': 'Chuyên đề', 'outcomes': ['YCCĐ CD1']},
+                {'grade': 10, 'lesson_code': 'CD1', 'section': 'elective_topic', 'orientation': 'ICT', 'lesson_name_source': 'Chuyên đề 1', 'topic_source': 'Chuyên đề lựa chọn', 'outcomes': ['YCCĐ CD1']},
+                {'grade': 10, 'lesson_code': 'KTGK1', 'section': 'assessment', 'lesson_name_source': 'Kiểm tra giữa HK1', 'topic_source': 'Đánh giá', 'outcomes': ['Kiểm tra']},
+            ],
+        }
+        base = {
+            'grade': 8, 'profile': 'THCS', 'mode': 'authored', 'exam_type': 'GK1', 'duration': 45,
+            'title': 'Ma trận thử nghiệm', 'school_year': '2026-2027', 'total_points': 10,
+            'indicator_catalog': [],
+            'lessons': [{'lesson_code': 'CD1', 'title': 'Chuyên đề 1', 'topic': 'Chuyên đề'}],
+            'requirements': [{'id': 'r1', 'lesson_code': 'CD1', 'level': 'Biết', 'ppct_outcome_index': 0, 'competency': 'NLa', 'text': 'YCCĐ CD1'}],
+            'slots': [{'id': 's1', 'requirement_id': 'r1', 'kind': 'MC', 'points': 10}],
+        }
+        res_thcs = validate_matrix(base, ppct)
+        self.assertIn('elective_in_thcs', [e['code'] for e in res_thcs['errors']])
+
+        res_thpt_gk = validate_matrix({**base, 'grade': 10, 'profile': 'THPT', 'exam_type': 'GK1', 'indicator_catalog': [{'code': 'NLa.1', 'competency': 'NLa', 'description': 'YCCĐ'}]}, ppct)
+        self.assertIn('elective_in_periodic', [e['code'] for e in res_thpt_gk['errors']])
+
+        res_thpt_tx = validate_matrix({**base, 'grade': 10, 'profile': 'THPT', 'exam_type': 'TX', 'indicator_catalog': [{'code': 'NLa.1', 'competency': 'NLa', 'description': 'YCCĐ'}]}, ppct)
+        self.assertNotIn('elective_in_periodic', [e['code'] for e in res_thpt_tx['errors']])
+
+        res_assess = validate_matrix({
+            **base, 'grade': 10, 'profile': 'THPT', 'exam_type': 'GK1', 'indicator_catalog': [],
+            'lessons': [{'lesson_code': 'KTGK1', 'title': 'Kiểm tra giữa HK1', 'topic': 'Đánh giá'}],
+            'requirements': [{'id': 'r1', 'lesson_code': 'KTGK1', 'level': 'Biết', 'ppct_outcome_index': 0, 'competency': 'NLa', 'text': 'Kiểm tra'}],
+        }, ppct)
+        self.assertIn('lesson_non_instructional', [e['code'] for e in res_assess['errors']])
+
+    def test_import_docx_accepts_grades_11_and_12_and_save_revision_rejects_elective(self):
+        from matrices.import_docx import inspect_docx
+        from tests.test_compact_matrix_import import THPT_MATRIX, THPT_SPEC, add_table
+
+        for grade in (11, 12):
+            doc = docx.Document()
+            add_table(doc, [[f'Tin học {grade}', 'CUỐI HỌC KỲ I 2026-2027']])
+            add_table(doc, [
+                THPT_MATRIX,
+                ['', '', 'Biết', 'Hiểu', 'Biết (a,b)', 'Hiểu/VD (c,d)', 'Vận dụng', 'Vận dụng cao', '', ''],
+                ['1', 'Bài học minh họa', '1 (1)', '1 (2)', '2 (1a, 1b)', '2 (1c, 1d)', '1 (1)', '1 (2)', '3.50', '35'],
+            ])
+            add_table(doc, [
+                THPT_SPEC,
+                ['1', 'Bài học minh họa', 'MC - Biết', 'Nhận diện thành phần minh họa.', '1 câu', 'MC-1'],
+                ['', '', 'ES - Vận dụng cao', 'Đề xuất cách xử lý minh họa.', '1 câu', 'ES-2'],
+            ])
+            buf = io.BytesIO()
+            doc.save(buf)
+            ppct = {'lessons': [{'grade': grade, 'lesson_code': 'B1', 'lesson_name_source': 'Bài 1. Bài học minh họa', 'outcomes': ['Nhận diện thành phần minh họa.', 'Đề xuất cách xử lý minh họa.']}]}
+            report = inspect_docx(buf.getvalue(), f'Ma_tran_{grade}.docx', grade, ppct)
+            self.assertEqual(report['candidate']['profile'], 'THPT')
+            self.assertEqual(report['candidate']['grade'], grade)
+            self.assertIn('matrix_counts', report['candidate']['source']['compact'])
+
+        bank_data = empty_bank(
+            lessons=[
+                {'grade': 10, 'section': 'elective_topic', 'orientation': 'ICT', 'lesson_code': 'CD1', 'lesson_name_source': 'Chuyên đề 1', 'topic_source': 'Chuyên đề', 'outcomes': ['YCCĐ CD1'], 'occurrences': []},
+            ],
+            questions=[
+                {
+                    'id': 'K10-CD1-MC-01', 'grade': 10, 'lesson_code': 'CD1', 'ppct_section': 'elective_topic',
+                    'type': 'MC', 'level': 'Biết', 'review_status': 'approved',
+                    'question': 'Câu hỏi chuyên đề minh họa?', 'options': ['A', 'B', 'C', 'D'], 'correct': 0,
+                    'option_explanations': ['Đúng', 'Sai', 'Sai', 'Sai'],
+                    'learning_outcome': 'YCCĐ CD1',
+                }
+            ],
+        )
+        path = self.dir / 'bank.json'
+        path.write_text(json.dumps(bank_data, ensure_ascii=False))
+        svc = BankService(path, self.dir, context={'allowed_grades': (10, 11, 12), 'school_profile': False})
+        with self.assertRaises(ServiceError):
+            svc.save_revision({'title': 'Đề cương GK1', 'grade': 10, 'exam_type': 'GK1', 'question_ids': ['K10-CD1-MC-01']})
+
+
 if __name__ == '__main__':
     unittest.main()

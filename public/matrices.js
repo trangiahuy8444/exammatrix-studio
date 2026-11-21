@@ -746,6 +746,71 @@
       return true;
     });
   }
+  function computeCv7991Warnings(m){
+    if(!m||m.profile!=='THPT'||!['GK1','CK1','GK2','CK2'].includes(m.exam_type))return [];
+    const rawTol=m.ratio_tolerance;
+    const tol=(rawTol===undefined||rawTol===null||rawTol==='')?0.5:Number(rawTol);
+    if(!Number.isFinite(tol)||tol<0)return [];
+    const reqs=new Map((m.requirements||[]).filter(Boolean).map(r=>[r.id,r]));
+    const byKind={MC:0,YN:0,SHORT:0,ES:0};
+    const byLevel={'Biết':0,'Hiểu':0,'Vận dụng':0};
+    let hasVdc=false;
+    for(const s of (m.slots||[])){
+      for(const p of (s.parts||[])){
+        const pts=Number(p.points)||0;
+        if(Object.prototype.hasOwnProperty.call(byKind,s.kind))byKind[s.kind]+=pts;
+        const lv=reqs.get(p.requirement_id)?.level;
+        if(lv==='Vận dụng cao'){hasVdc=true;byLevel['Vận dụng']+=pts;}
+        else if(Object.prototype.hasOwnProperty.call(byLevel,lv))byLevel[lv]+=pts;
+      }
+    }
+    const kindNames={MC:'Nhiều lựa chọn',YN:'Đúng – Sai',SHORT:'Trả lời ngắn',ES:'Tự luận'};
+    const targets={MC:3,YN:2,SHORT:2,ES:3};
+    if(byKind.SHORT<1e-9){targets.YN+=targets.SHORT;delete targets.SHORT;delete byKind.SHORT;}
+    const fmt=n=>String(Math.round(n*1000)/1000).replace('.',',');
+    const out=[];
+    for(const [k,t] of Object.entries(targets)){
+      const diff=byKind[k]-t;
+      if(Math.abs(diff)>tol+1e-9){
+        out.push({code:'ratio_kind',message:`${kindNames[k]}: ${fmt(byKind[k])} điểm; CV 7991 tham khảo khoảng ${fmt(t)} điểm (lệch ${fmt(Math.abs(diff))}, vượt ngưỡng nội bộ ±${fmt(tol)}). Chỉ là cảnh báo.`});
+      }
+    }
+    for(const [lv,t] of Object.entries({'Biết':4,'Hiểu':3,'Vận dụng':3})){
+      const diff=byLevel[lv]-t;
+      if(Math.abs(diff)>tol+1e-9){
+        const label=(lv==='Vận dụng'&&hasVdc)?'Mức Vận dụng + Vận dụng cao (quy đổi kỹ thuật để so tham khảo ba mức)':'Mức '+lv;
+        out.push({code:'ratio_level',message:`${label}: ${fmt(byLevel[lv])} điểm; CV 7991 tham khảo khoảng ${fmt(t)} điểm (lệch ${fmt(Math.abs(diff))}, vượt ngưỡng nội bộ ±${fmt(tol)}). Chỉ là cảnh báo.`});
+      }
+    }
+    return out;
+  }
+  function renderMatrixGuidanceBanner(m){
+    if(!m)return '';
+    const g=Number(m.grade)||0;
+    const isTx=m.exam_type==='TX';
+    const isThpt=m.profile==='THPT'||g>=10;
+    const ppctByCode=new Map(lessons(g).map(l=>[l.lesson_code,l]));
+    const electiveSelected=(m.lessons||[]).filter(l=>{
+      const pl=ppctByCode.get(l.lesson_code);
+      return lessonSectionOf(pl||l)==='elective_topic';
+    });
+    const parts=[];
+    if(isThpt&&!isTx){
+      parts.push('<div class="callout"><strong>Quy chuẩn THPT định kỳ (CV 7991 &amp; TT 22/2021 Điều 7.1):</strong> Tỉ lệ tham khảo dạng câu <em>MC 3đ · Đ/S 2đ · TLN 2đ · TL 3đ</em> (hoặc <em>MC 3đ · Đ/S 4đ · TL 3đ</em> nếu không dùng TLN); mức độ <em>Biết 4đ · Hiểu 3đ · VD+VDC 3đ</em>. Chỉ dùng bài <strong>Phần cốt lõi (Mục II.1)</strong>, không đưa Chuyên đề học tập vào kiểm tra giữa kỳ/cuối kỳ.</div>');
+    }else if(isThpt&&isTx){
+      parts.push('<div class="callout"><strong>Quy chuẩn THPT KTTX (TT 22/2021 Điều 6.3):</strong> Đánh giá thường xuyên được phép chọn bài <strong>Phần cốt lõi (Mục II.1)</strong> hoặc <strong>[CĐHT] Chuyên đề lựa chọn (Mục II.2)</strong>. Kết quả bài TX làm tròn đến số nguyên.</div>');
+    }else{
+      parts.push('<div class="callout"><strong>Quy chuẩn THCS (Mẫu Á Châu · TT 22/2021):</strong> Gồm câu <strong>Trắc nghiệm (MC)</strong> và <strong>Tự luận (ES)</strong> phân bố theo 4 mức độ (Biết, Hiểu, Vận dụng, Vận dụng cao); cấp THCS không có Chuyên đề lựa chọn.</div>');
+    }
+    if(!isTx&&electiveSelected.length){
+      parts.push(`<div class="callout error"><strong>⚠️ Vi phạm phạm vi TT 22/2021 (Điều 7, khoản 1):</strong> Kỳ kiểm tra định kỳ (${E(m.exam_type)}) đang chứa ${electiveSelected.length} Chuyên đề lựa chọn (${electiveSelected.map(x=>E(x.lesson_code)).join(', ')}). Hãy chuyển sang kỳ <strong>Thường xuyên (TX)</strong> hoặc gỡ các Chuyên đề khỏi ma trận định kỳ.</div>`);
+    }
+    const cvWarnings=computeCv7991Warnings(m);
+    if(cvWarnings.length){
+      parts.push(`<div class="callout warning"><strong>Cảnh báo tỉ lệ tham khảo CV 7991 (không chặn lưu/khóa)</strong><ul>${cvWarnings.map(w=>`<li>${E(w.message)}</li>`).join('')}</ul></div>`);
+    }
+    return parts.join('');
+  }
   function message(text,error=false){ui.ctx.notify(text,error);}
   function detail(e){const errors=e.details?.errors||e.details?.validation?.errors;return e.message+(errors?'\n'+errors.map(x=>x.message).join('\n'):'');}
   async function run(work){if(ui.busy)return;ui.busy=true;ui.container.querySelectorAll('button').forEach(b=>b.disabled=true);try{await work();}catch(e){message(detail(e),true);if(e.details?.errors){ui.report=e.details;renderReport();}}finally{ui.busy=false;ui.container.querySelectorAll('button').forEach(b=>b.disabled=false);restoreButtons();}}
@@ -853,6 +918,7 @@
     <div class="mx-section-nav"><button type="button" data-scroll="mx-information">Thông tin</button><button type="button" data-scroll="mx-grid">1. Bảng ma trận 2D ${m.matrix_locked ? '🔒' : ''}</button><button type="button" data-scroll="mx-spec-grid">2. Bảng đặc tả ${m.spec_locked ? '🔒' : ''}</button><button type="button" data-scroll="mx-output">3. Word & chốt phiên bản</button></div>
     ${received?'<div class="callout">Đang ở chế độ bảo toàn chỉ tiêu nguồn (chỉ bổ sung ánh xạ PPCT và số câu). Nếu bạn muốn thêm/sửa/xóa bài học, YCCĐ hoặc phân bố câu hỏi trực tiếp, hãy bấm nút <strong>"🔓 Bật sửa toàn diện"</strong> ở góc phải phía trên.</div>':''}
     <h3 id="mx-information">1. Thông tin hồ sơ</h3><div class="form-grid">${field('Tên hồ sơ','title',m.title,'text',locked)}${select('Khối lớp','grade',grades().map(g=>opt(g,'Khối '+g,Number(m.grade)===g)).join(),protectedFields)}${field('Người phụ trách biên soạn','owner_name',m.owner_name,'text',locked)}${field('Cơ sở của người phụ trách','campus',m.campus,'text',locked)}${field('Năm học','school_year',m.school_year,'text',protectedFields)}${select('Kỳ kiểm tra','exam_type',Object.entries(periods).map(([k,v])=>opt(k,v,k===m.exam_type)).join(''),protectedFields)}${field('Thời gian (phút)','duration',m.duration,'number',protectedFields)}${select('Kiểu mẫu','profile',(generic()?['GENERAL']:['THCS','THPT']).map(k=>opt(k,profileLabel(k),k===m.profile)).join(''),protectedFields)}</div>
+    ${renderMatrixGuidanceBanner(m)}
     ${profileOptionsHtml(m,locked)}
     <div id="mx-grid">${matrixGridHtml(m, matrixLocked, received)}</div>
     <div id="mx-spec-grid">${specGridHtml(m, specLocked, received)}</div>
@@ -956,8 +1022,15 @@
       const newGrade=Number(value);
       ui.editing.grade=newGrade;
       ui.editing.profile=generic()?'GENERAL':newGrade>=10?'THPT':'THCS';
-      ui.editing.title=`Ma trận Giữa HK1 ${subject()} ${newGrade}`;
-      const pl=lessons(newGrade);
+      if(newGrade>=10&&!generic()&&subject(ui.editing)==='Tin học'&&!(ui.editing.indicator_catalog||[]).length){
+        ui.editing.indicator_catalog=[
+          {code:'NLa',competency:'NLa',text:'Nhận biết và giải thích các khái niệm tin học cơ bản.'},
+          {code:'NLb',competency:'NLb',text:'Sử dụng và ứng dụng công nghệ thông tin trong học tập.'},
+          {code:'NLc',competency:'NLc',text:'Tư duy giải quyết vấn đề với sự trợ giúp của máy tính.'}
+        ];
+      }
+      ui.editing.title=`Ma trận ${periods[ui.editing.exam_type]||'Giữa HK1'} ${subject()} ${newGrade}`;
+      const pl=selectableLessons(newGrade,ui.editing.exam_type);
       if(pl.length){
         ui.editing.lessons=pl.slice(0,newGrade>=10?8:5).map(l=>({
           lesson_code:l.lesson_code,
@@ -971,6 +1044,19 @@
       renderEditor();
       message('Đã chuyển sang Khối ' + newGrade + ' và nạp danh sách bài học tương ứng.');
       return;
+    }else if(key==='exam_type'){
+      if(value==='TX'&&Number(ui.editing.duration)===45)ui.editing.duration=15;
+      else if(value!=='TX'&&Number(ui.editing.duration)===15)ui.editing.duration=45;
+      renderEditor();
+    }else if(key==='profile'){
+      if(value==='THPT'&&subject(ui.editing)==='Tin học'&&!(ui.editing.indicator_catalog||[]).length){
+        ui.editing.indicator_catalog=[
+          {code:'NLa',competency:'NLa',text:'Nhận biết và giải thích các khái niệm tin học cơ bản.'},
+          {code:'NLb',competency:'NLb',text:'Sử dụng và ứng dụng công nghệ thông tin trong học tập.'},
+          {code:'NLc',competency:'NLc',text:'Tư duy giải quyết vấn đề với sự trợ giúp của máy tính.'}
+        ];
+      }
+      renderEditor();
     }else if(path[0]==='lessons'&&key==='lesson_code'){
       const lesson=ui.editing.lessons[Number(path[1])];
       ui.editing.requirements.forEach(r=>{if(ui.editing.mode==='received'&&!ui.editing.allow_custom_override?r.source_index===lesson.source_index:r.lesson_code===previous){r.lesson_code=value;r.ppct_outcome_index=null;}});
@@ -978,7 +1064,7 @@
     }else if(key==='ppct_outcome_index'&&(ui.editing.mode==='authored'||ui.editing.allow_custom_override)){
       const r=object,l=lessons(ui.editing.grade).find(x=>x.lesson_code===r.lesson_code);
       if(!r.text&&value!==null){r.text=l?.outcomes[value]||'';renderEditor();}
-    }else if(el.tagName==='SELECT'&&['level','profile','competency'].includes(key))renderEditor();
+    }else if(el.tagName==='SELECT'&&['level','competency'].includes(key))renderEditor();
   }
   function captureGeneration(){if(!ui.generation||!qs('#mx-exam-title'))return;const values={};ui.container.querySelectorAll('[id^=mx-exam-],[data-choice],[data-review-slot]').forEach(el=>{const key=el.dataset.reviewSlot?'review:'+el.dataset.reviewSlot+':'+el.value:el.id;values[key]=el.type==='checkbox'?el.checked:el.value;});ui.generation.formValues=values;}
   function input(event){
@@ -2614,11 +2700,61 @@
 
   function downloadMatrixJsonSample(grade = 9) {
     const g = Number(grade) || 9;
-    const sample = {
+    const isHigh = g >= 10;
+    const sample = isHigh ? {
       format: 'asian-school-matrix',
       schema_version: 1,
       matrix: {
-        profile: g >= 10 ? 'THPT' : 'THCS',
+        profile: 'THPT',
+        grade: g,
+        exam_type: 'GK1',
+        duration: 45,
+        school_year: '2026-2027',
+        title: `Ma trận & đặc tả Kiểm tra Giữa HK1 · Môn Tin học Khối ${g} (CV 7991)`,
+        owner_name: 'Tổ Tin học Á Châu',
+        campus: 'Cao Thắng',
+        total_points: 10,
+        lessons: [
+          { lesson_code: 'B1', title: 'Thông tin và xử lí thông tin số', topic: 'Chủ đề A. Máy tính và xã hội tri thức (Mục II.1 cốt lõi)' },
+          { lesson_code: 'B2', title: 'Mạng máy tính và an toàn số', topic: 'Chủ đề B. Mạng máy tính và Internet (Mục II.1 cốt lõi)' }
+        ],
+        requirements: [
+          { id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'Nhận biết khái niệm thông tin, dữ liệu và thiết bị số.', ppct_outcome_index: 0, competency: 'NLa' },
+          { id: 'R2', lesson_code: 'B1', level: 'Hiểu', text: 'Phân tích được quy trình xử lí và lưu trữ dữ liệu số.', ppct_outcome_index: 1, competency: 'NLb' },
+          { id: 'R3', lesson_code: 'B2', level: 'Vận dụng', text: 'Vận dụng biện pháp bảo mật, an toàn thông tin trong thực tiễn.', ppct_outcome_index: 0, competency: 'NLc' },
+          { id: 'R4', lesson_code: 'B2', level: 'Vận dụng cao', text: 'Đề xuất và tối ưu giải pháp bảo vệ hệ thống số.', ppct_outcome_index: 1, competency: 'NLc' }
+        ],
+        indicator_catalog: [
+          { code: 'NLa', competency: 'NLa', text: 'Sử dụng và quản lí thiết bị công nghệ thông tin.' },
+          { code: 'NLb', competency: 'NLb', text: 'Ứng xử phù hợp và an toàn trong môi trường số.' },
+          { code: 'NLc', competency: 'NLc', text: 'Giải quyết vấn đề với sự hỗ trợ của công nghệ thông tin.' }
+        ],
+        slots: [
+          ...Array.from({ length: 8 }, (_, idx) => ({ id: `S${idx + 1}`, kind: 'MC', number: idx + 1, parts: [{ id: `P${idx + 1}`, label: '', requirement_id: 'R1', points: 0.25, indicator: 'NLa' }], scoring: { mode: 'sum_parts' } })),
+          ...Array.from({ length: 4 }, (_, idx) => ({ id: `S${idx + 9}`, kind: 'MC', number: idx + 9, parts: [{ id: `P${idx + 9}`, label: '', requirement_id: 'R2', points: 0.25, indicator: 'NLb' }], scoring: { mode: 'sum_parts' } })),
+          { id: 'S13', kind: 'YN', number: 1, parts: [
+            { id: 'P13a', label: 'a', requirement_id: 'R1', points: 0.25, indicator: 'NLa' },
+            { id: 'P13b', label: 'b', requirement_id: 'R2', points: 0.25, indicator: 'NLb' },
+            { id: 'P13c', label: 'c', requirement_id: 'R3', points: 0.25, indicator: 'NLc' },
+            { id: 'P13d', label: 'd', requirement_id: 'R3', points: 0.25, indicator: 'NLc' }
+          ], scoring: { mode: 'sum_parts' } },
+          { id: 'S14', kind: 'YN', number: 2, parts: [
+            { id: 'P14a', label: 'a', requirement_id: 'R1', points: 0.25, indicator: 'NLa' },
+            { id: 'P14b', label: 'b', requirement_id: 'R2', points: 0.25, indicator: 'NLb' },
+            { id: 'P14c', label: 'c', requirement_id: 'R2', points: 0.25, indicator: 'NLb' },
+            { id: 'P14d', label: 'd', requirement_id: 'R3', points: 0.25, indicator: 'NLc' }
+          ], scoring: { mode: 'sum_parts' } },
+          ...Array.from({ length: 4 }, (_, idx) => ({ id: `S${idx + 15}`, kind: 'SHORT', number: idx + 1, parts: [{ id: `P${idx + 15}`, label: '', requirement_id: idx < 2 ? 'R2' : 'R3', points: 0.5, indicator: idx < 2 ? 'NLb' : 'NLc' }], scoring: { mode: 'sum_parts' } })),
+          { id: 'S19', kind: 'ES', number: 1, parts: [{ id: 'P19', label: '', requirement_id: 'R3', points: 1.0, indicator: 'NLc' }], scoring: { mode: 'sum_parts' } },
+          { id: 'S20', kind: 'ES', number: 2, parts: [{ id: 'P20', label: '', requirement_id: 'R3', points: 1.0, indicator: 'NLc' }], scoring: { mode: 'sum_parts' } },
+          { id: 'S21', kind: 'ES', number: 3, parts: [{ id: 'P21', label: '', requirement_id: 'R4', points: 1.0, indicator: 'NLc' }], scoring: { mode: 'sum_parts' } }
+        ]
+      }
+    } : {
+      format: 'asian-school-matrix',
+      schema_version: 1,
+      matrix: {
+        profile: 'THCS',
         grade: g,
         exam_type: 'GK1',
         duration: 45,
@@ -2634,12 +2770,15 @@
         requirements: [
           { id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'Nhận biết được một số thiết bị số thông dụng.', ppct_outcome_index: 0, competency: 'NLa' },
           { id: 'R2', lesson_code: 'B1', level: 'Hiểu', text: 'Giải thích được vai trò của thiết bị số trong đời sống và học tập.', ppct_outcome_index: 1, competency: 'NLa' },
-          { id: 'R3', lesson_code: 'B2', level: 'Vận dụng', text: 'Vận dụng được kiến thức để tìm kiếm và đánh giá chất lượng thông tin.', ppct_outcome_index: 0, competency: 'NLb' }
+          { id: 'R3', lesson_code: 'B2', level: 'Vận dụng', text: 'Vận dụng được kiến thức để tìm kiếm và đánh giá chất lượng thông tin.', ppct_outcome_index: 0, competency: 'NLb' },
+          { id: 'R4', lesson_code: 'B2', level: 'Vận dụng cao', text: 'Đề xuất cách khai thác thông tin an toàn, hiệu quả trong tình huống thực tế.', ppct_outcome_index: 1, competency: 'NLc' }
         ],
         slots: [
-          { id: 'S1', kind: 'MC', number: 1, parts: [{ id: 'P1', label: '', requirement_id: 'R1', points: 0.25, indicator: '' }], scoring: { mode: 'sum_parts' } },
-          { id: 'S2', kind: 'MC', number: 2, parts: [{ id: 'P2', label: '', requirement_id: 'R2', points: 0.25, indicator: '' }], scoring: { mode: 'sum_parts' } },
-          { id: 'S3', kind: 'ES', number: 3, parts: [{ id: 'P3', label: '', requirement_id: 'R3', points: 1.0, indicator: '' }], scoring: { mode: 'sum_parts' } }
+          ...Array.from({ length: 16 }, (_, idx) => ({ id: `S${idx + 1}`, kind: 'MC', number: idx + 1, parts: [{ id: `P${idx + 1}`, label: '', requirement_id: 'R1', points: 0.25, indicator: '' }], scoring: { mode: 'sum_parts' } })),
+          ...Array.from({ length: 12 }, (_, idx) => ({ id: `S${idx + 17}`, kind: 'MC', number: idx + 17, parts: [{ id: `P${idx + 17}`, label: '', requirement_id: 'R2', points: 0.25, indicator: '' }], scoring: { mode: 'sum_parts' } })),
+          { id: 'S29', kind: 'ES', number: 1, parts: [{ id: 'P29', label: '', requirement_id: 'R3', points: 1.0, indicator: '' }], scoring: { mode: 'sum_parts' } },
+          { id: 'S30', kind: 'ES', number: 2, parts: [{ id: 'P30', label: '', requirement_id: 'R3', points: 1.0, indicator: '' }], scoring: { mode: 'sum_parts' } },
+          { id: 'S31', kind: 'ES', number: 3, parts: [{ id: 'P31', label: '', requirement_id: 'R4', points: 1.0, indicator: '' }], scoring: { mode: 'sum_parts' } }
         ]
       }
     };
@@ -2653,23 +2792,38 @@
 
   function downloadMatrixMdSample(grade = 9) {
     const g = Number(grade) || 9;
-    const sampleMd = `# MA TRẬN & ĐẶC TẢ ĐỀ KIỂM TRA GIỮA HỌC KỲ 1
+    const isHigh = g >= 10;
+    const sampleMd = isHigh ? `# MA TRẬN & ĐẶC TẢ ĐỀ KIỂM TRA GIỮA HỌC KỲ 1 (CHUẨN CV 7991 THPT)
+Môn: Tin học - Khối: ${g} - Thời gian: 45 phút - Năm học: 2026-2027
+
+> Quy chuẩn THPT định kỳ: Chỉ sử dụng Phần cốt lõi Mục II.1 (TT 22/2021 Điều 7.1 không đưa Chuyên đề CD1..CD3 vào đề giữa kỳ/cuối kỳ). Gồm đủ 4 dạng (MC 3đ · Đúng/Sai 2đ · Trả lời ngắn 2đ · Tự luận 3đ) và 4 mức độ (Biết 4đ · Hiểu 3đ · VD+VDC 3đ).
+
+## Chủ đề A: Máy tính và xã hội tri thức
+### Bài 1: Thông tin và xử lí thông tin (Mã: B1)
+- [Biết] [MC] Nhận biết khái niệm thông tin, dữ liệu và thiết bị số. (8 câu · 2.0đ · Câu 1..8)
+- [Hiểu] [MC] Phân tích quy trình xử lí và lưu trữ dữ liệu số. (4 câu · 1.0đ · Câu 9..12)
+
+## Chủ đề B: Mạng máy tính và Internet
+### Bài 2: Mạng máy tính và an toàn số (Mã: B2)
+- [Biết] [YN] Nhận diện thành phần mạng và quy tắc an toàn cơ bản. (1 câu 4 ý · 1.0đ · Câu 1 ĐS)
+- [Hiểu] [YN] Phân tích tình huống rủi ro an toàn thông tin. (1 câu 4 ý · 1.0đ · Câu 2 ĐS)
+- [Vận dụng] [SHORT] Tính toán hoặc xác định thông số kỹ thuật dữ liệu/mạng. (4 câu · 2.0đ · Câu 1..4 TLN)
+- [Vận dụng] [ES] Vận dụng kiến thức bảo mật và giải quyết vấn đề thực tiễn. (2 câu · 2.0đ · Câu 1, Câu 2 TL)
+- [Vận dụng cao] [ES] Đề xuất và tối ưu giải pháp bảo vệ hệ thống số. (1 câu · 1.0đ · Câu 3 TL)
+` : `# MA TRẬN & ĐẶC TẢ ĐỀ KIỂM TRA GIỮA HỌC KỲ 1 (THCS Á CHÂU)
 Môn: Tin học - Khối: ${g}
 Thời gian: 45 phút - Năm học: 2026-2027
 
-> Ghi chú: Hệ thống hỗ trợ 2 cách biểu diễn trong Markdown:
-> Cách 1 (Bảng Đặc tả): Phù hợp khi chuyển từ Word sang. Mỗi dòng là một yêu cầu cần đạt kèm số câu.
-> Cách 2 (Phân cấp đề mục ## Chủ đề, ### Bài học, - [Mức độ] [Dạng câu] YCCĐ): Dễ đọc, AI tạo chuẩn 100% không bao giờ lo lệch cột.
+> Ghi chú: Mẫu THCS sử dụng 2 dạng (Trắc nghiệm nhiều lựa chọn MC 7,0đ + Tự luận ES 3,0đ) và 4 mức độ (Biết, Hiểu, Vận dụng, Vận dụng cao). Cấp THCS không có Chuyên đề lựa chọn.
 
 ## BẢNG ĐẶC TẢ KĨ THUẬT ĐỀ KIỂM TRA
 
 | TT | Chủ đề | Bài học / Đơn vị kiến thức | Mức độ đánh giá | Yêu cầu cần đạt | Số câu hỏi | Câu hỏi trong đề | Điểm |
 |---|---|---|---|---|---|---|---|
-| 1 | Máy tính và cộng đồng | Bài 1: Thế giới kĩ thuật số | Nhận biết | - Nhận biết được một số thiết bị số thông dụng.<br>- Nêu được ưu điểm của thiết bị số trong đời sống. | 2 TN | Câu 1, Câu 2 | 0.5 |
-| | | | Thông hiểu | - Giải thích được vai trò của thiết bị số trong lưu trữ và xử lý thông tin. | 1 TN | Câu 3 | 0.25 |
-| 2 | Tổ chức lưu trữ, tìm kiếm | Bài 2: Thông tin trong giải quyết vấn đề | Nhận biết | - Nhận biết được chất lượng của thông tin trên mạng Internet. | 1 TN | Câu 4 | 0.25 |
-| | | | Thông hiểu | - Phân biệt được nguồn thông tin đáng tin cậy và không đáng tin cậy. | 2 TN | Câu 5, Câu 6 | 0.5 |
-| | | | Vận dụng | - Thực hành tìm kiếm và đánh giá thông tin phục vụ giải quyết vấn đề thực tế. | 1 TL | Câu 1 TL | 1.0 |
+| 1 | Máy tính và cộng đồng | Bài 1: Thế giới kĩ thuật số | Nhận biết | - Nhận biết được một số thiết bị số thông dụng.<br>- Nêu được ưu điểm của thiết bị số trong đời sống. | 16 TN | Câu 1..16 | 4.0 |
+| | | | Thông hiểu | - Giải thích được vai trò của thiết bị số trong lưu trữ và xử lý thông tin. | 12 TN | Câu 17..28 | 3.0 |
+| 2 | Tổ chức lưu trữ, tìm kiếm | Bài 2: Thông tin trong giải quyết vấn đề | Vận dụng | - Thực hành tìm kiếm và đánh giá thông tin phục vụ giải quyết vấn đề thực tế. | 2 TL | Câu 1, Câu 2 TL | 2.0 |
+| | | | Vận dụng cao | - Đề xuất cách khai thác thông tin an toàn, hiệu quả trong tình huống thực tế. | 1 TL | Câu 3 TL | 1.0 |
 `;
     const blob = new Blob([sampleMd], { type: 'text/markdown;charset=utf-8' });
     const a = document.createElement('a');
@@ -2681,8 +2835,18 @@ Thời gian: 45 phút - Năm học: 2026-2027
 
   function copyMatrixAiPrompt(grade = 9) {
     const g = Number(grade) || 9;
+    const isHigh = g >= 10;
+    const thptRules = isHigh
+      ? `\nQUY CHUẨN BẮT BUỘC VỚI THPT (KHỐI ${g} — CV 7991/BGDĐT-GDTrH & TT 22/2021):
+- Profile = "THPT", tổng điểm = 10.0. Khai báo đầy đủ indicator_catalog (NLa, NLb, NLc...).
+- Cơ cấu tham khảo đề định kỳ CV 7991: Nhiều lựa chọn (MC ~3đ), Đúng/Sai 4 ý a-d (YN ~2đ), Trả lời ngắn (SHORT ~2đ), Tự luận (ES ~3đ); mức độ Biết 4đ · Hiểu 3đ · Vận dụng + Vận dụng cao 3đ.
+- QUAN TRỌNG (TT 22/2021 Điều 7, khoản 1): Nếu kỳ kiểm tra là định kỳ (GK1, CK1, GK2, CK2), CHỈ chọn bài thuộc Phần cốt lõi (Mục II.1, mã B1, B2...), KHÔNG đưa Chuyên đề học tập (CD1..CD3). Chỉ đưa Chuyên đề vào Ma trận Kiểm tra thường xuyên (exam_type = "TX").`
+      : `\nQUY CHUẨN BẮT BUỘC VỚI THCS (KHỐI ${g} — MẪU Á CHÂU & TT 22/2021):
+- Profile = "THCS", tổng điểm = 10.0. Sử dụng 2 dạng chính: MC (Trắc nghiệm 4 lựa chọn, thường 7.0đ = 28 câu) và ES (Tự luận/thực hành, thường 3.0đ = 3 câu).
+- Phân bố theo 4 mức độ (Biết, Hiểu, Vận dụng, Vận dụng cao). Cấp THCS không có Chuyên đề lựa chọn.`;
     const prompt = `Bạn là chuyên gia khảo thí môn Tin học phổ thông GDPT 2018 tại Trường Quốc tế Á Châu.
 Hãy giúp tôi chuyển đổi nội dung Ma trận & Đặc tả đề kiểm tra môn Tin học Khối ${g} sang định dạng chuẩn để nạp vào hệ thống ExamMatrix Studio:
+${thptRules}
 
 ---
 CÁCH 1: ĐỊNH DẠNG JSON (KHUYÊN DÙNG SỐ 1 - CHUẨN XÁC 100%):
@@ -2690,7 +2854,7 @@ CÁCH 1: ĐỊNH DẠNG JSON (KHUYÊN DÙNG SỐ 1 - CHUẨN XÁC 100%):
   "format": "asian-school-matrix",
   "schema_version": 1,
   "matrix": {
-    "profile": "${g >= 10 ? 'THPT' : 'THCS'}",
+    "profile": "${isHigh ? 'THPT' : 'THCS'}",
     "grade": ${g},
     "exam_type": "GK1",
     "duration": 45,
@@ -2702,9 +2866,9 @@ CÁCH 1: ĐỊNH DẠNG JSON (KHUYÊN DÙNG SỐ 1 - CHUẨN XÁC 100%):
     ],
     "requirements": [
       { "id": "R1", "lesson_code": "B1", "level": "Biết", "text": "Nội dung YCCĐ...", "competency": "NLa" }
-    ],
+    ],${isHigh ? '\n    "indicator_catalog": [\n      { "code": "NLa", "competency": "NLa", "text": "Mô tả chỉ báo..." }\n    ],' : ''}
     "slots": [
-      { "id": "S1", "kind": "MC", "number": 1, "parts": [{ "id": "P1", "label": "Câu 1", "requirement_id": "R1", "points": 0.25 }] }
+      { "id": "S1", "kind": "MC", "number": 1, "parts": [{ "id": "P1", "label": "", "requirement_id": "R1", "points": 0.25${isHigh ? ', "indicator": "NLa"' : ''} }] }
     ]
   }
 }
@@ -2717,17 +2881,16 @@ Môn: Tin học - Khối: ${g} - Thời gian: 45 phút - Năm học: 2026-2027
 ## Chủ đề 1: Máy tính và cộng đồng
 ### Bài 1: Tên bài học (Mã: B1)
 - [Biết] [MC] Yêu cầu cần đạt 1... (2 câu · 0.5đ · Câu 1, Câu 2)
-- [Hiểu] [MC] Yêu cầu cần đạt 2... (1 câu · 0.25đ · Câu 3)
-- [Vận dụng] [ES] Yêu cầu cần đạt 3... (1 câu · 1.0đ · Câu 1 TL)
+${isHigh ? '- [Hiểu] [YN] Yêu cầu cần đạt 2... (1 câu 4 ý · 1.0đ · Câu 1 ĐS)\n- [Vận dụng] [SHORT] Yêu cầu cần đạt 3... (2 câu · 1.0đ · Câu 1, Câu 2 TLN)\n' : '- [Hiểu] [MC] Yêu cầu cần đạt 2... (1 câu · 0.25đ · Câu 3)\n'}- [Vận dụng] [ES] Yêu cầu cần đạt 4... (1 câu · 1.0đ · Câu 1 TL)
 
 Quy ước:
 - [Mức độ]: Biết, Hiểu, Vận dụng, Vận dụng cao.
-- [Dạng câu]: MC (Trắc nghiệm 4 lựa chọn), YN (Đúng/Sai), SHORT (Trả lời ngắn), ES (Tự luận).
-- Tổng điểm bằng 10.0 điểm.`;
+- [Dạng câu]: MC (Trắc nghiệm 4 lựa chọn), YN (Đúng/Sai 4 ý a-d), SHORT (Trả lời ngắn), ES (Tự luận).
+- Tổng điểm phải bằng đúng 10.0 điểm.`;
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(prompt).then(() => {
-        alert('Đã chép Prompt AI vào bộ nhớ tạm! Thầy/Cô có thể dán vào ChatGPT hoặc Gemini để tạo ma trận chuẩn.');
+        alert(`Đã chép Prompt AI tạo Ma trận Khối ${g} (${isHigh ? 'THPT CV 7991' : 'THCS Á Châu'}) vào bộ nhớ tạm!`);
       }).catch(() => {
         window.prompt('Sao chép Prompt AI dưới đây:', prompt);
       });
@@ -2821,6 +2984,6 @@ Quy ước:
   function coverage(){if(!ui.generation||!qs('#mx-coverage'))return;const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));let count=0,matched=0;for(const e of ui.generation.slots){const q=e.candidates.find(q=>q.id===qs('#mx-choice-'+e.slot.id).value);if(q){count++;if(hashes.has(q.content_hash))matched++;}}qs('#mx-coverage').textContent=`Đã chọn ${count}/${ui.generation.slots.length} câu · Khớp nội dung đề cương ${matched} câu. Máy chủ sẽ kiểm tra lại khi tạo đề.`;}
   function suggest(){const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));const used=new Set();for(const e of ui.generation.slots){const pool=e.candidates.slice().sort((a,b)=>Number(hashes.has(b.content_hash))-Number(hashes.has(a.content_hash)));const q=pool.find(q=>!used.has(q.id));qs('#mx-choice-'+e.slot.id).value=q?.id||'';if(q)used.add(q.id);ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===e.slot.id)c.checked=false;});showChoice(e.slot.id);}captureGeneration();coverage();message('Đã gợi ý câu. Thầy cần xem nội dung và đánh dấu đối chiếu từng chỉ báo trước khi lưu đề.');}
   async function generate(){const g=ui.generation;const placements=g.slots.map(e=>({slot_id:e.slot.id,question_id:qs('#mx-choice-'+e.slot.id).value,reviewed_part_ids:[...ui.container.querySelectorAll('[data-review-slot]')].filter(x=>x.dataset.reviewSlot===e.slot.id&&x.checked).map(x=>x.value)}));const result=await ui.ctx.request('/api/exams/from-matrix',{matrix_id:g.matrix.id,revision_id:qs('#mx-exam-revision').value,title:qs('#mx-exam-title').value,campus:qs('#mx-exam-campus').value,exam_code:qs('#mx-exam-code').value,seed:qs('#mx-exam-seed').value,placements});const e=result.exam,base='/api/exams/'+encodeURIComponent(e.id)+'/export';qs('#mx-created-exam').innerHTML=`<div class="callout"><h3>Đã lưu đề ${E(e.exam_code)} · ${E(e.campus)}</h3><p>${e.question_count} câu · 10 điểm · Khớp đề cương ${e.revision_match_count}/${e.question_count} câu · Ma trận V${e.matrix_version}</p><div class="actions"><button type="button" class="primary" data-view-exam="${E(e.id)}" data-mode="student">Xem đề học sinh</button><button type="button" data-view-exam="${E(e.id)}" data-mode="answers">Xem đáp án & HDC</button><a class="button" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button" href="${base}?format=docx&answers=1">Word đáp án</a></div></div>`;ui.ctx.onExamCreated?.(e);message('Đã tạo đề riêng và lưu phiên bản ma trận dùng chung cùng đề.');}
-  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,STANDARD_PRESETS,newDraft,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,matrixGridHtml,specGridHtml};
+  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,STANDARD_PRESETS,newDraft,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,matrixGridHtml,specGridHtml};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

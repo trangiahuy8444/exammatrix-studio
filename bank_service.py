@@ -388,7 +388,11 @@ class BankService:
         q.setdefault('source_file', lesson.get('source_file', ''))
         q.setdefault('source_rows', [])
         q.setdefault('semester', 1)
-        q.setdefault('response_mode', 'Trắc nghiệm' if q['type'] == 'MC' else 'Tự luận')
+        q.setdefault('response_mode', 'Trắc nghiệm' if q['type'] in ('MC', 'YN', 'SHORT') else 'Tự luận')
+        from ppct_import import normalize_section, detect_orientation
+        sec = normalize_section(lesson.get('section', ''), lesson_code, lesson.get('lesson_name_source', ''), lesson.get('topic_source', ''))
+        q.setdefault('ppct_section', sec)
+        q.setdefault('orientation', lesson.get('orientation') or (detect_orientation(lesson.get('topic_source', '') + ' ' + lesson.get('lesson_name_source', '')) if sec == 'elective_topic' else ''))
         outcomes = lesson.get('outcomes') or []
         if q.get('learning_outcome') in outcomes:
             q['outcome_index'] = outcomes.index(q['learning_outcome'])
@@ -909,6 +913,26 @@ class BankService:
             self._atomic_save(self.bank_path, bank)
             return dict(bank=copy.deepcopy(bank), summary=summary, lessons=rows, issues=issues)
 
+    def _reject_elective_in_revision(self, grade, exam_type, questions, subject_name='Tin học'):
+        if exam_type not in ('GK1', 'CK1', 'GK2', 'CK2'):
+            return
+        from ppct_import import normalize_section
+        subj = normalize_subject_name(subject_name)
+        for q in questions:
+            code = q.get('lesson_code') or ''
+            cat = self.lessons.get((subj, grade, code)) or self.lessons.get((grade, code)) or {}
+            sec = normalize_section(
+                q.get('ppct_section') or cat.get('section') or '',
+                code,
+                cat.get('lesson_name_source') or q.get('lesson_name', ''),
+                cat.get('topic_source') or q.get('topic_source', ''),
+            )
+            if sec == 'elective_topic':
+                raise ServiceError(
+                    'Đề cương ôn tập định kỳ không bao gồm câu hỏi thuộc Chuyên đề học tập lựa chọn (TT 22/2021, Điều 7, khoản 1).',
+                    {'lesson_code': code, 'exam_type': exam_type, 'question_id': q.get('id')},
+                )
+
     def save_revision(self, payload):
         with self.lock:
             title = self._text(payload.get('title'), 'Tên đề cương')
@@ -924,8 +948,12 @@ class BankService:
                     raise ServiceError('Câu không tồn tại, đã lưu trữ hoặc khác khối.', {'id': ident})
                 snapshot = copy.deepcopy(q); snapshot['content_hash'] = content_hash(q)
                 questions.append(snapshot)
+            exam_type = payload.get('exam_type')
+            self._reject_elective_in_revision(grade, exam_type, questions, self.context.get('subject_name') or 'Tin học')
             revision = dict(id=f'REV-{uuid.uuid4().hex[:12]}', title=title, grade=grade,
                             created_at=now(), question_ids=ids, questions=questions, question_count=len(questions))
+            if exam_type in ('TX', 'GK1', 'CK1', 'GK2', 'CK2'):
+                revision['exam_type'] = exam_type
             records = self._records('revisions'); records.append(revision)
             self._atomic_save(self.data_dir/'revisions.json', records)
             return copy.deepcopy(revision)
@@ -1001,7 +1029,11 @@ class BankService:
                 old['question_ids'] = [q.get('id', f'Q-{i+1}') for i, q in enumerate(old['questions'])]
             if isinstance(payload.get('knowledge_scope'), list):
                 old['knowledge_scope'] = copy.deepcopy(payload['knowledge_scope'])
+            exam_type = payload.get('exam_type', old.get('exam_type'))
             old['questions'] = self._snapshot_questions(old['questions'], grade)
+            self._reject_elective_in_revision(grade, exam_type, old['questions'], self.context.get('subject_name') or 'Tin học')
+            if exam_type in ('TX', 'GK1', 'CK1', 'GK2', 'CK2'):
+                old['exam_type'] = exam_type
             old['title'] = title
             old['grade'] = grade
             old['updated_at'] = now()
@@ -2064,12 +2096,33 @@ class BankService:
         return None
 
     def kttx_state(self):
+        from ppct_import import normalize_section
         activities = self._read_data(self.data_dir/'kttx.json', [])
         grades = self._kttx_grades()
         forms = [dict(f) for f in FORMS]
         if any(g >= CLUSTER_FORM['min_grade'] for g in grades):
             forms.append(dict(CLUSTER_FORM))
+        subj_norm = normalize_subject_name(self.context.get('subject_name') or 'Tin học')
+        elective_topics_by_grade = {}
+        for lesson in self.catalog.get('lessons', []):
+            l_subj = normalize_subject_name(lesson.get('subject_name') or 'Tin học')
+            if l_subj != subj_norm:
+                continue
+            lg = lesson.get('grade')
+            if lg not in grades:
+                continue
+            code = str(lesson.get('lesson_code') or '')
+            if normalize_section(lesson.get('section', ''), code, lesson.get('lesson_name_source', ''), lesson.get('topic_source', '')) == 'elective_topic':
+                occs = lesson.get('occurrences') or []
+                duration_raw = str(occs[0].get('duration_raw', '') if occs and isinstance(occs[0], dict) else '')
+                elective_topics_by_grade.setdefault(str(lg), []).append({
+                    'lesson_code': code,
+                    'lesson_name_source': lesson.get('lesson_name_source', code),
+                    'orientation': lesson.get('orientation', ''),
+                    'duration_raw': duration_raw,
+                })
         return dict(activities=copy.deepcopy(activities), forms=forms,
+                    elective_topics_by_grade=elective_topics_by_grade,
                     overview=kttx_overview(activities, {g: self.periods_per_year(g) for g in grades}, grades))
 
     def save_kttx(self, payload, actor='local'):
@@ -2099,6 +2152,20 @@ class BankService:
                 exam = next((e for e in self._records('exams') if e.get('id') == exam_id), None)
                 if exam is None or exam.get('exam_type') != 'TX' or exam.get('grade') != grade:
                     raise ServiceError('Chỉ gắn được đề kiểm tra thường xuyên (TX) cùng khối.', {'exam_id': exam_id})
+            raw_codes = payload.get('lesson_codes') or []
+            if not isinstance(raw_codes, list):
+                raise ServiceError('Danh sách mã bài KTTX không hợp lệ.')
+            lesson_codes = []
+            for c in raw_codes:
+                sc = str(c or '').strip()
+                if sc and sc not in lesson_codes:
+                    lesson_codes.append(sc)
+            orientation = str(payload.get('orientation') or '').strip()
+            if payload['form'] == CLUSTER_FORM['key'] and not orientation and lesson_codes:
+                from ppct_import import detect_orientation
+                subj_norm = normalize_subject_name(self.context.get('subject_name') or 'Tin học')
+                first_l = self.lessons.get((subj_norm, grade, lesson_codes[0])) or self.lessons.get((grade, lesson_codes[0])) or {}
+                orientation = first_l.get('orientation') or detect_orientation(first_l.get('topic_source', '') + ' ' + first_l.get('lesson_name_source', ''))
             records = self._read_data(self.data_dir/'kttx.json', [])
             ident = payload.get('id')
             old = next((a for a in records if a.get('id') == ident), None) if ident else None
@@ -2110,7 +2177,8 @@ class BankService:
             activity = dict(id=ident or f'KTTX-{uuid.uuid4().hex[:12]}', code=f'TX{k}-HK{semester}', grade=grade,
                             semester=semester, k=k, class_name=class_name, form=payload['form'],
                             max_score=format(max_score.normalize(), 'f'), recorded=payload.get('recorded') is True,
-                            exam_id=exam_id, note=str(payload.get('note') or '').strip()[:500],
+                            exam_id=exam_id, lesson_codes=lesson_codes, orientation=orientation,
+                            note=str(payload.get('note') or '').strip()[:500],
                             title=activity_title(self.context.get('subject_name'), grade, k, semester),
                             created_at=(old or {}).get('created_at') or now(), updated_at=now(),
                             updated_by=str(actor or 'local'))

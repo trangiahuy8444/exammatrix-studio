@@ -19,6 +19,10 @@
       if(f.lesson && q.lesson_code!==f.lesson)return false;
       if(f.type && q.type!==f.type)return false;
       if(f.level && q.level!==f.level)return false;
+      if(f.section){
+        const qSec=q.ppct_section||(/^(?:CD|CĐ)\d/i.test(q.lesson_code||'')?'elective_topic':'core');
+        if(qSec!==f.section)return false;
+      }
       if(f.status==='active' && q.review_status==='archived')return false;
       if(f.status && !['active','all'].includes(f.status) && q.review_status!==f.status)return false;
       return !needle || normalize([q.id,q.question,q.lesson_name,q.learning_outcome,...(q.options||[])].join(' ')).includes(needle);
@@ -153,7 +157,7 @@ function distributeCounts(cells,total){
     const template_id=!matrix_id&&(context.templates||[]).some(r=>r.id===v.template_id&&compatible(r))?v.template_id:'';
     const lessonCodes=new Set((context.lessons||[]).map(l=>l.lesson_code));
     const validOutcomes=r=>r.outcomes===undefined||(Array.isArray(r.outcomes)&&r.outcomes.every(o=>typeof o==='string'&&(context.lessons||[]).some(l=>l.lesson_code===r.lesson_code&&(l.outcomes||[]).includes(o))));
-    const blueprint=(Array.isArray(v.blueprint)?v.blueprint:[]).slice(0,500).filter(r=>r&&lessonCodes.has(r.lesson_code)&&['MC','ES'].includes(r.type)&&['Biết','Hiểu','Vận dụng','Vận dụng cao'].includes(r.level)&&Number.isInteger(r.count)&&r.count>0&&r.count<=10000&&number(r.points_per_question,.001,100,null)!==null&&validOutcomes(r)).map(r=>({lesson_code:r.lesson_code,type:r.type,level:r.level,count:r.count,points_per_question:r.points_per_question,...(r.outcomes===undefined?{}:{outcomes:[...new Set(r.outcomes)]})}));
+    const blueprint=(Array.isArray(v.blueprint)?v.blueprint:[]).slice(0,500).filter(r=>r&&lessonCodes.has(r.lesson_code)&&['MC','SHORT','ES'].includes(r.type)&&['Biết','Hiểu','Vận dụng','Vận dụng cao'].includes(r.level)&&Number.isInteger(r.count)&&r.count>0&&r.count<=10000&&number(r.points_per_question,.001,100,null)!==null&&validOutcomes(r)).map(r=>({lesson_code:r.lesson_code,type:r.type,level:r.level,count:r.count,points_per_question:r.points_per_question,...(r.outcomes===undefined?{}:{outcomes:[...new Set(r.outcomes)]})}));
     const set_counts={};if(v.set_counts&&typeof v.set_counts==='object'&&!Array.isArray(v.set_counts))Object.entries(v.set_counts).slice(0,500).forEach(([k,n])=>{if(k.length<=500&&!['__proto__','constructor','prototype'].includes(k)&&Number.isInteger(n)&&n>=0&&n<=10000)set_counts[k]=n;});
     return {grade,exam_type,title:text(v.title),duration:number(v.duration,1,240,45),seed:text(v.seed,200)||'2026',revision_id:revision(v.revision_id),matrix_id,template_id,blueprint,similarity_percent:number(v.similarity_percent,90,100,90),similarity_mode:v.similarity_mode==='exact'?'exact':'min',set_count:Number.isInteger(v.set_count)?number(v.set_count,1,6,2):2,set_rev:revision(v.set_rev)||'auto',set_counts};
   }
@@ -700,6 +704,7 @@ function syncEditedQuestionsFromSheet(sheet,record){
       if(f.lesson&&q.lesson_code!==f.lesson)return false;
       if(f.level&&q.level!==f.level)return false;
       if(f.type&&q.type!==f.type)return false;
+      if(f.section){const qSec=q.ppct_section||(/^(?:CD|CĐ)\d/i.test(q.lesson_code||'')?'elective_topic':'core');if(qSec!==f.section)return false;}
       if(f.origin&&(q.origin||'teacher')!==f.origin)return false;
       if(f.outcome&&q.learning_outcome!==f.outcome)return false;
       return true;
@@ -722,6 +727,13 @@ function syncEditedQuestionsFromSheet(sheet,record){
   function examEditable(e){return !['locked','published'].includes(examStatusOf(e));}
   // B8: số thứ tự bài KTTX tiếp theo trong cùng khối, học kì, lớp
   function nextKttxNumber(acts,grade,semester,className){return 1+Math.max(0,...(acts||[]).filter(a=>a.grade===grade&&a.semester===semester&&(a.class_name||'')===(className||'')).map(a=>a.k));}
+  function convertKttxScoreTo10(score,maxScore=10){
+    const s=Number(String(score??'').replace(',','.'));
+    const m=Number(String(maxScore??'10').replace(',','.'));
+    if(!Number.isFinite(m)||m<=0)throw new Error('Thang điểm tối đa phải lớn hơn 0.');
+    if(!Number.isFinite(s)||s<0||s>m)throw new Error('Điểm phải từ 0 đến thang điểm tối đa.');
+    return Math.round((s*10)/m);
+  }
   // Hướng dẫn theo màn hình đang mở (giáo viên yêu cầu 28/10/2026): mỗi màn hình có mục đích, các bước và lưu ý riêng.
   const SCREEN_GUIDES={
     overview:{title:'Tổng quan',purpose:'Xem nhanh tình trạng ngân hàng của môn đang chọn và đi đến việc cần làm tiếp theo.',
@@ -792,6 +804,6 @@ function syncEditedQuestionsFromSheet(sheet,record){
     const g=SCREEN_GUIDES[tab]||SCREEN_GUIDES.overview;
     return {...g,tips:g.tips.slice()};
   }
-  const api={questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  const api={questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

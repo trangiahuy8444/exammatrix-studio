@@ -61,7 +61,7 @@
     const problems = [];
     if (!text(q.question)) problems.push('Thiếu nội dung câu hỏi.');
     if (!text(q.learning_outcome)) problems.push('Chưa gắn yêu cầu cần đạt.');
-    if (!text(q.lesson_code) || !levels.includes(q.level) || !Number.isInteger(q.grade) || q.grade < 8 || q.grade > 12) problems.push('Khối, bài hoặc mức độ không hợp lệ.');
+    if (!text(q.lesson_code) || !levels.includes(q.level) || !Number.isInteger(q.grade) || q.grade < 6 || q.grade > 12) problems.push('Khối, bài hoặc mức độ không hợp lệ.');
     if (!kinds.includes(q.type)) problems.push('Dạng câu không hợp lệ.');
     if (q.type === 'MC') {
       if (!Array.isArray(q.options) || q.options.length !== 4 || q.options.some(o => typeof o !== 'string' || !text(o)) || new Set(q.options.map(norm)).size !== 4) problems.push('Câu nhiều lựa chọn cần bốn phương án khác nhau.');

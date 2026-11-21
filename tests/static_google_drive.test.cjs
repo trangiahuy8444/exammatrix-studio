@@ -1239,3 +1239,123 @@ test('PPCT THPT & THCS: parsePpctFromMarkdown multi-table, ppctImportCard compli
   assert.equal(resTx.errors.some(e => e.code === 'elective_in_periodic'), false);
 });
 
+test('5 phân hệ nâng cấp: core.js, matrices.js CV 7991, static-exam-engine Khối 6–12 và app.js UI helpers', () => {
+  const matricesUi = require('../public/matrices.js');
+
+  // 1. core.js: filterQuestions / reviewQueue với section, cleanExamDraft SHORT, convertKttxScoreTo10
+  const qs = [
+    { id: 'q1', grade: 10, lesson_code: 'B1', ppct_section: 'core', type: 'MC', level: 'Biết', review_status: 'pending_review', question: 'Câu cốt lõi' },
+    { id: 'q2', grade: 10, lesson_code: 'CD1', ppct_section: 'elective_topic', type: 'SHORT', level: 'Hiểu', review_status: 'pending_review', question: 'Câu chuyên đề' },
+  ];
+  assert.deepEqual(core.filterQuestions(qs, { section: 'elective_topic' }).map(q => q.id), ['q2']);
+  assert.deepEqual(core.reviewQueue(qs, { status: 'pending_review', section: 'core' }).map(q => q.id), ['q1']);
+  const cleanedDraft = core.cleanExamDraft({
+    grade: 10,
+    exam_type: 'GK1',
+    blueprint: [{ lesson_code: 'B1', type: 'SHORT', level: 'Vận dụng', count: 2, points_per_question: 0.5 }],
+  }, { grades: [10], lessons: [{ lesson_code: 'B1', outcomes: [] }] });
+  assert.equal(cleanedDraft.blueprint.length, 1);
+  assert.equal(cleanedDraft.blueprint[0].type, 'SHORT');
+  assert.equal(core.convertKttxScoreTo10('15', '20'), 8);
+  assert.throws(() => core.convertKttxScoreTo10('25', '20'));
+
+  // 2. matrices.js: computeCv7991Warnings (SHORT == 0 -> YN target 4, VD+VDC quy đổi kỹ thuật)
+  const cvOkNoShort = matricesUi.computeCv7991Warnings({
+    profile: 'THPT',
+    exam_type: 'GK1',
+    requirements: [
+      { id: 'r1', level: 'Biết' },
+      { id: 'r2', level: 'Hiểu' },
+      { id: 'r3', level: 'Vận dụng cao' },
+    ],
+    slots: [
+      { kind: 'MC', parts: [{ requirement_id: 'r1', points: 3 }] },
+      { kind: 'YN', parts: [{ requirement_id: 'r1', points: 1 }, { requirement_id: 'r2', points: 3 }] },
+      { kind: 'ES', parts: [{ requirement_id: 'r3', points: 3 }] },
+    ],
+  });
+  assert.deepEqual(cvOkNoShort, []);
+
+  const cvWarnSplit = matricesUi.computeCv7991Warnings({
+    profile: 'THPT',
+    exam_type: 'CK1',
+    requirements: [
+      { id: 'r1', level: 'Biết' },
+      { id: 'r2', level: 'Vận dụng cao' },
+    ],
+    slots: [
+      { kind: 'MC', parts: [{ requirement_id: 'r1', points: 5 }] },
+      { kind: 'ES', parts: [{ requirement_id: 'r2', points: 5 }] },
+    ],
+  });
+  assert.ok(cvWarnSplit.some(w => w.code === 'ratio_level' && w.message.includes('Vận dụng cao')));
+
+  // 3. static-exam-engine & static-exam-workflow: Khối 6-12 + elective_in_thcs + lesson_non_instructional
+  const d = fixture();
+  const ppctAll = {
+    lessons: [
+      { grade: 6, lesson_code: 'B1', outcomes: ['YCCĐ 6'] },
+      { grade: 8, lesson_code: 'CD1', section: 'elective_topic', lesson_name_source: 'Chuyên đề', topic_source: 'Chuyên đề', outcomes: ['YCCĐ CD'] },
+      { grade: 11, lesson_code: 'KTGK1', section: 'assessment', lesson_name_source: 'Kiểm tra giữa HK1', topic_source: 'Đánh giá', outcomes: ['Đánh giá'] },
+    ],
+  };
+  const mxThcsCd = engine.validateMatrix({
+    ...d.matrices[0],
+    grade: 8,
+    exam_type: 'GK1',
+    lessons: [{ lesson_code: 'CD1', outcomes: ['YCCĐ CD'] }],
+    requirements: d.matrices[0].requirements.map(r => ({ ...r, lesson_code: 'CD1', learning_outcome: 'YCCĐ CD' })),
+  }, ppctAll);
+  assert.ok(mxThcsCd.errors.some(e => e.code === 'elective_in_thcs'));
+
+  const mxNonInst = engine.validateMatrix({
+    ...d.matrices[0],
+    grade: 11,
+    profile: 'THPT',
+    exam_type: 'GK1',
+    lessons: [{ lesson_code: 'KTGK1', outcomes: ['Đánh giá'] }],
+    requirements: d.matrices[0].requirements.map(r => ({ ...r, lesson_code: 'KTGK1', learning_outcome: 'Đánh giá' })),
+  }, ppctAll);
+  assert.ok(mxNonInst.errors.some(e => e.code === 'lesson_non_instructional'));
+
+  assert.deepEqual(workflow.technicalProblems({
+    grade: 6, lesson_code: 'B1', type: 'MC', level: 'Biết', learning_outcome: 'YCCĐ 6',
+    question: 'Câu hỏi Tin học 6 hợp lệ?', options: ['A', 'B', 'C', 'D'], correct: 0,
+    option_explanations: ['Đúng', 'Sai', 'Sai', 'Sai'],
+  }), []);
+  assert.ok(workflow.technicalProblems({
+    grade: 5, lesson_code: 'B1', type: 'MC', level: 'Biết', learning_outcome: 'YCCĐ 5',
+    question: 'Khối 5 ngoài phạm vi?', options: ['A', 'B', 'C', 'D'], correct: 0,
+  }).length > 0);
+
+  // 4. app.js: buildRevisionSheetHtml bảo mật SHORT cho học sinh + hiện cho GV; lessonPickerTable cột YN/SHORT
+  const appSource = fs.readFileSync(require.resolve('../public/app.js'), 'utf8');
+  const buildersCode = appSource.slice(appSource.indexOf('function mcColsClass('), appSource.indexOf('function mountExamViewerContent('));
+  const revUi = new Function('C', 'esc', 'subject', 'fmtPts', 'scaledPolicy', 'countRecord', 'revisionGoals', 'schoolProfile', 'store', `${buildersCode}; return {buildRevisionSheetHtml};`)(
+    core, core.escapeHtml, () => 'Tin học', n => String(n), () => '', r => (r.questions || []).length, () => [], () => false, { context: { school_year: '2026-2027' } }
+  );
+  const revWithShort = {
+    title: 'Đề cương Tin 10', grade: 10,
+    questions: [{ id: 'S1', slot_number: 1, type: 'SHORT', level: 'Vận dụng', lesson_code: 'B1', question: 'Đáp số?', short_answer: 'SECRET_42', points: 0.5 }],
+  };
+  const studentHtml = revUi.buildRevisionSheetHtml(revWithShort, false);
+  const teacherHtml = revUi.buildRevisionSheetHtml(revWithShort, true);
+  assert.equal(studentHtml.includes('SECRET_42'), false);
+  assert.ok(teacherHtml.includes('SECRET_42'));
+  assert.match(teacherHtml, /BẢNG ĐÁP ÁN TRẢ LỜI NGẮN/);
+
+  const pickerCode = appSource.slice(appSource.indexOf('function lessonPickerTable('), appSource.indexOf('function revisionMatrixPanel('));
+  const { lessonPickerTable } = new Function('esc', `${pickerCode}; return {lessonPickerTable};`)(core.escapeHtml);
+  const thcsPicker = lessonPickerTable([{ lesson_code: 'B1', type: 'MC', need: 4, available: 6 }, { lesson_code: 'B1', type: 'ES', need: 1, available: 2 }], 'rev', {});
+  assert.doesNotMatch(thcsPicker, /data-rev-lesson-yn|data-rev-lesson-short/);
+  const thptPicker = lessonPickerTable([
+    { lesson_code: 'B1', type: 'MC', need: 4, available: 6 },
+    { lesson_code: 'B1', type: 'YN', need: 1, available: 2 },
+    { lesson_code: 'B1', type: 'SHORT', need: 2, available: 3 },
+    { lesson_code: 'B1', type: 'ES', need: 1, available: 2 },
+  ], 'rev', {});
+  assert.match(thptPicker, /data-rev-lesson-yn/);
+  assert.match(thptPicker, /data-rev-lesson-short/);
+});
+
+

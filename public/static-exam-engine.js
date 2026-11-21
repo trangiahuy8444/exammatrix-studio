@@ -18,8 +18,19 @@
   const subject = x => norm(x || 'Tin học');
   function subjectContext(name){
     const s=subject(name),math=['toán','toán học','mathematics','math'].includes(s),tin=s==='tin học';
-    return {subject_name:name||'Tin học',allowed_grades:[8,9,10],school_profile:true,minimum_revision_percent:90,
+    return {subject_name:name||'Tin học',allowed_grades:[6,7,8,9,10,11,12],school_profile:true,minimum_revision_percent:90,
       competencies:tin?['NLa','NLb','NLc','NLd','NLe']:math?['TDLL','MHH','GQVĐ','GT','SDCC']:['NL_CHUNG']};
+  }
+  function lessonSection(ppctLesson, code=''){
+    const raw=String(ppctLesson?.section||'').trim().toLowerCase();
+    if(['core','elective_topic','review','assessment'].includes(raw))return raw;
+    const c=String(code||ppctLesson?.lesson_code||'').trim();
+    const n=String(ppctLesson?.lesson_name_source||ppctLesson?.lesson_name||'').trim();
+    const t=String(ppctLesson?.topic_source||ppctLesson?.topic||'').trim();
+    if(/^(?:CD|CĐ)\d/i.test(c)||/^\s*Chuyên\s*đề\b/i.test(n)||/chuyên\s*đề\s*học\s*tập|chuyên\s*đề\s*lựa\s*chọn/i.test(t))return 'elective_topic';
+    if(/^KT(?:GK|CK)[12]$/i.test(c)||/^\s*Kiểm\s*tra\b/i.test(n))return 'assessment';
+    if(/^(?:OT|LT)(?:_HK[12])?(?:_\d+)?$/i.test(c)||/^\s*(?:Ôn\s*tập|Luyện\s*tập)\b/i.test(n))return 'review';
+    return 'core';
   }
   const obj = x => !!x && typeof x === 'object' && !Array.isArray(x);
   const list = x => Array.isArray(x) ? x : [];
@@ -86,7 +97,7 @@
     }
     if(Object.prototype.hasOwnProperty.call(m,'catalog_revision')&&(!Number.isInteger(m.catalog_revision)||m.catalog_revision<1))error('catalog','catalog_revision','Phiên bản danh mục phải là số nguyên dương.');
     const indicatorsRequired=m.profile==='THPT'&&(subject(ctx.subject_name||m.subject_name)==='tin học'||arrays.indicator_catalog.length>0);
-    if(!Number.isInteger(m.grade)||!(ctx.allowed_grades||[8,9,10]).includes(m.grade))error('grade','grade','Khối không thuộc chương trình.');
+    if(!Number.isInteger(m.grade)||!(ctx.allowed_grades||[6,7,8,9,10,11,12]).includes(m.grade))error('grade','grade','Khối không thuộc chương trình.');
     if(!PERIODS.includes(m.exam_type))error('exam_type','exam_type','Kì kiểm tra không hợp lệ.');
     if(!['THCS','THPT','GENERAL'].includes(m.profile))error('profile','profile','Mẫu hồ sơ không hợp lệ.');
     if(!['authored','received'].includes(m.mode))error('mode','mode','Chế độ ma trận không hợp lệ.');
@@ -98,8 +109,14 @@
     for(const l of arrays.lessons){
       const ppctLesson=lesson(ppct,m,l.lesson_code);
       if(!text(l.lesson_code)||ls.has(l.lesson_code)||!ppctLesson)error('lesson','lessons','Bài học trùng hoặc không thuộc PPCT đúng môn, khối.');
-      if(m.exam_type!=='TX'&&ppctLesson&&(ppctLesson.section==='elective_topic'||/^(?:CD|CĐ)\d/i.test(l.lesson_code||''))){
-        error('elective_in_periodic','lessons','Cụm chuyên đề học tập không thuộc phạm vi đánh giá định kỳ (TT 22/2021, Điều 7, khoản 1). Chỉ sử dụng cho kiểm tra thường xuyên (TX).');
+      if(ppctLesson){
+        const sec=lessonSection(ppctLesson,l.lesson_code);
+        if(sec==='elective_topic'){
+          if(Number.isInteger(m.grade)&&m.grade<10)error('elective_in_thcs','lessons','Cấp THCS không có cụm Chuyên đề học tập lựa chọn (TT 32/2018 & Phụ lục I CV 5512).');
+          else if(m.exam_type!=='TX')error('elective_in_periodic','lessons','Cụm chuyên đề học tập không thuộc phạm vi đánh giá định kỳ (TT 22/2021, Điều 7, khoản 1). Chỉ sử dụng cho kiểm tra thường xuyên (TX).');
+        }else if(sec==='assessment'||sec==='review'){
+          error('lesson_non_instructional','lessons','Dòng Ôn tập / Kiểm tra định kỳ không dùng làm đơn vị kiến thức ra đề trong ma trận.');
+        }
       }
       ls.add(l.lesson_code);
       if(!text(l.title)||!text(l.topic))error('lesson_title','lessons','Cần tên bài và chủ đề.');
@@ -191,6 +208,13 @@
     const m={grade:p.grade,subject_name:subj,requirements:[]},slots=[];let total=0;
     p.blueprint.forEach((r,index)=>{if(!obj(r)||!Number.isInteger(r.count)||r.count<1||r.count>500||!positive(r.points_per_question)||!LEVELS.includes(r.level)||!['MC','SHORT','ES'].includes(r.type))fail('Phân bố không hợp lệ hoặc dạng nhiều phần chưa hỗ trợ.');
       const l=lesson(data.bank.ppct,m,r.lesson_code);if(!l)fail('Bài học không thuộc PPCT đúng khối và môn.');
+      const sec=lessonSection(l,r.lesson_code);
+      if(sec==='elective_topic'){
+        if(p.grade<10)fail('Cấp THCS không có cụm Chuyên đề học tập lựa chọn (TT 32/2018 & Phụ lục I CV 5512).');
+        if(p.exam_type!=='TX')fail('Cụm chuyên đề học tập không thuộc phạm vi đánh giá định kỳ (TT 22/2021, Điều 7, khoản 1). Chỉ sử dụng cho kiểm tra thường xuyên (TX).');
+      }else if(sec==='assessment'||sec==='review'){
+        fail('Dòng Ôn tập / Kiểm tra định kỳ không dùng làm đơn vị kiến thức ra đề.');
+      }
       const outcomes=r.outcomes===undefined?list(l.outcomes):r.outcomes;if(!Array.isArray(outcomes)||!outcomes.length||outcomes.some(o=>!text(o)||!list(l.outcomes).includes(o)))fail('YCCĐ phân bố không thuộc PPCT.');
       const pool=unique(data.bank.questions.filter(q=>technical(q)&&q.review_status==='approved'&&q.grade===p.grade&&subject(q.subject_name)===subject(subj)&&q.lesson_code===r.lesson_code&&q.type===r.type&&q.level===r.level&&outcomes.includes(q.learning_outcome)));
       for(let i=0;i<r.count;i++)slots.push({slot:{id:'BP-'+index+'-'+i,kind:r.type,number:slots.filter(s=>s.slot.kind===r.type).length+1,parts:[{id:'BP-P-'+index+'-'+i,points:Number(r.points_per_question)}]},candidates:pool,cell:{lesson_code:r.lesson_code,type:r.type,level:r.level,outcomes:r.outcomes||[]}});

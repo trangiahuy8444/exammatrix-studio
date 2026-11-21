@@ -20,7 +20,8 @@ CONTENT_FIELDS = ('profile', 'grade', 'school_year', 'exam_type', 'duration', 't
 
 
 # B3: chỉ tính vào hash khi có mặt, để hash của các ma trận đã khóa trước đây không đổi.
-OPTIONAL_CONTENT_FIELDS = ('allowed_kinds', 'scoring_policy', 'ratio_tolerance', 'competency_catalog', 'catalog_revision')
+OPTIONAL_CONTENT_FIELDS = ('allowed_kinds', 'scoring_policy', 'ratio_tolerance', 'competency_catalog', 'catalog_revision',
+                           'matrix_locked', 'spec_locked')
 
 
 def matrix_digest(matrix):
@@ -39,8 +40,18 @@ def normalize_matrix(payload, ppct):
                           exam_type='GK1', duration=45, total_points=10, campus='Cao Thắng',
                           owner_name='', title='', lessons=[], requirements=[], slots=[],
                           indicator_catalog=[], source=None, audit=[],
-                          reconciliation=dict(confirmed=True, issues=[])).items():
+                          reconciliation=dict(confirmed=True, issues=[]),
+                          matrix_locked=False, spec_locked=False).items():
         m.setdefault(key, copy.deepcopy(value))
+    if m.get('status') not in ('locked', 'archived') and not m.get('matrix_locked') and isinstance(m.get('slots'), list):
+        groups = defaultdict(list)
+        for s in m['slots']:
+            if isinstance(s, dict) and 'kind' in s:
+                groups[s['kind']].append(s)
+        for kind_slots in groups.values():
+            kind_slots.sort(key=lambda x: (x.get('number', 0) if isinstance(x.get('number'), int) else 0))
+            for idx, s in enumerate(kind_slots, 1):
+                s['number'] = idx
     return m
 
 

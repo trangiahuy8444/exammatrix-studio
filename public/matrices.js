@@ -919,29 +919,30 @@
     };
   }
   function renderEditor(){
+    normalizeSlotNumbers(ui.editing);
     const openSections=[...ui.container.querySelectorAll('#mx-work details')].map(d=>d.open);
-    const m=ui.editing,custom=Boolean(m.allow_custom_override),locked=!custom&&['locked','archived'].includes(m.status),received=!custom&&m.mode==='received',protectedFields=locked||received;
-    const matrixLocked = locked || (!custom && Boolean(m.matrix_locked));
-    const specLocked = locked || (!custom && Boolean(m.spec_locked));
-    qs('#mx-work').innerHTML=`<section class="card mx-editor"><div class="mx-editor-head"><div><p class="eyebrow">${custom?'CHẾ ĐỘ SỬA TOÀN DIỆN (TÙY CHỈNH)':received?'NHẬN NGUỒN · BẢO TOÀN CHỈ TIÊU':'PHỤ TRÁCH BIÊN SOẠN'}</p><h2>${E(m.title)} <span class="badge">V${m.version}</span></h2><p>${E(states[m.status])}${custom?' · Đang mở khóa tùy chỉnh toàn diện':''}<span id="mx-dirty">${ui.dirty?' · Có thay đổi chưa lưu':''}</span></p></div><div class="actions"><button data-action="preview">Xem toàn bộ bảng</button>${m.mode==='received'||m.source?`<button data-action="compare">Đối chiếu bản gốc (2 cột)</button>`:''}${(locked||received)?`<button type="button" data-action="unlock-custom">🔓 Bật sửa toàn diện</button>`:''}${m.id?`<button type="button" data-action="duplicate-id" data-id="${E(m.id)}">Nhân bản</button><button type="button" class="danger" data-action="delete-id" data-id="${E(m.id)}">Xóa hồ sơ</button>`:''}<button data-action="save" class="primary">Lưu bản nháp</button><button data-action="discard">${ui.dirty?'Bỏ thay đổi / tải bản đã lưu':'Đóng hồ sơ'}</button></div></div>
+    const m=ui.editing,custom=Boolean(m.allow_custom_override),locked=['locked','archived'].includes(m.status),received=!custom&&m.mode==='received',protectedFields=locked||received;
+    const matrixLocked = locked || Boolean(m.matrix_locked);
+    const specLocked = locked || Boolean(m.spec_locked);
+    qs('#mx-work').innerHTML=`<section class="card mx-editor"><div class="mx-editor-head"><div><p class="eyebrow">${custom?'CHẾ ĐỘ SỬA TOÀN DIỆN (TÙY CHỈNH)':received?'NHẬN NGUỒN · BẢO TOÀN CHỈ TIÊU':'PHỤ TRÁCH BIÊN SOẠN'}</p><h2>${E(m.title)} <span class="badge">V${m.version}</span></h2><p>${E(states[m.status])}${custom?' · Đang mở khóa tùy chỉnh toàn diện':''}<span id="mx-dirty">${ui.dirty?' · Có thay đổi chưa lưu':''}</span></p></div><div class="actions"><button data-action="preview">Xem toàn bộ bảng</button>${m.mode==='received'||m.source?`<button data-action="compare">Đối chiếu bản gốc (2 cột)</button>`:''}${received?`<button type="button" data-action="unlock-custom">🔓 Bật sửa toàn diện</button>`:''}${m.id?`<button type="button" data-action="duplicate-id" data-id="${E(m.id)}">Nhân bản</button><button type="button" class="danger" data-action="delete-id" data-id="${E(m.id)}">Xóa hồ sơ</button>`:''}<button data-action="save" class="primary">Lưu bản nháp</button><button data-action="discard">${ui.dirty?'Bỏ thay đổi / tải bản đã lưu':'Đóng hồ sơ'}</button></div></div>
     <div class="mx-section-nav"><button type="button" data-scroll="mx-information">Thông tin</button><button type="button" data-scroll="mx-grid">1. Bảng ma trận 2D ${m.matrix_locked ? '🔒' : ''}</button><button type="button" data-scroll="mx-spec-grid">2. Bảng đặc tả ${m.spec_locked ? '🔒' : ''}</button><button type="button" data-scroll="mx-output">3. Word & chốt phiên bản</button></div>
     ${received?'<div class="callout">Đang ở chế độ bảo toàn chỉ tiêu nguồn (chỉ bổ sung ánh xạ PPCT và số câu). Nếu bạn muốn thêm/sửa/xóa bài học, YCCĐ hoặc phân bố câu hỏi trực tiếp, hãy bấm nút <strong>"🔓 Bật sửa toàn diện"</strong> ở góc phải phía trên.</div>':''}
     <h3 id="mx-information">1. Thông tin hồ sơ</h3><div class="form-grid">${field('Tên hồ sơ','title',m.title,'text',locked)}${select('Khối lớp','grade',grades().map(g=>opt(g,'Khối '+g,Number(m.grade)===g)).join(),protectedFields)}${field('Người phụ trách biên soạn','owner_name',m.owner_name,'text',locked)}${field('Cơ sở của người phụ trách','campus',m.campus,'text',locked)}${field('Năm học','school_year',m.school_year,'text',protectedFields)}${select('Kỳ kiểm tra','exam_type',Object.entries(periods).map(([k,v])=>opt(k,v,k===m.exam_type)).join(''),protectedFields)}${field('Thời gian (phút)','duration',m.duration,'number',protectedFields)}${select('Kiểu mẫu','profile',(generic()?['GENERAL']:['THCS','THPT']).map(k=>opt(k,profileLabel(k),k===m.profile)).join(''),protectedFields)}</div>
     ${renderMatrixGuidanceBanner(m)}
-    ${profileOptionsHtml(m,locked)}
+    ${profileOptionsHtml(m,matrixLocked)}
     <div id="mx-grid">${matrixGridHtml(m, matrixLocked, received)}</div>
     <div id="mx-spec-grid">${specGridHtml(m, specLocked, received)}</div>
     <details style="margin:16px 0;border:1px solid var(--line);border-radius:10px;background:#f8fafc;padding:10px 16px">
       <summary style="cursor:pointer;font-weight:600;color:var(--muted);font-size:13px">⚙️ Tùy chỉnh danh sách từng câu hỏi & chỉ báo nâng cao (Hệ thống đã tự động liên kết từ Bảng 1 & Bảng 2)</summary>
       <div style="margin-top:14px">
         <h3 id="mx-lessons">Bài học & yêu cầu cần đạt chi tiết</h3><p class="muted">Khối ${m.grade}. Thầy/Cô có thể chỉnh sửa trực tiếp ở Bảng 2 (Bảng đặc tả) phía trên hoặc tùy chỉnh tại đây.</p>
-        ${!protectedFields?`<div class="actions"><label for="mx-add-lesson">Bài cần thêm</label><select id="mx-add-lesson">${selectableLessons(m.grade,m.exam_type).filter(l=>!m.lessons.some(x=>x.lesson_code===l.lesson_code)).map(l=>opt(l.lesson_code,l.lesson_name_source,false)).join('')}</select><button data-action="add-lesson">+ Thêm bài</button></div>`:''}
-        ${m.lessons.map((lesson,i)=>`<article class="mx-lesson"><div class="dialog-heading" style="margin-bottom:8px"><h4>${E(lesson.title)}</h4>${!protectedFields?`<button type="button" class="quiet danger" data-action="remove-lesson" data-index="${i}">Xóa bài này</button>`:''}</div>${select('Đối chiếu bài PPCT '+(i+1),`lessons.${i}.lesson_code`,opt('','Chọn bài đối chiếu',!lesson.lesson_code)+selectableLessons(m.grade,m.exam_type,[lesson.lesson_code]).map(l=>opt(l.lesson_code,l.lesson_name_source,l.lesson_code===lesson.lesson_code)).join(''),locked)}${!received?`<div class="form-grid">${field('Tên bài hiển thị '+(i+1),`lessons.${i}.title`,lesson.title,'text',locked)}${field('Tên chủ đề '+(i+1),`lessons.${i}.topic`,lesson.topic,'text',locked)}</div>`:`<p class="muted">Nguồn: ${E(lesson.topic)}</p>`}
-        ${m.requirements.map((r,ri)=>r.lesson_code===lesson.lesson_code&&(!received||r.source_index===lesson.source_index)?requirementEditor(r,ri,locked,received):'').join('')}
-        ${!protectedFields?`<button data-action="add-requirement" data-index="${i}">+ Thêm yêu cầu / chỉ báo kiểm tra</button>`:''}</article>`).join('')}
-        ${(m.profile==='THPT'||m.competency_catalog?.length)?`<h3>Danh mục chỉ báo năng lực</h3><p class="muted">Giữ nguyên mã và mô tả chỉ báo của nguồn. Bảng phân bố năng lực được dựng từ các vị trí đã gắn mã.</p>${m.indicator_catalog.map((c,i)=>`<div class="form-grid mx-indicator">${field('Mã chỉ báo '+(i+1),`indicator_catalog.${i}.code`,c.code,'text',protectedFields)}${select('Năng lực của mã '+(i+1),`indicator_catalog.${i}.competency`,competencyOptions(c.competency),protectedFields)}${field('Mô tả chỉ báo '+(i+1),`indicator_catalog.${i}.text`,c.text,'text',protectedFields)}${!protectedFields?`<div class="field" style="justify-content:flex-end"><button type="button" class="quiet danger" data-action="remove-indicator" data-index="${i}">Xóa mã</button></div>`:''}</div>`).join('')}${!protectedFields?'<button data-action="add-indicator">+ Thêm mã chỉ báo</button>':''}`:''}
-        <h3 id="mx-slots">Phân bố câu hỏi và ý chi tiết</h3>${!protectedFields?bulkEditor():''}<div id="mx-summary" class="mx-totals"></div>
-        <div class="table-wrap"><table class="mx-slots-table"><thead><tr><th>Câu / dạng</th><th>Ý</th><th>Yêu cầu cần đạt cụ thể</th><th>Điểm</th>${(m.profile==='THPT'||m.competency_catalog?.length)?'<th>Mã chỉ báo</th>':''}${!protectedFields?'<th>Thao tác</th>':''}</tr></thead><tbody>${m.slots.map((s,si)=>s.parts.map((p,pi)=>slotEditor(s,si,p,pi,locked,received)).join('')).join('')}</tbody></table></div>
+        ${!received&&!matrixLocked&&!specLocked?`<div class="actions"><label for="mx-add-lesson">Bài cần thêm</label><select id="mx-add-lesson">${selectableLessons(m.grade,m.exam_type).filter(l=>!m.lessons.some(x=>x.lesson_code===l.lesson_code)).map(l=>opt(l.lesson_code,l.lesson_name_source,false)).join('')}</select><button data-action="add-lesson">+ Thêm bài</button></div>`:''}
+        ${m.lessons.map((lesson,i)=>`<article class="mx-lesson"><div class="dialog-heading" style="margin-bottom:8px"><h4>${E(lesson.title)}</h4>${!received&&!matrixLocked&&!specLocked?`<button type="button" class="quiet danger" data-action="remove-lesson" data-index="${i}">Xóa bài này</button>`:''}</div>${select('Đối chiếu bài PPCT '+(i+1),`lessons.${i}.lesson_code`,opt('','Chọn bài đối chiếu',!lesson.lesson_code)+selectableLessons(m.grade,m.exam_type,[lesson.lesson_code]).map(l=>opt(l.lesson_code,l.lesson_name_source,l.lesson_code===lesson.lesson_code)).join(''),matrixLocked||specLocked||received)}${!received?`<div class="form-grid">${field('Tên bài hiển thị '+(i+1),`lessons.${i}.title`,lesson.title,'text',matrixLocked||specLocked)}${field('Tên chủ đề '+(i+1),`lessons.${i}.topic`,lesson.topic,'text',matrixLocked||specLocked)}</div>`:`<p class="muted">Nguồn: ${E(lesson.topic)}</p>`}
+        ${m.requirements.map((r,ri)=>r.lesson_code===lesson.lesson_code&&(!received||r.source_index===lesson.source_index)?requirementEditor(r,ri,specLocked,received):'').join('')}
+        ${!received&&!specLocked?`<button data-action="add-requirement" data-index="${i}">+ Thêm yêu cầu / chỉ báo kiểm tra</button>`:''}</article>`).join('')}
+        ${(m.profile==='THPT'||m.competency_catalog?.length)?`<h3>Danh mục chỉ báo năng lực</h3><p class="muted">Giữ nguyên mã và mô tả chỉ báo của nguồn. Bảng phân bố năng lực được dựng từ các vị trí đã gắn mã.</p>${m.indicator_catalog.map((c,i)=>`<div class="form-grid mx-indicator">${field('Mã chỉ báo '+(i+1),`indicator_catalog.${i}.code`,c.code,'text',specLocked||received)}${select('Năng lực của mã '+(i+1),`indicator_catalog.${i}.competency`,competencyOptions(c.competency),specLocked||received)}${field('Mô tả chỉ báo '+(i+1),`indicator_catalog.${i}.text`,c.text,'text',specLocked||received)}${!specLocked&&!received?`<div class="field" style="justify-content:flex-end"><button type="button" class="quiet danger" data-action="remove-indicator" data-index="${i}">Xóa mã</button></div>`:''}</div>`).join('')}${!specLocked&&!received?'<button data-action="add-indicator">+ Thêm mã chỉ báo</button>':''}`:''}
+        <h3 id="mx-slots">Phân bố câu hỏi và ý chi tiết</h3>${!matrixLocked&&!received?bulkEditor():''}<div id="mx-summary" class="mx-totals"></div>
+        <div class="table-wrap"><table class="mx-slots-table"><thead><tr><th>Câu / dạng</th><th>Ý</th><th>Yêu cầu cần đạt cụ thể</th><th>Điểm</th>${(m.profile==='THPT'||m.competency_catalog?.length)?'<th>Mã chỉ báo</th>':''}${!matrixLocked&&!received?'<th>Thao tác</th>':''}</tr></thead><tbody>${m.slots.map((s,si)=>s.parts.map((p,pi)=>slotEditor(s,si,p,pi,matrixLocked,received)).join('')).join('')}</tbody></table></div>
       </div>
     </details>
     <div id="mx-output"><h3>3. Xuất file Word, Đối chiếu & Chốt phiên bản</h3><p class="muted">Xem trực tiếp bảng Ma trận & Đặc tả chuẩn Word (có gộp ô tự động), tải file Word/PDF hoặc chốt phiên bản để tạo đề kiểm tra.</p><div id="mx-report"></div><div id="mx-shortfall"></div><div id="mx-export-links" style="margin-bottom:12px"></div>
@@ -1078,7 +1079,13 @@
   function captureGeneration(){if(!ui.generation||!qs('#mx-exam-title'))return;const values={};ui.container.querySelectorAll('[id^=mx-exam-],[data-choice],[data-review-slot]').forEach(el=>{const key=el.dataset.reviewSlot?'review:'+el.dataset.reviewSlot+':'+el.value:el.id;values[key]=el.type==='checkbox'?el.checked:el.value;});ui.generation.formValues=values;}
   function input(event){
     captureGeneration();
+    const m = ui.editing;
+    const locked = ['locked', 'archived'].includes(m?.status);
+    const specLocked = locked || Boolean(m?.spec_locked);
+    const matrixLocked = locked || Boolean(m?.matrix_locked);
+
     if (event.target.matches('.mx-spec-req-input')) {
+      if (specLocked) { event.preventDefault(); return; }
       const reqId = event.target.dataset.reqId;
       const r = (ui.editing?.requirements || []).find(x => x.id === reqId);
       if (r) {
@@ -1090,6 +1097,7 @@
       return;
     }
     if (event.target.matches('.mx-spec-refs-input')) {
+      if (specLocked) { event.preventDefault(); return; }
       const lessonCode = event.target.dataset.lessonCode;
       const level = event.target.dataset.level;
       const val = event.target.value;
@@ -1104,6 +1112,7 @@
       return;
     }
     if (event.target.matches('.mx-spec-comp-input')) {
+      if (specLocked) { event.preventDefault(); return; }
       const lessonCode = event.target.dataset.lessonCode;
       const level = event.target.dataset.level;
       const val = event.target.value.trim();
@@ -1122,21 +1131,46 @@
       if (mark) mark.textContent = ' · Có thay đổi chưa lưu';
       return;
     }
+    if (matrixLocked && event.target.closest('#mx-grid')) {
+      event.preventDefault();
+      return;
+    }
+    if (specLocked && event.target.closest('#mx-spec-grid')) {
+      event.preventDefault();
+      return;
+    }
     if(event.target.matches('[data-field]')&&event.target.tagName!=='SELECT'&&event.target.type!=='checkbox')assign(event.target);
     if(event.target.id==='mx-confirm-agreement')restoreButtons();
   }
   async function change(event){
     const el=event.target;
+    const m = ui.editing;
+    const locked = ['locked', 'archived'].includes(m?.status);
+    const specLocked = locked || Boolean(m?.spec_locked);
+    const matrixLocked = locked || Boolean(m?.matrix_locked);
+
     if (el.matches('.mx-spec-req-input')) {
+      if (specLocked) {
+        message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi chỉnh sửa.', true);
+        return;
+      }
       changed();
       return;
     }
     if (el.matches('.mx-spec-refs-input') || el.matches('.mx-spec-comp-input')) {
+      if (specLocked) {
+        message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi chỉnh sửa.', true);
+        return;
+      }
       changed();
       renderEditor();
       return;
     }
     if(el.matches('.mx-grid-input')){
+      if (matrixLocked) {
+        message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi chỉnh sửa.', true);
+        return;
+      }
       const lessonCode=el.dataset.lessonCode;
       const gridType=el.dataset.gridType;
       const val=Math.max(0,parseInt(el.value,10)||0);
@@ -1144,6 +1178,14 @@
       changed();renderEditor();
       const nextInput=qs('.mx-grid-input[data-lesson-code="' + lessonCode + '"][data-grid-type="' + gridType + '"]');
       if(nextInput){nextInput.focus();nextInput.select();}
+      return;
+    }
+    if (matrixLocked && el.closest('#mx-grid')) {
+      message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi chỉnh sửa.', true);
+      return;
+    }
+    if (specLocked && el.closest('#mx-spec-grid')) {
+      message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi chỉnh sửa.', true);
       return;
     }
     if(el.id==='mx-create-grade'){ui.createGrade=Number(el.value)||8;return;}
@@ -1159,7 +1201,7 @@
     return true;
   }
   function normalizeSlotNumbers(m){
-    if(!m||!Array.isArray(m.slots)||m.status==='locked'||m.status==='archived'||m.mode==='received')return false;
+    if(!m||!Array.isArray(m.slots)||m.status==='locked'||m.status==='archived'||m.matrix_locked)return false;
     let changedAny=false;const groups={};
     m.slots.forEach(s=>{(groups[s.kind]||(groups[s.kind]=[])).push(s);});
     Object.values(groups).forEach(list=>{
@@ -1168,7 +1210,26 @@
     });
     return changedAny;
   }
-  async function openRecord(id,discard=false){if(!discard&&!guard())return;const d=await ui.ctx.request('/api/matrices/'+encodeURIComponent(id));ui.editing=d.matrix;ui.report=d.validation;ui.dirty=normalizeSlotNumbers(ui.editing);ui.importing=null;ui.generation=null;render();}
+  async function openRecord(id,discard=false){
+    if(!discard&&!guard())return;
+    const d=await ui.ctx.request('/api/matrices/'+encodeURIComponent(id));
+    ui.editing=d.matrix;
+    const hadSlotFix=normalizeSlotNumbers(ui.editing);
+    if(hadSlotFix){
+      ui.dirty=true;
+      if(ui.ctx?.ppct && window.StaticExamEngine){
+        ui.report=window.StaticExamEngine.validateMatrix(ui.editing,ui.ctx.ppct);
+      } else {
+        ui.report=null;
+      }
+    } else {
+      ui.report=d.validation;
+      ui.dirty=false;
+    }
+    ui.importing=null;
+    ui.generation=null;
+    render();
+  }
   async function save(silent=false){
     normalizeSlotNumbers(ui.editing);
     (ui.editing.requirements||[]).forEach(r=>{
@@ -2084,7 +2145,11 @@
     }
     if(action==='import'){if(!guard())return;ui.editing=null;ui.generation=null;const g=Number(qs('#mx-create-grade')?.value||ui.createGrade||ui.filter.grade)||8;ui.importing={grade:g};render();return;}
     if(action==='discard'){await run(async()=>{if(ui.dirty&&ui.editing.id)await openRecord(ui.editing.id,true);else{ui.editing=null;ui.dirty=false;render();}});return;}
+    const isGloballyLocked = ['locked', 'archived'].includes(ui.editing?.status);
+    const isMatrixLocked = isGloballyLocked || Boolean(ui.editing?.matrix_locked);
+    const isSpecLocked = isGloballyLocked || Boolean(ui.editing?.spec_locked);
     if(action==='apply-preset'&&ui.editing){
+      if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
       const g=Number(ui.editing.grade)||8;
       const p=STANDARD_PRESETS[String(g)];
       if(!p){message('Chưa có mẫu cho khối '+g,true);return;}
@@ -2100,6 +2165,7 @@
       return;
     }
     if(action==='load-ppct-lessons'&&ui.editing){
+      if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
       const g=Number(ui.editing.grade)||8;
       const ppctLessons=lessons(g);
       if(!ppctLessons.length){
@@ -2123,12 +2189,14 @@
       return;
     }
     if(action==='sort-lessons-ppct'&&ui.editing){
+      if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
       sortLessonsByPpct(ui.editing);
       changed();renderEditor();
       message('Đã sắp xếp lại các bài học theo đúng thứ tự PPCT (B1, B2, B3...)!');
       return;
     }
     if(action==='move-lesson-up'&&ui.editing){
+      if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
       const idx=Number(b.dataset.index);
       if(idx>0&&idx<ui.editing.lessons.length){
         const tmp=ui.editing.lessons[idx-1];
@@ -2140,6 +2208,7 @@
       return;
     }
     if(action==='move-lesson-down'&&ui.editing){
+      if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
       const idx=Number(b.dataset.index);
       if(idx>=0&&idx<ui.editing.lessons.length-1){
         const tmp=ui.editing.lessons[idx+1];
@@ -2151,6 +2220,7 @@
       return;
     }
     if(action==='clear-slots'&&ui.editing){
+      if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
       if(!confirm('Bạn có chắc chắn muốn làm trống toàn bộ bài học và câu hỏi phân bố trong ma trận để tự thiết lập lại từ đầu?'))return;
       ui.editing.lessons=[];
       ui.editing.requirements=[];
@@ -2160,6 +2230,7 @@
       return;
     }
     if(action==='grid-add-lesson'&&ui.editing){
+      if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
       const code=qs('#mx-grid-add-lesson')?.value;
       const l=lessons(ui.editing.grade).find(x=>x.lesson_code===code);
       if(!l){message('Vui lòng chọn bài học từ danh sách PPCT.',true);return;}
@@ -2172,6 +2243,7 @@
       return;
     }
     if(action==='grid-add-custom-lesson'&&ui.editing){
+      if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
       const nextNum=(ui.editing.lessons?.length||0)+1;
       const defaultCode='B'+nextNum;
       const title=prompt('Nhập tên bài học / nội dung kiểm tra:', 'Bài ' + nextNum);
@@ -2188,12 +2260,15 @@
     }
     if(action==='unlock-custom'&&ui.editing){
       ui.editing.allow_custom_override=true;
+      ui.editing.matrix_locked=false;
+      ui.editing.spec_locked=false;
       ui.editing.status='draft';
       changed();renderEditor();
       message('Đã bật chế độ sửa toàn diện. Bạn có thể thêm/sửa/xóa bài học, YCCĐ và phân bố câu hỏi rồi bấm Lưu bản nháp.');
       return;
     }
     if(action==='auto-fill-all-ppct-reqs'&&ui.editing){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
       let count=0;
       (ui.editing.lessons||[]).forEach(l=>{
         fillLessonPpctRequirements(ui.editing,l.lesson_code);
@@ -2204,6 +2279,7 @@
       return;
     }
     if(action==='fill-lesson-ppct-reqs'&&ui.editing){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
       const code=b.dataset.lessonCode;
       fillLessonPpctRequirements(ui.editing,code);
       changed();renderEditor();
@@ -2211,6 +2287,7 @@
       return;
     }
     if(action==='add-spec-req'&&ui.editing){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
       const code=b.dataset.lessonCode;
       const level=b.dataset.level||'Biết';
       const pl=lessons(ui.editing.grade).find(x=>x.lesson_code===code);
@@ -2228,6 +2305,7 @@
       return;
     }
     if(action==='remove-spec-req'&&ui.editing){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
       const reqId=b.dataset.reqId;
       const idx=(ui.editing.requirements||[]).findIndex(r=>r.id===reqId);
       if(idx!==-1){
@@ -2242,6 +2320,7 @@
       return;
     }
     if(action==='reset-spec-refs'&&ui.editing){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
       const lessonCode=b.dataset.lessonCode;
       const level=b.dataset.level;
       if(ui.editing.custom_level_refs){
@@ -2255,6 +2334,7 @@
       return;
     }
     if(action==='add-lesson'){
+      if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
       const l=lessons(ui.editing.grade).find(x=>x.lesson_code===qs('#mx-add-lesson')?.value);if(!l)return;
       if(!ui.editing.lessons.some(x=>x.lesson_code===l.lesson_code)){
         ui.editing.lessons.push({lesson_code:l.lesson_code,title:l.lesson_name_source,topic:l.topic_source});
@@ -2263,6 +2343,7 @@
       changed();renderEditor();return;
     }
     if(action==='remove-lesson'){
+      if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
       const idx=Number(b.dataset.index),l=ui.editing.lessons[idx];if(!l)return;
       const removedReqIds=new Set(ui.editing.requirements.filter(r=>r.lesson_code===l.lesson_code).map(r=>r.id));
       ui.editing.lessons.splice(idx,1);
@@ -2272,34 +2353,54 @@
       changed();renderEditor();return;
     }
     if(action==='add-requirement'){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
       const l=ui.editing.lessons[Number(b.dataset.index)];ui.editing.requirements.push({id:uid('R'),lesson_code:l.lesson_code,level:'Biết',text:'',ppct_outcome_index:null,competency:competencies()[0],choice_group:null});changed();renderEditor();return;
     }
     if(action==='remove-requirement'){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
       const idx=Number(b.dataset.index),r=ui.editing.requirements[idx];if(!r)return;
       ui.editing.requirements.splice(idx,1);
       ui.editing.slots.forEach(s=>s.parts.forEach(p=>{if(p.requirement_id===r.id)p.requirement_id='';}));
       changed();renderEditor();return;
     }
-    if(action==='add-indicator'){ui.editing.indicator_catalog.push({code:'',competency:competencies()[0],text:''});changed();renderEditor();return;}
-    if(action==='remove-indicator'){ui.editing.indicator_catalog.splice(Number(b.dataset.index),1);changed();renderEditor();return;}
+    if(action==='add-indicator'){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
+      ui.editing.indicator_catalog.push({code:'',competency:competencies()[0],text:''});changed();renderEditor();return;
+    }
+    if(action==='remove-indicator'){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
+      ui.editing.indicator_catalog.splice(Number(b.dataset.index),1);changed();renderEditor();return;
+    }
     if(action==='add-slots'){
+      if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
       const m=ui.editing,kind=qs('#mx-bulk-kind').value,rid=qs('#mx-bulk-req').value,count=Number(qs('#mx-bulk-count').value),parts=kind==='YN'?4:kind==='ES'?Number(qs('#mx-bulk-parts').value):1,points=Number(qs('#mx-bulk-points').value);
       if(!rid||!Number.isInteger(count)||count<1||count>100||!Number.isInteger(parts)||parts<1||parts>10||!Number.isFinite(points)||points<=0){message('Chọn YCCĐ, số câu/ý và điểm hợp lệ trước khi thêm.',true);return;}
-      const start=m.slots.filter(s=>s.kind===kind).length;
-      for(let i=0;i<count;i++)m.slots.push({id:uid('S'),kind,number:start+i+1,scoring:{mode:'sum_parts'},parts:Array.from({length:parts},(_,j)=>({id:uid('P'),label:parts===1?'':String.fromCharCode(97+j),requirement_id:rid,points,indicator:''}))});
+      for(let i=0;i<count;i++)m.slots.push({id:uid('S'),kind,number:0,scoring:{mode:'sum_parts'},parts:Array.from({length:parts},(_,j)=>({id:uid('P'),label:parts===1?'':String.fromCharCode(97+j),requirement_id:rid,points,indicator:''}))});
+      renumberAllSlots(m);
       changed();renderEditor();return;
     }
-    if(action==='remove-slot'){const kind=ui.editing.slots[Number(b.dataset.index)].kind;ui.editing.slots.splice(Number(b.dataset.index),1);ui.editing.slots.filter(s=>s.kind===kind).forEach((s,i)=>s.number=i+1);changed();renderEditor();return;}
+    if(action==='remove-slot'){
+      if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
+      ui.editing.slots.splice(Number(b.dataset.index),1);
+      renumberAllSlots(ui.editing);
+      changed();renderEditor();return;
+    }
     await run(async()=>{
       if(action==='save')await save();
       else if(action==='lock-matrix'){
+        normalizeSlotNumbers(ui.editing);
         ui.editing.matrix_locked = true;
         await save(true);
         message('Đã lưu & chốt Bảng ma trận 2D! Số câu và danh sách bài học đã được cố định.');
       }
       else if(action==='unlock-matrix'){
+        if(ui.editing.status === 'locked'){
+          const result=await ui.ctx.request('/api/matrices/unlock',{id:ui.editing.id});
+          ui.editing=result.matrix;ui.report=result.validation;ui.dirty=false;await refresh();render();
+          message('Đã mở khóa phiên bản về trạng thái Bản nháp.');
+          return;
+        }
         ui.editing.matrix_locked = false;
-        if(ui.editing.status === 'locked') ui.editing.status = 'draft';
         await save(true);
         message('Đã mở khóa Bảng ma trận 2D để chỉnh sửa.');
       }
@@ -2309,8 +2410,13 @@
         message('Đã lưu & chốt Bảng đặc tả! Toàn bộ Yêu cầu cần đạt đã được cố định.');
       }
       else if(action==='unlock-spec'){
+        if(ui.editing.status === 'locked'){
+          const result=await ui.ctx.request('/api/matrices/unlock',{id:ui.editing.id});
+          ui.editing=result.matrix;ui.report=result.validation;ui.dirty=false;await refresh();render();
+          message('Đã mở khóa phiên bản về trạng thái Bản nháp.');
+          return;
+        }
         ui.editing.spec_locked = false;
-        if(ui.editing.status === 'locked') ui.editing.status = 'draft';
         await save(true);
         message('Đã mở khóa Bảng đặc tả để chỉnh sửa.');
       }
@@ -2688,33 +2794,36 @@
     const profile = grade >= 10 ? 'THPT' : 'THCS';
     const totalPoints = slots.reduce((acc, s) => acc + (s.parts || []).reduce((pAcc, p) => pAcc + (Number(p.points) || 0), 0), 0) || 10;
 
+    const mObj = {
+      id: 'MX-' + grade + '-' + examType + '-' + Date.now().toString(36),
+      family_id: 'FAM-' + grade + '-' + examType,
+      version: 1,
+      revision: 0,
+      status: 'draft',
+      mode: 'authored',
+      profile,
+      grade,
+      school_year: '2026-2027',
+      exam_type: examType,
+      duration: 45,
+      title,
+      owner_name: 'Giáo viên phụ trách',
+      campus: 'Cao Thắng',
+      total_points: Math.round(totalPoints * 10) / 10,
+      lessons: Array.from(lessonsMap.values()),
+      requirements,
+      slots,
+      indicator_catalog: [],
+      source: null,
+      reconciliation: { confirmed: true, issues: [] },
+      audit: []
+    };
+    renumberAllSlots(mObj);
+
     return {
       format: 'asian-school-matrix',
       schema_version: 1,
-      matrix: {
-        id: 'MX-' + grade + '-' + examType + '-' + Date.now().toString(36),
-        family_id: 'FAM-' + grade + '-' + examType,
-        version: 1,
-        revision: 0,
-        status: 'draft',
-        mode: 'authored',
-        profile,
-        grade,
-        school_year: '2026-2027',
-        exam_type: examType,
-        duration: 45,
-        title,
-        owner_name: 'Giáo viên phụ trách',
-        campus: 'Cao Thắng',
-        total_points: Math.round(totalPoints * 10) / 10,
-        lessons: Array.from(lessonsMap.values()),
-        requirements,
-        slots,
-        indicator_catalog: [],
-        source: null,
-        reconciliation: { confirmed: true, issues: [] },
-        audit: []
-      }
+      matrix: mObj
     };
   }
 

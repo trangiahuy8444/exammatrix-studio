@@ -284,6 +284,26 @@ Khối: 9
   assert(specLockedHtml.includes('🔒 Đã chốt Bảng đặc tả'), 'Spec grid should display locked badge');
   assert(specLockedHtml.includes('data-action="unlock-spec"'), 'Spec grid should have unlock-spec action');
   assert(specLockedHtml.includes('disabled'), 'Spec textareas should be disabled when locked');
+  assert(!specLockedHtml.includes('class="mx-spec-refs-input"'), 'Spec question refs input should be disabled/hidden when locked');
+  assert(!specLockedHtml.includes('class="mx-spec-comp-input"'), 'Spec comp input should be disabled/hidden when locked');
+
+  // Verify essay slots restart numbering at 1
+  const esRenumberMatrix = {
+    lessons: [{ lesson_code: 'B1' }],
+    requirements: [{ id: 'R1', lesson_code: 'B1', level: 'Biết' }, { id: 'R2', lesson_code: 'B1', level: 'Vận dụng' }],
+    slots: [
+      { kind: 'MC', number: 1, parts: [{ requirement_id: 'R1' }] },
+      { kind: 'MC', number: 2, parts: [{ requirement_id: 'R1' }] },
+      { kind: 'ES', number: 29, parts: [{ requirement_id: 'R2' }] },
+      { kind: 'ES', number: 30, parts: [{ requirement_id: 'R2' }] }
+    ]
+  };
+  ui.renumberAllSlots(esRenumberMatrix);
+  assert.equal(esRenumberMatrix.slots[0].number, 1);
+  assert.equal(esRenumberMatrix.slots[1].number, 2);
+  assert.equal(esRenumberMatrix.slots[2].number, 1, 'ES must restart numbering at 1 instead of continuing from MC');
+  assert.equal(esRenumberMatrix.slots[3].number, 2, 'ES must be continuous starting at 1');
+
   console.log('PASS matrix UI: two-stage independent locking for Matrix 2D and Spec Grid passed');
 
   // Test customizable question numbers by level and competency input in Spec Grid

@@ -1322,13 +1322,13 @@ function renderPPCT(){
  $('#add-ppct-lesson').onclick=()=>openPPCTEditor(g,'',s);
  const clearGradeBtn=$('#btn-clear-grade-ppct');
  if(clearGradeBtn)clearGradeBtn.onclick=async()=>{
-   if(!confirm(`Bạn có chắc chắn muốn xóa toàn bộ ${ls.length} bài học PPCT của Khối ${g} để tải lại tệp mới không?`))return;
+   if(!confirm(`Bạn có chắc chắn muốn xóa toàn bộ ${ls.length} bài học PPCT môn ${s} Khối ${g} để tải lại tệp mới không?`))return;
    if(store.bank?.ppct?.lessons){
-     store.bank.ppct.lessons=store.bank.ppct.lessons.filter(l=>Number(l.grade)!==g);
+     store.bank.ppct.lessons=store.bank.ppct.lessons.filter(l=>!(((l.subject_name||'Tin học')===s)&&Number(l.grade)===g));
    }
    await request('/api/ppct/clear-grade',{grade:g,subject_name:s});
    renderPPCT();
-   notify(`Đã xóa PPCT Khối ${g}. Bạn có thể tải tệp mới cho Khối ${g} ở khung phía trên.`);
+   notify(`Đã xóa PPCT môn ${s} Khối ${g}. Bạn có thể tải tệp mới ở khung phía trên.`);
  };
  bindPpctImport(g);
 }
@@ -1521,7 +1521,6 @@ function parsePpctFromMarkdown(text, defaultGrade) {
   return Array.from(lessonsMap.values());
 }
 
-const PPCT_STATUS={new:['Bài mới','approved'],changed:['Có thay đổi','pending_review'],unchanged:['Giữ nguyên','draft'],conflict:['Xung đột — bỏ qua','needs_review']};
 function ppctImportCard(g){
  const imp=store.ppctImport, r=imp&&imp.report;
  const lessonsList=(r&&Array.isArray(r.lessons))?r.lessons:[];
@@ -1529,7 +1528,6 @@ function ppctImportCard(g){
  const gradesList=(r&&Array.isArray(r.grades))?r.grades:[g];
  const issuesList=(r&&Array.isArray(r.issues))?r.issues:[];
  const rows=lessonsList.map(x=>{
-   const [label,cls]=PPCT_STATUS[x.status]||[x.status,''];
    const f = ppctLessonFields(x);
    const outcomesHtml = f.outcomes.length
      ? `<ul>${f.outcomes.map(o => `<li>${esc(o)}</li>`).join('')}</ul>`
@@ -1577,7 +1575,7 @@ function ppctImportCard(g){
      notesCellHtml += `<div class="small" style="margin-top:4px;color:#0267b1">${esc(notesChange.old || '(trống)')} → ${esc(notesChange.new || '(trống)')}</div>`;
    }
 
-   return `<tr><td class="ppct-col-status"><span class="badge ${cls}">${esc(label)}</span></td><td class="ppct-col-week">${f.weeksHtml}</td><td class="ppct-col-lesson">${lessonCellHtml}</td><td class="ppct-col-duration">${esc(f.duration)}</td><td class="ppct-col-ppct">${esc(f.ppct)}</td><td class="ppct-col-outcomes">${outcomeCellHtml}</td><td class="ppct-col-nls">${nlsCellHtml}</td><td class="ppct-col-notes">${notesCellHtml}</td></tr>`;
+   return `<tr><td class="ppct-col-week">${f.weeksHtml}</td><td class="ppct-col-lesson">${lessonCellHtml}</td><td class="ppct-col-duration">${esc(f.duration)}</td><td class="ppct-col-ppct">${esc(f.ppct)}</td><td class="ppct-col-outcomes">${outcomeCellHtml}</td><td class="ppct-col-nls">${nlsCellHtml}</td><td class="ppct-col-notes">${notesCellHtml}</td></tr>`;
  }).join('');
  return `<div class="card"><h2>Nhập PPCT từ JSON, Markdown hoặc Word</h2>
   <p class="muted">Khuyên dùng <strong>JSON</strong> (chuẩn xác 100%) hoặc <strong>Markdown (.md)</strong> (dễ đọc/sửa) đủ <strong>7 cột chuẩn Phụ lục 1 (CV 5512, TT 02/2025 &amp; QĐ 2422)</strong> để nạp tức thì và tránh lỗi định dạng ngầm của Word. Vẫn hỗ trợ tệp Word KHDH Phụ lục 1 (.docx). Khối lớp tự động nhận diện theo tên tệp hoặc theo Khối ${esc(g)} đang chọn.</p>
@@ -1596,10 +1594,10 @@ function ppctImportCard(g){
     <button type="button" class="button quiet" id="ppct-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI chuyển Word → JSON</button>
   </div>
   <div class="actions"><input type="file" id="ppct-import-file" accept=".docx,.json,.md,.txt"><button type="button" class="button" id="ppct-import-inspect">Đọc và đối chiếu</button>
-  ${r?`<button type="button" class="primary" id="ppct-import-apply" ${sm.new+sm.changed?'':'disabled'}>Xác nhận nhập (${sm.new} bài mới, ${sm.changed} bài thay đổi)</button><button type="button" class="quiet" id="ppct-import-cancel">Hủy</button>`:''}</div>
-  ${r?`<p class="callout">Tệp ${esc(r.filename||'Đã nạp')} · Khối ${gradesList.map(esc).join(', ')} · ${lessonsList.length} bài: ${sm.new} mới, ${sm.changed} thay đổi, ${sm.unchanged} giữ nguyên, ${sm.conflict} xung đột. Bài xung đột được bỏ qua; bài đang có mà tệp không nhắc đến được giữ nguyên.</p>
+  ${r?`<button type="button" class="primary" id="ppct-import-apply" ${sm.new+sm.changed?'':'disabled'}>Xác nhận nhập (${sm.new+sm.changed} bài học)</button><button type="button" class="quiet" id="ppct-import-cancel">Hủy</button>`:''}</div>
+  ${r?`<p class="callout">Tệp ${esc(r.filename||'Đã nạp')} · Khối ${gradesList.map(esc).join(', ')} · Đọc được ${lessonsList.length} bài học (đủ 7 cột chuẩn KHDH). Hãy kiểm tra lại nội dung bên dưới trước khi bấm Xác nhận nhập.${sm.conflict ? ` ⚠️ Có ${sm.conflict} bài xung đột sẽ bị bỏ qua.` : ''}</p>
   ${issuesList.length?`<ul class="mx-errors">${issuesList.map(i=>`<li>${esc(i.message||i)}</li>`).join('')}</ul>`:''}
-  <div class="table-wrap"><table class="ppct-table ppct-khdh-table"><thead><tr><th class="ppct-col-status">Kết quả</th><th class="ppct-col-week">Tuần</th><th class="ppct-col-lesson">Bài học</th><th class="ppct-col-duration">Số tiết</th><th class="ppct-col-ppct">PPCT</th><th class="ppct-col-outcomes">Yêu cầu cần đạt</th><th class="ppct-col-nls">Phát triển năng lực số &amp; AI</th><th class="ppct-col-notes">Ghi chú</th></tr></thead><tbody>${rows || '<tr><td colspan="8" class="empty" style="text-align:center;padding:16px">Không tìm thấy danh mục bài học PPCT trong tệp này. Nếu đây là tệp Đề thi / Ma trận, thầy/cô vui lòng dùng nút "✨ AI Nhập đề" trên thanh trên cùng để nạp câu hỏi vào ngân hàng.</td></tr>'}</tbody></table></div>`:""}
+  <div class="table-wrap"><table class="ppct-table ppct-khdh-table"><thead><tr><th class="ppct-col-week">Tuần</th><th class="ppct-col-lesson">Bài học</th><th class="ppct-col-duration">Số tiết</th><th class="ppct-col-ppct">PPCT</th><th class="ppct-col-outcomes">Yêu cầu cần đạt</th><th class="ppct-col-nls">Phát triển năng lực số &amp; AI</th><th class="ppct-col-notes">Ghi chú</th></tr></thead><tbody>${rows || '<tr><td colspan="7" class="empty" style="text-align:center;padding:16px">Không tìm thấy danh mục bài học PPCT trong tệp này. Nếu đây là tệp Đề thi / Ma trận, thầy/cô vui lòng dùng nút "✨ AI Nhập đề" trên thanh trên cùng để nạp câu hỏi vào ngân hàng.</td></tr>'}</tbody></table></div>`:""}
  </div>`;
 }
 function bindPpctImport(g){

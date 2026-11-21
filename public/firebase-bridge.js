@@ -615,6 +615,7 @@
           if (m) grade = Number(m[1]);
         }
         if (!grade) grade = (window.store && window.store.ppctGrade) || 9;
+        const targetSubject = body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học';
 
         const incoming = Array.isArray(body.lessons) ? body.lessons : [];
         if (incoming.length > 0) {
@@ -622,7 +623,7 @@
           const cleared = (currentWorkspaceData.bank.ppct.cleared_grades || []).filter(g => Number(g) !== grade);
           currentWorkspaceData.bank.ppct.cleared_grades = cleared;
           const existing = cleanPpctLessons(currentWorkspaceData.bank.ppct.lessons || [], cleared);
-          const otherLessons = existing.filter(l => Number(l.grade) !== grade);
+          const otherLessons = existing.filter(l => !(((l.subject_name || 'Tin học') === targetSubject) && Number(l.grade) === grade));
           const newLessons = incoming.map(l => {
             const occs = normalizeOccurrences(l.occurrences);
             const compList = normalizeTextList(l.digital_competencies ?? l.competencies ?? l.competencies_raw ?? l.nls_ai ?? []);
@@ -635,7 +636,7 @@
               ...l,
               grade: grade,
               user_uploaded: true,
-              subject_name: body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học',
+              subject_name: l.subject_name || targetSubject,
               occurrences: occs,
               digital_competencies: compList,
               notes: normalizeNotesValue(l.notes ?? l.note ?? l.notes_raw ?? l.ghi_chu ?? '', occs)
@@ -657,6 +658,7 @@
       if (path === '/api/ppct/save-lesson') {
         const l = body.lesson || body;
         const grade = Number(l.grade || 9);
+        const targetSubject = l.subject_name || (window.store && window.store.selectedSubject) || 'Tin học';
         if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: [] };
         const cleared = (currentWorkspaceData.bank.ppct.cleared_grades || []).filter(g => Number(g) !== grade);
         currentWorkspaceData.bank.ppct.cleared_grades = cleared;
@@ -676,14 +678,14 @@
           lesson_code: l.lesson_code,
           lesson_name_source: l.lesson_name_source || l.lesson_name || '',
           topic_source: l.topic_source || l.topic || 'Chương trình GDPT',
-          subject_name: l.subject_name || (window.store && window.store.selectedSubject) || 'Tin học',
+          subject_name: targetSubject,
           user_uploaded: true,
           occurrences: occs,
           outcomes: Array.isArray(l.outcomes) ? l.outcomes : [],
           digital_competencies: compList,
           notes: notesStr
         };
-        const idx = existing.findIndex(x => Number(x.grade) === grade && x.lesson_code === lessonObj.lesson_code);
+        const idx = existing.findIndex(x => ((x.subject_name || 'Tin học') === targetSubject) && Number(x.grade) === grade && x.lesson_code === lessonObj.lesson_code);
         if (idx >= 0) existing[idx] = lessonObj;
         else existing.push(lessonObj);
         currentWorkspaceData.bank.ppct.lessons = existing;
@@ -695,9 +697,10 @@
       if (path === '/api/ppct/delete-lesson') {
         const grade = Number(body.grade || 9);
         const code = body.lesson_code;
+        const targetSubject = body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học';
         if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: [] };
         currentWorkspaceData.bank.ppct.lessons = (currentWorkspaceData.bank.ppct.lessons || []).filter(
-          l => !(Number(l.grade) === grade && l.lesson_code === code)
+          l => !(((l.subject_name || 'Tin học') === targetSubject) && Number(l.grade) === grade && l.lesson_code === code)
         );
         await syncToFirestore(uid, currentWorkspaceData);
         if (window.store && window.store.bank) window.store.bank.ppct = JSON.parse(JSON.stringify(currentWorkspaceData.bank.ppct));
@@ -706,12 +709,13 @@
 
       if (path === '/api/ppct/clear-grade') {
         const grade = Number(body.grade || 0);
+        const targetSubject = body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học';
         if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: [] };
         const cleared = new Set(currentWorkspaceData.bank.ppct.cleared_grades || []);
         cleared.add(grade);
         currentWorkspaceData.bank.ppct.cleared_grades = [...cleared];
         currentWorkspaceData.bank.ppct.lessons = (currentWorkspaceData.bank.ppct.lessons || []).filter(
-          l => Number(l.grade) !== grade
+          l => !(((l.subject_name || 'Tin học') === targetSubject) && Number(l.grade) === grade)
         );
         await syncToFirestore(uid, currentWorkspaceData);
         if (window.store && window.store.bank) window.store.bank.ppct = JSON.parse(JSON.stringify(currentWorkspaceData.bank.ppct));

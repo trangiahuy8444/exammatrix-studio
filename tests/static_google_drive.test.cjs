@@ -626,7 +626,7 @@ test('PPCT import preview normalizes all 7 KHDH columns, Markdown table, save-le
   const helperStart = appSource.indexOf('function renderPpctListCell(');
   const helperEnd = appSource.indexOf('function renderPPCT(');
   const mdStart = appSource.indexOf('function parsePpctFromMarkdown(');
-  const cardStart = appSource.indexOf('const PPCT_STATUS=');
+  const cardStart = appSource.indexOf('function ppctImportCard(');
   const cardEnd = appSource.indexOf('function bindPpctImport(');
   assert.ok(occStart > 0 && occEnd > occStart);
   assert.ok(helperStart > 0 && helperEnd > helperStart);
@@ -734,7 +734,7 @@ test('PPCT import preview normalizes all 7 KHDH columns, Markdown table, save-le
 
   const html = sandbox.ppctImportCard(8);
   assert.match(html, /<table class="ppct-table ppct-khdh-table">/);
-  assert.match(html, /<th class="ppct-col-status">Kết quả<\/th>/);
+  assert.doesNotMatch(html, /ppct-col-status|<th>Kết quả<\/th>/);
   assert.match(html, /<th class="ppct-col-week">Tuần<\/th>/);
   assert.match(html, /<th class="ppct-col-lesson">Bài học<\/th>/);
   assert.match(html, /<th class="ppct-col-duration">Số tiết<\/th>/);
@@ -763,4 +763,34 @@ test('PPCT import preview normalizes all 7 KHDH columns, Markdown table, save-le
   assert.ok(html.includes('YCCĐ đang có câu hỏi sử dụng'));
   assert.ok(html.includes('Xem 1 YCCĐ trong tệp tải lên'));
   assert.ok(html.includes('Chưa có yêu cầu cần đạt (YCCĐ).'));
+
+  // Kiểm tra cô lập theo môn học khi apply-import và clear-grade trên cùng Khối 8
+  await h.window.FirebaseClient.handle('/api/ppct/apply-import', {
+    grade: 8,
+    subject_name: 'Vật lí',
+    lessons: [
+      {
+        grade: 8,
+        lesson_code: 'VL1',
+        lesson_name_source: 'Bài 1. Chuyển động cơ',
+        topic_source: 'Cơ học',
+        occurrences: [{ week_raw: '1', duration_raw: '2', ppct_raw: '1, 2' }],
+        outcomes: ['Nêu được ví dụ về chuyển động cơ']
+      }
+    ]
+  });
+  const afterTinApply = await h.window.FirebaseClient.handle('/api/ppct/apply-import', {
+    grade: 8,
+    subject_name: 'Tin học',
+    lessons: report.lessons
+  });
+  assert.ok(afterTinApply.bank.ppct.lessons.some(l => l.subject_name === 'Vật lí' && Number(l.grade) === 8));
+  assert.ok(afterTinApply.bank.ppct.lessons.some(l => l.subject_name === 'Tin học' && Number(l.grade) === 8));
+
+  const afterTinClear = await h.window.FirebaseClient.handle('/api/ppct/clear-grade', {
+    grade: 8,
+    subject_name: 'Tin học'
+  });
+  assert.equal(afterTinClear.bank.ppct.lessons.some(l => l.subject_name === 'Tin học' && Number(l.grade) === 8), false);
+  assert.equal(afterTinClear.bank.ppct.lessons.some(l => l.subject_name === 'Vật lí' && Number(l.grade) === 8), true);
 });

@@ -559,7 +559,6 @@ nav a[aria-current=page] {
 /* Bang KHDH Phụ lục 1 chuẩn 7 cột (CV 5512, TT 02/2025, QD 2422) */
 .ppct-khdh-table th, .ppct-khdh-table td { vertical-align: top; }
 .ppct-khdh-table td:nth-child(3), .ppct-khdh-table td:nth-child(4) { min-width: 0; }
-.ppct-khdh-table .ppct-col-status { white-space: nowrap; width: 112px; }
 .ppct-khdh-table .ppct-col-week { white-space: nowrap; min-width: 76px; text-align: center; }
 .ppct-khdh-table .ppct-col-lesson { min-width: 210px; }
 .ppct-khdh-table .ppct-col-duration { white-space: nowrap; min-width: 66px; text-align: center; }

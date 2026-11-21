@@ -459,7 +459,7 @@ function renderReview(){
  <div class="card"><div class="filters">${sel('rv-status','Trạng thái',[['pending_review','Chờ duyệt'],['needs_review','Cần sửa lại'],['draft','Bản nháp'],['approved','Đã duyệt'],['all','Tất cả']],f.status)}${sel('rv-grade','Khối',[['','Tất cả'],...grades().map(g=>[g,'Khối '+g])],f.grade)}${sel('rv-lesson','Bài',lessonOpts,f.lesson)}${sel('rv-level','Mức độ',[['','Tất cả'],...C.cognitiveLevels().map(level=>[level,level])],f.level)}${sel('rv-type','Dạng câu',[['','Tất cả'],['MC','Nhiều lựa chọn'],['YN','Đúng/Sai'],['SHORT','Trả lời ngắn'],['ES','Tự luận']],f.type)}${sel('rv-section','Mạch PPCT',[['','Tất cả mạch'],['core','Nội dung cốt lõi (Mục II.1)'],['elective_topic','Chuyên đề học tập (Mục II.2)']],f.section||'')}${sel('rv-origin','Nguồn',[['','Tất cả'],['teacher','Giáo viên'],['ai_gemini','AI (Gemini)'],['expansion','Ngân hàng mở rộng']],f.origin)}</div></div>
  ${q?`<div class="card review-card"><div class="list-toolbar"><span>Câu <strong>${store.reviewIndex+1}</strong>/${queue.length} trong danh sách lọc</span><span class="actions"><button type="button" data-review-act="prev">‹ Trước (K)</button><button type="button" data-review-act="next">Sau (J) ›</button></span></div>
  <div class="q-meta"><span class="badge">Khối ${q.grade} · ${esc(q.lesson_code)} · ${esc(q.level)}</span><span class="badge">${esc(q.type)}</span>${badge(q)}${questionSectionBadge(q)}${String(q.origin||'').startsWith('ai')?'<span class="badge draft">Do AI tạo</span>':''}<span class="q-id">${esc(q.id)}</span></div>
- <div class="review-grid"><div><div class="question-text" style="white-space:normal">${C.questionTextHtml(q.question)}</div>${answer}</div><div><div class="callout"><strong>Yêu cầu cần đạt</strong><br>${esc(q.learning_outcome||'Chưa gắn YCCĐ')}</div>${actions}${history}</div></div></div>`
+ <div class="review-grid"><div><div class="question-text" style="white-space:normal">${C.questionTextHtml(q.question)}</div>${answer}</div><div><div class="callout"><strong>Yêu cầu cần đạt</strong><br>${esc(q.learning_outcome||'Chưa gắn YCCĐ')}</div>${qualityWarningsHtml(q)}${actions}${history}</div></div></div>`
  :empty('Không còn câu nào trong danh sách này','Đổi bộ lọc hoặc trạng thái để xem các câu khác.')}`;
  [['rv-status','status'],['rv-grade','grade'],['rv-lesson','lesson'],['rv-level','level'],['rv-type','type'],['rv-section','section'],['rv-origin','origin']].forEach(([id,key])=>{$('#'+id).onchange=e=>{f[key]=e.target.value;if(key==='grade')f.lesson='';store.reviewIndex=0;renderReview();};});
  $('#review').querySelectorAll('[data-review-act]').forEach(b=>b.onclick=()=>reviewAct(b.dataset.reviewAct));
@@ -592,9 +592,67 @@ function renderOverview(){
       window.prompt('Sao chép Prompt AI dưới đây:', text);
     }
   }
-  function sampleQuestionsByGrade(g) {
+  function qualityWarningsHtml(q) {
+    const list = (C && typeof C.questionQualityWarnings === 'function') ? C.questionQualityWarnings(q) : [];
+    if (!list.length) return '';
+    return `<div class="callout warning" data-quality-warnings="${list.length}" style="margin-top:10px;border-left:4px solid #d97706;background:#fffbeb;color:#92400e"><strong>⚠️ Gợi ý chất lượng câu hỏi (CV 7991/6569 — chỉ cảnh báo, không chặn lưu/duyệt)</strong><ul style="margin:6px 0 0 18px;padding:0">${list.map(w => `<li>${esc(w.message)}</li>`).join('')}</ul></div>`;
+  }
+  function subjectCompetencyGuideText(subjName) {
+    const s = String(subjName || subject() || 'Tin học').trim();
+    const catApi = (typeof window !== 'undefined' && window.BankCompetencyCatalog) ? window.BankCompetencyCatalog : null;
+    const preset = catApi && typeof catApi.presetCatalogForSubject === 'function' ? catApi.presetCatalogForSubject(s) : null;
+    if (!preset) {
+      return `BẢNG THÀNH PHẦN NĂNG LỰC & CHỈ BÁO MÔN ${s.toLocaleUpperCase('vi')} (GDPT 2018 — TT 32/2018/TT-BGDĐT):\n- Bám sát các thành phần năng lực đặc thù và yêu cầu cần đạt của môn ${s} theo Chương trình GDPT 2018 (hoặc bảng mã hóa chỉ báo riêng của tổ chuyên môn đã nạp trong mục Ma trận & đặc tả).`;
+    }
+    const compLines = (preset.competencies || []).map(c => `  * ${c.code}: ${c.name}`).join('\n');
+    const indLines = (preset.indicators || []).slice(0, 8).map(i => `  * ${i.code} (${i.competency}): ${i.text}`).join('\n');
+    return `BẢNG THÀNH PHẦN NĂNG LỰC & CHỈ BÁO MÔN ${s.toLocaleUpperCase('vi')} (${preset.label}):\n- Thành phần năng lực đặc thù:\n${compLines}\n- Chỉ báo hành vi tiêu biểu (ưu tiên bảng riêng của Tổ chuyên môn nếu đã nạp trên hệ thống):\n${indLines}`;
+  }
+  function cv7991QuestionRulesBlock(grade = 9, subjName, examType = 'GK1') {
+    const g = Number(grade) || 9;
+    const isThpt = g >= 10;
+    const s = String(subjName || subject() || 'Tin học').trim();
+    const isInformatics = /tin\s*h[oọ]c/i.test(s);
+    const thptFormats = isThpt ? `
+4. CÂU TRẮC NGHIỆM ĐÚNG/SAI (YN — 4 ý a, b, c, d theo CV 7991 & QĐ 764/QĐ-BGDĐT):
+   - Mỗi câu gồm 01 đoạn dẫn/ngữ liệu chung rõ ràng (>= 25 kí tự) và 04 mệnh đề đơn độc lập a), b), c), d) sắp xếp tăng dần mức độ nhận thức (Biết -> Hiểu -> Vận dụng).
+   - Không để cả 4 mệnh đề cùng Đúng hoặc cùng Sai; các mệnh đề không trùng lặp hoặc gợi ý đáp án cho nhau.
+   - Quy tắc chấm QĐ 764: đúng 1 ý = 0,1đ; đúng 2 ý = 0,25đ; đúng 3 ý = 0,5đ; đúng 4 ý = 1,0đ.
+5. CÂU TRẮC NGHIỆM TRẢ LỜI NGẮN (SHORT — CV 7991 & QĐ 764/QĐ-BGDĐT):
+   - Đáp án phải là giá trị duy nhất, gọn nhẹ, KHÔNG ghi kèm đơn vị tính hay câu văn dài trong ô đáp án.
+   - Câu dẫn phải ghi rõ đơn vị tính và quy ước làm tròn số (ví dụ: làm tròn đến hàng phần mười); với chuẩn phiếu THPT QĐ 764, đáp án số tối đa 4 kí tự (gồm chữ số, dấu "-", dấu ",").` : '';
+    const informaticsNote = isInformatics
+      ? `\n- Tích hợp Năng lực số (Thông tư 02/2025/TT-BGDĐT): bậc ${nlsCodeForGrade(g)}; lồng ghép Giáo dục AI (QĐ 2422/QĐ-BGDĐT) ở các bài phù hợp.${isThpt ? ' Với Tin học THPT, phân biệt rõ định hướng Tin học ứng dụng (ICT) và Khoa học máy tính (CS).' : ''}`
+      : `\n- Tích hợp năng lực số (TT 02/2025 bậc ${nlsCodeForGrade(g)}) phù hợp đặc thù môn ${s}.`;
+    return `QUY CHUẨN NGHIÊM NGẶT VỀ CÂU HỎI KIỂM TRA ĐÁNH GIÁ (CV 7991/BGDĐT-GDTrH ngày 17/12/2024 & Bảng yêu cầu kĩ thuật tập huấn CV 6569/BGDĐT-GDTrH):
+1. YÊU CẦU CHUNG ĐỐI VỚI CÂU HỎI TNKQ (1.a — 11 tiêu chí):
+   - Đánh giá nội dung và kết quả học tập quan trọng theo đúng mục tiêu KTĐG và Yêu cầu cần đạt (YCCĐ) của chương trình GDPT 2018.
+   - Mỗi câu chỉ tập trung vào 01 vấn đề duy nhất; các câu hỏi hoàn toàn độc lập, không lộ gợi ý đáp án giữa các câu trong đề.
+   - Tuyệt đối không có sai sót chuyên môn; phù hợp thuần phong mỹ tục; thống nhất kí hiệu, đơn vị và thuật ngữ khoa học.
+   - Câu hỏi phải mới, không sử dụng lại nguyên câu đã thi, KHÔNG sao chép nguyên dạng câu/đoạn từ SGK, tài liệu tham khảo hay nguồn đã công bố.
+   - Khai thác tối đa câu hỏi vận dụng kiến thức giải quyết tình huống thực tiễn; tránh câu hỏi khôi hài hoặc tình huống phi thực tế.
+2. YÊU CẦU ĐỐI VỚI CÂU DẪN TNKQ (1.b — 9 tiêu chí):
+   - Đặt câu hỏi trực tiếp hoặc nêu vấn đề cụ thể, không trích nguyên văn câu trong SGK; từ ngữ, cấu trúc rõ ràng, dễ hiểu, đơn nghĩa để học sinh biết chính xác nhiệm vụ cần làm; tránh dài dòng.
+   - Ưu tiên dạng câu hỏi trực tiếp hơn dạng câu hoàn chỉnh/điền khuyết; nếu dùng câu hoàn chỉnh thì TUYỆT ĐỐI KHÔNG đặt chỗ trống (____ / ...) ở đầu hoặc giữa câu dẫn.
+   - Ưu tiên trình bày ở thể khẳng định; nếu buộc phải dùng thể phủ định thì BẮT BUỘC nhấn mạnh từ phủ định bằng **IN HOA / IN ĐẬM** (ví dụ: **KHÔNG**, **NGOẠI TRỪ**) và TUYỆT ĐỐI tránh phủ định kép.
+   - Đúng mức độ nhận thức ma trận quy định theo CV 7991 (3 mức chuẩn: Biết – Hiểu – Vận dụng; chỉ tách Vận dụng cao khi hồ sơ riêng của tổ yêu cầu).
+3. YÊU CẦU ĐỐI VỚI PHƯƠNG ÁN LỰA CHỌN MC (1.c — 16 tiêu chí):
+   - Duy nhất 01 phương án đúng hoặc chính xác nhất, độc lập giữa các câu; cân nhắc kỹ khi dùng cặp phương án trái ngược/phủ định nhau.
+   - Bốn phương án A, B, C, D phải đồng nhất về nội dung, ý nghĩa với câu dẫn và đồng nhất về hình thức, cấu trúc ngữ pháp, độ dài tương đương nhau (không viết phương án đúng dài hoặc chi tiết vượt trội làm lộ đáp án); tránh lặp lại cùng một cụm từ ở đầu cả 4 phương án.
+   - TUYỆT ĐỐI KHÔNG dùng các phương án: "Tất cả các đáp án trên đều đúng", "Không có phương án nào đúng", "Cả A và B đều đúng", "Cả A, B, C...".
+   - Tránh từ ngữ mơ hồ ("thông thường", "phần lớn", "hầu hết"…) hoặc từ tuyệt đối hóa ("luôn luôn", "không bao giờ", "tuyệt đối"… trừ thuật ngữ chuyên môn như "địa chỉ tuyệt đối", "giá trị tuyệt đối").
+   - Viết phương án nhiễu ở thể khẳng định; nhiễu phải hợp lí, dựa trên lỗi nhận thức hoặc sai lầm tính toán phổ biến của học sinh, không sai lộ liễu và không chứa cụm từ sai ngữ pháp/kiến thức vô nghĩa (nên viết nhiễu như phát biểu có vẻ đúng nhưng không trả lời đúng câu hỏi).${thptFormats}
+${isThpt ? '6' : '4'}. YÊU CẦU ĐỐI VỚI CÂU HỎI TỰ LUẬN (ES — Mục 2, 10 tiêu chí):
+   - Đánh giá nội dung quan trọng, đòi hỏi sự am hiểu và vận dụng kiến thức vào tình huống mới hơn là chỉ ghi nhớ máy móc; phù hợp trình độ nhận thức học sinh và quỹ thời gian/điểm số.
+   - Câu dẫn diễn đạt rõ nội dung, cấp độ tư duy, yêu cầu thực hiện cụ thể, phạm vi/độ dài và tiêu chí cần đạt; nếu yêu cầu nêu quan điểm thì phải ghi rõ việc chấm điểm dựa trên lập luận logic chứng minh chứ không chỉ nêu quan điểm đơn thuần.
+   - Bắt buộc đi kèm Hướng dẫn chấm (Rubric) đủ ý, phân chia biểu điểm chi tiết (chuẩn hệ thống: 4 tiêu chí × 0,25 điểm = 1,0 điểm) và chính sách chấp nhận đáp án tương đương.${informaticsNote}
+
+${subjectCompetencyGuideText(s)}`;
+  }
+  function sampleQuestionsByGrade(g, subjName) {
+    const subj = String(subjName || subject() || 'Tin học').trim();
     const baseMc = {
-      id: `K${g}-GV-sample1`, grade: g, subject_name: 'Tin học', lesson_code: 'B1',
+      id: `K${g}-GV-sample1`, grade: g, subject_name: subj, lesson_code: 'B1',
       ppct_section: 'core', type: 'MC', level: 'Biết', response_mode: 'Trắc nghiệm',
       question: 'Thiết bị nào sau đây là thiết bị vào của máy tính?',
       options: ['Màn hình', 'Chuột máy tính', 'Máy in', 'Loa'],
@@ -608,7 +666,7 @@ function renderOverview(){
       review_status: 'draft'
     };
     const baseEs = {
-      id: `K${g}-GV-sample-es`, grade: g, subject_name: 'Tin học', lesson_code: 'B2',
+      id: `K${g}-GV-sample-es`, grade: g, subject_name: subj, lesson_code: 'B2',
       ppct_section: 'core', type: 'ES', level: 'Vận dụng', response_mode: 'Tự luận',
       question: 'Nêu hai biện pháp bảo vệ an toàn tài khoản số cá nhân khi tham gia môi trường mạng và giải thích vì sao cần thực hiện.',
       max_score: 1,
@@ -616,14 +674,14 @@ function renderOverview(){
         { criterion: 'Nêu đúng biện pháp 1 (đặt mật khẩu mạnh, không dùng chung).', points: 0.25 },
         { criterion: 'Nêu đúng biện pháp 2 (bật xác thực hai yếu tố / không bấm liên kết lạ).', points: 0.25 },
         { criterion: 'Giải thích hợp lí nguy cơ lộ lọt dữ liệu cá nhân.', points: 0.25 },
-        { criterion: 'Trình bày mạch lạc, đúng thuật ngữ Tin học.', points: 0.25 }
+        { criterion: 'Trình bày mạch lạc, đúng thuật ngữ chuyên môn.', points: 0.25 }
       ],
       equivalent_answer_policy: 'Chấp nhận các biện pháp an toàn số hợp lí tương đương; chấm độc lập từng tiêu chí.',
       review_status: 'draft'
     };
     if (g < 10) return [baseMc, baseEs];
     const thptYn = {
-      id: `K${g}-GV-sample2`, grade: g, subject_name: 'Tin học', lesson_code: 'B1',
+      id: `K${g}-GV-sample2`, grade: g, subject_name: subj, lesson_code: 'B1',
       ppct_section: 'core', type: 'YN', level: 'Hiểu', response_mode: 'Trắc nghiệm',
       question: 'Khi sử dụng thư điện tử (Email) trong học tập và công việc:',
       statements: [
@@ -635,7 +693,7 @@ function renderOverview(){
       review_status: 'draft'
     };
     const thptShort = {
-      id: `K${g}-GV-sample3`, grade: g, subject_name: 'Tin học', lesson_code: 'B2',
+      id: `K${g}-GV-sample3`, grade: g, subject_name: subj, lesson_code: 'B2',
       ppct_section: 'core', type: 'SHORT', level: 'Vận dụng', response_mode: 'Trắc nghiệm',
       question: 'Theo chương trình GDPT 2018 môn Tin học, viết tắt của thành phần năng lực "Ứng dụng công nghệ thông tin và truyền thông trong học và tự học" là gì?',
       short_answer: 'NLd',
@@ -682,93 +740,101 @@ ${commonEs}`;
 
   function downloadBankJsonSample(grade = 9) {
     const g = Number(grade) || 9;
-    const sample = { bank: { questions: sampleQuestionsByGrade(g) } };
-    triggerTextDownload(JSON.stringify(sample, null, 2), 'application/json;charset=utf-8', `Mau_Cau_hoi_Tin_${g}_2026-2027.json`);
+    const subj = subject();
+    const sample = { bank: { questions: sampleQuestionsByGrade(g, subj) } };
+    triggerTextDownload(JSON.stringify(sample, null, 2), 'application/json;charset=utf-8', `Mau_Cau_hoi_${C.normalize(subj).replace(/\s+/g, '_')}_${g}_2026-2027.json`);
   }
 
   function downloadBankMdSample(grade = 9) {
     const g = Number(grade) || 9;
+    const subj = subject();
     const cap = g >= 10 ? 'THPT (CV 7991)' : 'THCS';
-    const sampleMd = `# BỘ CÂU HỎI MÔN TIN HỌC KHỐI ${g} · ${cap}\nNăm học: 2026-2027\n\n${sampleMdBodyByGrade(g)}\n`;
-    triggerTextDownload(sampleMd, 'text/markdown;charset=utf-8', `Mau_Cau_hoi_Tin_${g}_2026-2027.md`);
+    const sampleMd = `# BỘ CÂU HỎI MÔN ${subj.toLocaleUpperCase('vi')} KHỐI ${g} · ${cap}\nNăm học: 2026-2027\n\n${sampleMdBodyByGrade(g)}\n`;
+    triggerTextDownload(sampleMd, 'text/markdown;charset=utf-8', `Mau_Cau_hoi_${C.normalize(subj).replace(/\s+/g, '_')}_${g}_2026-2027.md`);
   }
 
   function copyBankAiPrompt(grade = 9) {
     const g = Number(grade) || 9;
     const isThpt = g >= 10;
-    const prompt = `Bạn là chuyên gia khảo thí môn Tin học GDPT 2018 tại Trường Quốc tế Á Châu.
-Hãy giúp tôi biên soạn bộ câu hỏi môn Tin học Khối ${g} (${isThpt ? 'THPT · chuẩn Công văn 7991/BGDĐT-GDTrH' : 'THCS'}) dưới dạng Markdown (.md) chuẩn để nhập trực tiếp vào hệ thống ExamMatrix Studio.
+    const subj = subject();
+    const isInformatics = /tin\s*h[oọ]c/i.test(subj);
+    const prompt = `Bạn là chuyên gia khảo thí môn ${subj} chương trình GDPT 2018 tại Trường Quốc tế Á Châu.
+Hãy giúp tôi biên soạn bộ câu hỏi ngân hàng đề môn ${subj} Khối ${g} (${isThpt ? 'THPT · chuẩn Công văn 7991/BGDĐT-GDTrH' : 'THCS'}) dưới dạng Markdown (.md) chuẩn để nhập trực tiếp vào hệ thống ExamMatrix Studio.
 
-Quy chuẩn áp dụng:
-- Năng lực số (Thông tư 02/2025/TT-BGDĐT): bậc ${nlsCodeForGrade(g)}; lồng ghép định hướng Giáo dục AI (QĐ 2422/QĐ-BGDĐT) ở các bài phù hợp.
-- Phân mạch PPCT (TT 32/2018 & TT 22/2021):
-  ${isThpt
-    ? '* Nội dung cốt lõi (Mục II.1, mã bài B1, B2...): dùng cho cả Kiểm tra thường xuyên, Đề cương, Giữa kì và Cuối kì; có thể gắn định hướng ICT hoặc CS.\n  * Chuyên đề học tập (Mục II.2, mã CD1, CD2..., ppct_section: "elective_topic"): CHỈ dùng cho Đánh giá thường xuyên (Điều 6.3 TT 22/2021), KHÔNG đưa vào Đề cương hay đề Kiểm tra định kì (Điều 7.1).'
-    : '* Cấp THCS (Khối 6–9) KHÔNG có Chuyên đề học tập lựa chọn; toàn bộ câu hỏi thuộc Nội dung cốt lõi (mã bài B1, B2...).'}
+Phân mạch PPCT (TT 32/2018 & TT 22/2021):
+${isThpt
+  ? `* Nội dung cốt lõi (Mục II.1, mã bài B1, B2...): dùng cho Kiểm tra thường xuyên, Đề cương, Giữa kì và Cuối kì${isInformatics ? '; gắn định hướng ICT hoặc CS khi phù hợp' : ''}.\n* Chuyên đề học tập (Mục II.2, mã CD1, CD2..., ppct_section: "elective_topic"): CHỈ dùng cho Đánh giá thường xuyên (Điều 6.3 TT 22/2021), KHÔNG đưa vào Đề cương hay đề Kiểm tra định kì (Điều 7.1).`
+  : '* Cấp THCS (Khối 6–9) KHÔNG có Chuyên đề học tập lựa chọn; toàn bộ câu hỏi thuộc Nội dung cốt lõi (mã bài B1, B2...).'}
+
+${cv7991QuestionRulesBlock(g, subj, 'BANK')}
 
 Yêu cầu định dạng Markdown từng câu:
 1. Đánh số câu: ### Câu 1:, ### Câu 2:...
 2. Câu trắc nghiệm nhiều lựa chọn (MC):
-   - Đặt 4 phương án A., B., C., D. trên 4 dòng riêng
+   - Đặt 4 phương án A., B., C., D. trên 4 dòng riêng (độ dài và cấu trúc đồng nhất, không dùng "Tất cả đều đúng" / "Không có phương án nào đúng")
    - *Đáp án:* [A/B/C/D]
-   - *Mức độ:* [Biết/Hiểu/Vận dụng/Vận dụng cao]
+   - *Mức độ:* [Biết/Hiểu/Vận dụng]
    - *Bài học:* [${isThpt ? 'B1/B2... hoặc CD1/CD2... nếu là KTTX chuyên đề' : 'B1/B2/B3...'}]
-   - *Lời giải:* [Giải thích vì sao đúng/sai]${isThpt ? `
+   - *Lời giải:* [Giải thích rõ vì sao phương án đúng là đúng và vì sao các phương án nhiễu sai]${isThpt ? `
 3. Câu trắc nghiệm Đúng/Sai (YN - 4 ý a–d):
-   - Mỗi câu gồm đoạn dẫn + 4 mệnh đề:
-     a) [Đúng] Nội dung ý a
-     b) [Sai] Nội dung ý b
-     c) [Đúng] Nội dung ý c
-     d) [Sai] Nội dung ý d
+   - Mỗi câu gồm đoạn dẫn ngữ liệu chung (>= 25 kí tự) + 4 mệnh đề đơn độc lập tăng dần nhận thức (không để cả 4 ý cùng Đúng hoặc cùng Sai):
+     a) [Đúng] Nội dung ý a (mức Biết)
+     b) [Sai] Nội dung ý b (mức Biết/Hiểu)
+     c) [Đúng] Nội dung ý c (mức Hiểu)
+     d) [Sai] Nội dung ý d (mức Vận dụng)
    - Ghi rõ *Mức độ:* và *Bài học:*
 4. Câu trắc nghiệm Trả lời ngắn (SHORT):
-   - Ghi câu hỏi yêu cầu đáp án ngắn gọn (số, từ khóa, biểu thức)
+   - Câu dẫn nêu rõ đơn vị tính và quy ước làm tròn; đáp án gọn duy nhất không kèm đơn vị (tối đa 4 kí tự nếu là số theo QĐ 764)
    - *Đáp án:* [Đáp án ngắn gọn]
    - Ghi rõ *Mức độ:* và *Bài học:*
 5. Câu Tự luận (ES):` : `
 3. Câu Tự luận (ES):`}
-   - Ghi đề bài rõ tình huống, không viết dòng *Đáp án:* để hệ thống nhận diện câu Tự luận (ES), ghi *Mức độ:* và *Bài học:*.
+   - Ghi đề bài rõ tình huống, yêu cầu thực hiện và tiêu chí đánh giá; không viết dòng *Đáp án:* để hệ thống nhận diện câu Tự luận (ES), ghi *Mức độ:* và *Bài học:*.
 Chỉ xuất trực tiếp nội dung Markdown, không kèm lời bình bên ngoài.`;
-    copyTextWithFallback(prompt, 'Đã chép Prompt AI soạn câu hỏi vào bộ nhớ tạm!');
+    copyTextWithFallback(prompt, 'Đã chép Prompt AI soạn câu hỏi (chuẩn CV 7991/6569) vào bộ nhớ tạm!');
   }
 
   function downloadRevisionJsonSample(grade = 9) {
     const g = Number(grade) || 9;
+    const subj = subject();
     const sample = {
       revision: {
         id: `REV-SAMPLE-${g}`,
-        title: `Đề cương ôn tập Giữa HK1 · Tin học ${g}`,
+        title: `Đề cương ôn tập Giữa HK1 · ${subj} ${g}`,
         grade: g,
-        subject_name: 'Tin học',
-        questions: sampleQuestionsByGrade(g)
+        subject_name: subj,
+        questions: sampleQuestionsByGrade(g, subj)
       }
     };
-    triggerTextDownload(JSON.stringify(sample, null, 2), 'application/json;charset=utf-8', `Mau_De_cuong_Tin_${g}_2026-2027.json`);
+    triggerTextDownload(JSON.stringify(sample, null, 2), 'application/json;charset=utf-8', `Mau_De_cuong_${C.normalize(subj).replace(/\s+/g, '_')}_${g}_2026-2027.json`);
   }
 
   function downloadRevisionMdSample(grade = 9) {
     const g = Number(grade) || 9;
-    const sampleMd = `# ĐỀ CƯƠNG ÔN TẬP GIỮA HỌC KỲ 1\nMôn: Tin học - Khối: ${g} - Năm học: 2026-2027\n\n${sampleMdBodyByGrade(g)}\n`;
-    triggerTextDownload(sampleMd, 'text/markdown;charset=utf-8', `Mau_De_cuong_Tin_${g}_2026-2027.md`);
+    const subj = subject();
+    const sampleMd = `# ĐỀ CƯƠNG ÔN TẬP GIỮA HỌC KỲ 1\nMôn: ${subj} - Khối: ${g} - Năm học: 2026-2027\n\n${sampleMdBodyByGrade(g)}\n`;
+    triggerTextDownload(sampleMd, 'text/markdown;charset=utf-8', `Mau_De_cuong_${C.normalize(subj).replace(/\s+/g, '_')}_${g}_2026-2027.md`);
   }
 
   function copyRevisionAiPrompt(grade = 9) {
     const g = Number(grade) || 9;
     const isThpt = g >= 10;
-    const prompt = `Bạn là chuyên gia khảo thí môn Tin học GDPT 2018 tại Trường Quốc tế Á Châu.
-Hãy biên soạn Đề cương ôn tập kiểm tra định kì môn Tin học Khối ${g} (${isThpt ? 'THPT · chuẩn CV 7991/BGDĐT-GDTrH' : 'THCS'}) dưới dạng Markdown (.md) chuẩn để nạp vào hệ thống ExamMatrix Studio:
+    const subj = subject();
+    const prompt = `Bạn là chuyên gia khảo thí môn ${subj} chương trình GDPT 2018 tại Trường Quốc tế Á Châu.
+Hãy biên soạn Đề cương ôn tập kiểm tra định kì môn ${subj} Khối ${g} (${isThpt ? 'THPT · chuẩn CV 7991/BGDĐT-GDTrH' : 'THCS'}) dưới dạng Markdown (.md) chuẩn để nạp vào hệ thống ExamMatrix Studio:
 
-Ràng buộc pháp lý (TT 22/2021 Điều 7.1 & TT 02/2025):
+Ràng buộc pháp lý (TT 22/2021 Điều 7.1 & CV 7991/BGDĐT-GDTrH):
 - Chỉ sử dụng các bài thuộc Nội dung cốt lõi (Mục II.1: B1, B2...). ${isThpt ? 'TUYỆT ĐỐI KHÔNG đưa bài Chuyên đề học tập (CD1, CD2...) vào đề cương ôn tập kiểm tra định kì.' : 'Cấp THCS không có Chuyên đề học tập.'}
-- Năng lực số mục tiêu: ${nlsCodeForGrade(g)}.
 - Dạng câu sử dụng: ${isThpt ? 'đủ 4 dạng CV 7991 (MC, YN 4 ý a–d, SHORT trả lời ngắn, ES tự luận).' : 'MC (4 lựa chọn) và ES (tự luận).'}
 
+${cv7991QuestionRulesBlock(g, subj, 'REVISION')}
+
 Yêu cầu định dạng:
-# ĐỀ CƯƠNG ÔN TẬP KIỂM TRA MÔN TIN HỌC KHỐI ${g}
-Môn: Tin học - Khối: ${g} - Năm học: 2026-2027
+# ĐỀ CƯƠNG ÔN TẬP KIỂM TRA MÔN ${subj.toLocaleUpperCase('vi')} KHỐI ${g}
+Môn: ${subj} - Khối: ${g} - Năm học: 2026-2027
 
 ### Câu 1:
-[Câu hỏi MC]
+[Câu hỏi MC tuân thủ mục 1.a, 1.b, 1.c]
 A. [Phương án A]
 B. [Phương án B]
 C. [Phương án C]
@@ -779,7 +845,7 @@ D. [Phương án D]
 *Lời giải:* [Giải thích ngắn]
 ${isThpt ? `
 ### Câu 2:
-[Câu hỏi Đúng/Sai]
+[Câu dẫn ngữ liệu chung câu Đúng/Sai >= 25 kí tự]
 a) [Đúng] [Mệnh đề a]
 b) [Sai] [Mệnh đề b]
 c) [Đúng] [Mệnh đề c]
@@ -788,53 +854,56 @@ d) [Sai] [Mệnh đề d]
 *Bài học:* [B1/B2...]
 
 ### Câu 3:
-[Câu hỏi Trả lời ngắn]
-*Đáp án:* [Đáp án ngắn]
+[Câu hỏi Trả lời ngắn ghi rõ đơn vị và quy ước làm tròn]
+*Đáp án:* [Đáp án ngắn không kèm đơn vị, <= 4 kí tự nếu là số]
 *Mức độ:* [Hiểu/Vận dụng]
 *Bài học:* [B1/B2...]
 
 ### Câu 4:` : `
 ### Câu 2:`}
-[Câu hỏi Tự luận — không đặt dòng *Đáp án:*]
-*Mức độ:* [Vận dụng/Vận dụng cao]
+[Câu hỏi Tự luận nêu rõ tình huống, yêu cầu và tiêu chí đánh giá — không đặt dòng *Đáp án:*]
+*Mức độ:* [Vận dụng]
 *Bài học:* [B1/B2...]
 
 Chỉ xuất trực tiếp nội dung Markdown, không kèm bình luận.`;
-    copyTextWithFallback(prompt, 'Đã chép Prompt AI tạo Đề cương vào bộ nhớ tạm!');
+    copyTextWithFallback(prompt, 'Đã chép Prompt AI tạo Đề cương (chuẩn CV 7991/6569) vào bộ nhớ tạm!');
   }
 
   function downloadExamJsonSample(grade = 9, examType = 'GK1') {
     const g = Number(grade) || 9;
+    const subj = subject();
     const label = periodNames[examType] || 'Giữa HK1';
     const dur = examType === 'TX' ? 15 : 45;
     const sample = {
       exams: [{
         id: `EXAM-SAMPLE-${g}`,
-        title: `Đề kiểm tra ${label} · Tin học ${g}`,
+        title: `Đề kiểm tra ${label} · ${subj} ${g}`,
         exam_type: examType,
         exam_code: '101',
         grade: g,
-        subject_name: 'Tin học',
+        subject_name: subj,
         duration: dur,
         total_points: 10,
-        questions: sampleQuestionsByGrade(g)
+        questions: sampleQuestionsByGrade(g, subj)
       }]
     };
-    triggerTextDownload(JSON.stringify(sample, null, 2), 'application/json;charset=utf-8', `Mau_De_thi_Tin_${g}_${examType}_2026-2027.json`);
+    triggerTextDownload(JSON.stringify(sample, null, 2), 'application/json;charset=utf-8', `Mau_De_thi_${C.normalize(subj).replace(/\s+/g, '_')}_${g}_${examType}_2026-2027.json`);
   }
 
   function downloadExamMdSample(grade = 9, examType = 'GK1') {
     const g = Number(grade) || 9;
+    const subj = subject();
     const label = (periodNames[examType] || 'GIỮA HỌC KỲ 1').toLocaleUpperCase('vi');
     const dur = examType === 'TX' ? 15 : 45;
-    const sampleMd = `# ĐỀ KIỂM TRA ${label} - MÃ ĐỀ 101\nMôn: Tin học - Khối: ${g} - Thời gian làm bài: ${dur} phút - Năm học: 2026-2027\n\n${sampleMdBodyByGrade(g)}\n`;
-    triggerTextDownload(sampleMd, 'text/markdown;charset=utf-8', `Mau_De_thi_Tin_${g}_${examType}_2026-2027.md`);
+    const sampleMd = `# ĐỀ KIỂM TRA ${label} - MÃ ĐỀ 101\nMôn: ${subj} - Khối: ${g} - Thời gian làm bài: ${dur} phút - Năm học: 2026-2027\n\n${sampleMdBodyByGrade(g)}\n`;
+    triggerTextDownload(sampleMd, 'text/markdown;charset=utf-8', `Mau_De_thi_${C.normalize(subj).replace(/\s+/g, '_')}_${g}_${examType}_2026-2027.md`);
   }
 
   function copyExamAiPrompt(grade = 9, examType = 'GK1') {
     const g = Number(grade) || 9;
     const isThpt = g >= 10;
     const isTx = examType === 'TX';
+    const subj = subject();
     const label = periodNames[examType] || 'Giữa HK1';
     const dur = isTx ? 15 : 45;
     const scopeRule = isTx && isThpt
@@ -842,21 +911,22 @@ Chỉ xuất trực tiếp nội dung Markdown, không kèm bình luận.`;
       : isThpt
         ? '- Kì Kiểm tra định kì THPT (TT 22/2021 Điều 7.1): CHỈ dùng bài Nội dung cốt lõi (Mục II.1: B1, B2...), TUYỆT ĐỐI KHÔNG đưa Chuyên đề học tập (CD1...) vào đề.'
         : '- Cấp THCS (TT 22/2021): chỉ dùng bài Nội dung cốt lõi (B1, B2...), không có Chuyên đề học tập.';
-    const prompt = `Bạn là chuyên gia khảo thí môn Tin học GDPT 2018 tại Trường Quốc tế Á Châu.
-Hãy biên soạn 01 Đề kiểm tra ${label} môn Tin học Khối ${g} (${isThpt ? 'THPT · chuẩn CV 7991/BGDĐT-GDTrH' : 'THCS'}) dưới dạng Markdown (.md) chuẩn để kiểm định và import vào ExamMatrix Studio:
+    const prompt = `Bạn là chuyên gia khảo thí môn ${subj} chương trình GDPT 2018 tại Trường Quốc tế Á Châu.
+Hãy biên soạn 01 Đề kiểm tra ${label} môn ${subj} Khối ${g} (${isThpt ? 'THPT · chuẩn CV 7991/BGDĐT-GDTrH' : 'THCS'}) dưới dạng Markdown (.md) chuẩn để kiểm định và import vào ExamMatrix Studio:
 
-Quy chuẩn bắt buộc:
+Quy chuẩn cấu trúc đề:
 - Thời gian làm bài: ${dur} phút · Thang điểm 10.
-- Năng lực số (TT 02/2025): ${nlsCodeForGrade(g)}.
 ${scopeRule}
-- Cấu trúc dạng câu: ${isThpt ? 'MC (Nhiều lựa chọn) + YN (Đúng/Sai 4 ý) + SHORT (Trả lời ngắn) + ES (Tự luận), tỉ lệ mức độ theo CV 7991.' : 'MC (Nhiều lựa chọn) + ES (Tự luận).'}
+- Cấu trúc dạng câu: ${isThpt ? 'MC (Nhiều lựa chọn ~3,0đ) + YN (Đúng/Sai 4 ý ~2,0đ) + SHORT (Trả lời ngắn ~2,0đ; nếu môn không dùng SHORT thì chuyển sang YN = 4,0đ) + ES (Tự luận ~3,0đ), tỉ lệ 3 mức độ Biết 40% – Hiểu 30% – Vận dụng 30% theo CV 7991.' : 'MC (Nhiều lựa chọn) + ES (Tự luận).'}
+
+${cv7991QuestionRulesBlock(g, subj, examType)}
 
 Yêu cầu định dạng:
 # ĐỀ KIỂM TRA ${label.toLocaleUpperCase('vi')} - MÃ ĐỀ 101
-Môn: Tin học - Khối: ${g} - Thời gian: ${dur} phút - Năm học: 2026-2027
+Môn: ${subj} - Khối: ${g} - Thời gian: ${dur} phút - Năm học: 2026-2027
 
 ### Câu 1:
-[Nội dung câu MC]
+[Nội dung câu MC tuân thủ mục 1.a, 1.b, 1.c]
 A. [Phương án A]
 B. [Phương án B]
 C. [Phương án C]
@@ -867,7 +937,7 @@ D. [Phương án D]
 *Lời giải:* [Giải thích ngắn]
 ${isThpt ? `
 ### Câu 2:
-[Nội dung câu Đúng/Sai]
+[Ngữ liệu câu Đúng/Sai >= 25 kí tự]
 a) [Đúng] [Mệnh đề a]
 b) [Sai] [Mệnh đề b]
 c) [Đúng] [Mệnh đề c]
@@ -876,19 +946,19 @@ d) [Sai] [Mệnh đề d]
 *Bài học:* [B1/B2...]
 
 ### Câu 3:
-[Nội dung câu Trả lời ngắn]
-*Đáp án:* [Đáp án ngắn]
+[Nội dung câu Trả lời ngắn ghi rõ đơn vị tính và làm tròn]
+*Đáp án:* [Đáp án ngắn không kèm đơn vị, <= 4 kí tự nếu là số]
 *Mức độ:* [Hiểu/Vận dụng]
 *Bài học:* [B1/B2...]
 
 ### Câu 4:` : `
 ### Câu 2:`}
-[Nội dung câu Tự luận — không đặt dòng *Đáp án:*]
-*Mức độ:* [Vận dụng/Vận dụng cao]
+[Nội dung câu Tự luận nêu rõ yêu cầu và tiêu chí — không đặt dòng *Đáp án:*]
+*Mức độ:* [Vận dụng]
 *Bài học:* [B1/B2...]
 
 Chỉ xuất trực tiếp nội dung Markdown, không kèm bình luận.`;
-    copyTextWithFallback(prompt, 'Đã chép Prompt AI tạo Đề thi vào bộ nhớ tạm!');
+    copyTextWithFallback(prompt, 'Đã chép Prompt AI tạo Đề thi (chuẩn CV 7991/6569) vào bộ nhớ tạm!');
   }
 
 function renderBank(){
@@ -1310,9 +1380,24 @@ function openEditor(id,duplicate=false){
   store.editing=old?structuredClone(old):{grade:Number(store.filters.grade)||grades()[0],type:'MC',level:'Biết',lesson_code:store.filters.lesson||'',review_status:'draft',response_mode:'Trắc nghiệm',question:'',options:['','','',''],correct:0,option_explanations:['','','',''],max_score:1};
  }
  const q=store.editing;$('#edit-title').textContent=duplicate?'Nhân bản câu hỏi':old?'Sửa câu hỏi':'Thêm câu hỏi';
- $('#question-form').innerHTML=`<div id="form-error" class="callout error" role="alert" hidden></div><div class="form-grid"><div class="field"><label for="edit-grade">Khối lớp</label><select id="edit-grade" name="grade">${gradeOptions(q.grade)}</select></div><div class="field"><label for="edit-type">Dạng câu</label><select id="edit-type" name="type">${Object.entries(typeNames).map(([k,v])=>opt(k,v,k===q.type)).join('')}</select></div><div class="field"><label for="edit-level">Mức độ</label><select id="edit-level" name="level">${C.levelOptions(q.level)}</select></div><div class="field full"><label for="edit-lesson">Bài theo PPCT</label><select id="edit-lesson" name="lesson_code" required></select><p id="edit-lesson-hint" class="small muted" style="margin-top:4px"></p></div><div class="field full"><label for="edit-outcome">Yêu cầu cần đạt</label><select id="edit-outcome" name="outcome_index" required></select></div><div class="field span2"><label for="edit-status">Trạng thái sau khi lưu</label><select id="edit-status" name="review_status">${editorStatusOptions(q)}</select></div><div class="field"><label for="edit-mode">Cách trả lời</label><select id="edit-mode" name="response_mode">${['Trắc nghiệm','Tự luận','Thực hành'].map(v=>opt(v,v,v===q.response_mode)).join('')}</select></div><div class="field full"><label for="edit-question">Nội dung câu hỏi</label><textarea id="edit-question" name="question" rows="5" required aria-describedby="question-edit-help">${esc(q.question)}</textarea><div class="actions" style="margin-top:8px"><button type="button" data-question-template="code">Chèn mã</button><button type="button" data-question-template="table">Chèn bảng</button></div><p id="question-edit-help" class="editor-note">Chèn mẫu tại con trỏ rồi thay nội dung trong mẫu. Giữ dòng đầu và cuối của đoạn mã; giữ dòng gạch ngang và số cột của bảng. Xem kết quả bên dưới. Câu có mã hoặc bảng được sửa đầy đủ tại cửa sổ này.</p><div style="margin-top:12px"><strong>Xem trước nội dung câu hỏi</strong><div id="question-live-preview" style="margin-top:8px;padding:12px;border:1px solid #d5dde5;border-radius:6px;min-height:48px"></div></div></div></div><div id="answer-editor" style="margin-top:20px"></div><p class="editor-note">Câu mới mặc định là bản nháp. Câu chỉ được <strong>duyệt</strong> ở màn hình “Duyệt câu hỏi” với phiếu kiểm định. Sửa nội dung câu đã duyệt sẽ đưa câu về “Cần sửa lại”.</p><div class="dialog-bottom"><button type="button" data-close="edit-dialog">Hủy</button><button type="submit" class="primary">Lưu câu hỏi</button></div>`;
- const questionInput=$('#edit-question'),preview=$('#question-live-preview');
- const updatePreview=()=>{preview.innerHTML=C.questionTextHtml(questionInput.value);};
+ $('#question-form').innerHTML=`<div id="form-error" class="callout error" role="alert" hidden></div><div class="form-grid"><div class="field"><label for="edit-grade">Khối lớp</label><select id="edit-grade" name="grade">${gradeOptions(q.grade)}</select></div><div class="field"><label for="edit-type">Dạng câu</label><select id="edit-type" name="type">${Object.entries(typeNames).map(([k,v])=>opt(k,v,k===q.type)).join('')}</select></div><div class="field"><label for="edit-level">Mức độ</label><select id="edit-level" name="level">${C.levelOptions(q.level)}</select></div><div class="field full"><label for="edit-lesson">Bài theo PPCT</label><select id="edit-lesson" name="lesson_code" required></select><p id="edit-lesson-hint" class="small muted" style="margin-top:4px"></p></div><div class="field full"><label for="edit-outcome">Yêu cầu cần đạt</label><select id="edit-outcome" name="outcome_index" required></select></div><div class="field span2"><label for="edit-status">Trạng thái sau khi lưu</label><select id="edit-status" name="review_status">${editorStatusOptions(q)}</select></div><div class="field"><label for="edit-mode">Cách trả lời</label><select id="edit-mode" name="response_mode">${['Trắc nghiệm','Tự luận','Thực hành'].map(v=>opt(v,v,v===q.response_mode)).join('')}</select></div><div class="field full"><label for="edit-question">Nội dung câu hỏi</label><textarea id="edit-question" name="question" rows="5" required aria-describedby="question-edit-help">${esc(q.question)}</textarea><div class="actions" style="margin-top:8px"><button type="button" data-question-template="code">Chèn mã</button><button type="button" data-question-template="table">Chèn bảng</button></div><p id="question-edit-help" class="editor-note">Chèn mẫu tại con trỏ rồi thay nội dung trong mẫu. Giữ dòng đầu và cuối của đoạn mã; giữ dòng gạch ngang và số cột của bảng. Xem kết quả bên dưới. Câu có mã hoặc bảng được sửa đầy đủ tại cửa sổ này.</p><div style="margin-top:12px"><strong>Xem trước nội dung câu hỏi</strong><div id="question-live-preview" style="margin-top:8px;padding:12px;border:1px solid #d5dde5;border-radius:6px;min-height:48px"></div></div></div></div><div id="answer-editor" style="margin-top:20px"></div><div id="question-quality-warnings" aria-live="polite" style="margin-top:12px"></div><p class="editor-note">Câu mới mặc định là bản nháp. Câu chỉ được <strong>duyệt</strong> ở màn hình “Duyệt câu hỏi” với phiếu kiểm định. Sửa nội dung câu đã duyệt sẽ đưa câu về “Cần sửa lại”.</p><div class="dialog-bottom"><button type="button" data-close="edit-dialog">Hủy</button><button type="submit" class="primary">Lưu câu hỏi</button></div>`;
+ const questionInput=$('#edit-question'),preview=$('#question-live-preview'),warnBox=$('#question-quality-warnings');
+ const updateQualityWarnings=()=>{
+  if(!warnBox)return;
+  const curType=$('#edit-type')?.value||q.type||'MC';
+  const draft={type:curType,question:questionInput?.value||''};
+  if(curType==='MC'){
+   draft.options=[0,1,2,3].map(i=>($(`#option-${i}`)?.value||'').trim());
+  }else if(curType==='YN'){
+   draft.statements=[0,1,2,3].map(i=>({label:'abcd'[i],text:($(`#stmt-${i}`)?.value||'').trim(),correct:$(`#stmt-ok-${i}`)?.value==='true'}));
+  }else if(curType==='SHORT'){
+   draft.short_answer=($('#edit-short-answer')?.value||'').trim();
+  }else{
+   draft.rubric=[0,1,2,3].map(i=>({criterion:($(`#rubric-${i}`)?.value||'').trim(),points:0.25}));
+  }
+  warnBox.innerHTML=qualityWarningsHtml(draft);
+ };
+ const updatePreview=()=>{preview.innerHTML=C.questionTextHtml(questionInput.value);updateQualityWarnings();};
  questionInput.oninput=updatePreview;updatePreview();
  $('#question-form').querySelectorAll('[data-question-template]').forEach(button=>{
   button.onclick=()=>{
@@ -1320,8 +1405,10 @@ function openEditor(id,duplicate=false){
    questionInput.value=inserted.text;questionInput.focus();questionInput.setSelectionRange(inserted.selectionStart,inserted.selectionEnd);updatePreview();
   };
  });
- editorLessons(q.lesson_code,q.outcome_index,q.learning_outcome);renderAnswerEditor(q.type);
- $('#edit-grade').onchange=()=>editorLessons('',0);$('#edit-lesson').onchange=()=>editorOutcomes(0);$('#edit-type').onchange=()=>{const t=$('#edit-type').value;renderAnswerEditor(t);$('#edit-mode').value=['MC','YN','SHORT'].includes(t)?'Trắc nghiệm':'Tự luận';$('#edit-level').value=C.levelAfterTypeChange($('#edit-level').value,t);};$('#question-form').onsubmit=saveQuestion;
+ editorLessons(q.lesson_code,q.outcome_index,q.learning_outcome);renderAnswerEditor(q.type);updateQualityWarnings();
+ $('#question-form').addEventListener('input',updateQualityWarnings);
+ $('#question-form').addEventListener('change',updateQualityWarnings);
+ $('#edit-grade').onchange=()=>editorLessons('',0);$('#edit-lesson').onchange=()=>editorOutcomes(0);$('#edit-type').onchange=()=>{const t=$('#edit-type').value;renderAnswerEditor(t);$('#edit-mode').value=['MC','YN','SHORT'].includes(t)?'Trắc nghiệm':'Tự luận';$('#edit-level').value=C.levelAfterTypeChange($('#edit-level').value,t);updateQualityWarnings();};$('#question-form').onsubmit=saveQuestion;
  $('#detail-dialog').close();$('#edit-dialog').showModal();
 }
 function editorLessons(code,index,outcome){const ls=instructionalLessons($('#edit-grade').value,undefined,{includeElective:true});$('#edit-lesson').innerHTML=ls.map(l=>opt(l.lesson_code,lessonOptionLabel(l),l.lesson_code===code)).join('');editorOutcomes(index,outcome);}
@@ -3598,7 +3685,8 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
   // Tải mẫu JSON câu hỏi
   const triggerDownloadSampleJson = () => {
     const curGrade = Number($('#ai-parse-grade')?.value || 9);
-    const sampleData = sampleQuestionsByGrade(curGrade);
+    const curSubj = $('#ai-parse-subject')?.value || subject();
+    const sampleData = sampleQuestionsByGrade(curGrade, curSubj);
     triggerTextDownload(JSON.stringify(sampleData, null, 2), 'application/json;charset=utf-8', `exammatrix_mau_cau_hoi_khoi_${curGrade}.json`);
     notify(`Đã tải xuống tệp mẫu exammatrix_mau_cau_hoi_khoi_${curGrade}.json!`);
   };
@@ -3610,8 +3698,9 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
   if (downloadSampleMdBtn) {
     downloadSampleMdBtn.onclick = () => {
       const curGrade = Number($('#ai-parse-grade')?.value || 9);
+      const curSubj = $('#ai-parse-subject')?.value || subject();
       const cap = curGrade >= 10 ? 'THPT (CV 7991)' : 'THCS';
-      const sampleMd = `# Ngân hàng câu hỏi Tin học Khối ${curGrade} · ${cap}\n\n${sampleMdBodyByGrade(curGrade)}\n`;
+      const sampleMd = `# Ngân hàng câu hỏi ${curSubj} Khối ${curGrade} · ${cap}\n\n${sampleMdBodyByGrade(curGrade)}\n`;
       triggerTextDownload(sampleMd, 'text/markdown;charset=utf-8', `exammatrix_mau_cau_hoi_khoi_${curGrade}.md`);
       notify(`Đã tải xuống tệp mẫu exammatrix_mau_cau_hoi_khoi_${curGrade}.md!`);
     };
@@ -3621,10 +3710,11 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
   if (copyPromptBtn) {
     copyPromptBtn.onclick = async () => {
       const curGrade = Number($('#ai-parse-grade')?.value || 9);
-      const curSubj = $('#ai-parse-subject')?.value || 'Tin học';
+      const curSubj = $('#ai-parse-subject')?.value || subject();
       const isThpt = curGrade >= 10;
+      const isInformatics = /tin\s*h[oọ]c/i.test(curSubj);
       const scopeRule = isThpt
-        ? `- Cấp THPT (${nlsCodeForGrade(curGrade)} · CV 7991): hỗ trợ đủ 4 dạng MC, YN, SHORT, ES.\n- Gắn "ppct_section": "core" cho Nội dung cốt lõi (Mục II.1: B1, B2...) và "ppct_section": "elective_topic" (kèm "orientation": "ICT" hoặc "CS") cho Chuyên đề học tập (Mục II.2: CD1, CD2..., chỉ dùng KTTX theo Điều 6.3 TT 22/2021).`
+        ? `- Cấp THPT (${nlsCodeForGrade(curGrade)} · CV 7991): hỗ trợ đủ 4 dạng MC, YN, SHORT, ES.\n- Gắn "ppct_section": "core" cho Nội dung cốt lõi (Mục II.1: B1, B2...) và "ppct_section": "elective_topic"${isInformatics ? ' (kèm "orientation": "ICT" hoặc "CS")' : ''} cho Chuyên đề học tập (Mục II.2: CD1, CD2..., chỉ dùng KTTX theo Điều 6.3 TT 22/2021).`
         : `- Cấp THCS (${nlsCodeForGrade(curGrade)}): KHÔNG có Chuyên đề học tập (toàn bộ "ppct_section": "core"); ưu tiên dạng MC và ES.`;
       const thptSchemas = isThpt ? `,
   {
@@ -3632,12 +3722,12 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
     "level": "Hiểu",
     "lesson_code": "B1",
     "ppct_section": "core",
-    "question": "Câu dẫn của câu Đúng/Sai...",
+    "question": "Câu dẫn ngữ liệu chung của câu Đúng/Sai (>= 25 kí tự)...",
     "statements": [
-      {"label": "a", "text": "Nội dung ý a", "correct": true},
-      {"label": "b", "text": "Nội dung ý b", "correct": false},
-      {"label": "c", "text": "Nội dung ý c", "correct": true},
-      {"label": "d", "text": "Nội dung ý d", "correct": false}
+      {"label": "a", "text": "Nội dung ý a (Biết)", "correct": true},
+      {"label": "b", "text": "Nội dung ý b (Biết/Hiểu)", "correct": false},
+      {"label": "c", "text": "Nội dung ý c (Hiểu)", "correct": true},
+      {"label": "d", "text": "Nội dung ý d (Vận dụng)", "correct": false}
     ]
   },
   {
@@ -3645,11 +3735,13 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
     "level": "Vận dụng",
     "lesson_code": "B1",
     "ppct_section": "core",
-    "question": "Câu hỏi trả lời ngắn...",
-    "short_answer": "Đáp án trả lời ngắn"
+    "question": "Câu hỏi trả lời ngắn (ghi rõ đơn vị tính và quy ước làm tròn trong câu dẫn)...",
+    "short_answer": "42"
   }` : '';
-      const promptContent = `Hãy chuyển đổi toàn bộ câu hỏi trong đề thi / tài liệu sau thành định dạng JSON chuẩn cho hệ thống ExamMatrix Studio môn ${curSubj} Khối ${curGrade}:
+      const promptContent = `Hãy biên soạn hoặc chuyển đổi toàn bộ câu hỏi trong đề thi / tài liệu sau thành định dạng JSON chuẩn cho hệ thống ExamMatrix Studio môn ${curSubj} Khối ${curGrade}:
 ${scopeRule}
+
+${cv7991QuestionRulesBlock(curGrade, curSubj, 'IMPORT')}
 
 [
   {
@@ -3667,7 +3759,7 @@ ${scopeRule}
     "level": "Vận dụng",
     "lesson_code": "B2",
     "ppct_section": "core",
-    "question": "Nội dung câu tự luận...",
+    "question": "Nội dung câu tự luận (nêu rõ tình huống, yêu cầu thực hiện và tiêu chí cần đạt)...",
     "rubric": [
       {"criterion": "Tiêu chí 1", "points": 0.25},
       {"criterion": "Tiêu chí 2", "points": 0.25},
@@ -3677,8 +3769,8 @@ ${scopeRule}
     "equivalent_answer_policy": "Chấp nhận đáp án tương đương hợp lí."
   }
 ]
-Dưới đây là đề thi cần chuyển đổi:
-[DÁN ĐỀ THI CỦA THẦY/CÔ VÀO ĐÂY]`;
+Dưới đây là đề thi / yêu cầu cần chuyển đổi:
+[DÁN ĐỀ THI HOẶC YÊU CẦU CỦA THẦY/CÔ VÀO ĐÂY]`;
       try {
         await navigator.clipboard.writeText(promptContent);
         notify('📋 Đã sao chép câu lệnh mẫu (Prompt) cho ChatGPT/Gemini vào bộ nhớ đệm!');
@@ -3835,6 +3927,7 @@ Dưới đây là đề thi cần chuyển đổi:
               <em>Lời giải: ${esc(q.option_explanations[corr] || q.option_explanations.join('; '))}</em>
             </p>
           ` : ''}
+          ${qualityWarningsHtml(q)}
         </div>
 
         <!-- Edit block (hidden by default) -->
@@ -4054,37 +4147,40 @@ Dưới đây là đề thi cần chuyển đổi:
         const listLessons = instructionalLessons(grade, subj, { includeElective: true }) || [];
         const lessonInfo = listLessons.map(l => `${l.lesson_code}: ${l.lesson_name_source || l.lesson_name || l.name}`).join('; ');
 
-        const promptText = `Bạn là Trợ lý Khảo thí & Chuẩn hóa Ngân hàng đề của Trường Quốc tế Á Châu (Asian School), bám sát chương trình GDPT 2018 và Công văn 7991/BGDĐT.
+        const promptText = `Bạn là Trợ lý Khảo thí & Chuẩn hóa Ngân hàng đề của Trường Quốc tế Á Châu (Asian School), bám sát chương trình GDPT 2018 và Công văn 7991/BGDĐT-GDTrH & CV 6569/BGDĐT-GDTrH.
 Nhiệm vụ của bạn là: Đọc văn bản đề thi thô của môn ${subj} Khối ${grade}, bóc tách và chuẩn hóa từng câu hỏi thành mảng đối tượng JSON chuẩn xác.
 
 Danh mục bài học phân phối chương trình của môn ${subj} Khối ${grade}:
 ${lessonInfo || 'B1, B2, B3...'}
 
-Yêu cầu phân loại chuẩn:
+${subjectCompetencyGuideText(subj)}
+
+Yêu cầu phân loại và chuẩn hóa kĩ thuật câu hỏi (CV 7991/BGDĐT-GDTrH & QĐ 764/QĐ-BGDĐT):
 1. Dạng câu hỏi (type):
    - "MC": Trắc nghiệm nhiều lựa chọn (4 phương án). Trả về:
-     question: nội dung câu hỏi (đã bỏ chữ "Câu 1:").
-     options: mảng 4 chuỗi phương án [A, B, C, D] (đã bỏ tiền tố "A. ", "B. ", "C. ", "D. ").
+     question: nội dung câu hỏi (đã bỏ chữ "Câu 1:"; nếu câu dẫn ở thể phủ định như không phải/không đúng/ngoại trừ thì giữ hoặc nhấn mạnh IN HOA/IN ĐẬM từ phủ định; không đặt chỗ trống ở đầu/giữa câu dẫn).
+     options: mảng 4 chuỗi phương án [A, B, C, D] (đã bỏ tiền tố "A. ", "B. ", "C. ", "D. "; đồng nhất hình thức, tránh "Tất cả đều đúng" / "Không có phương án nào đúng").
      correct: số nguyên chỉ số phương án đúng (0 cho A, 1 cho B, 2 cho C, 3 cho D).
      option_explanations: mảng 4 chuỗi giải thích cho từng phương án nếu có.
    - "YN": Trắc nghiệm Đúng/Sai (4 ý a, b, c, d). Trả về:
-     question: câu dẫn ngữ cảnh chung.
+     question: câu dẫn ngữ cảnh chung (>= 25 kí tự).
      statements: mảng 4 đối tượng [{label: "a", text: "nội dung ý a", correct: true/false}, {label: "b", text: "nội dung ý b", correct: true/false}, ...].
    - "SHORT": Trả lời ngắn / Điền khuyết. Trả về:
-     question: nội dung câu hỏi.
-     short_answer: đáp án hoặc từ khóa chấp nhận được.
+     question: nội dung câu hỏi (ghi rõ đơn vị tính và quy ước làm tròn trong câu dẫn).
+     short_answer: đáp án gọn duy nhất KHÔNG kèm đơn vị (tối đa 4 kí tự nếu là số theo chuẩn THPT QĐ 764).
    - "ES": Tự luận. Trả về:
-     question: đề bài tự luận.
-     rubric: mảng các tiêu chí chấm điểm và điểm thành phần.
+     question: đề bài tự luận (rõ yêu cầu thực hiện và tiêu chí đánh giá).
+     rubric: mảng 4 tiêu chí chấm điểm [{"criterion": "...", "points": 0.25}, ...] (tổng 1.0 điểm).
 
 2. Mức độ nhận thức (level):
    - "Biết": Nhận diện, định nghĩa, nhớ lại kiến thức cơ bản.
    - "Hiểu": Giải thích, phân biệt, so sánh, minh họa.
-   - "Vận dụng": Áp dụng kiến thức/công thức giải bài toán cụ thể.
-   - "Vận dụng cao": Đánh giá, tối ưu hóa, bài toán liên môn/thực tế phức tạp.
+   - "Vận dụng": Áp dụng kiến thức/công thức giải bài toán cụ thể hoặc tình huống thực tiễn.
+   - "Vận dụng cao": Chỉ gắn khi câu hỏi thuộc mức nâng cao theo hồ sơ riêng của tổ.
 
-3. Ánh xạ Bài học (lesson_code):
+3. Ánh xạ Bài học (lesson_code) và mạch PPCT (ppct_section):
    - Hãy chọn mã bài học (lesson_code) phù hợp nhất từ danh mục bài học ở trên.
+   - Gắn "ppct_section": "elective_topic" nếu mã bài thuộc Chuyên đề học tập THPT (CD1, CD2...), ngược lại gắn "ppct_section": "core".
 
 Văn bản đề thi thô cần bóc tách:
 ${rawText}

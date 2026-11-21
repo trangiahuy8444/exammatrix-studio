@@ -804,6 +804,93 @@ function syncEditedQuestionsFromSheet(sheet,record){
     const g=SCREEN_GUIDES[tab]||SCREEN_GUIDES.overview;
     return {...g,tips:g.tips.slice()};
   }
-  const api={questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  const _stripCode=s=>String(s??'').replace(/```[\s\S]*?```/g,' ').replace(/`[^`]*`/g,' ');
+  const _stripEmphasis=s=>s.replace(/\*\*[\s\S]*?\*\*/g,' ').replace(/<b\b[^>]*>[\s\S]*?<\/b>/gi,' ').replace(/<strong\b[^>]*>[\s\S]*?<\/strong>/gi,' ');
+  const _normProse=s=>normalize(_stripCode(s)).replace(/\s+/g,' ').trim();
+  const _RE_BANNED_OPT=/\b(?:tat ca(?: cac)? (?:dap an|phuong an|cau|y|phuong an tra loi)(?: tren| duoi day)?(?: deu)? (?:dung|sai)|tat ca deu (?:dung|sai)|khong co (?:phuong an|dap an|y|cau) nao(?: tren)? (?:dung|sai)|khong (?:phuong an|dap an) nao dung|ca (?:hai|ba|bon|2|3|4) (?:dap an|phuong an|y)(?: tren)? deu (?:dung|sai)|ca [a-d](?:,\s*[a-d])+(?: va [a-d])? deu (?:dung|sai)|[a-d] va [a-d] deu (?:dung|sai))\b/;
+  const _RE_UNEMPH_NEG=/(?:(?:nào|gì|đáp án|phương án|phát biểu|nhận định|khẳng định|câu|ý|mệnh đề|đặc điểm|thiết bị|hàm|lệnh|thao tác|ví dụ|trường hợp)(?: sau đây| dưới đây| bên dưới| nào)?\s+(?:không (?:phải|đúng|thuộc|bao gồm|phù hợp|hợp lệ|tồn tại|có tác dụng|có chức năng)|là sai|sai)|(?:chọn|tìm|chỉ ra|xác định)\s+(?:phương án|đáp án|phát biểu|nhận định|câu|ý)\s+(?:không (?:đúng|phải)|sai)|(?:^|[\s,.;:!?("'“‘])ngoại trừ(?=$|[\s,.;:!?)"'”’]))/;
+  const _RE_NEG_STEM=/\b(?:khong (?:phai|dung|thuoc|bao gom)|ngoai tru)\b|(?:nao(?: sau day| duoi day)? sai)\b/;
+  const _RE_DOUBLE_NEG_STEM=/\b(?:khong (?:the|phai|bao gio|he) khong|chua (?:tung|bao gio) khong|khong (?:phai|dung|thuoc|co).*?\bngoai tru\b|\bngoai tru\b.*?\bkhong\b)\b/;
+  const _RE_NEG_OPT=/^(?:khong|chua|chang)\b|\bkhong (?:the|bao gio|duoc|co|phai|dung)\b/;
+  const _RE_INLINE_BLANK=/(?:_{3,}|\.{4,}|…{2,}|\(\s*\.{3,}\s*\)|\[\s*\.{3,}\s*\])\s+[A-Za-zÀ-ỹ0-9]/;
+  const _RE_VAGUE_ABS=/(?:^|\b)(?:luon luon|khong bao gio|chi duy nhat|tat thay|hau het|phan lon|thong thuong|bat ki luc nao|moi truong hop)(?:\b|$)/;
+  const _RE_TUYET_DOI=/\btuyet doi\b/g;
+  const _RE_TUYET_DOI_SAFE=/(?:dia chi|duong dan|gia tri|sai so|tham chieu)\s+$/;
+  const _RE_NUM_UNIT=/^-?\d+(?:[.,]\d+)?\s*(?:%|cm|mm|km|m|kg|g|gb|mb|kb|tb|hz|khz|mhz|ghz|bit|byte|giay|phut|gio|phan tram)$/i;
+  const _RE_PURE_NUM=/^-?\d+(?:[.,]\d+)?$/;
+  function questionQualityWarnings(q){
+    q=q||{};
+    const qtype=String(q.type||'').toUpperCase();
+    const stem=String(q.question??q.stem??'').trim();
+    const stemProse=_stripCode(stem);
+    const stemUnemph=_stripEmphasis(stemProse);
+    const stemNorm=_normProse(stem);
+    const out=[];
+    const warn=(code,message)=>out.push({code,severity:'warning',message});
+    if(_RE_INLINE_BLANK.test(stemProse))warn('mc_inline_blank','CV 7991/6569 (1.b.5–6): Ưu tiên câu hỏi trực tiếp; nếu hoàn chỉnh câu thì không đặt chỗ trống ở đầu hoặc giữa câu dẫn.');
+    if(qtype==='MC'){
+      const opts=(Array.isArray(q.options)?q.options:[]).map(o=>String((o&&typeof o==='object'?o.text:o)??'').trim());
+      const optsNorm=opts.map(_normProse);
+      if(optsNorm.some(o=>o&&_RE_BANNED_OPT.test(o)))warn('mc_banned_option','CV 7991/6569 (1.c.7): Tránh phương án gộp hoặc loại trừ kiểu "Tất cả đều đúng", "Không có phương án nào đúng", "Cả A và B...".');
+      if(_RE_UNEMPH_NEG.test(stemUnemph))warn('mc_unemphasized_negation','CV 7991/6569 (1.b.8): Câu dẫn dạng phủ định/loại trừ nên chuyển sang thể khẳng định hoặc nhấn mạnh từ phủ định bằng IN HOA/IN ĐẬM.');
+      const doubleNeg=_RE_DOUBLE_NEG_STEM.test(stemNorm)||(_RE_NEG_STEM.test(stemNorm)&&optsNorm.some(o=>o&&_RE_NEG_OPT.test(o)));
+      if(doubleNeg)warn('mc_double_negation','CV 7991/6569 (1.b.8 & 1.c.9): Tránh phủ định kép (câu dẫn phủ định đi kèm phương án phủ định); nên viết phương án nhiễu ở thể khẳng định.');
+      const lens=opts.filter(Boolean).map(o=>o.length);
+      if(lens.length===4){
+        const sorted=lens.slice().sort((a,b)=>a-b);
+        const avg3=(sorted[0]+sorted[1]+sorted[2])/3;
+        if(sorted[3]>=45&&sorted[0]>0&&sorted[3]>=2.5*avg3)warn('mc_length_imbalance','CV 7991/6569 (1.c.5 & 1.c.14): Độ dài các phương án lựa chọn chênh lệch quá lớn, dễ làm lộ đáp án.');
+      }
+      let vagueHit=false;
+      for(const o of optsNorm){
+        if(!o)continue;
+        if(_RE_VAGUE_ABS.test(o)){vagueHit=true;break;}
+        _RE_TUYET_DOI.lastIndex=0;
+        let m;
+        while((m=_RE_TUYET_DOI.exec(o))!==null){
+          if(!_RE_TUYET_DOI_SAFE.test(o.slice(0,m.index))){vagueHit=true;break;}
+        }
+        if(vagueHit)break;
+      }
+      if(vagueHit)warn('mc_vague_or_absolute','CV 7991/6569 (1.c.8): Phương án chứa từ ngữ mơ hồ ("thông thường", "hầu hết", "phần lớn"…) hoặc tuyệt đối hóa ("luôn luôn", "không bao giờ", "tuyệt đối"…).');
+    }else if(qtype==='YN'){
+      const stmts=Array.isArray(q.statements)?q.statements:[];
+      const nonEmpty=stmts.map(s=>String((s&&typeof s==='object'?s.text:s)??'').trim()).filter(Boolean);
+      const normTexts=nonEmpty.map(_normProse);
+      const bools=[];
+      for(const s of stmts){
+        if(s&&typeof s==='object'){
+          const v='correct' in s?s.correct:('answer' in s?s.answer:s.is_true);
+          if(typeof v==='boolean')bools.push(v);
+          else if(v!==undefined&&v!==null)bools.push(['true','1','d','dung'].includes(_normProse(v)));
+        }
+      }
+      if(stem.length<25||nonEmpty.length<4||new Set(normTexts).size<normTexts.length||(bools.length===4&&new Set(bools).size===1)){
+        warn('yn_context_or_balance','CV 7991 & QĐ 764 (Đúng/Sai): Cần có ngữ liệu/câu dẫn rõ ràng (>= 25 kí tự), đủ 4 ý a–d không trùng lặp và tránh cả 4 ý cùng Đúng hoặc cùng Sai.');
+      }
+    }else if(qtype==='SHORT'){
+      const ans=shortAnswerOf(q);
+      const ansNorm=_normProse(ans);
+      if(!ans||ans.length>20||ans.trim().split(/\s+/).length>=3||_RE_NUM_UNIT.test(ansNorm)||(_RE_PURE_NUM.test(ans)&&ans.length>4)){
+        warn('short_answer_format','CV 7991 & QĐ 764 (Trả lời ngắn): Đáp án cần gọn, duy nhất (không kèm đơn vị hoặc cụm từ dài; chuẩn THPT tối đa 4 kí tự gồm chữ số, dấu "-", ",").');
+      }
+    }else if(qtype==='ES'){
+      const rubric=Array.isArray(q.rubric)?q.rubric:[];
+      const guide=String(q.marking_guide??q.sample_answer??'').trim();
+      let badRubric=false;
+      if(rubric.length){
+        for(const item of rubric){
+          if(item&&typeof item==='object'){
+            const crit=String(item.criterion??item.text??'').trim();
+            const pts=Number(item.points);
+            if(crit.length<5||!(Number.isFinite(pts)&&pts>0)){badRubric=true;break;}
+          }else if(String(item??'').trim().length<5){badRubric=true;break;}
+        }
+      }else if(!guide)badRubric=true;
+      if(stem.length<20||badRubric)warn('es_rubric_or_prompt','CV 7991/6569 (Tự luận): Câu dẫn cần rõ yêu cầu thực hiện, tiêu chí cần đạt; hướng dẫn chấm phải có ít nhất 1 ý và ghi rõ biểu điểm.');
+    }
+    return out;
+  }
+  const api={questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

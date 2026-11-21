@@ -16,6 +16,7 @@ from bank_service import ServiceError
 from .model import LEVELS,matrix_view,validate_matrix
 from .import_docx import _raw_table
 from .exchange import export_package
+from .competency_catalog import preset_catalog_for_subject
 
 NAMES={'MC':'TNKQ-NLC','YN':'TNKQ-ĐS','ES':'Tự luận','SHORT':'Trả lời ngắn'}
 
@@ -266,20 +267,46 @@ def _competencies(d,m,v):
         for i,row in enumerate(codes,1):
             for cell,text in zip(t.rows[i].cells,(name(row['competency']),row['code'],row['text'])):_text(cell,text)
         return
-    levels=_export_levels(m);level_count=len(levels);end=3+3*level_count
-    t=_table(d,4+len(v['competencies']),[1.9,1.1,.7]+[1.7]*(3*level_count),4)
+    levels=_export_levels(m);level_count=len(levels)
+    subj_name=str(m.get('subject_name') or m.get('subject') or '').strip()
+    comp_names={
+        'NLa':'Sử dụng và quản lí các phương tiện CNTT&TT',
+        'NLb':'Ứng xử phù hợp trong môi trường số',
+        'NLc':'Giải quyết vấn đề với sự trợ giúp của máy tính',
+        'NLd':'Ứng dụng CNTT&TT trong học và tự học',
+        'NLe':'Hợp tác trong môi trường số',
+        'NL_CHUNG':'Năng lực đặc thù',
+    }
+    preset=preset_catalog_for_subject(subj_name) if subj_name else None
+    if preset:
+        for c in preset.get('competencies',[]):
+            if c.get('code') and c.get('name'):comp_names.setdefault(c['code'],c['name'])
+    for code_row in m.get('indicator_catalog',[]):
+        c_id=str(code_row.get('code') or '').strip();c_title=str(code_row.get('competency') or '').strip()
+        prefix=c_id.split('.',1)[0] if '.' in c_id else c_id
+        if prefix and c_title and c_title!=prefix and prefix not in comp_names:comp_names[prefix]=c_title
+    used=[x for x in dict.fromkeys([p.get('competency') for p in v['competencies']]+[r.get('competency') for r in m.get('requirements',[])]) if x]
+    if not used or set(used)<={'NLa','NLb','NLc'}:comps=['NLa','NLb','NLc']
+    elif set(used)<={'NLa','NLb','NLc','NLd','NLe'}:comps=['NLa','NLb','NLc']+[c for c in ('NLd','NLe') if c in used]
+    else:comps=used
+    end=3+len(comps)*level_count
+    col_w=1.7 if comps==['NLa','NLb','NLc'] and level_count==3 else round(20.1/(len(comps)*level_count),2)
+    t=_table(d,4+len(v['competencies']),[1.9,1.1,.7]+[col_w]*(len(comps)*level_count),4)
     _text(t.cell(0,0).merge(t.cell(3,0)),'Dạng thức',True,True)
     _text(t.cell(0,1).merge(t.cell(3,2)),'Câu hỏi',True,True)
-    _text(t.cell(0,3).merge(t.cell(0,end-1)),'Năng lực tin học',True,True)
-    for i,(comp,name) in enumerate([('NLa','Sử dụng và quản lí các phương tiện CNTT&TT'),('NLb','Ứng xử phù hợp trong môi trường số'),('NLc','Giải quyết vấn đề với sự trợ giúp của máy tính')]):
-        start=3+level_count*i;_text(t.cell(1,start).merge(t.cell(1,start+level_count-1)),name+' ('+comp+')',True,True)
+    header_title='Năng lực tin học' if set(comps)<={'NLa','NLb','NLc','NLd','NLe'} else ('Năng lực đặc thù — '+subj_name if subj_name else 'Năng lực đặc thù')
+    _text(t.cell(0,3).merge(t.cell(0,end-1)),header_title,True,True)
+    for i,comp in enumerate(comps):
+        name=comp_names.get(comp,'')
+        title=f'{name} ({comp})' if name and name!=comp else comp
+        start=3+level_count*i;_text(t.cell(1,start).merge(t.cell(1,start+level_count-1)),title,True,True)
         _text(t.cell(2,start).merge(t.cell(2,start+level_count-1)),'Cấp độ tư duy',True,True)
         for j,l in enumerate(levels):_text(t.cell(3,start+j),l,True,True)
     for ri,part in enumerate(v['competencies'],4):
         _text(t.cell(ri,0),NAMES[part['kind']],False,True);_text(t.cell(ri,1),'Câu '+str(part['number']),False,True);_text(t.cell(ri,2),part['label'],False,True)
         for ci in range(3,end):_text(t.cell(ri,ci),'',False,True)
-        if part['competency'] in ('NLa','NLb','NLc'):
-            col=3+('NLa','NLb','NLc').index(part['competency'])*level_count+levels.index(part['level'])
+        if part['competency'] in comps and part['level'] in levels:
+            col=3+comps.index(part['competency'])*level_count+levels.index(part['level'])
             _text(t.cell(ri,col),part['indicator'],False,True)
     d.add_page_break();h=d.add_heading('Mã hóa ma trận',level=1);h.alignment=1
     raw_tables=(m.get('source') or {}).get('tables',[])

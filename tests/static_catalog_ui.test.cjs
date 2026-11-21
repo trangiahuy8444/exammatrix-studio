@@ -18,3 +18,22 @@ test('applying catalog preserves question content and protects locked matrices',
  for(const extra of [{status:'locked',allow_custom_override:true},{status:'archived'},{matrix_locked:true},{spec_locked:true},{mode:'received'}])assert.throws(()=>ui.applyCatalog({...matrix,...extra},catalog,'Vật lí'));
  assert.throws(()=>ui.applyCatalog(matrix,catalog,'Toán'));
 });
+test('all 13 GDPT 2018 subject presets validate and round-trip CSV through parseText',()=>{
+ const cat=require('../public/competency-catalog.js');
+ const presets=cat.listSubjectPresets();
+ assert.equal(presets.length,13);
+ for(const p of presets){
+  const full=cat.presetCatalogForSubject(p.key);
+  assert.ok(full&&full.competencies.length>=2&&full.indicators.length>=4,p.key);
+  const report=cat.validate({competencies:full.competencies,indicators:full.indicators});
+  assert.equal(report.valid,true,p.key+' must validate');
+  const csv=cat.toCsv(full);
+  const parsed=cat.parseText(csv);
+  assert.equal(parsed.valid,true,p.key+' CSV round-trip must validate');
+  assert.equal(parsed.catalog.competencies.length,full.competencies.length);
+  assert.equal(parsed.catalog.indicators.length,full.indicators.length);
+ }
+ assert.equal(cat.presetCatalogForSubject('Ngữ văn').key,'ngu_van');
+ assert.equal(cat.presetCatalogForSubject('Giáo dục kinh tế và pháp luật').key,'gdktpl');
+ assert.ok(cat.defaultCompetenciesForSubject('Vật lí').includes('NL_CHUNG'));
+});

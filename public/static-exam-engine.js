@@ -16,10 +16,19 @@
   const text = x => typeof x === 'string' && !!x.trim();
   const norm = x => String(x || '').normalize('NFC').trim().toLowerCase().replace(/\s+/g, ' ');
   const subject = x => norm(x || 'Tin học');
+  function competencyCatalogLib(){
+    if(typeof BankCompetencyCatalog!=='undefined'&&BankCompetencyCatalog)return BankCompetencyCatalog;
+    if(typeof globalThis!=='undefined'&&globalThis.BankCompetencyCatalog)return globalThis.BankCompetencyCatalog;
+    if(typeof require==='function'){try{return require('./competency-catalog.js');}catch(_){}}
+    return null;
+  }
   function subjectContext(name){
     const s=subject(name),math=['toán','toán học','mathematics','math'].includes(s),tin=s==='tin học';
-    return {subject_name:name||'Tin học',allowed_grades:[6,7,8,9,10,11,12],school_profile:true,minimum_revision_percent:90,
-      competencies:tin?['NLa','NLb','NLc','NLd','NLe']:math?['TDLL','MHH','GQVĐ','GT','SDCC']:['NL_CHUNG']};
+    const lib=competencyCatalogLib();
+    const comps=lib&&typeof lib.defaultCompetenciesForSubject==='function'
+      ?lib.defaultCompetenciesForSubject(name||'Tin học')
+      :(tin?['NLa','NLb','NLc','NLd','NLe']:math?['TDLL','MHH','GQVĐ','GT','SDCC']:['NL_CHUNG']);
+    return {subject_name:name||'Tin học',allowed_grades:[6,7,8,9,10,11,12],school_profile:true,minimum_revision_percent:90,competencies:comps};
   }
   function lessonSection(ppctLesson, code=''){
     const raw=String(ppctLesson?.section||'').trim().toLowerCase();

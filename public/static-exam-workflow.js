@@ -12,8 +12,8 @@
     {key:'outcome',label:'Bám đúng yêu cầu cần đạt đã gắn'},
     {key:'level',label:'Mức độ nhận thức phù hợp'},
     {key:'answer',label:'Đáp án đúng và không mơ hồ'},
-    {key:'distractors',label:'Phương án nhiễu hợp lý / hướng dẫn chấm đủ ý'},
-    {key:'language',label:'Ngôn ngữ rõ ràng, không lỗi chính tả'},
+    {key:'distractors',label:'Phương án nhiễu hợp lý, đồng nhất / hướng dẫn chấm đủ ý, rõ biểu điểm'},
+    {key:'language',label:'Ngôn ngữ rõ ràng, đơn nghĩa, thống nhất kí hiệu, không lỗi chính tả'},
     {key:'informatics',label:'Đoạn mã, hình, thuật ngữ, phiên bản phần mềm và kết quả chương trình đúng (nếu có)'}
   ].map(Object.freeze));
   const levels = ['Biết','Hiểu','Vận dụng','Vận dụng cao'];

@@ -1356,6 +1356,57 @@ test('5 phân hệ nâng cấp: core.js, matrices.js CV 7991, static-exam-engine
   ], 'rev', {});
   assert.match(thptPicker, /data-rev-lesson-yn/);
   assert.match(thptPicker, /data-rev-lesson-short/);
+
+  // 5. CV 7991/6569 questionQualityWarnings (9 rules) & Prompt AI + Sample questions compliance
+  const catalogLib = require('../public/competency-catalog.js');
+  const codesOf = q => core.questionQualityWarnings(q).map(w => w.code);
+  const cleanMc = {
+    type: 'MC',
+    question: 'Trong bảng tính Excel, kí hiệu $A$1 là loại địa chỉ ô nào?',
+    options: ['Địa chỉ tương đối', 'Địa chỉ tuyệt đối', 'Địa chỉ hỗn hợp cột', 'Địa chỉ hỗn hợp hàng'],
+    correct: 1,
+  };
+  assert.deepEqual(codesOf(cleanMc), []);
+  assert.deepEqual(codesOf({ ...cleanMc, question: 'Phát biểu nào sau đây KHÔNG đúng về RAM?' }), []);
+  assert.deepEqual(codesOf({ ...cleanMc, question: 'Phát biểu nào sau đây **không đúng** về RAM?' }), []);
+  assert.ok(codesOf({ ...cleanMc, options: ['A', 'B', 'C', 'Tất cả các đáp án trên đều đúng'] }).includes('mc_banned_option'));
+  assert.ok(codesOf({ ...cleanMc, question: 'Phát biểu nào sau đây không đúng về RAM?' }).includes('mc_unemphasized_negation'));
+  assert.ok(codesOf({ ...cleanMc, question: 'Phát biểu nào sau đây KHÔNG đúng?', options: ['Không thể ghi dữ liệu', 'B', 'C', 'D'] }).includes('mc_double_negation'));
+  assert.ok(codesOf({ ...cleanMc, question: 'Bộ nhớ ____ dùng để lưu dữ liệu tạm thời.' }).includes('mc_inline_blank'));
+  assert.ok(codesOf({ ...cleanMc, options: ['RAM', 'ROM', 'CPU', 'Thiết bị lưu trữ dữ liệu tạm thời tốc độ cao phục vụ trực tiếp cho bộ vi xử lí'] }).includes('mc_length_imbalance'));
+  assert.ok(codesOf({ ...cleanMc, options: ['Luôn luôn an toàn trong mọi trường hợp', 'Phương án B', 'Phương án C', 'Phương án D'] }).includes('mc_vague_or_absolute'));
+  assert.ok(codesOf({
+    type: 'YN',
+    question: 'Khi sử dụng thư điện tử (Email) trong học tập và công việc:',
+    statements: [
+      { label: 'a', text: 'Ý 1', correct: true },
+      { label: 'b', text: 'Ý 2', correct: true },
+      { label: 'c', text: 'Ý 3', correct: true },
+      { label: 'd', text: 'Ý 4', correct: true },
+    ],
+  }).includes('yn_context_or_balance'));
+  assert.ok(codesOf({ type: 'SHORT', question: 'Đáp số?', short_answer: '15 cm' }).includes('short_answer_format'));
+  assert.ok(codesOf({ type: 'SHORT', question: 'Đáp số?', short_answer: '12345' }).includes('short_answer_format'));
+  assert.ok(codesOf({ type: 'ES', question: 'Ngắn?', rubric: [] }).includes('es_rubric_or_prompt'));
+
+  const rulesCode = appSource.slice(appSource.indexOf('function nlsCodeForGrade('), appSource.indexOf('function downloadBankJsonSample('));
+  const promptHelpers = new Function('C', 'esc', 'subject', 'window', `${rulesCode}; return {qualityWarningsHtml, subjectCompetencyGuideText, cv7991QuestionRulesBlock, sampleQuestionsByGrade};`)(
+    core, core.escapeHtml, () => 'Tin học', { BankCompetencyCatalog: catalogLib }
+  );
+  for (const g of [8, 10]) {
+    for (const q of promptHelpers.sampleQuestionsByGrade(g, 'Tin học')) {
+      assert.deepEqual(core.questionQualityWarnings(q), [], `Sample question ${q.id} must have 0 quality warnings`);
+    }
+  }
+  const mathBlock = promptHelpers.cv7991QuestionRulesBlock(10, 'Toán', 'GK1');
+  assert.match(mathBlock, /CV 7991\/BGDĐT-GDTrH/);
+  assert.match(mathBlock, /1\.a — 11 tiêu chí/);
+  assert.match(mathBlock, /1\.b — 9 tiêu chí/);
+  assert.match(mathBlock, /1\.c — 16 tiêu chí/);
+  assert.match(mathBlock, /TDLL: Tư duy và lập luận toán học/);
+  const litBlock = promptHelpers.cv7991QuestionRulesBlock(10, 'Ngữ văn', 'CK1');
+  assert.match(litBlock, /ĐỌC: Năng lực đọc hiểu văn bản/);
+  assert.match(litBlock, /VIẾT: Năng lực tạo lập văn bản/);
 });
 
 

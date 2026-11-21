@@ -480,6 +480,118 @@ class FiveModulesUpgradeTests(unittest.TestCase):
         with self.assertRaises(ServiceError):
             svc.save_revision({'title': 'Đề cương GK1', 'grade': 10, 'exam_type': 'GK1', 'question_ids': ['K10-CD1-MC-01']})
 
+    def test_cv7991_quality_warnings_all_nine_rules_and_clean_questions(self):
+        from domain.review import quality_warnings
+
+        clean_mc = {
+            'type': 'MC',
+            'question': 'Trong bảng tính Excel, kí hiệu $A$1 biểu diễn loại địa chỉ ô nào?',
+            'options': ['Địa chỉ tương đối', 'Địa chỉ tuyệt đối', 'Địa chỉ hỗn hợp cột', 'Địa chỉ hỗn hợp hàng'],
+            'correct': 1,
+        }
+        self.assertEqual(quality_warnings(clean_mc), [])
+        # Nhấn mạnh phủ định bằng IN HOA hoặc **in đậm** không bị cảnh báo giả
+        self.assertEqual(quality_warnings({**clean_mc, 'question': 'Phát biểu nào sau đây KHÔNG đúng về RAM?'}), [])
+        self.assertEqual(quality_warnings({**clean_mc, 'question': 'Phát biểu nào sau đây **không đúng** về RAM?'}), [])
+
+        codes_Of = lambda q: {w['code'] for w in quality_warnings(q)}
+        self.assertIn('mc_banned_option', codes_Of({**clean_mc, 'options': ['A', 'B', 'C', 'Tất cả các đáp án trên đều đúng']}))
+        self.assertIn('mc_unemphasized_negation', codes_Of({**clean_mc, 'question': 'Phát biểu nào sau đây không đúng về bộ nhớ RAM?'}))
+        self.assertIn('mc_double_negation', codes_Of({**clean_mc, 'question': 'Phát biểu nào sau đây KHÔNG đúng?', 'options': ['Không thể ghi dữ liệu', 'B', 'C', 'D']}))
+        self.assertIn('mc_inline_blank', codes_Of({**clean_mc, 'question': 'Bộ nhớ ____ dùng để lưu dữ liệu tạm thời khi máy tính hoạt động.'}))
+        self.assertIn('mc_length_imbalance', codes_Of({**clean_mc, 'options': ['RAM', 'ROM', 'CPU', 'Thiết bị lưu trữ dữ liệu tạm thời tốc độ cao phục vụ trực tiếp cho vi xử lí trung tâm']}))
+        self.assertIn('mc_vague_or_absolute', codes_Of({**clean_mc, 'options': ['Luôn luôn an toàn trong mọi hệ thống', 'Phương án B', 'Phương án C', 'Phương án D']}))
+
+        clean_yn = {
+            'type': 'YN',
+            'question': 'Khi sử dụng dịch vụ thư điện tử (Email) trong học tập và công việc:',
+            'statements': [
+                {'label': 'a', 'text': 'Có thể đính kèm tệp văn bản.', 'correct': True},
+                {'label': 'b', 'text': 'Chỉ gửi được cho tối đa một người.', 'correct': False},
+                {'label': 'c', 'text': 'Tiêu đề thư nên ngắn gọn, rõ ràng.', 'correct': True},
+                {'label': 'd', 'text': 'Tệp lạ luôn an toàn.', 'correct': False},
+            ],
+        }
+        self.assertEqual(quality_warnings(clean_yn), [])
+        self.assertIn('yn_context_or_balance', codes_Of({
+            **clean_yn,
+            'statements': [{**s, 'correct': True} for s in clean_yn['statements']],
+        }))
+
+        clean_short = {'type': 'SHORT', 'question': 'Tính giá trị biểu thức (làm tròn đến hàng phần mười):', 'short_answer': '-2,5'}
+        self.assertEqual(quality_warnings(clean_short), [])
+        self.assertIn('short_answer_format', codes_Of({**clean_short, 'short_answer': '12 cm'}))
+        self.assertIn('short_answer_format', codes_Of({**clean_short, 'short_answer': '12345'}))
+
+        clean_es = {
+            'type': 'ES',
+            'question': 'Nêu hai biện pháp bảo vệ tài khoản cá nhân trên mạng và giải thích lí do.',
+            'rubric': [{'criterion': 'Nêu đúng biện pháp 1', 'points': 0.5}, {'criterion': 'Nêu đúng biện pháp 2', 'points': 0.5}],
+        }
+        self.assertEqual(quality_warnings(clean_es), [])
+        self.assertIn('es_rubric_or_prompt', codes_Of({'type': 'ES', 'question': 'Ngắn?', 'rubric': []}))
+
+    def test_subject_catalogs_13_subjects_and_dynamic_competency_word_export(self):
+        from docx.shared import Cm
+        from matrices.competency_catalog import (
+            SUBJECT_CATALOGS, default_competencies_for_subject, preset_catalog_for_subject, validate_catalog
+        )
+        from matrices.exports import matrix_docx
+        from tests.matrix_fixtures import minimal_matrix
+
+        self.assertEqual(len(SUBJECT_CATALOGS), 13)
+        for key, entry in SUBJECT_CATALOGS.items():
+            validated = validate_catalog({'competencies': entry['competencies'], 'indicators': entry['indicators']})
+            self.assertGreaterEqual(len(validated['competencies']), 2, key)
+            self.assertGreaterEqual(len(validated['indicators']), 4, key)
+
+        self.assertEqual(preset_catalog_for_subject('Ngữ văn')['key'], 'ngu_van')
+        self.assertEqual(preset_catalog_for_subject('GDKT&PL')['key'], 'gdktpl')
+        self.assertIn('NL_CHUNG', default_competencies_for_subject('Vật lí'))
+
+        # Kiểm định bảng năng lực Word mở rộng động cho NLd, NLe mà vẫn <= 24cm
+        ppct_10 = {'lessons': [{'grade': 10, 'lesson_code': 'B1', 'lesson_name_source': 'Bài 1', 'topic_source': 'Chủ đề 1', 'outcomes': ['Nhận biết dữ liệu.']}]}
+        m_tin = minimal_matrix()
+        m_tin['profile'] = 'THPT'
+        m_tin['grade'] = 10
+        m_tin['indicator_catalog'] = SUBJECT_CATALOGS['tin_hoc']['indicators']
+        m_tin['requirements'] = [
+            dict(id='R1', lesson_code='B1', level='Biết', text='Nhận biết dữ liệu.', ppct_outcome_index=0, competency='NLd', choice_group=None),
+            dict(id='R2', lesson_code='B1', level='Hiểu', text='Nhận biết dữ liệu.', ppct_outcome_index=0, competency='NLe', choice_group=None),
+        ]
+        m_tin['slots'] = [
+            dict(id='S1', kind='MC', number=1, parts=[dict(id='P1', label='', requirement_id='R1', points=5, indicator='NLd.1')], scoring=dict(mode='sum_parts')),
+            dict(id='S2', kind='MC', number=2, parts=[dict(id='P2', label='', requirement_id='R2', points=5, indicator='NLe.1')], scoring=dict(mode='sum_parts')),
+        ]
+        doc_tin = docx.Document(io.BytesIO(matrix_docx(m_tin, ppct_10, 'competencies', 'web')))
+        comp_table_tin = doc_tin.tables[0]
+        self.assertEqual(len(comp_table_tin.columns), 3 + 5 * 3)
+        self.assertLessEqual(sum(col.width for col in comp_table_tin.columns), Cm(24))
+        header_texts_tin = ' '.join(c.text for c in comp_table_tin.rows[1].cells)
+        self.assertIn('NLd', header_texts_tin)
+        self.assertIn('NLe', header_texts_tin)
+
+        # Kiểm định xuất bảng năng lực cho môn Toán hiển thị đầy đủ tên năng lực
+        m_math = minimal_matrix()
+        m_math['profile'] = 'THPT'
+        m_math['grade'] = 10
+        m_math['subject_name'] = 'Toán'
+        m_math['indicator_catalog'] = SUBJECT_CATALOGS['toan_hoc']['indicators']
+        m_math['requirements'] = [
+            dict(id='R1', lesson_code='B1', level='Biết', text='Nhận biết dữ liệu.', ppct_outcome_index=0, competency='TDLL', choice_group=None),
+            dict(id='R2', lesson_code='B1', level='Hiểu', text='Nhận biết dữ liệu.', ppct_outcome_index=0, competency='MHH', choice_group=None),
+        ]
+        m_math['slots'] = [
+            dict(id='S1', kind='MC', number=1, parts=[dict(id='P1', label='', requirement_id='R1', points=5, indicator='TD1.1')], scoring=dict(mode='sum_parts')),
+            dict(id='S2', kind='MC', number=2, parts=[dict(id='P2', label='', requirement_id='R2', points=5, indicator='MH1.1')], scoring=dict(mode='sum_parts')),
+        ]
+        doc_math = docx.Document(io.BytesIO(matrix_docx(m_math, ppct_10, 'competencies', 'web')))
+        comp_table_math = doc_math.tables[0]
+        self.assertIn('Năng lực đặc thù — Toán', comp_table_math.cell(0, 3).text)
+        header_texts_math = ' '.join(c.text for c in comp_table_math.rows[1].cells)
+        self.assertIn('Tư duy và lập luận toán học (TDLL)', header_texts_math)
+        self.assertIn('Mô hình hóa toán học (MHH)', header_texts_math)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -345,5 +345,10 @@ Khối: 9
   }
   // Thu phóng chỉ là hiển thị: không được chèn style trực tiếp vào phần thân bảng sẽ được lưu/xuất.
   assert(!/mx-sheet-body[^`]{0,40}style=/.test(js.slice(js.indexOf('function renderPreviewBox'), js.indexOf('function renderComparisonBox'))), 'Zoom must not add inline style to .mx-sheet-body');
+  for (const g of [6, 7]) {
+    const p = ui.STANDARD_PRESETS[String(g)];
+    assert(p && p.requirements.length > 0, `Preset grade ${g} must exist`);
+    assert(p.requirements.every(r => ['NLa', 'NLb', 'NLc', 'NLd', 'NLe'].includes(r.competency)), `Preset grade ${g} must only use Informatics competencies NLa..NLe (no TDLL)`);
+  }
   console.log('PASS matrix UI: help panel and display-only preview zoom passed');
 }

@@ -31,36 +31,64 @@
   }
 
   function saveDriveSession(session) {
+    if (!session || !session.user) {
+      clearDriveSession();
+      return;
+    }
+    const remember = session.remember !== false;
+    const serialized = JSON.stringify({
+      user: session.user,
+      accessToken: session.accessToken || '',
+      expiresAt: Number(session.expiresAt || 0),
+      folderId: session.folderId || null,
+      fileId: session.fileId || null,
+      modifiedTime: session.modifiedTime || null,
+      remember
+    });
+    if (remember) {
+      try {
+        if (typeof localStorage !== 'undefined') localStorage.setItem(GDRIVE_SESSION_KEY, serialized);
+      } catch (e) {}
+    } else {
+      try {
+        if (typeof localStorage !== 'undefined') localStorage.removeItem(GDRIVE_SESSION_KEY);
+      } catch (e) {}
+    }
     try {
-      if (typeof sessionStorage === 'undefined') return;
-      if (!session || !session.user) {
-        sessionStorage.removeItem(GDRIVE_SESSION_KEY);
-        return;
-      }
-      sessionStorage.setItem(GDRIVE_SESSION_KEY, JSON.stringify({
-        user: session.user,
-        accessToken: session.accessToken || '',
-        expiresAt: Number(session.expiresAt || 0),
-        folderId: session.folderId || null,
-        fileId: session.fileId || null,
-        modifiedTime: session.modifiedTime || null
-      }));
+      if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(GDRIVE_SESSION_KEY, serialized);
     } catch (e) {}
   }
 
   function loadDriveSession() {
-    try {
-      if (typeof sessionStorage === 'undefined') return null;
-      const raw = sessionStorage.getItem(GDRIVE_SESSION_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      return (parsed && parsed.user && parsed.user.uid) ? parsed : null;
-    } catch (e) {
-      return null;
+    const readFrom = (store) => {
+      try {
+        if (!store || typeof store.getItem !== 'function') return null;
+        const raw = store.getItem(GDRIVE_SESSION_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return (parsed && parsed.user && parsed.user.uid) ? parsed : null;
+      } catch (e) {
+        return null;
+      }
+    };
+    const lsSession = readFrom(typeof localStorage !== 'undefined' ? localStorage : null);
+    const ssSession = readFrom(typeof sessionStorage !== 'undefined' ? sessionStorage : null);
+    if (lsSession && ssSession) {
+      const lsTokenValid = Boolean(lsSession.accessToken && Number(lsSession.expiresAt || 0) > Date.now());
+      const ssTokenValid = Boolean(ssSession.accessToken && Number(ssSession.expiresAt || 0) > Date.now());
+      if (ssTokenValid && !lsTokenValid) return ssSession;
+      if (lsTokenValid && !ssTokenValid) return lsSession;
+      return Number(ssSession.expiresAt || 0) > Number(lsSession.expiresAt || 0) ? ssSession : lsSession;
     }
+    return lsSession || ssSession || null;
   }
 
   function clearDriveSession() {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(GDRIVE_SESSION_KEY);
+      }
+    } catch (e) {}
     try {
       if (typeof sessionStorage !== 'undefined') {
         sessionStorage.removeItem(GDRIVE_SESSION_KEY);
@@ -831,6 +859,59 @@
       : 'Đồng bộ ngay lên Google Drive riêng của bạn';
   }
 
+  async function requestTokenWithConsentFallback(driveCfg, { prompt = '', loginHint = '' } = {}) {
+    try {
+      return await window.GoogleDriveStorage.requestAccessToken({
+        clientId: driveCfg.clientId,
+        scope: driveCfg.scope,
+        prompt,
+        loginHint
+      });
+    } catch (err) {
+      if (err && err.code === 'MISSING_DRIVE_SCOPE' && prompt !== 'consent') {
+        return await window.GoogleDriveStorage.requestAccessToken({
+          clientId: driveCfg.clientId,
+          scope: driveCfg.scope,
+          prompt: 'consent',
+          loginHint
+        });
+      }
+      throw err;
+    }
+  }
+
+  async function tryAutoRefreshDriveToken(session, driveCfg) {
+    if (!session || !session.user || !session.user.uid) return false;
+    if (!window.GoogleDriveStorage || typeof window.GoogleDriveStorage.requestAccessToken !== 'function') return false;
+    if (!driveCfg || !driveCfg.clientId) return false;
+    const hasInteractiveContext = (typeof document !== 'undefined' && typeof document.createElement === 'function')
+      || Boolean(session.allowAutoRefresh);
+    if (!hasInteractiveContext) return false;
+    try {
+      const tokenInfo = await requestTokenWithConsentFallback(driveCfg, {
+        prompt: '',
+        loginHint: session.user.email || ''
+      });
+      if (!tokenInfo || !tokenInfo.accessToken) return false;
+      if (typeof window.GoogleDriveStorage.getUserProfile === 'function') {
+        const profile = await window.GoogleDriveStorage.getUserProfile(tokenInfo.accessToken, {
+          fetchImpl: session.fetchImpl
+        });
+        if (!profile || profile.uid !== session.user.uid) {
+          return false;
+        }
+        session.user = { ...session.user, ...profile };
+        window.FirebaseState.user = session.user;
+      }
+      session.accessToken = tokenInfo.accessToken;
+      session.expiresAt = tokenInfo.expiresAt;
+      saveDriveSession(session);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // Đồng bộ lên Google Drive riêng (hoặc Cloud Firestore nếu dùng Firebase)
   async function syncToFirestore(uid, data) {
     const driveSession = window.FirebaseState.driveSession;
@@ -840,26 +921,8 @@
       const localBefore = await trySaveLocalCache(uid, data);
       const hint = document.getElementById('static-sync-status');
       const driveCfg = getGoogleDriveSettings();
-      const tokenExpired = !driveSession?.accessToken || (driveSession.expiresAt && driveSession.expiresAt <= Date.now());
-      if (!window.GoogleDriveStorage || tokenExpired) {
-        if (driveSession) {
-          driveSession.accessToken = '';
-          driveSession.expiresAt = 0;
-          saveDriveSession(driveSession);
-        }
-        if (!localBefore.saved) {
-          updateDriveSyncButton();
-          throw new Error('Phiên Google Drive đã hết hạn và bộ nhớ trình duyệt đang đầy. Hãy đăng nhập Google lại hoặc tải bản sao lưu trước khi thao tác tiếp.');
-        }
-        if (hint) {
-          hint.hidden = false;
-          hint.textContent = 'Phiên Google Drive đã hết hạn. Dữ liệu đã lưu trên trình duyệt nhưng chưa đồng bộ — hãy bấm "Đồng bộ Drive" để đăng nhập lại trước khi đổi máy.';
-        }
-        updateDriveSyncButton();
-        return;
-      }
 
-      try {
+      const attemptWrite = async () => {
         const writing = window.GoogleDriveStorage.writeWorkspace(driveSession.accessToken, data, {
           folderId: driveSession.folderId,
           fileId: driveSession.fileId,
@@ -897,12 +960,56 @@
             ? `Đã lưu trên trình duyệt và đồng bộ vào Google Drive riêng của bạn (${driveCfg.folderName}/${driveCfg.fileName}).`
             : `Đã đồng bộ thành công vào Google Drive riêng của bạn (${driveCfg.folderName}/${driveCfg.fileName}). Bộ nhớ đệm localStorage đang đầy nhưng dữ liệu chính đã được lưu an toàn trên Drive.`;
         }
+      };
+
+      let tokenExpired = !driveSession?.accessToken || (driveSession.expiresAt && driveSession.expiresAt <= Date.now());
+      if (tokenExpired && window.GoogleDriveStorage) {
+        const refreshed = await tryAutoRefreshDriveToken(driveSession, driveCfg);
+        if (refreshed) tokenExpired = false;
+      }
+
+      if (!window.GoogleDriveStorage || tokenExpired) {
+        if (driveSession) {
+          driveSession.accessToken = '';
+          driveSession.expiresAt = 0;
+          saveDriveSession(driveSession);
+        }
+        if (!localBefore.saved) {
+          updateDriveSyncButton();
+          throw new Error('Phiên Google Drive đã hết hạn và bộ nhớ trình duyệt đang đầy. Hãy đăng nhập Google lại hoặc tải bản sao lưu trước khi thao tác tiếp.');
+        }
+        if (hint) {
+          hint.hidden = false;
+          hint.textContent = 'Phiên Google Drive đã hết hạn. Dữ liệu đã lưu trên trình duyệt nhưng chưa đồng bộ — hãy bấm "Đồng bộ Drive" để đăng nhập lại trước khi đổi máy.';
+        }
+        updateDriveSyncButton();
+        return;
+      }
+
+      try {
+        await attemptWrite();
       } catch (e) {
-        const isAuthExpired = Boolean(e && (e.code === 'DRIVE_AUTH_EXPIRED' || e.status === 401));
+        let isAuthExpired = Boolean(e && (e.code === 'DRIVE_AUTH_EXPIRED' || e.status === 401));
         if (isAuthExpired) {
           driveSession.accessToken = '';
           driveSession.expiresAt = 0;
           saveDriveSession(driveSession);
+          const refreshed = await tryAutoRefreshDriveToken(driveSession, driveCfg);
+          if (refreshed) {
+            try {
+              await attemptWrite();
+              updateDriveSyncButton();
+              return;
+            } catch (retryErr) {
+              e = retryErr;
+              isAuthExpired = Boolean(e && (e.code === 'DRIVE_AUTH_EXPIRED' || e.status === 401));
+              if (isAuthExpired) {
+                driveSession.accessToken = '';
+                driveSession.expiresAt = 0;
+                saveDriveSession(driveSession);
+              }
+            }
+          }
         }
         if (!localBefore.saved) {
           if (hint) {
@@ -963,17 +1070,35 @@
     const user = session && session.user;
     if (!user || !user.uid) return;
     const status = document.getElementById('static-sync-status');
-    const cached = await getBestCachedData(user.uid);
-    const cacheAtStart = JSON.stringify(cached);
     const valid = data => data && data.bank && Array.isArray(data.bank.questions) && Array.isArray(data.bank.ppct?.lessons) && ['exams', 'revisions', 'matrices'].every(k => Array.isArray(data[k]));
     const empty = () => ({ bank: { questions: [], ppct: { lessons: [], cleared_grades: [] }, competency_catalogs: [] }, exams: [], revisions: [], matrices: [] });
     const install = data => { currentWorkspaceData = JSON.parse(JSON.stringify(data)); window.FirebaseState.currentData = currentWorkspaceData; applyWorkspaceToStore(); };
 
-    install(valid(cached) ? cached : empty());
+    const syncCached = getStorageData(user.uid);
+    install(valid(syncCached) ? syncCached : empty());
+    const cached = await getBestCachedData(user.uid);
+    const cacheAtStart = JSON.stringify(cached);
+    if (valid(cached) && JSON.stringify(cached) !== JSON.stringify(syncCached)) {
+      install(cached);
+    }
+
     if (cached?._sync?.pending && valid(cached)) {
       if (status) {
         status.hidden = false;
         status.textContent = 'Máy này có bản chưa đồng bộ lên Google Drive. Đang giữ dữ liệu cục bộ; hãy bấm "Đồng bộ Drive" để đẩy lên hoặc tải bản sao lưu.';
+      }
+      updateDriveSyncButton();
+      return;
+    }
+
+    const isTokenExpired = !session.accessToken || Number(session.expiresAt || 0) <= Date.now() + 5000;
+    if (isTokenExpired) {
+      session.accessToken = '';
+      session.expiresAt = 0;
+      saveDriveSession(session);
+      if (status) {
+        status.hidden = false;
+        status.textContent = `Đang giữ đăng nhập tài khoản ${user.email || ''} với dữ liệu đã lưu trên máy. Phiên Google Drive 60 phút đã hết hạn — hệ thống sẽ tự gia hạn và đồng bộ khi thầy/cô Lưu/Nhập dữ liệu, hoặc bấm "⚠ Đồng bộ Drive".`;
       }
       updateDriveSyncButton();
       return;
@@ -1266,23 +1391,55 @@
       .replace(/'/g, '&#39;');
   }
 
+  function setupGoogleDriveAutoSyncListeners() {
+    if (window._gdriveAutoSyncBound) return;
+    window._gdriveAutoSyncBound = true;
+    const flushPendingIfReady = () => {
+      if (window.FirebaseState.provider !== 'google-drive' || !window.FirebaseState.user) return;
+      const session = window.FirebaseState.driveSession;
+      const hasValidToken = Boolean(session?.accessToken && Number(session.expiresAt || 0) > Date.now() + 5000);
+      if (hasValidToken && currentWorkspaceData?._sync?.pending) {
+        window.FirebaseClient.syncCurrentData().catch(() => {});
+      }
+    };
+    if (typeof window.addEventListener === 'function') {
+      window.addEventListener('online', flushPendingIfReady);
+      window.addEventListener('beforeunload', (e) => {
+        if (window.FirebaseState.provider === 'google-drive' && currentWorkspaceData?._sync?.pending) {
+          e.preventDefault();
+          e.returnValue = '';
+        }
+      });
+    }
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') flushPendingIfReady();
+      });
+    }
+  }
+
   function initGoogleDriveMode() {
     setupGoogleDriveAuthUI();
+    setupGoogleDriveAutoSyncListeners();
     const savedSession = loadDriveSession();
-    if (
-      savedSession &&
-      savedSession.user &&
-      savedSession.accessToken &&
-      Number(savedSession.expiresAt || 0) > Date.now() + 30000
-    ) {
+    if (savedSession && savedSession.user && savedSession.user.uid) {
       window.FirebaseState.provider = 'google-drive';
       window.FirebaseState.user = savedSession.user;
       window.FirebaseState.driveSession = savedSession;
       updateUserUI(savedSession.user);
       showOfflineBanner(false);
-      loadFromGoogleDrive(savedSession);
+      loadFromGoogleDrive(savedSession).then(() => {
+        if (
+          window.FirebaseState.provider === 'google-drive' &&
+          window.FirebaseState.user?.uid === savedSession.user.uid &&
+          currentWorkspaceData?._sync?.pending &&
+          savedSession.accessToken &&
+          Number(savedSession.expiresAt || 0) > Date.now() + 5000
+        ) {
+          window.FirebaseClient.syncCurrentData().catch(() => {});
+        }
+      }).catch(() => {});
     } else {
-      if (savedSession) clearDriveSession();
       updateUserUI(null);
       showOfflineBanner(true);
     }
@@ -1330,9 +1487,7 @@
                 showLoginModal(true);
                 return;
               }
-              const tokenInfo = await window.GoogleDriveStorage.requestAccessToken({
-                clientId: driveCfg.clientId,
-                scope: driveCfg.scope,
+              const tokenInfo = await requestTokenWithConsentFallback(driveCfg, {
                 prompt: '',
                 loginHint: user.email || ''
               });
@@ -1344,7 +1499,8 @@
                   expiresAt: tokenInfo.expiresAt,
                   folderId: null,
                   fileId: null,
-                  modifiedTime: null
+                  modifiedTime: null,
+                  remember: session.remember !== false
                 };
                 window.FirebaseState.provider = 'google-drive';
                 window.FirebaseState.user = profile;
@@ -1436,6 +1592,11 @@
 
         <div id="gdrive-client-warning" style="color:#854d0e;background:#fefce8;padding:10px 12px;border-radius:8px;font-size:12px;display:none;line-height:1.45;border:1px solid #fde047;"></div>
 
+        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#334155;cursor:pointer;">
+          <input type="checkbox" id="gdrive-remember-me" checked style="width:16px;height:16px;margin:0;accent-color:#0267b1;">
+          <span>Ghi nhớ đăng nhập trên máy này (bỏ chọn nếu dùng máy tính chung ở trường)</span>
+        </label>
+
         <button type="button" id="fb-btn-google" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 16px;background:#ffffff;border:1px solid #0267b1;border-radius:8px;font-size:13.5px;font-weight:600;color:#0f172a;cursor:pointer;transition:all 0.2s ease;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
           <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.347 2.825.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
           <span>Đăng nhập bằng Google (lưu vào Drive riêng)</span>
@@ -1462,6 +1623,7 @@
 
     const errBox = modal.querySelector('#fb-auth-error');
     const warnBox = modal.querySelector('#gdrive-client-warning');
+    const rememberBox = modal.querySelector('#gdrive-remember-me');
     const googleBtn = modal.querySelector('#fb-btn-google');
     const detailsEl = modal.querySelector('#gdrive-config-details');
     const clientIdInput = modal.querySelector('#gdrive-client-id-input');
@@ -1536,7 +1698,8 @@
             expiresAt: tokenInfo.expiresAt,
             folderId: null,
             fileId: null,
-            modifiedTime: null
+            modifiedTime: null,
+            remember: Boolean(rememberBox ? rememberBox.checked : true)
           };
           window.FirebaseState.provider = 'google-drive';
           window.FirebaseState.user = profile;

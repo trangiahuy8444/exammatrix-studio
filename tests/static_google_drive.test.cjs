@@ -151,9 +151,9 @@ function createMockDriveServer() {
   return { drives, registerUser, expireToken, fetchImpl };
 }
 
-function bridgeHarness({ server = false, quota = false, mockFetch = null } = {}) {
-  const localValues = new Map([['exammatrix_teacher_cache_offline', JSON.stringify(fixture())]]);
-  const sessionValues = new Map();
+function bridgeHarness({ server = false, quota = false, mockFetch = null, initialLocal = null, initialSession = null, driveStorageOverrides = null } = {}) {
+  const localValues = initialLocal || new Map([['exammatrix_teacher_cache_offline', JSON.stringify(fixture())]]);
+  const sessionValues = initialSession || new Map();
   const status = { hidden: true, textContent: '' };
   const authBox = { id: 'firebase-auth-box', className: '', innerHTML: '', querySelector: () => null };
   const offlineBanner = { hidden: true };
@@ -165,7 +165,7 @@ function bridgeHarness({ server = false, quota = false, mockFetch = null } = {})
     BankStaticWorkflow: workflow,
     BankExamComparison: comparison,
     BankCore: core,
-    GoogleDriveStorage: driveStorage,
+    GoogleDriveStorage: driveStorageOverrides ? { ...driveStorage, ...driveStorageOverrides } : driveStorage,
     GOOGLE_DRIVE_CONFIG: {
       clientId: '12345-test.apps.googleusercontent.com',
       folderName: 'ExamMatrix Studio',
@@ -793,4 +793,152 @@ test('PPCT import preview normalizes all 7 KHDH columns, Markdown table, save-le
   });
   assert.equal(afterTinClear.bank.ppct.lessons.some(l => l.subject_name === 'Tin học' && Number(l.grade) === 8), false);
   assert.equal(afterTinClear.bank.ppct.lessons.some(l => l.subject_name === 'Vật lí' && Number(l.grade) === 8), true);
+});
+
+test('Bridge + Google Drive: persists session in localStorage across refresh/new tab and respects remember=false', async () => {
+  const mock = createMockDriveServer();
+  mock.registerUser('tok-a', { sub: 'user-a', email: 'user-a@school.edu.vn', name: 'Cô A' });
+
+  const h1 = bridgeHarness({ mockFetch: mock.fetchImpl });
+  const sessionA = {
+    user: { uid: 'gdrive:user-a', email: 'user-a@school.edu.vn', displayName: 'Cô A' },
+    accessToken: 'tok-a',
+    expiresAt: Date.now() + 3600 * 1000,
+    folderId: null,
+    fileId: null,
+    fetchImpl: mock.fetchImpl
+  };
+  h1.window.FirebaseState.provider = 'google-drive';
+  h1.window.FirebaseState.user = sessionA.user;
+  h1.window.FirebaseState.driveSession = sessionA;
+
+  const seed = fixture();
+  seed.bank.questions[0].question = 'Dữ liệu giữ qua refresh';
+  await h1.window.FirebaseClient.replaceWorkspaceData(seed);
+
+  // Phiên phải được lưu trong localStorage để sống qua refresh / tab mới
+  const savedRaw = h1.localValues.get('exammatrix_gdrive_session_v1');
+  assert.ok(savedRaw);
+  const savedParsed = JSON.parse(savedRaw);
+  assert.equal(savedParsed.user.uid, 'gdrive:user-a');
+  assert.equal(savedParsed.remember, true);
+
+  // Mô phỏng mở tab mới / refresh: dùng lại localStorage, còn sessionStorage trống hoàn toàn
+  const h2 = bridgeHarness({ mockFetch: mock.fetchImpl, initialLocal: new Map(h1.localValues) });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(h2.window.FirebaseState.provider, 'google-drive');
+  assert.equal(h2.window.FirebaseState.user?.uid, 'gdrive:user-a');
+  assert.equal(h2.offlineBanner.hidden, true);
+  assert.equal(h2.window.FirebaseState.currentData.bank.questions[0].question, 'Dữ liệu giữ qua refresh');
+
+  // Nếu chọn remember = false (máy tính dùng chung), không ghi vào localStorage
+  const hShared = bridgeHarness({ mockFetch: mock.fetchImpl });
+  const sharedSession = { ...sessionA, folderId: null, fileId: null, remember: false };
+  hShared.window.FirebaseState.provider = 'google-drive';
+  hShared.window.FirebaseState.user = sharedSession.user;
+  hShared.window.FirebaseState.driveSession = sharedSession;
+  await hShared.window.FirebaseClient.replaceWorkspaceData(seed);
+  assert.equal(hShared.localValues.has('exammatrix_gdrive_session_v1'), false);
+  assert.ok(hShared.sessionValues.get('exammatrix_gdrive_session_v1'));
+
+  // Mở tab mới từ máy dùng chung -> không tự đăng nhập
+  const hSharedNewTab = bridgeHarness({ mockFetch: mock.fetchImpl, initialLocal: new Map(hShared.localValues) });
+  assert.equal(hSharedNewTab.window.FirebaseState.user, null);
+  assert.equal(hSharedNewTab.offlineBanner.hidden, false);
+});
+
+test('Bridge + Google Drive: does NOT log out on refresh when 60-min accessToken expired; keeps cached account data', async () => {
+  const mock = createMockDriveServer();
+  mock.registerUser('tok-a', { sub: 'user-a', email: 'user-a@school.edu.vn', name: 'Cô A' });
+
+  const seed = fixture();
+  seed.bank.questions[0].question = 'Câu lưu sẵn trước khi token hết hạn';
+  const expiredSession = {
+    user: { uid: 'gdrive:user-a', email: 'user-a@school.edu.vn', displayName: 'Cô A' },
+    accessToken: 'expired-tok-a',
+    expiresAt: Date.now() - 60 * 1000,
+    folderId: 'fld1',
+    fileId: 'file1',
+    remember: true
+  };
+  const initialLocal = new Map([
+    ['exammatrix_teacher_cache_offline', JSON.stringify(fixture())],
+    ['exammatrix_gdrive_session_v1', JSON.stringify(expiredSession)],
+    ['exammatrix_teacher_cache_gdrive:user-a', JSON.stringify({ ...seed, _sync: { pending: false, provider: 'google-drive' } })]
+  ]);
+
+  const h = bridgeHarness({ mockFetch: mock.fetchImpl, initialLocal });
+  await new Promise((r) => setTimeout(r, 20));
+
+  assert.equal(h.window.FirebaseState.provider, 'google-drive');
+  assert.equal(h.window.FirebaseState.user?.uid, 'gdrive:user-a');
+  assert.equal(h.offlineBanner.hidden, true);
+  assert.equal(h.window.FirebaseState.currentData.bank.questions[0].question, 'Câu lưu sẵn trước khi token hết hạn');
+  assert.equal(h.status.hidden, false);
+  assert.match(h.status.textContent, /hết hạn|tự gia hạn/);
+  assert.ok(initialLocal.get('exammatrix_gdrive_session_v1'));
+});
+
+test('Bridge + Google Drive: auto-refreshes token and syncs immediately on save (and blocks account mismatch)', async () => {
+  const mock = createMockDriveServer();
+  mock.registerUser('tok-a', { sub: 'user-a', email: 'user-a@school.edu.vn', name: 'Cô A' });
+  mock.registerUser('tok-a-fresh', { sub: 'user-a', email: 'user-a@school.edu.vn', name: 'Cô A' });
+  mock.registerUser('tok-b', { sub: 'user-b', email: 'user-b@school.edu.vn', name: 'Thầy B' });
+
+  let nextToken = 'tok-a-fresh';
+  let refreshCalls = 0;
+
+  const h = bridgeHarness({
+    mockFetch: mock.fetchImpl,
+    driveStorageOverrides: {
+      requestAccessToken: async () => {
+        refreshCalls += 1;
+        return { accessToken: nextToken, expiresAt: Date.now() + 3600 * 1000 };
+      }
+    }
+  });
+
+  const sessionA = {
+    user: { uid: 'gdrive:user-a', email: 'user-a@school.edu.vn', displayName: 'Cô A' },
+    accessToken: 'tok-a',
+    expiresAt: Date.now() + 3600 * 1000,
+    folderId: null,
+    fileId: null,
+    allowAutoRefresh: true,
+    fetchImpl: mock.fetchImpl
+  };
+  h.window.FirebaseState.provider = 'google-drive';
+  h.window.FirebaseState.user = sessionA.user;
+  h.window.FirebaseState.driveSession = sessionA;
+
+  const seed = fixture();
+  await h.window.FirebaseClient.replaceWorkspaceData(seed);
+  const q0 = seed.bank.questions[0];
+
+  // Token cũ bị 401 -> tự gia hạn đúng tài khoản và đẩy thẳng lên Drive
+  mock.expireToken('tok-a');
+  await h.window.FirebaseClient.handle('/api/questions/save', {
+    question: { ...q0, question: 'Tự gia hạn và đồng bộ ngay' }
+  });
+
+  assert.equal(refreshCalls, 1);
+  assert.equal(sessionA.accessToken, 'tok-a-fresh');
+  const cachedOk = JSON.parse(h.localValues.get('exammatrix_teacher_cache_gdrive:user-a'));
+  assert.equal(cachedOk._sync.pending, false);
+  const persistedSession = JSON.parse(h.localValues.get('exammatrix_gdrive_session_v1'));
+  assert.equal(persistedSession.accessToken, 'tok-a-fresh');
+  const loadedFromDrive = await driveStorage.readWorkspace('tok-a-fresh', { fetchImpl: mock.fetchImpl });
+  assert.equal(loadedFromDrive.data.bank.questions[0].question, 'Tự gia hạn và đồng bộ ngay');
+
+  // Bảo vệ: nếu popup trả về tài khoản B khác với user A, từ chối ghi sang Drive của B
+  mock.expireToken('tok-a-fresh');
+  nextToken = 'tok-b';
+  await h.window.FirebaseClient.handle('/api/questions/save', {
+    question: { ...q0, question: 'Không được ghi nhầm sang B' }
+  });
+  assert.equal(refreshCalls, 2);
+  assert.equal(mock.drives.get('user-b').writes, 0);
+  const cachedPending = JSON.parse(h.localValues.get('exammatrix_teacher_cache_gdrive:user-a'));
+  assert.equal(cachedPending._sync.pending, true);
+  assert.equal(cachedPending.bank.questions[0].question, 'Không được ghi nhầm sang B');
 });

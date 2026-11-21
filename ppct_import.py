@@ -54,6 +54,19 @@ def outcome_lines(raw):
     return [x for x in items if x]
 
 
+def _normalize_text_list(value):
+    """Chuẩn hóa danh sách văn bản (mảng hoặc chuỗi nhiều dòng), bỏ gạch đầu dòng và loại trùng giữ thứ tự."""
+    raw_items = value if isinstance(value, (list, tuple)) else ([value] if isinstance(value, str) else [])
+    seen, result = set(), []
+    for entry in raw_items:
+        for line in _nfc(entry).splitlines():
+            clean = re.sub(r'^[-–*•+]\s*', '', line.strip()).strip()
+            if clean and clean not in seen:
+                seen.add(clean)
+                result.append(clean)
+    return result
+
+
 def grade_from_filename(name):
     clean = _nfc(name)
     match = re.search(r'(?:TIN|VẬT\s*L[ÍÝ]|VAT\s*L[IY]|TOÁN|TOAN|HÓA|HOA|SINH|VĂN|VAN|ANH|SỬ|SU|ĐỊA|DIA|KHTN|KHỐI|KHOI|K|LỚP|LOP)\s*(\d{1,2})\b', clean, re.I)
@@ -118,12 +131,21 @@ def parse_docx(raw, grade, source_file=''):
                               lesson_code=code, topic_raw=topic)
             if code not in lessons:
                 lessons[code] = dict(grade=grade, lesson_code=code, lesson_name_source=name, topic_source=topic or 'Chủ đề chung',
-                                     outcomes=[], occurrences=[], source_file=source_file)
+                                     outcomes=[], occurrences=[], digital_competencies=[], notes='', source_file=source_file)
                 order.append(code)
             lesson = lessons[code]
             for item in outcomes:
                 if item not in lesson['outcomes']:
                     lesson['outcomes'].append(item)
+            for comp in _normalize_text_list(competencies):
+                if comp not in lesson['digital_competencies']:
+                    lesson['digital_competencies'].append(comp)
+            clean_note = re.sub(r'\s+', ' ', _nfc(notes)).strip()
+            if clean_note:
+                existing_notes = [x.strip() for x in lesson['notes'].split('; ') if x.strip()]
+                if clean_note not in existing_notes:
+                    existing_notes.append(clean_note)
+                    lesson['notes'] = '; '.join(existing_notes)
             lesson['occurrences'].append(occurrence)
     for code in order:
         if not lessons[code]['outcomes']:
@@ -131,6 +153,55 @@ def parse_docx(raw, grade, source_file=''):
     if not order:
         raise ServiceError('Bảng PPCT không có dòng "Bài N. …" nào.')
     return [lessons[c] for c in order], issues
+
+
+def _normalize_json_occurrences(raw):
+    occ_list = raw.get('occurrences') if isinstance(raw.get('occurrences'), list) else []
+    normalized = []
+    for item in occ_list:
+        if not isinstance(item, dict):
+            continue
+        entry = {}
+        for key in ('week_raw', 'duration_raw', 'ppct_raw', 'periods_raw', 'competencies_raw', 'notes_raw'):
+            val = item.get(key)
+            if val is not None and str(val).strip() != '':
+                entry[key] = _nfc(val).strip()
+        if not entry.get('duration_raw'):
+            alt_dur = item.get('num_periods') if item.get('num_periods') is not None else item.get('so_tiet')
+            if alt_dur is not None and str(alt_dur).strip() != '':
+                entry['duration_raw'] = _nfc(alt_dur).strip()
+        if not entry.get('periods_raw'):
+            fallback_p = entry.get('ppct_raw') or entry.get('duration_raw')
+            if fallback_p:
+                entry['periods_raw'] = fallback_p
+        for int_key in ('semester', 'table_index', 'row_index'):
+            if item.get(int_key) is not None:
+                entry[int_key] = item.get(int_key)
+        if entry:
+            normalized.append(entry)
+    if not normalized:
+        top_week = _nfc(raw.get('week_raw') or '').strip()
+        top_dur = _nfc(raw.get('duration_raw') or raw.get('num_periods') or raw.get('so_tiet') or '').strip()
+        top_ppct = _nfc(raw.get('ppct_raw') or '').strip()
+        top_periods = _nfc(raw.get('periods_raw') or top_ppct or top_dur or '').strip()
+        top_comp = _nfc(raw.get('competencies_raw') or '').strip()
+        top_notes = _nfc(raw.get('notes_raw') or '').strip()
+        if any((top_week, top_dur, top_ppct, top_periods, top_comp, top_notes)):
+            top_entry = {}
+            if top_week:
+                top_entry['week_raw'] = top_week
+            if top_dur:
+                top_entry['duration_raw'] = top_dur
+            if top_ppct:
+                top_entry['ppct_raw'] = top_ppct
+            if top_periods:
+                top_entry['periods_raw'] = top_periods
+            if top_comp:
+                top_entry['competencies_raw'] = top_comp
+            if top_notes:
+                top_entry['notes_raw'] = top_notes
+            normalized.append(top_entry)
+    return normalized
 
 
 def parse_json(data, grade=None, subject_name=None):
@@ -151,11 +222,35 @@ def parse_json(data, grade=None, subject_name=None):
         outcomes = raw.get('outcomes') or []
         if isinstance(outcomes, str):
             outcomes = outcome_lines(outcomes)
+        occurrences = _normalize_json_occurrences(raw)
+        comp_source = (raw.get('digital_competencies') or raw.get('competencies')
+                       or raw.get('competencies_raw') or raw.get('nls_ai') or [])
+        digital_competencies = _normalize_text_list(comp_source)
+        for occ in occurrences:
+            for c in _normalize_text_list(occ.get('competencies_raw') or ''):
+                if c not in digital_competencies:
+                    digital_competencies.append(c)
+        raw_notes = raw.get('notes') if raw.get('notes') is not None else (
+            raw.get('note') or raw.get('notes_raw') or raw.get('ghi_chu') or ''
+        )
+        if isinstance(raw_notes, (list, tuple)):
+            notes = '\n'.join(_nfc(x).strip() for x in raw_notes if _nfc(x).strip())
+        else:
+            notes = _nfc(raw_notes).strip()
+        if not notes:
+            occ_notes = []
+            for occ in occurrences:
+                n = _nfc(occ.get('notes_raw') or '').strip()
+                if n and n not in occ_notes:
+                    occ_notes.append(n)
+            notes = '; '.join(occ_notes)
         lesson = dict(grade=item_grade, lesson_code=_nfc(raw.get('lesson_code')).strip(),
                       lesson_name_source=clean_name(raw.get('lesson_name_source') or raw.get('lesson_name') or ''),
                       topic_source=_nfc(raw.get('topic_source') or raw.get('topic') or 'Chủ đề chung').strip(),
                       outcomes=[_nfc(x).strip() for x in outcomes if _nfc(x).strip()],
-                      occurrences=raw.get('occurrences') if isinstance(raw.get('occurrences'), list) else [],
+                      occurrences=occurrences,
+                      digital_competencies=digital_competencies,
+                      notes=notes,
                       source_file=_nfc(raw.get('source_file') or '').strip(),
                       subject_name=_nfc(item_subj).strip() if item_subj else '')
         if not lesson['lesson_code'] or not lesson['lesson_name_source']:

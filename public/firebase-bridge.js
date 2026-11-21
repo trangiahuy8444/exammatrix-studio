@@ -215,31 +215,71 @@
     }
   }
 
+  function normalizeTextList(value) {
+    const rawItems = Array.isArray(value) ? value : (typeof value === 'string' ? [value] : []);
+    const seen = new Set();
+    const out = [];
+    for (const entry of rawItems) {
+      for (const line of String(entry || '').split(/\r?\n/)) {
+        const clean = line.trim().replace(/^[-–*•+]\s*/, '').trim();
+        if (clean && !seen.has(clean)) {
+          seen.add(clean);
+          out.push(clean);
+        }
+      }
+    }
+    return out;
+  }
+
+  function normalizeNotesValue(notes, occurrences = []) {
+    if (Array.isArray(notes)) {
+      const cleaned = notes.map(x => String(x || '').trim()).filter(Boolean);
+      if (cleaned.length) return cleaned.join('\n');
+    } else if (notes != null && String(notes).trim() !== '') {
+      return String(notes).trim();
+    }
+    const seen = [];
+    for (const o of (Array.isArray(occurrences) ? occurrences : [])) {
+      const n = String(o?.notes_raw || '').trim();
+      if (n && !seen.includes(n)) seen.push(n);
+    }
+    return seen.join('; ');
+  }
+
   // Khởi tạo danh mục PPCT chuẩn từ curricula.js (chỉ nạp sẵn Khối 8, 9, 10 đã được giáo viên upload)
   function normalizeOccurrences(occ) {
-    if (Array.isArray(occ) && occ.length > 0) {
-      return occ.map(o => {
-        if (typeof o === 'object' && o !== null) {
-          return {
-            week_raw: o.week_raw ? String(o.week_raw) : 'Tuần 1',
-            periods_raw: o.periods_raw ? String(o.periods_raw) : '1',
-            ppct_raw: o.ppct_raw ? String(o.ppct_raw) : ''
-          };
-        }
-        return { week_raw: 'Tuần 1', periods_raw: String(o || '1'), ppct_raw: '' };
-      });
-    }
-    if (occ && typeof occ === 'object') {
-      return [{
-        week_raw: occ.week_raw ? String(occ.week_raw) : 'Tuần 1',
-        periods_raw: occ.periods_raw ? String(occ.periods_raw) : '1',
-        ppct_raw: occ.ppct_raw ? String(occ.ppct_raw) : ''
-      }];
-    }
+    const mapOne = (o) => {
+      if (typeof o === 'object' && o !== null) {
+        const duration = o.duration_raw != null && String(o.duration_raw).trim() !== ''
+          ? String(o.duration_raw).trim()
+          : (o.so_tiet != null && String(o.so_tiet).trim() !== ''
+            ? String(o.so_tiet).trim()
+            : (o.num_periods != null && String(o.num_periods).trim() !== '' ? String(o.num_periods).trim() : ''));
+        const ppct = o.ppct_raw != null && String(o.ppct_raw).trim() !== '' ? String(o.ppct_raw).trim() : '';
+        const periods = o.periods_raw != null && String(o.periods_raw).trim() !== ''
+          ? String(o.periods_raw).trim()
+          : (ppct || duration || '1');
+        const out = {
+          week_raw: o.week_raw != null && String(o.week_raw).trim() !== '' ? String(o.week_raw).trim() : 'Tuần 1',
+          duration_raw: duration,
+          ppct_raw: ppct,
+          periods_raw: periods,
+          competencies_raw: o.competencies_raw != null ? String(o.competencies_raw).trim() : '',
+          notes_raw: o.notes_raw != null ? String(o.notes_raw).trim() : ''
+        };
+        if (o.semester != null) out.semester = o.semester;
+        if (o.table_index != null) out.table_index = o.table_index;
+        if (o.row_index != null) out.row_index = o.row_index;
+        return out;
+      }
+      return { week_raw: 'Tuần 1', duration_raw: '', ppct_raw: '', periods_raw: String(o || '1'), competencies_raw: '', notes_raw: '' };
+    };
+    if (Array.isArray(occ) && occ.length > 0) return occ.map(mapOne);
+    if (occ && typeof occ === 'object') return [mapOne(occ)];
     if (typeof occ === 'number' || typeof occ === 'string') {
-      return [{ week_raw: 'Tuần 1', periods_raw: String(occ || '1'), ppct_raw: '' }];
+      return [{ week_raw: 'Tuần 1', duration_raw: '', ppct_raw: '', periods_raw: String(occ || '1'), competencies_raw: '', notes_raw: '' }];
     }
-    return [{ week_raw: 'Tuần 1', periods_raw: '1', ppct_raw: '' }];
+    return [{ week_raw: 'Tuần 1', duration_raw: '', ppct_raw: '', periods_raw: '1', competencies_raw: '', notes_raw: '' }];
   }
 
   function cleanPpctLessons(lessons, clearedGrades = []) {
@@ -351,21 +391,50 @@
 
         if (body.json) {
           const raw = Array.isArray(body.json) ? body.json : (body.json.lessons || body.json.ppct?.lessons || []);
-          lessons = raw.map((l, i) => ({
-            status: 'new',
-            grade: Number(l.grade || grade),
-            lesson_code: l.lesson_code || ('B' + (i + 1)),
-            lesson_name: l.lesson_name_source || l.lesson_name || l.name || '',
-            lesson_name_source: l.lesson_name_source || l.lesson_name || l.name || '',
-            topic: l.topic_source || l.topic || 'Chương trình GDPT',
-            topic_source: l.topic_source || l.topic || 'Chương trình GDPT',
-            outcomes: Array.isArray(l.outcomes)
-              ? l.outcomes.map(o => String(o || '').trim()).filter(Boolean)
-              : (typeof l.outcomes === 'string'
-                  ? l.outcomes.split(/\r?\n/).map(o => o.trim().replace(/^[-*•+]\s*/, '')).filter(Boolean)
-                  : []),
-            occurrences: normalizeOccurrences(l.occurrences)
-          }));
+          lessons = raw.map((l, i) => {
+            const rawOcc = (Array.isArray(l.occurrences) && l.occurrences.length > 0)
+              ? l.occurrences
+              : ((l.week_raw != null || l.duration_raw != null || l.num_periods != null || l.so_tiet != null || l.ppct_raw != null || l.periods_raw != null)
+                ? [{
+                    week_raw: l.week_raw || 'Tuần 1',
+                    duration_raw: l.duration_raw ?? l.so_tiet ?? l.num_periods ?? '',
+                    ppct_raw: l.ppct_raw || '',
+                    periods_raw: l.periods_raw || l.ppct_raw || l.duration_raw || '1',
+                    competencies_raw: l.competencies_raw || '',
+                    notes_raw: l.notes_raw || ''
+                  }]
+                : l.occurrences);
+            const occs = normalizeOccurrences(rawOcc);
+            const compList = normalizeTextList(
+              l.digital_competencies ?? l.competencies ?? l.competencies_raw ?? l.nls_ai ?? []
+            );
+            for (const o of occs) {
+              for (const c of normalizeTextList(o.competencies_raw)) {
+                if (!compList.includes(c)) compList.push(c);
+              }
+            }
+            const notesStr = normalizeNotesValue(
+              l.notes ?? l.note ?? l.notes_raw ?? l.ghi_chu ?? '',
+              occs
+            );
+            return {
+              status: 'new',
+              grade: Number(l.grade || grade),
+              lesson_code: l.lesson_code || ('B' + (i + 1)),
+              lesson_name: l.lesson_name_source || l.lesson_name || l.name || '',
+              lesson_name_source: l.lesson_name_source || l.lesson_name || l.name || '',
+              topic: l.topic_source || l.topic || 'Chương trình GDPT',
+              topic_source: l.topic_source || l.topic || 'Chương trình GDPT',
+              outcomes: Array.isArray(l.outcomes)
+                ? l.outcomes.map(o => String(o || '').trim()).filter(Boolean)
+                : (typeof l.outcomes === 'string'
+                    ? l.outcomes.split(/\r?\n/).map(o => o.trim().replace(/^[-*•+]\s*/, '')).filter(Boolean)
+                    : []),
+              occurrences: occs,
+              digital_competencies: compList,
+              notes: notesStr
+            };
+          });
         } else if (body.extracted_html) {
           // Bóc tách bảng HTML từ tệp Word (.docx) chuẩn KHDH Phụ lục 1
           try {
@@ -401,9 +470,11 @@
                 if (cells.length >= 2) {
                   const weekRaw = cells[0] || '';
                   const lessonRaw = cells[1] || '';
-                  const periodsRaw = cells[2] || '1';
+                  const durationRaw = cells[2] || '1';
                   const ppctRaw = cells[3] || '';
                   const outcomesRaw = cells[4] || '';
+                  const competenciesRaw = cells[5] || '';
+                  const notesRaw = cells[6] || '';
 
                   if (!lessonRaw.trim()) continue;
 
@@ -433,14 +504,33 @@
                   const outcomes = outcomesRaw.split(/(?:^|\n|\r|\.)\s*-\s*/)
                     .map(o => o.trim().replace(/^-\s*/, ''))
                     .filter(o => o.length > 5);
+                  const rowComps = normalizeTextList(competenciesRaw);
+                  const rowNote = String(notesRaw || '').replace(/\s+/g, ' ').trim();
 
                   if (lessonsMap.has(lessonCode)) {
                     const existing = lessonsMap.get(lessonCode);
-                    existing.occurrences.push({ week_raw: weekRaw, periods_raw: periodsRaw, ppct_raw: ppctRaw });
+                    existing.occurrences.push({
+                      week_raw: weekRaw,
+                      duration_raw: durationRaw,
+                      ppct_raw: ppctRaw,
+                      periods_raw: ppctRaw || durationRaw || '1',
+                      competencies_raw: competenciesRaw,
+                      notes_raw: rowNote
+                    });
                     if (outcomes.length > 0 && (!existing.outcomes || !existing.outcomes.length)) {
                       existing.outcomes = outcomes;
                     } else if (outcomes.length > 0) {
                       outcomes.forEach(o => { if (!existing.outcomes.includes(o)) existing.outcomes.push(o); });
+                    }
+                    rowComps.forEach(c => {
+                      if (!existing.digital_competencies.includes(c)) existing.digital_competencies.push(c);
+                    });
+                    if (rowNote) {
+                      const prevNotes = existing.notes ? existing.notes.split('; ').map(s => s.trim()).filter(Boolean) : [];
+                      if (!prevNotes.includes(rowNote)) {
+                        prevNotes.push(rowNote);
+                        existing.notes = prevNotes.join('; ');
+                      }
                     }
                   } else {
                     lessonsMap.set(lessonCode, {
@@ -451,8 +541,17 @@
                       lesson_name_source: cleanName,
                       topic: currentTopic || 'Chương trình GDPT',
                       topic_source: currentTopic || 'Chương trình GDPT',
-                      occurrences: [{ week_raw: weekRaw, periods_raw: periodsRaw, ppct_raw: ppctRaw }],
-                      outcomes: outcomes.length ? outcomes : ['Yêu cầu cần đạt theo chương trình môn học.']
+                      occurrences: [{
+                        week_raw: weekRaw,
+                        duration_raw: durationRaw,
+                        ppct_raw: ppctRaw,
+                        periods_raw: ppctRaw || durationRaw || '1',
+                        competencies_raw: competenciesRaw,
+                        notes_raw: rowNote
+                      }],
+                      outcomes: outcomes.length ? outcomes : ['Yêu cầu cần đạt theo chương trình môn học.'],
+                      digital_competencies: rowComps,
+                      notes: rowNote
                     });
                   }
                 }
@@ -487,7 +586,9 @@
               topic: 'Chương trình GDPT',
               topic_source: 'Chương trình GDPT',
               outcomes: ['Yêu cầu cần đạt theo chương trình môn học.'],
-              occurrences: [{ week_raw: 'Tuần ' + (i + 1), periods_raw: '1', ppct_raw: '' }]
+              digital_competencies: [],
+              notes: '',
+              occurrences: [{ week_raw: 'Tuần ' + (i + 1), duration_raw: '1', ppct_raw: '', periods_raw: '1', competencies_raw: '', notes_raw: '' }]
             }));
           }
         }
@@ -522,13 +623,24 @@
           currentWorkspaceData.bank.ppct.cleared_grades = cleared;
           const existing = cleanPpctLessons(currentWorkspaceData.bank.ppct.lessons || [], cleared);
           const otherLessons = existing.filter(l => Number(l.grade) !== grade);
-          const newLessons = incoming.map(l => ({
-            ...l,
-            grade: grade,
-            user_uploaded: true,
-            subject_name: body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học',
-            occurrences: normalizeOccurrences(l.occurrences)
-          }));
+          const newLessons = incoming.map(l => {
+            const occs = normalizeOccurrences(l.occurrences);
+            const compList = normalizeTextList(l.digital_competencies ?? l.competencies ?? l.competencies_raw ?? l.nls_ai ?? []);
+            for (const o of occs) {
+              for (const c of normalizeTextList(o.competencies_raw)) {
+                if (!compList.includes(c)) compList.push(c);
+              }
+            }
+            return {
+              ...l,
+              grade: grade,
+              user_uploaded: true,
+              subject_name: body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học',
+              occurrences: occs,
+              digital_competencies: compList,
+              notes: normalizeNotesValue(l.notes ?? l.note ?? l.notes_raw ?? l.ghi_chu ?? '', occs)
+            };
+          });
           currentWorkspaceData.bank.ppct.lessons = [...otherLessons, ...newLessons];
           await syncToFirestore(uid, currentWorkspaceData);
 
@@ -549,6 +661,16 @@
         const cleared = (currentWorkspaceData.bank.ppct.cleared_grades || []).filter(g => Number(g) !== grade);
         currentWorkspaceData.bank.ppct.cleared_grades = cleared;
         const existing = cleanPpctLessons(currentWorkspaceData.bank.ppct.lessons || [], cleared);
+        const compList = normalizeTextList(l.digital_competencies ?? l.competencies ?? l.competencies_raw ?? l.nls_ai ?? []);
+        const notesStr = normalizeNotesValue(l.notes ?? l.note ?? l.notes_raw ?? l.ghi_chu ?? '');
+        const occs = normalizeOccurrences(l.occurrences || [{
+          week_raw: l.week_raw || 'Tuần 1',
+          duration_raw: l.duration_raw ?? l.so_tiet ?? l.num_periods ?? '',
+          ppct_raw: l.ppct_raw || '',
+          periods_raw: l.periods_raw || l.ppct_raw || l.duration_raw || '1',
+          competencies_raw: compList.join('\n'),
+          notes_raw: notesStr
+        }]);
         const lessonObj = {
           grade: grade,
           lesson_code: l.lesson_code,
@@ -556,8 +678,10 @@
           topic_source: l.topic_source || l.topic || 'Chương trình GDPT',
           subject_name: l.subject_name || (window.store && window.store.selectedSubject) || 'Tin học',
           user_uploaded: true,
-          occurrences: normalizeOccurrences(l.occurrences || [{ week_raw: l.week_raw || 'Tuần 1', periods_raw: l.periods_raw || '1' }]),
-          outcomes: Array.isArray(l.outcomes) ? l.outcomes : []
+          occurrences: occs,
+          outcomes: Array.isArray(l.outcomes) ? l.outcomes : [],
+          digital_competencies: compList,
+          notes: notesStr
         };
         const idx = existing.findIndex(x => Number(x.grade) === grade && x.lesson_code === lessonObj.lesson_code);
         if (idx >= 0) existing[idx] = lessonObj;

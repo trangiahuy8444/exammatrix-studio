@@ -622,7 +622,18 @@ class BankService:
             if not outcomes:
                 raise ServiceError('Cần ít nhất một yêu cầu cần đạt cho bài học.')
             week_raw = str(payload.get('week_raw') or 'Tuần 1').strip()
-            periods_raw = str(payload.get('periods_raw') or '1').strip()
+            duration_raw = str(payload.get('duration_raw') or payload.get('num_periods') or payload.get('so_tiet') or '').strip()
+            ppct_raw = str(payload.get('ppct_raw') or '').strip()
+            periods_raw = str(payload.get('periods_raw') or ppct_raw or duration_raw or '1').strip()
+            comp_input = (payload.get('digital_competencies') or payload.get('competencies')
+                          or payload.get('competencies_raw') or payload.get('nls_ai') or [])
+            if isinstance(comp_input, str):
+                digital_competencies = [re.sub(r'^[-–*•+]\s*', '', x.strip()).strip() for x in comp_input.splitlines() if re.sub(r'^[-–*•+]\s*', '', x.strip()).strip()]
+            elif isinstance(comp_input, (list, tuple)):
+                digital_competencies = [str(x).strip() for x in comp_input if str(x).strip()]
+            else:
+                digital_competencies = []
+            notes = str(payload.get('notes') if payload.get('notes') is not None else (payload.get('notes_raw') or '')).strip()
             bank = self._load_bank()
             lessons = bank.setdefault('ppct', {}).setdefault('lessons', [])
             existing = next((x for x in lessons
@@ -650,8 +661,14 @@ class BankService:
                 existing['lesson_name_source'] = name
                 existing['topic_source'] = topic
                 existing['outcomes'] = outcomes
-                if payload.get('week_raw') or payload.get('periods_raw'):
-                    existing['occurrences'] = [dict(table_index=0, row_index=0, week_raw=week_raw, periods_raw=periods_raw)]
+                existing['digital_competencies'] = digital_competencies
+                existing['notes'] = notes
+                if any((payload.get('week_raw'), payload.get('periods_raw'), duration_raw, ppct_raw, digital_competencies, notes)):
+                    existing['occurrences'] = [dict(
+                        table_index=0, row_index=0, week_raw=week_raw, duration_raw=duration_raw,
+                        ppct_raw=ppct_raw, periods_raw=periods_raw,
+                        competencies_raw='\n'.join(digital_competencies), notes_raw=notes,
+                    )]
             else:
                 entry = dict(
                     grade=grade,
@@ -660,8 +677,14 @@ class BankService:
                     lesson_name_source=name,
                     topic_source=topic,
                     outcomes=outcomes,
+                    digital_competencies=digital_competencies,
+                    notes=notes,
                     source_file='Cập nhật trực tiếp trên ứng dụng',
-                    occurrences=[dict(table_index=0, row_index=0, week_raw=week_raw, periods_raw=periods_raw)],
+                    occurrences=[dict(
+                        table_index=0, row_index=0, week_raw=week_raw, duration_raw=duration_raw,
+                        ppct_raw=ppct_raw, periods_raw=periods_raw,
+                        competencies_raw='\n'.join(digital_competencies), notes_raw=notes,
+                    )],
                 )
                 lessons.append(entry)
             self.catalog = copy.deepcopy(bank['ppct'])
@@ -773,7 +796,11 @@ class BankService:
             old = current.get(key)
             row = dict(grade=lesson['grade'], lesson_code=lesson['lesson_code'], subject_name=subj,
                        lesson_name=lesson['lesson_name_source'],
-                       topic=lesson['topic_source'], outcomes=lesson['outcomes'], occurrences=len(lesson.get('occurrences') or []))
+                       topic=lesson['topic_source'], outcomes=lesson['outcomes'],
+                       occurrences=lesson.get('occurrences') or [],
+                       occurrences_count=len(lesson.get('occurrences') or []),
+                       digital_competencies=lesson.get('digital_competencies') or [],
+                       notes=lesson.get('notes') or '')
             if not lesson['outcomes']:
                 row.update(status='conflict', conflict=dict(reason='Bài chưa có yêu cầu cần đạt.'))
             elif old is None:
@@ -786,6 +813,14 @@ class BankService:
                     changes.append(dict(field='Chủ đề', old=old.get('topic_source', ''), new=lesson['topic_source']))
                 if old.get('outcomes', []) != lesson['outcomes']:
                     changes.append(dict(field='Yêu cầu cần đạt', old=old.get('outcomes', []), new=lesson['outcomes']))
+                old_comp = old.get('digital_competencies') or []
+                new_comp = lesson.get('digital_competencies') or []
+                if (('digital_competencies' in old) or not changes) and old_comp != new_comp:
+                    changes.append(dict(field='Phát triển năng lực số & AI', old=old_comp, new=new_comp))
+                old_notes = old.get('notes') or ''
+                new_notes = lesson.get('notes') or ''
+                if (('notes' in old) or not changes) and old_notes != new_notes:
+                    changes.append(dict(field='Ghi chú', old=old_notes, new=new_notes))
                 conflict = self._ppct_conflict(bank, lesson['grade'], lesson['lesson_code'], lesson['outcomes'], subject_name=subj)
                 row.update(status='conflict' if conflict else ('changed' if changes else 'unchanged'), changes=changes)
                 if conflict:
@@ -820,7 +855,10 @@ class BankService:
                 key = (normalize_subject_name(lesson.get('subject_name') or subj), lesson['grade'], lesson['lesson_code'])
                 entry = dict(grade=lesson['grade'], lesson_code=lesson['lesson_code'], subject_name=key[0],
                              lesson_name_source=lesson['lesson_name_source'],
-                             topic_source=lesson['topic_source'], outcomes=lesson['outcomes'], source_file=lesson['source_file'],
+                             topic_source=lesson['topic_source'], outcomes=lesson['outcomes'],
+                             digital_competencies=lesson.get('digital_competencies') or [],
+                             notes=lesson.get('notes') or '',
+                             source_file=lesson['source_file'],
                              occurrences=lesson.get('occurrences') or [dict(table_index=0, row_index=0, week_raw='', periods_raw='')])
                 if status[key] == 'new':
                     current.append(entry)
@@ -997,7 +1035,7 @@ class BankService:
         lesson = self.lessons.get((subj, grade, lesson_code)) or self.lessons.get((grade, lesson_code), {})
         periods = []
         for occurrence in lesson.get('occurrences', []):
-            periods.extend(int(x) for x in re.findall(r'\d+', str(occurrence.get('periods_raw', ''))))
+            periods.extend(int(x) for x in re.findall(r'\d+', str(occurrence.get('ppct_raw') or occurrence.get('periods_raw', ''))))
         return min(periods) if periods else math.inf
 
     def _cells_from_matrix(self, m, grade, exam_type):

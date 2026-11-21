@@ -544,7 +544,7 @@ test('Bridge + Google Drive: rejects and rolls back when BOTH localStorage quota
   assert.equal(h.window.FirebaseState.currentData.bank.questions[0].question, originalText);
 });
 
-test('PPCT import preview normalizes outcomes and renders full YCCD content across statuses', async () => {
+test('PPCT import preview normalizes all 7 KHDH columns, Markdown table, save-lesson, and renders full table safely', async () => {
   const mock = createMockDriveServer();
   const h = bridgeHarness({ mockFetch: mock.fetchImpl });
 
@@ -559,11 +559,16 @@ test('PPCT import preview normalizes outcomes and renders full YCCD content acro
           lesson_code: 'B1',
           lesson_name_source: 'Bài 1. Lịch sử công cụ tính toán',
           topic_source: 'Chủ đề 1. Máy tính và cộng đồng',
-          occurrences: [{ week_raw: '1', periods_raw: '1, 2' }],
+          occurrences: [{ week_raw: '1', duration_raw: '2', ppct_raw: '1, 2', periods_raw: '1, 2' }],
           outcomes: [
             'Trình bày được sơ lược lịch sử phát triển máy tính',
             'Nêu được ví dụ <script>alert(1)</script> tác động của công nghệ'
-          ]
+          ],
+          digital_competencies: [
+            '1.1.TC2a: Khai thác học liệu số',
+            '5.1.TC2a: Đánh giá tác động của <img src=x onerror=alert(1)> AI'
+          ],
+          notes: 'Thực hành theo nhóm'
         },
         {
           grade: 8,
@@ -582,18 +587,50 @@ test('PPCT import preview normalizes outcomes and renders full YCCD content acro
     'Trình bày được sơ lược lịch sử phát triển máy tính',
     'Nêu được ví dụ <script>alert(1)</script> tác động của công nghệ'
   ]);
+  assert.deepEqual([...report.lessons[0].digital_competencies], [
+    '1.1.TC2a: Khai thác học liệu số',
+    '5.1.TC2a: Đánh giá tác động của <img src=x onerror=alert(1)> AI'
+  ]);
+  assert.equal(report.lessons[0].notes, 'Thực hành theo nhóm');
+  assert.equal(report.lessons[0].occurrences[0].duration_raw, '2');
+  assert.equal(report.lessons[0].occurrences[0].ppct_raw, '1, 2');
   assert.deepEqual([...report.lessons[1].outcomes], [
     'Nhận biết được thông tin số',
     'Phân biệt được đặc điểm thông tin số'
   ]);
 
+  const savedRes = await h.window.FirebaseClient.handle('/api/ppct/save-lesson', {
+    lesson: {
+      grade: 8,
+      lesson_code: 'B10',
+      lesson_name_source: 'Bài 10. Đạo đức & AI',
+      topic_source: 'Chủ đề 3',
+      week_raw: '12',
+      duration_raw: '2',
+      ppct_raw: '23, 24',
+      periods_raw: '23, 24',
+      outcomes: ['Ứng xử văn minh trên môi trường số'],
+      digital_competencies: ['2.2.TC2a: Tương tác an toàn', '5.3.TC2a: Kiểm chứng AI'],
+      notes: 'Tích hợp QĐ 2422'
+    }
+  });
+  const savedB10 = savedRes.bank.ppct.lessons.find(x => x.lesson_code === 'B10');
+  assert.equal(savedB10.occurrences[0].duration_raw, '2');
+  assert.equal(savedB10.occurrences[0].ppct_raw, '23, 24');
+  assert.deepEqual([...savedB10.digital_competencies], ['2.2.TC2a: Tương tác an toàn', '5.3.TC2a: Kiểm chứng AI']);
+  assert.equal(savedB10.notes, 'Tích hợp QĐ 2422');
+
   const appSource = fs.readFileSync(require.resolve('../public/app.js'), 'utf8');
   const occStart = appSource.indexOf('function safeLessonOccurrences(');
   const occEnd = appSource.indexOf('const lessons=(g,subj)=>');
+  const helperStart = appSource.indexOf('function renderPpctListCell(');
+  const helperEnd = appSource.indexOf('function renderPPCT(');
+  const mdStart = appSource.indexOf('function parsePpctFromMarkdown(');
   const cardStart = appSource.indexOf('const PPCT_STATUS=');
   const cardEnd = appSource.indexOf('function bindPpctImport(');
   assert.ok(occStart > 0 && occEnd > occStart);
-  assert.ok(cardStart > 0 && cardEnd > cardStart);
+  assert.ok(helperStart > 0 && helperEnd > helperStart);
+  assert.ok(mdStart > 0 && cardStart > mdStart && cardEnd > cardStart);
 
   const previewReport = {
     ...report,
@@ -606,8 +643,10 @@ test('PPCT import preview normalizes outcomes and renders full YCCD content acro
         lesson_code: 'B3',
         lesson_name: 'Bài 3. Giữ nguyên',
         topic: 'Chủ đề 2',
-        occurrences: 2,
-        outcomes: ['YCCĐ giữ nguyên để giáo viên đối chiếu']
+        occurrences: [{ week_raw: '4', duration_raw: '2', ppct_raw: '7, 8' }],
+        outcomes: ['YCCĐ giữ nguyên để giáo viên đối chiếu'],
+        digital_competencies: ['1.2.TC2a: Tìm kiếm thông tin'],
+        notes: 'Giữ nguyên chuẩn'
       },
       {
         status: 'changed',
@@ -617,6 +656,8 @@ test('PPCT import preview normalizes outcomes and renders full YCCD content acro
         topic: 'Chủ đề 3',
         occurrences: 1,
         outcomes: ['YCCĐ giữ lại', 'YCCĐ mới thêm'],
+        digital_competencies: ['3.1.TC2a: Sáng tạo nội dung'],
+        notes: 'Cập nhật mới',
         changes: [
           {
             field: 'Yêu cầu cần đạt',
@@ -667,22 +708,53 @@ test('PPCT import preview normalizes outcomes and renders full YCCD content acro
     esc: core.escapeHtml
   };
   vm.runInNewContext(
-    `${appSource.slice(occStart, occEnd)}\n${appSource.slice(cardStart, cardEnd)}`,
+    `${appSource.slice(occStart, occEnd)}\n${appSource.slice(helperStart, helperEnd)}\n${appSource.slice(mdStart, cardEnd)}`,
     sandbox
   );
-  const html = sandbox.ppctImportCard(8);
 
-  assert.match(html, /<table class="ppct-table">/);
-  assert.match(html, /<th>Yêu cầu cần đạt \(YCCĐ\) &amp; Chi tiết<\/th>/);
+  const parsedMd = sandbox.parsePpctFromMarkdown(
+    `| Tuần | Bài học | Số tiết | PPCT | Yêu cầu cần đạt | Phát triển năng lực số & AI | Ghi chú |\n` +
+    `|:---:|---|:---:|:---:|---|---|---|\n` +
+    `| Chủ đề A. Máy tính |\n` +
+    `| 1 | Bài 1. Máy tính | 1 | 1 | - Hiểu cấu trúc máy tính | - 1.1.TC2a: Khai thác phần cứng | Chuẩn bị máy |\n` +
+    `| 2 | Bài 1. Máy tính (tt) | 1 | 2 | - Vận dụng thành thạo hơn | - 5.1.TC2a: Tối ưu thao tác | Phòng máy 1 |`,
+    8
+  );
+  assert.equal(parsedMd.length, 1);
+  assert.equal(parsedMd[0].lesson_code, 'B1');
+  assert.equal(parsedMd[0].occurrences.length, 2);
+  assert.equal(parsedMd[0].occurrences[0].duration_raw, '1');
+  assert.equal(parsedMd[0].occurrences[1].ppct_raw, '2');
+  assert.deepEqual([...parsedMd[0].digital_competencies], ['1.1.TC2a: Khai thác phần cứng', '5.1.TC2a: Tối ưu thao tác']);
+  assert.equal(parsedMd[0].notes, 'Chuẩn bị máy; Phòng máy 1');
+
+  const mdFields = sandbox.ppctLessonFields(parsedMd[0]);
+  assert.equal(mdFields.duration, '2');
+  assert.equal(mdFields.ppct, '1, 2');
+
+  const html = sandbox.ppctImportCard(8);
+  assert.match(html, /<table class="ppct-table ppct-khdh-table">/);
+  assert.match(html, /<th class="ppct-col-status">Kết quả<\/th>/);
+  assert.match(html, /<th class="ppct-col-week">Tuần<\/th>/);
+  assert.match(html, /<th class="ppct-col-lesson">Bài học<\/th>/);
+  assert.match(html, /<th class="ppct-col-duration">Số tiết<\/th>/);
+  assert.match(html, /<th class="ppct-col-ppct">PPCT<\/th>/);
+  assert.match(html, /<th class="ppct-col-outcomes">Yêu cầu cần đạt<\/th>/);
+  assert.match(html, /<th class="ppct-col-nls">Phát triển năng lực số &amp; AI<\/th>/);
+  assert.match(html, /<th class="ppct-col-notes">Ghi chú<\/th>/);
   assert.doesNotMatch(html, /<td class="small">/);
   assert.ok(html.includes('Trình bày được sơ lược lịch sử phát triển máy tính'));
   assert.ok(html.includes('Nêu được ví dụ &lt;script&gt;alert(1)&lt;/script&gt; tác động của công nghệ'));
   assert.equal(html.includes('<script>alert(1)</script>'), false);
+  assert.ok(html.includes('1.1.TC2a: Khai thác học liệu số'));
+  assert.ok(html.includes('5.1.TC2a: Đánh giá tác động của &lt;img src=x onerror=alert(1)&gt; AI'));
+  assert.equal(html.includes('<img src=x onerror=alert(1)>'), false);
+  assert.ok(html.includes('Thực hành theo nhóm'));
+  assert.ok(html.includes('<td class="ppct-col-duration">2</td><td class="ppct-col-ppct">1, 2</td>'));
   assert.ok(html.includes('Nhận biết được thông tin số'));
   assert.ok(html.includes('Phân biệt được đặc điểm thông tin số'));
-  assert.ok(html.includes('Tuần 1 · Tiết 1, 2'));
-  assert.ok(html.includes('2 YCCĐ</strong> · 2 tiết'));
   assert.ok(html.includes('YCCĐ giữ nguyên để giáo viên đối chiếu'));
+  assert.ok(html.includes('1.2.TC2a: Tìm kiếm thông tin'));
   assert.ok(html.includes('+ YCCĐ mới thêm'));
   assert.ok(html.includes('− YCCĐ cũ bị bỏ'));
   assert.ok(html.includes('Xem đủ 2 YCCĐ sau khi cập nhật'));

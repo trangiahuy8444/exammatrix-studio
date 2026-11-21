@@ -157,6 +157,85 @@ class ImportFlowTests(unittest.TestCase):
         with self.assertRaises(ServiceError):
             service.inspect_ppct_import({'json': {'lessons': [dict(data['lessons'][0], grade=12)]}})
 
+    def test_seven_columns_preserved_across_docx_json_and_save(self):
+        docx_lessons, _ = parse_docx(sample_docx(), 8, 'TIN 8 - mau.docx')
+        b1_docx = next(x for x in docx_lessons if x['lesson_code'] == 'B1')
+        self.assertEqual(b1_docx['digital_competencies'], ['1.1.TC2a'])
+        self.assertEqual(b1_docx['occurrences'][0]['duration_raw'], '1')
+        self.assertEqual(b1_docx['occurrences'][0]['ppct_raw'], '1')
+        self.assertEqual(b1_docx['occurrences'][1]['ppct_raw'], '2')
+
+        service = self.service(empty_bank())
+        payload = {
+            'filename': 'ppct_khoi_8.json',
+            'json': {
+                'lessons': [
+                    {
+                        'grade': 8,
+                        'lesson_code': 'B1',
+                        'lesson_name_source': 'Bài 1. Chuẩn 7 cột',
+                        'topic_source': 'Chủ đề 1',
+                        'occurrences': [{'week_raw': '1', 'duration_raw': '2', 'ppct_raw': '1, 2', 'periods_raw': '1, 2'}],
+                        'outcomes': ['Nêu được ví dụ'],
+                        'digital_competencies': ['1.1.TC2a: Khai thác học liệu số'],
+                        'notes': 'Phòng máy',
+                    }
+                ]
+            },
+        }
+        report = service.inspect_ppct_import(payload)
+        row = report['lessons'][0]
+        self.assertEqual(row['digital_competencies'], ['1.1.TC2a: Khai thác học liệu số'])
+        self.assertEqual(row['notes'], 'Phòng máy')
+        self.assertEqual(row['occurrences'][0]['duration_raw'], '2')
+        self.assertEqual(row['occurrences'][0]['ppct_raw'], '1, 2')
+
+        applied = service.apply_ppct_import(dict(payload, expected_sha256=report['sha256']))
+        saved_b1 = applied['bank']['ppct']['lessons'][0]
+        self.assertEqual(saved_b1['digital_competencies'], ['1.1.TC2a: Khai thác học liệu số'])
+        self.assertEqual(saved_b1['notes'], 'Phòng máy')
+
+        # Chỉ cập nhật NLS & AI và Ghi chú qua JSON
+        payload_update = {
+            'filename': 'ppct_khoi_8.json',
+            'json': {
+                'lessons': [
+                    {
+                        'grade': 8,
+                        'lesson_code': 'B1',
+                        'lesson_name_source': 'Bài 1. Chuẩn 7 cột',
+                        'topic_source': 'Chủ đề 1',
+                        'occurrences': [{'week_raw': '1', 'duration_raw': '2', 'ppct_raw': '1, 2'}],
+                        'outcomes': ['Nêu được ví dụ'],
+                        'digital_competencies': ['1.1.TC2a: Khai thác học liệu số', '5.1.TC2a: Tích hợp AI'],
+                        'notes': 'Phòng máy 2',
+                    }
+                ]
+            },
+        }
+        diff_update = service.inspect_ppct_import(payload_update)
+        self.assertEqual(diff_update['lessons'][0]['status'], 'changed')
+        self.assertEqual({c['field'] for c in diff_update['lessons'][0]['changes']}, {'Phát triển năng lực số & AI', 'Ghi chú'})
+
+        # Lưu trực tiếp từ modal 7 cột
+        bank_after = service.save_ppct_lesson({
+            'grade': 8,
+            'lesson_code': 'B2',
+            'lesson_name_source': 'Bài 2. Lưu thủ công',
+            'topic_source': 'Chủ đề 2',
+            'week_raw': '2',
+            'duration_raw': '2',
+            'ppct_raw': '3, 4',
+            'outcomes': ['Hiểu thông tin số'],
+            'digital_competencies': ['1.2.TC2a: Đánh giá thông tin'],
+            'notes': 'Theo QĐ 2422',
+        })
+        b2 = next(x for x in bank_after['ppct']['lessons'] if x['lesson_code'] == 'B2')
+        self.assertEqual(b2['occurrences'][0]['duration_raw'], '2')
+        self.assertEqual(b2['occurrences'][0]['ppct_raw'], '3, 4')
+        self.assertEqual(b2['digital_competencies'], ['1.2.TC2a: Đánh giá thông tin'])
+        self.assertEqual(b2['notes'], 'Theo QĐ 2422')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -76,6 +76,36 @@ async function main(){
  const lockedLegacy=await api.handle('/api/matrices/lock',{id:'M1',expected_revision:1,confirmation:{confirmed_by:'GV',confirmed_at:'2026-11-22',external_agreement:true}},legacyEs,env);
  assert.equal(lockedLegacy.response.matrix.status,'locked');
  assert.deepEqual(lockedLegacy.response.matrix.slots.filter(s=>s.kind==='ES').map(s=>s.number),[1,2]);
+
+ // Kiểm thử import JSON ma trận Khối 9 từ AI (thiếu indicator_catalog, mode, owner_name, campus, ppct_outcome_index, scoring, reconciliation)
+ const aiJsonPkg={
+  format:'asian-school-matrix',
+  schema_version:1,
+  matrix:{
+   profile:'THCS',
+   grade:9,
+   subject_name:'Tin học',
+   exam_type:'GK1',
+   duration:45,
+   school_year:'2026-2027',
+   title:'Ma trận & đặc tả Kiểm tra Giữa HK1 Tin học 9',
+   total_points:10,
+   lessons:[{lesson_code:'B1',title:'Thế giới kĩ thuật số',topic:'Chủ đề 1'}],
+   requirements:[
+    {id:'R1',lesson_code:'B1',level:'Biết',text:'Mục tiêu câu 1: Nhận biết thiết bị số.',competency:'NLa'},
+    {id:'R2',lesson_code:'B1',level:'Vận dụng',text:'Mục tiêu câu 1 TL: Giải quyết tình huống thực tế.',competency:'NLc'}
+   ],
+   slots:[
+    {id:'S1',kind:'MC',number:1,parts:[{id:'P1',label:'',requirement_id:'R1',points:7}]},
+    {id:'S2',kind:'ES',number:2,parts:[{id:'P2',label:'',requirement_id:'R2',points:3}]}
+   ]
+  }
+ };
+ const importedAi=await api.handle('/api/matrices/import-package',{package:aiJsonPkg},fixture(),env);
+ assert.equal(importedAi.response.validation.valid,true,JSON.stringify(importedAi.response.validation.errors));
+ assert.equal(importedAi.response.matrix.slots.find(s=>s.kind==='ES').number,1);
+ const lockedAi=await api.handle('/api/matrices/lock',{id:importedAi.response.matrix.id,expected_revision:importedAi.response.matrix.revision,confirmation:{confirmed_by:'GV',confirmed_at:'2026-11-22',external_agreement:true}},importedAi.data,env);
+ assert.equal(lockedAi.response.matrix.status,'locked');
  console.log('PASS static API: ma trận → đề cương → sinh thật → khóa → phát hành; lỗi nguyên tử, bất biến snapshot và không tự duyệt câu');
 }
 if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1;});

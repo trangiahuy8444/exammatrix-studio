@@ -412,6 +412,71 @@
     `;
   }
 
+  function splitQuestionRequirements(m, targetLessonCode = null, targetLevel = null) {
+    if (!m || !Array.isArray(m.slots) || !Array.isArray(m.requirements)) return 0;
+    const reqMap = new Map(m.requirements.map(r => [r.id, r]));
+    const groups = new Map();
+    m.slots.forEach(s => {
+      if (!s || !Array.isArray(s.parts) || !s.parts.length) return;
+      const r0 = reqMap.get(s.parts[0]?.requirement_id);
+      if (!r0) return;
+      if (targetLessonCode && r0.lesson_code !== targetLessonCode) return;
+      if (targetLevel && r0.level !== targetLevel) return;
+      const key = r0.lesson_code + '|' + r0.level;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(s);
+    });
+    let splitCount = 0;
+    groups.forEach((slotList, key) => {
+      if (slotList.length <= 1) return;
+      const [lessonCode, level] = key.split('|');
+      const existingReqs = m.requirements.filter(r => r.lesson_code === lessonCode && r.level === level);
+      if (existingReqs.length >= slotList.length) {
+        slotList.forEach((s, idx) => {
+          const targetReq = existingReqs[Math.min(idx, existingReqs.length - 1)];
+          if (targetReq) s.parts.forEach(p => { p.requirement_id = targetReq.id; });
+        });
+        return;
+      }
+      const baseReq = existingReqs[0] || {
+        lesson_code: lessonCode,
+        level,
+        text: '',
+        competency: competencies()[0] || 'NLa',
+        ppct_outcome_index: 0,
+        choice_group: null
+      };
+      const bulletLines = existingReqs
+        .flatMap(r => String(r.text || '').split(/\r?\n|(?<=\.)\s*(?=[–\-•+]\s*)/))
+        .map(line => line.replace(/^[–\-•+]\s*/, '').trim())
+        .filter(Boolean);
+      const firstIdxInAll = m.requirements.findIndex(r => r.lesson_code === lessonCode && r.level === level);
+      const newReqs = slotList.map((s, idx) => {
+        const oldR = existingReqs[idx];
+        const qLabel = s.kind === 'ES' ? `Câu ${s.number} TL` : s.kind === 'YN' ? `Câu ${s.number} Đ/S` : s.kind === 'SHORT' ? `Câu ${s.number} TLN` : `Câu ${s.number}`;
+        const defaultObjText = oldR?.text || bulletLines[idx] || bulletLines[0] || baseReq.text || `Mục tiêu đánh giá của ${qLabel}.`;
+        const reqObj = {
+          id: oldR?.id || uid('R'),
+          lesson_code: lessonCode,
+          level,
+          text: defaultObjText,
+          competency: oldR?.competency || baseReq.competency || (competencies()[0] || 'NLa'),
+          ppct_outcome_index: Number.isInteger(oldR?.ppct_outcome_index) ? oldR.ppct_outcome_index : (Number.isInteger(baseReq.ppct_outcome_index) ? baseReq.ppct_outcome_index : 0),
+          choice_group: oldR?.choice_group ?? null
+        };
+        s.parts.forEach(p => { p.requirement_id = reqObj.id; });
+        return reqObj;
+      });
+      if (m.custom_level_refs) delete m.custom_level_refs[key];
+      const remaining = m.requirements.filter(r => !(r.lesson_code === lessonCode && r.level === level));
+      const insertAt = firstIdxInAll >= 0 ? Math.min(firstIdxInAll, remaining.length) : remaining.length;
+      remaining.splice(insertAt, 0, ...newReqs);
+      m.requirements = remaining;
+      splitCount += newReqs.length;
+    });
+    return splitCount;
+  }
+
   function fillLessonPpctRequirements(m, lessonCode) {
     if (!m) return;
     const pl = lessons(m.grade).find(l => l.lesson_code === lessonCode);
@@ -435,20 +500,21 @@
 
     activeLevels.forEach((lvl, idx) => {
       const outcome = outcomes[idx] || outcomes[outcomes.length - 1] || outcomes[0];
-      let r = (m.requirements || []).find(req => req.lesson_code === lessonCode && req.level === lvl);
-      if (r) {
-        r.text = outcome;
-        r.ppct_outcome_index = Math.min(idx, outcomes.length - 1);
+      const levelReqs = (m.requirements || []).filter(req => req.lesson_code === lessonCode && req.level === lvl);
+      if (levelReqs.length) {
+        levelReqs.forEach((r, rIdx) => {
+          r.text = outcomes[(idx + rIdx) % outcomes.length] || outcome;
+          r.ppct_outcome_index = Math.min(idx, outcomes.length - 1);
+        });
       } else {
-        r = {
+        m.requirements.push({
           id: uid('R'),
           lesson_code: lessonCode,
           level: lvl,
           text: outcome,
           competency: competencies()[0] || 'NLa',
           ppct_outcome_index: Math.min(idx, outcomes.length - 1)
-        };
-        m.requirements.push(r);
+        });
       }
     });
   }
@@ -495,33 +561,37 @@
           const rs = lessonReqs.filter(r => r.level === lvl);
           const cellKeyMC = 'MC|' + lvl;
           const cellKeyYN = 'YN|' + lvl;
+          const cellKeySHORT = 'SHORT|' + lvl;
           const cellKeyES = 'ES|' + lvl;
-          const hasSlots = (vRow.cells[cellKeyMC]?.count || 0) + (vRow.cells[cellKeyYN]?.count || 0) + (vRow.cells[cellKeyES]?.count || 0) > 0;
-          if (!rs.length && !hasSlots) return;
+          const slotCountInLevel = (vRow.cells[cellKeyMC]?.count || 0) + (vRow.cells[cellKeyYN]?.count || 0) + (vRow.cells[cellKeySHORT]?.count || 0) + (vRow.cells[cellKeyES]?.count || 0);
+          if (!rs.length && slotCountInLevel <= 0) return;
 
           const levelReqV = v.requirements.filter(r => r.lesson_code === lesson.lesson_code && r.level === lvl);
           const autoRefs = levelReqV.flatMap(r => r.refs || []).join(', ');
           const customRefs = rs[0]?.custom_refs ?? m.custom_level_refs?.[lesson.lesson_code + '|' + lvl] ?? '';
           const displayRefs = customRefs || autoRefs;
           const lvlComp = rs[0]?.competency || m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa;
+          const canSplitLevel = !(locked || received) && slotCountInLevel > 1 && rs.length < slotCountInLevel;
 
           reqsHtml += `<div style="margin-bottom:8px;padding-bottom:6px;border-bottom:1px dotted #e2e8f0">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:6px;flex-wrap:wrap">
               <strong style="color:var(--navy);font-size:12px">${LEVEL_NAMES[lvl]}:</strong>
               <div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">
+                ${canSplitLevel ? `<button type="button" class="quiet" data-action="split-level-question-reqs" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" title="Tách thành ${slotCountInLevel} dòng riêng để viết mục tiêu đánh giá cụ thể cho từng câu hỏi" style="font-size:10.5px;padding:2px 6px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-weight:700">🎯 Tách riêng từng câu (${slotCountInLevel} câu)</button>` : ''}
                 ${!(locked || received)
-                  ? `<div style="display:inline-flex;align-items:center;gap:3px;background:#f0f9ff;border:1px solid #bae6fd;padding:2px 6px;border-radius:5px" title="Số thứ tự câu hỏi thuộc mức ${LEVEL_NAMES[lvl]}">
+                  ? `${rs.length <= 1 ? `<div style="display:inline-flex;align-items:center;gap:3px;background:#f0f9ff;border:1px solid #bae6fd;padding:2px 6px;border-radius:5px" title="Số thứ tự câu hỏi thuộc mục tiêu mức ${LEVEL_NAMES[lvl]}">
                        <span style="font-size:10.5px;font-weight:700;color:#0267B1">Câu:</span>
                        <input type="text"
                               class="mx-spec-refs-input"
+                              data-req-id="${E(rs[0]?.id || '')}"
                               data-lesson-code="${E(lesson.lesson_code)}"
                               data-level="${lvl}"
                               value="${E(displayRefs)}"
-                              placeholder="VD: Câu 1, Câu 2, Câu 3, Câu 4"
-                              title="Tùy chỉnh số thứ tự / câu hỏi gán cho mức độ này (bấm nút ↺ để tự tính lại từ ma trận)"
+                              placeholder="VD: Câu 1, Câu 2"
+                              title="Tùy chỉnh số thứ tự câu hỏi gán cho mục tiêu này (bấm nút ↺ để tự tính lại từ ma trận)"
                               style="font-size:11px;padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;color:#0267B1;font-weight:700;min-width:130px;background:#fff">
                        ${customRefs ? `<button type="button" class="quiet" data-action="reset-spec-refs" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" title="Khôi phục câu tự động từ ma trận" style="padding:1px 4px;font-size:10px;color:#64748b;line-height:1">↺</button>` : ''}
-                     </div>
+                     </div>` : `<span class="badge" style="font-size:10.5px;background:#e0f2fe;color:#0267B1;font-weight:700">${rs.length} mục tiêu câu hỏi</span>`}
                      <div style="display:inline-flex;align-items:center;gap:3px;background:#fefce8;border:1px solid #fef08a;padding:2px 6px;border-radius:5px" title="Thành phần năng lực cho mức ${LEVEL_NAMES[lvl]}">
                        <span style="font-size:10.5px;font-weight:700;color:#854d0e">NL:</span>
                        <input type="text"
@@ -541,20 +611,39 @@
             </div>`;
 
           if (rs.length) {
-            rs.forEach((r) => {
+            rs.forEach((r, rIdx) => {
+              const vReq = levelReqV.find(x => x.id === r.id);
+              const rAutoRefs = (vReq?.refs || []).join(', ');
+              const rCustomRefs = r.custom_refs ?? (rs.length === 1 ? (m.custom_level_refs?.[lesson.lesson_code + '|' + lvl] ?? '') : '');
+              const rDisplayRefs = rCustomRefs || rAutoRefs || (rs.length === 1 ? displayRefs : `Mục tiêu câu ${rIdx + 1}`);
               reqsHtml += `
-                <div style="display:flex;gap:4px;align-items:flex-start;margin-bottom:4px">
-                  <span style="font-size:12px;color:var(--muted);padding-top:4px">–</span>
-                  <textarea class="mx-spec-req-input" data-req-id="${E(r.id)}" rows="2" style="flex:1;font-size:12px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;line-height:1.35;resize:vertical" placeholder="Nhập yêu cầu cần đạt mức ${LEVEL_NAMES[lvl]}..."${dis}>${E(r.text)}</textarea>
-                  ${!(locked || received) ? `<button type="button" class="quiet danger" data-action="remove-spec-req" data-req-id="${E(r.id)}" title="Xóa dòng YCCĐ này" style="padding:2px 5px;font-size:11px">✕</button>` : ''}
+                <div style="display:flex;gap:6px;align-items:flex-start;margin-bottom:5px">
+                  ${rs.length > 1
+                    ? (!(locked || received)
+                        ? `<div style="display:inline-flex;align-items:center;gap:2px;background:#f0f9ff;border:1px solid #bae6fd;padding:2px 5px;border-radius:4px;flex-shrink:0;margin-top:2px" title="Câu hỏi gắn với mục tiêu này">
+                             <input type="text"
+                                    class="mx-spec-refs-input"
+                                    data-req-id="${E(r.id)}"
+                                    data-lesson-code="${E(lesson.lesson_code)}"
+                                    data-level="${lvl}"
+                                    value="${E(rDisplayRefs)}"
+                                    placeholder="Câu..."
+                                    style="font-size:11px;padding:1px 4px;border:1px solid #cbd5e1;border-radius:3px;color:#0267B1;font-weight:700;width:86px;background:#fff">
+                             ${rCustomRefs ? `<button type="button" class="quiet" data-action="reset-spec-refs" data-req-id="${E(r.id)}" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" title="Khôi phục số thứ tự câu tự động" style="padding:0 3px;font-size:10px;color:#64748b">↺</button>` : ''}
+                           </div>`
+                        : `<span class="badge" style="font-size:10.5px;background:#e0f2fe;color:#0267B1;font-weight:700;flex-shrink:0;margin-top:4px">${E(rDisplayRefs)}</span>`)
+                    : `<span style="font-size:11px;color:#0267B1;font-weight:700;padding-top:4px;flex-shrink:0" title="Mục tiêu đánh giá của ${E(rDisplayRefs || 'câu hỏi')}">🎯</span>`
+                  }
+                  <textarea class="mx-spec-req-input" data-req-id="${E(r.id)}" rows="2" style="flex:1;font-size:12px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;line-height:1.35;resize:vertical" placeholder="Nhập mục tiêu kiểm tra, đánh giá của ${E(rDisplayRefs || ('câu hỏi mức ' + LEVEL_NAMES[lvl]))}..."${dis}>${E(r.text)}</textarea>
+                  ${!(locked || received) ? `<button type="button" class="quiet danger" data-action="remove-spec-req" data-req-id="${E(r.id)}" title="Xóa dòng mục tiêu câu hỏi này" style="padding:2px 5px;font-size:11px">✕</button>` : ''}
                 </div>
               `;
             });
           } else {
             reqsHtml += `
               <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
-                <span class="muted" style="font-size:12px;font-style:italic">Chưa có câu chữ đặc tả cho mức ${LEVEL_NAMES[lvl]}</span>
-                ${!(locked || received) ? `<button type="button" class="quiet" data-action="add-spec-req" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" style="font-size:11px;padding:2px 6px">+ Thêm câu chữ</button>` : ''}
+                <span class="muted" style="font-size:12px;font-style:italic">Chưa có mục tiêu câu hỏi cho mức ${LEVEL_NAMES[lvl]}</span>
+                ${!(locked || received) ? `<button type="button" class="quiet" data-action="add-spec-req" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" style="font-size:11px;padding:2px 6px">+ Thêm mục tiêu câu hỏi</button>` : ''}
               </div>
             `;
           }
@@ -568,8 +657,9 @@
         if (!(locked || received)) {
           reqsHtml += `
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-              <button type="button" class="quiet" data-action="fill-lesson-ppct-reqs" data-lesson-code="${E(lesson.lesson_code)}" style="font-size:11px;padding:2px 7px;background:#f0f7ff;color:#0267B1;border:1px solid #c2dbf1;border-radius:4px" title="Nạp nhanh câu chữ từ Phân phối chương trình">📥 Lấy YCCĐ từ PPCT</button>
-              <button type="button" class="quiet" data-action="add-spec-req" data-lesson-code="${E(lesson.lesson_code)}" data-level="Biết" style="font-size:11px;padding:2px 7px;border:1px solid #cbd5e1;border-radius:4px">+ Thêm mức YCCĐ</button>
+              <button type="button" class="quiet" data-action="split-lesson-question-reqs" data-lesson-code="${E(lesson.lesson_code)}" style="font-size:11px;padding:2px 7px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-weight:600" title="Tách riêng mỗi câu hỏi trong bài này thành một dòng mục tiêu đánh giá độc lập">🎯 Tách mục tiêu từng câu</button>
+              <button type="button" class="quiet" data-action="add-spec-req" data-lesson-code="${E(lesson.lesson_code)}" data-level="Biết" style="font-size:11px;padding:2px 7px;border:1px solid #cbd5e1;border-radius:4px">+ Thêm mục tiêu câu hỏi</button>
+              <button type="button" class="quiet" data-action="fill-lesson-ppct-reqs" data-lesson-code="${E(lesson.lesson_code)}" style="font-size:11px;padding:2px 7px;background:#f0f7ff;color:#0267B1;border:1px solid #c2dbf1;border-radius:4px" title="Gợi ý câu chữ khung từ Phân phối chương trình">📥 Lấy YCCĐ từ PPCT</button>
             </div>
           `;
         }
@@ -644,16 +734,17 @@
       <div class="card" style="border:1px solid #c2dbf1;background:#fff;margin-bottom:20px;padding:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px">
           <div>
-            <h3 style="margin:0 0 4px;color:var(--navy);font-size:17px">📋 Bảng 2: Bảng đặc tả đề kiểm tra trực quan (Chỉnh sửa Yêu cầu cần đạt chuẩn theo bài)</h3>
-            <p style="margin:0;font-size:13px;color:var(--muted)">Đặc tả chi tiết từng bài theo 4 mức độ nhận thức chuẩn GDPT 2018. Câu chữ và vị trí câu (Câu 1, Câu 2...) tự động liên kết từ Bảng ma trận 2D.</p>
+            <h3 style="margin:0 0 4px;color:var(--navy);font-size:17px">📋 Bảng 2: Bảng đặc tả đề kiểm tra trực quan (Đặc tả Yêu cầu cần đạt theo mục tiêu từng câu hỏi)</h3>
+            <p style="margin:0;font-size:13px;color:var(--muted)">Đặc tả mục tiêu kiểm tra, đánh giá cụ thể của từng câu hỏi (Câu 1, Câu 2...) theo 4 mức độ nhận thức. Mỗi dòng đặc tả gắn trực tiếp với câu hỏi tương ứng trong đề chứ không ghi chung mục tiêu của cả bài học.</p>
           </div>
           <div class="actions">
-            ${!(locked || received) ? `<button type="button" class="primary" data-action="auto-fill-all-ppct-reqs" style="background:#0267B1;font-weight:700" title="Tự động lấy câu chữ YCCĐ từ Phân phối chương trình điền vào tất cả các bài">📥 Tự điền toàn bộ YCCĐ từ PPCT</button>` : ''}
+            ${!(locked || received) ? `<button type="button" class="primary" data-action="split-all-question-reqs" style="background:#0f766e;border-color:#0f766e;font-weight:700" title="Tách riêng mỗi câu hỏi (Câu 1, Câu 2...) thành một dòng mục tiêu đánh giá độc lập để đặc tả theo mục tiêu từng câu hỏi">🎯 Tách mục tiêu theo từng câu hỏi</button>` : ''}
+            ${!(locked || received) ? `<button type="button" class="primary" data-action="auto-fill-all-ppct-reqs" style="background:#0267B1;font-weight:700" title="Tự động lấy câu chữ YCCĐ từ Phân phối chương trình điền gợi ý vào các dòng">📥 Tự điền toàn bộ YCCĐ từ PPCT</button>` : ''}
             <button type="button" data-action="preview">👁️ Xem bảng chuẩn Word</button>
           </div>
         </div>
         <p style="font-style:italic;font-size:12px;color:var(--muted);margin:0 0 10px 0">
-          <strong>Lưu ý:</strong> Ở mức độ nhận biết và thông hiểu thì có thể ra câu hỏi ở một chỉ báo của mức độ kiến thức, kĩ năng cần kiểm tra, đánh giá tương ứng. Ở mức độ vận dụng có thể xây dựng câu hỏi vào một trong các đơn vị kiến thức.
+          <strong>Lưu ý:</strong> Phần Yêu cầu cần đạt được đặc tả theo <strong>mục tiêu đánh giá của từng câu hỏi / nhóm câu hỏi</strong> gắn với vị trí câu cụ thể (Câu 1, Câu 2...). Thầy/Cô có thể bấm <strong>"🎯 Tách mục tiêu theo từng câu hỏi"</strong> để viết mục tiêu riêng cho từng câu.
         </p>
         <div class="table-wrap">
           <table class="matrix-spec-table" style="width:100%;border-collapse:collapse;font-size:13px;background:white">
@@ -662,7 +753,7 @@
                 <th rowspan="3" style="width:40px;padding:8px;border:1px solid #7ab6e2">TT</th>
                 <th rowspan="3" style="width:140px;padding:8px;border:1px solid #7ab6e2;text-align:left">Chương / Chủ đề</th>
                 <th rowspan="3" style="width:170px;padding:8px;border:1px solid #7ab6e2;text-align:left">Nội dung / Đơn vị kiến thức</th>
-                <th rowspan="3" style="padding:8px;border:1px solid #7ab6e2;text-align:left">Yêu cầu cần đạt (Đặc tả chi tiết)</th>
+                <th rowspan="3" style="padding:8px;border:1px solid #7ab6e2;text-align:left">Yêu cầu cần đạt (Đặc tả theo mục tiêu từng câu hỏi)</th>
                 <th colspan="4" style="padding:6px;border:1px solid #7ab6e2">Số câu hỏi theo mức độ đánh giá</th>
               </tr>
               <tr style="background:#005896;color:white;text-align:center">
@@ -1098,14 +1189,21 @@
     }
     if (event.target.matches('.mx-spec-refs-input')) {
       if (specLocked) { event.preventDefault(); return; }
+      const reqId = event.target.dataset.reqId;
       const lessonCode = event.target.dataset.lessonCode;
       const level = event.target.dataset.level;
       const val = event.target.value;
-      if (!ui.editing.custom_level_refs) ui.editing.custom_level_refs = {};
-      ui.editing.custom_level_refs[lessonCode + '|' + level] = val;
-      (ui.editing.requirements || []).filter(r => r.lesson_code === lessonCode && r.level === level).forEach(r => {
-        r.custom_refs = val;
-      });
+      const levelReqs = (ui.editing.requirements || []).filter(r => r.lesson_code === lessonCode && r.level === level);
+      if (reqId && levelReqs.length > 1) {
+        const targetReq = levelReqs.find(r => r.id === reqId);
+        if (targetReq) targetReq.custom_refs = val;
+      } else {
+        if (!ui.editing.custom_level_refs) ui.editing.custom_level_refs = {};
+        ui.editing.custom_level_refs[lessonCode + '|' + level] = val;
+        levelReqs.forEach(r => {
+          r.custom_refs = val;
+        });
+      }
       ui.dirty = true;
       const mark = qs('#mx-dirty');
       if (mark) mark.textContent = ' · Có thay đổi chưa lưu';
@@ -1201,9 +1299,48 @@
     return true;
   }
   function normalizeSlotNumbers(m){
-    if(!m||!Array.isArray(m.slots)||m.status==='locked'||m.status==='archived')return false;
-    let changedAny=false;const groups={};
-    m.slots.forEach(s=>{if(s&&typeof s==='object')(groups[s.kind]||(groups[s.kind]=[])).push(s);});
+    if(!m||typeof m!=='object'||m.status==='locked'||m.status==='archived')return false;
+    let changedAny=false;
+    if(!['authored','received'].includes(m.mode)){m.mode='authored';changedAny=true;}
+    if(!['THCS','THPT','GENERAL'].includes(m.profile)){m.profile=Number(m.grade)>=10?'THPT':'THCS';changedAny=true;}
+    if(!m.school_year||!String(m.school_year).trim()){m.school_year='2026-2027';changedAny=true;}
+    if(!m.owner_name||!String(m.owner_name).trim()){m.owner_name='Giáo viên phụ trách';changedAny=true;}
+    if(!m.campus||!String(m.campus).trim()){m.campus='Cao Thắng';changedAny=true;}
+    if(!Array.isArray(m.indicator_catalog)){m.indicator_catalog=[];changedAny=true;}
+    if(!m.reconciliation||typeof m.reconciliation!=='object'||Array.isArray(m.reconciliation)){m.reconciliation={confirmed:true,issues:[]};changedAny=true;}
+    if(m.reconciliation.confirmed===undefined||m.reconciliation.confirmed===null){m.reconciliation.confirmed=true;changedAny=true;}
+    if(!Array.isArray(m.reconciliation.issues)){m.reconciliation.issues=[];changedAny=true;}
+    if(Array.isArray(m.requirements)){
+      m.requirements.forEach((r,idx)=>{
+        if(!r||typeof r!=='object')return;
+        if(!r.id||!String(r.id).trim()){r.id='R'+(idx+1);changedAny=true;}
+        const lv=String(r.level||'').trim();
+        if(/nhận\s*biết|^biết$/i.test(lv)&&r.level!=='Biết'){r.level='Biết';changedAny=true;}
+        else if(/thông\s*hiểu|^hiểu$/i.test(lv)&&r.level!=='Hiểu'){r.level='Hiểu';changedAny=true;}
+        else if(/vận\s*dụng\s*cao|^vdc$/i.test(lv)&&r.level!=='Vận dụng cao'){r.level='Vận dụng cao';changedAny=true;}
+        else if(/vận\s*dụng|^vd$/i.test(lv)&&!/cao/i.test(lv)&&r.level!=='Vận dụng'){r.level='Vận dụng';changedAny=true;}
+        const pl=lessons(m.grade).find(x=>x.lesson_code===r.lesson_code);
+        const outLen=Array.isArray(pl?.outcomes)&&pl.outcomes.length?pl.outcomes.length:1;
+        if(!Number.isInteger(r.ppct_outcome_index)||r.ppct_outcome_index<0||r.ppct_outcome_index>=outLen){
+          r.ppct_outcome_index=0;
+          changedAny=true;
+        }
+      });
+    }
+    if(!Array.isArray(m.slots))return changedAny;
+    const groups={};
+    m.slots.forEach((s,idx)=>{
+      if(!s||typeof s!=='object')return;
+      if(!s.id||!String(s.id).trim()){s.id='S'+(idx+1);changedAny=true;}
+      if(!s.scoring||typeof s.scoring!=='object'||s.scoring.mode!=='sum_parts'){s.scoring={mode:'sum_parts'};changedAny=true;}
+      if(Array.isArray(s.parts)){
+        s.parts.forEach((p,pIdx)=>{
+          if(!p||typeof p!=='object')return;
+          if(!p.id||!String(p.id).trim()){p.id='P'+(idx+1)+(s.parts.length>1?String.fromCharCode(97+pIdx):'');changedAny=true;}
+        });
+      }
+      (groups[s.kind]||(groups[s.kind]=[])).push(s);
+    });
     Object.values(groups).forEach(list=>{
       const ordered=list.map((s,i)=>[s,i]).sort((a,b)=>(Number(a[0].number)||0)-(Number(b[0].number)||0)||a[1]-b[1]).map(x=>x[0]);
       ordered.forEach((s,i)=>{if(s.number!==i+1){s.number=i+1;changedAny=true;}});
@@ -1355,9 +1492,15 @@
   }
   function buildMatrixView(m) {
     const requirements = {};
+    const reqCountByKey = {};
     (m?.requirements || []).forEach(r => {
-      const customRefs = r.custom_refs || m?.custom_level_refs?.[r.lesson_code + '|' + r.level];
-      const comp = r.competency || m?.custom_level_comp?.[r.lesson_code + '|' + r.level] || 'NLa';
+      const k = r.lesson_code + '|' + r.level;
+      reqCountByKey[k] = (reqCountByKey[k] || 0) + 1;
+    });
+    (m?.requirements || []).forEach(r => {
+      const k = r.lesson_code + '|' + r.level;
+      const customRefs = r.custom_refs || (reqCountByKey[k] === 1 ? m?.custom_level_refs?.[k] : '');
+      const comp = r.competency || m?.custom_level_comp?.[k] || 'NLa';
       requirements[r.id] = { ...r, competency: comp, refs: [], custom_refs: customRefs };
     });
 
@@ -1694,7 +1837,7 @@
             if (!rs.length) return;
             reqHtml += `<p style="margin:4px 0 2px 0;"><strong>${LEVEL_NAMES[l]}:</strong></p>`;
             rs.forEach(r => {
-              const customRefs = r.custom_refs || m?.custom_level_refs?.[row.lesson_code + '|' + l];
+              const customRefs = r.custom_refs || (rs.length === 1 ? m?.custom_level_refs?.[row.lesson_code + '|' + l] : '');
               const autoRefs = r.refs?.length ? r.refs.join(', ') : '';
               const finalRefs = customRefs || autoRefs;
               const refsText = finalRefs ? ` (${finalRefs})` : '';
@@ -2271,6 +2414,30 @@
       message('Đã bật chế độ sửa toàn diện. Bạn có thể thêm/sửa/xóa bài học, YCCĐ và phân bố câu hỏi rồi bấm Lưu bản nháp.');
       return;
     }
+    if(action==='split-all-question-reqs'&&ui.editing){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
+      const total=splitQuestionRequirements(ui.editing);
+      changed();renderEditor();
+      message(total>0 ? ('Đã tách thành ' + total + ' dòng mục tiêu đánh giá riêng biệt cho từng câu hỏi!') : 'Các câu hỏi trong bảng đặc tả đã được tách riêng theo từng mục tiêu.');
+      return;
+    }
+    if(action==='split-lesson-question-reqs'&&ui.editing){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
+      const code=b.dataset.lessonCode;
+      const total=splitQuestionRequirements(ui.editing,code);
+      changed();renderEditor();
+      message(total>0 ? ('Đã tách riêng ' + total + ' mục tiêu câu hỏi cho bài ' + code + '!') : ('Các câu hỏi của bài ' + code + ' đã ở trạng thái tách riêng từng mục tiêu.'));
+      return;
+    }
+    if(action==='split-level-question-reqs'&&ui.editing){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
+      const code=b.dataset.lessonCode;
+      const level=b.dataset.level;
+      const total=splitQuestionRequirements(ui.editing,code,level);
+      changed();renderEditor();
+      message('Đã tách thành ' + total + ' mục tiêu riêng cho từng câu hỏi mức ' + level + ' của bài ' + code + '!');
+      return;
+    }
     if(action==='auto-fill-all-ppct-reqs'&&ui.editing){
       if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
       let count=0;
@@ -2296,15 +2463,22 @@
       const level=b.dataset.level||'Biết';
       const pl=lessons(ui.editing.grade).find(x=>x.lesson_code===code);
       const defaultText=pl?.outcomes?.[0]||'';
-      ui.editing.requirements.push({
+      const newReq={
         id:uid('R'),
         lesson_code:code,
         level:level,
         text:defaultText,
-        ppct_outcome_index:defaultText?0:null,
+        ppct_outcome_index:0,
         competency:competencies()[0]||'NLa',
         choice_group:null
-      });
+      };
+      const sameGroupIds=new Set((ui.editing.requirements||[]).filter(r=>r.lesson_code===code&&r.level===level).map(r=>r.id));
+      ui.editing.requirements.push(newReq);
+      const sharedSlots=(ui.editing.slots||[]).filter(s=>sameGroupIds.has(s.parts?.[0]?.requirement_id));
+      if(sharedSlots.length>1){
+        const lastSlot=sharedSlots[sharedSlots.length-1];
+        (lastSlot.parts||[]).forEach(p=>{p.requirement_id=newReq.id;});
+      }
       changed();renderEditor();
       return;
     }
@@ -2313,10 +2487,13 @@
       const reqId=b.dataset.reqId;
       const idx=(ui.editing.requirements||[]).findIndex(r=>r.id===reqId);
       if(idx!==-1){
+        const removed=ui.editing.requirements[idx];
         ui.editing.requirements.splice(idx,1);
+        const fallback=(ui.editing.requirements||[]).find(r=>r.lesson_code===removed.lesson_code&&r.level===removed.level)
+          ||(ui.editing.requirements||[]).find(r=>r.lesson_code===removed.lesson_code);
         (ui.editing.slots||[]).forEach(s=>{
           (s.parts||[]).forEach(p=>{
-            if(p.requirement_id===reqId)p.requirement_id='';
+            if(p.requirement_id===reqId)p.requirement_id=fallback?fallback.id:'';
           });
         });
         changed();renderEditor();
@@ -2325,14 +2502,21 @@
     }
     if(action==='reset-spec-refs'&&ui.editing){
       if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
+      const reqId=b.dataset.reqId;
       const lessonCode=b.dataset.lessonCode;
       const level=b.dataset.level;
+      if(reqId){
+        const targetReq=(ui.editing.requirements||[]).find(r=>r.id===reqId);
+        if(targetReq)delete targetReq.custom_refs;
+      }
       if(ui.editing.custom_level_refs){
         delete ui.editing.custom_level_refs[lessonCode+'|'+level];
       }
-      (ui.editing.requirements||[]).filter(r=>r.lesson_code===lessonCode&&r.level===level).forEach(r=>{
-        delete r.custom_refs;
-      });
+      if(!reqId){
+        (ui.editing.requirements||[]).filter(r=>r.lesson_code===lessonCode&&r.level===level).forEach(r=>{
+          delete r.custom_refs;
+        });
+      }
       changed();renderEditor();
       message('Đã khôi phục số thứ tự câu tự động theo ma trận cho mức ' + level + ' của bài ' + lessonCode + '.');
       return;
@@ -3000,11 +3184,17 @@ ${compSummaryLines}
 ${indSampleLines}
 
 ---
+QUY TẮC BẮT BUỘC CHO BẢNG ĐẶC TẢ ("requirements"):
+- Mỗi phần tử trong "requirements" là YÊU CẦU CẦN ĐẠT ĐẶC TẢ THEO MỤC TIÊU ĐÁNH GIÁ CỤ THỂ CỦA TỪNG CÂU HỎI (hoặc nhóm câu hỏi cùng mục tiêu), tuyệt đối KHÔNG chép chung chung mục tiêu của cả bài học.
+- Mỗi requirement bắt buộc có "ppct_outcome_index": 0.
+- Mỗi slot trong "slots" bắt buộc có "scoring": { "mode": "sum_parts" }, và số thứ tự "number" trong mỗi dạng (MC, YN, SHORT, ES) phải đánh số bắt đầu từ 1, 2, 3... (Tự luận ES cũng bắt đầu lại từ 1).
+
 CÁCH 1: ĐỊNH DẠNG JSON (KHUYÊN DÙNG SỐ 1 - CHUẨN XÁC 100%):
 {
   "format": "asian-school-matrix",
   "schema_version": 1,
   "matrix": {
+    "mode": "authored",
     "profile": "${isHigh ? 'THPT' : 'THCS'}",
     "grade": ${g},
     "subject_name": "${subjName}",
@@ -3012,15 +3202,19 @@ CÁCH 1: ĐỊNH DẠNG JSON (KHUYÊN DÙNG SỐ 1 - CHUẨN XÁC 100%):
     "duration": 45,
     "school_year": "2026-2027",
     "title": "Ma trận & đặc tả Kiểm tra Giữa HK1 ${subjName} ${g}",
+    "owner_name": "Tổ ${subjName} Á Châu",
+    "campus": "Cao Thắng",
     "total_points": 10,
     "lessons": [
       { "lesson_code": "B1", "title": "Tên bài 1", "topic": "Tên chủ đề 1" }
     ],
     "requirements": [
-      { "id": "R1", "lesson_code": "B1", "level": "Biết", "text": "Nội dung YCCĐ...", "competency": "${firstComp}" }
-    ],${isHigh ? `\n    "indicator_catalog": [\n      { "code": "${firstInd}", "competency": "${firstComp}", "text": "Mô tả chỉ báo..." }\n    ],` : ''}
+      { "id": "R1", "lesson_code": "B1", "level": "Biết", "text": "Mục tiêu đánh giá cụ thể của Câu 1...", "ppct_outcome_index": 0, "competency": "${firstComp}" }
+    ],
+    "indicator_catalog": ${isHigh ? `[\n      { "code": "${firstInd}", "competency": "${firstComp}", "text": "Mô tả chỉ báo..." }\n    ]` : '[]'},
+    "reconciliation": { "confirmed": true, "issues": [] },
     "slots": [
-      { "id": "S1", "kind": "MC", "number": 1, "parts": [{ "id": "P1", "label": "", "requirement_id": "R1", "points": 0.25${isHigh ? `, "indicator": "${firstInd}"` : ''} }] }
+      { "id": "S1", "kind": "MC", "number": 1, "scoring": { "mode": "sum_parts" }, "parts": [{ "id": "P1", "label": "", "requirement_id": "R1", "points": 0.25${isHigh ? `, "indicator": "${firstInd}"` : ', "indicator": ""'} }] }
     ]
   }
 }
@@ -3105,11 +3299,15 @@ Quy ước:
       if(ext === 'json') {
         const text = await file.text();
         const data = JSON.parse(text);
-        if (data.format === 'asian-school-matrix' || data.matrix) {
-          ui.importing = { grade: Number(data.matrix?.grade || grade), package: data };
-        } else {
-          ui.importing = { grade, package: { format: 'asian-school-matrix', schema_version: 1, matrix: data } };
+        const rawMatrix = (data && typeof data === 'object' && data.matrix && typeof data.matrix === 'object') ? data.matrix : data;
+        const pkg = (data && data.format === 'asian-school-matrix')
+          ? { ...data, schema_version: data.schema_version || 1, matrix: rawMatrix }
+          : { format: 'asian-school-matrix', schema_version: 1, matrix: rawMatrix };
+        if (pkg.content_sha256 === undefined && pkg.matrix && typeof pkg.matrix === 'object') {
+          if (!pkg.matrix.grade) pkg.matrix.grade = grade;
+          normalizeSlotNumbers(pkg.matrix);
         }
+        ui.importing = { grade: Number(pkg.matrix?.grade || grade), candidate: pkg.matrix, package: pkg, filename: file.name };
       } else if (ext === 'md' || ext === 'txt') {
         const text = await file.text();
         const parsed = parseMatrixFromMarkdown(text, grade);
@@ -3136,6 +3334,6 @@ Quy ước:
   function coverage(){if(!ui.generation||!qs('#mx-coverage'))return;const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));let count=0,matched=0;for(const e of ui.generation.slots){const q=e.candidates.find(q=>q.id===qs('#mx-choice-'+e.slot.id).value);if(q){count++;if(hashes.has(q.content_hash))matched++;}}qs('#mx-coverage').textContent=`Đã chọn ${count}/${ui.generation.slots.length} câu · Khớp nội dung đề cương ${matched} câu. Máy chủ sẽ kiểm tra lại khi tạo đề.`;}
   function suggest(){const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));const used=new Set();for(const e of ui.generation.slots){const pool=e.candidates.slice().sort((a,b)=>Number(hashes.has(b.content_hash))-Number(hashes.has(a.content_hash)));const q=pool.find(q=>!used.has(q.id));qs('#mx-choice-'+e.slot.id).value=q?.id||'';if(q)used.add(q.id);ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===e.slot.id)c.checked=false;});showChoice(e.slot.id);}captureGeneration();coverage();message('Đã gợi ý câu. Thầy cần xem nội dung và đánh dấu đối chiếu từng chỉ báo trước khi lưu đề.');}
   async function generate(){const g=ui.generation;const placements=g.slots.map(e=>({slot_id:e.slot.id,question_id:qs('#mx-choice-'+e.slot.id).value,reviewed_part_ids:[...ui.container.querySelectorAll('[data-review-slot]')].filter(x=>x.dataset.reviewSlot===e.slot.id&&x.checked).map(x=>x.value)}));const result=await ui.ctx.request('/api/exams/from-matrix',{matrix_id:g.matrix.id,revision_id:qs('#mx-exam-revision').value,title:qs('#mx-exam-title').value,campus:qs('#mx-exam-campus').value,exam_code:qs('#mx-exam-code').value,seed:qs('#mx-exam-seed').value,placements});const e=result.exam,base='/api/exams/'+encodeURIComponent(e.id)+'/export';qs('#mx-created-exam').innerHTML=`<div class="callout"><h3>Đã lưu đề ${E(e.exam_code)} · ${E(e.campus)}</h3><p>${e.question_count} câu · 10 điểm · Khớp đề cương ${e.revision_match_count}/${e.question_count} câu · Ma trận V${e.matrix_version}</p><div class="actions"><button type="button" class="primary" data-view-exam="${E(e.id)}" data-mode="student">Xem đề học sinh</button><button type="button" data-view-exam="${E(e.id)}" data-mode="answers">Xem đáp án & HDC</button><a class="button" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button" href="${base}?format=docx&answers=1">Word đáp án</a></div></div>`;ui.ctx.onExamCreated?.(e);message('Đã tạo đề riêng và lưu phiên bản ma trận dùng chung cùng đề.');}
-  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,STANDARD_PRESETS,newDraft,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,matrixGridHtml,specGridHtml};
+  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,STANDARD_PRESETS,newDraft,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

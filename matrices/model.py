@@ -38,20 +38,39 @@ def normalize_matrix(payload, ppct):
     for key, value in dict(id='', family_id='', version=1, revision=0, status='draft',
                           mode='authored', profile='THCS', school_year='2026-2027',
                           exam_type='GK1', duration=45, total_points=10, campus='Cao Thắng',
-                          owner_name='', title='', lessons=[], requirements=[], slots=[],
+                          owner_name='Giáo viên phụ trách', title='', lessons=[], requirements=[], slots=[],
                           indicator_catalog=[], source=None, audit=[],
                           reconciliation=dict(confirmed=True, issues=[]),
                           matrix_locked=False, spec_locked=False).items():
         m.setdefault(key, copy.deepcopy(value))
-    if m.get('status') not in ('locked', 'archived') and isinstance(m.get('slots'), list):
-        groups = defaultdict(list)
-        for s in m['slots']:
-            if isinstance(s, dict) and 'kind' in s:
-                groups[s['kind']].append(s)
-        for kind_slots in groups.values():
-            kind_slots.sort(key=lambda x: (x.get('number', 0) if isinstance(x.get('number'), int) else 0))
-            for idx, s in enumerate(kind_slots, 1):
-                s['number'] = idx
+    if not isinstance(m.get('owner_name'), str) or not m['owner_name'].strip():
+        m['owner_name'] = 'Giáo viên phụ trách'
+    if not isinstance(m.get('campus'), str) or not m['campus'].strip():
+        m['campus'] = 'Cao Thắng'
+    if not isinstance(m.get('indicator_catalog'), list):
+        m['indicator_catalog'] = []
+    if not isinstance(m.get('reconciliation'), dict):
+        m['reconciliation'] = dict(confirmed=True, issues=[])
+    else:
+        m['reconciliation'].setdefault('confirmed', True)
+        m['reconciliation'].setdefault('issues', [])
+    if m.get('status') not in ('locked', 'archived'):
+        if isinstance(m.get('requirements'), list):
+            for r in m['requirements']:
+                if isinstance(r, dict) and r.get('ppct_outcome_index') is None:
+                    r['ppct_outcome_index'] = 0
+        if isinstance(m.get('slots'), list):
+            groups = defaultdict(list)
+            for s in m['slots']:
+                if isinstance(s, dict):
+                    if not isinstance(s.get('scoring'), dict) or not s['scoring'].get('mode'):
+                        s['scoring'] = dict(mode='sum_parts')
+                    if 'kind' in s:
+                        groups[s['kind']].append(s)
+            for kind_slots in groups.values():
+                kind_slots.sort(key=lambda x: (x.get('number', 0) if isinstance(x.get('number'), int) else 0))
+                for idx, s in enumerate(kind_slots, 1):
+                    s['number'] = idx
     return m
 
 

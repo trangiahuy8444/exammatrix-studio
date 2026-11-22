@@ -51,9 +51,66 @@
     status:existing?.status||'drafting',created_at:existing?.created_at||now(),updated_at:now(),question_ids:ids,questions,question_count:questions.length});
   }
   function normalizeMatrixSlots(m){
-   if(!m||!Array.isArray(m.slots)||m.status==='locked'||m.status==='archived')return m;
+   if(!m||typeof m!=='object'||m.status==='locked'||m.status==='archived')return m;
+   if(!Number.isInteger(m.grade)&&Number.isInteger(Number(m.grade)))m.grade=Number(m.grade);
+   if(!['THCS','THPT','GENERAL'].includes(m.profile))m.profile=Number(m.grade)>=10?'THPT':'THCS';
+   if(!['authored','received'].includes(m.mode))m.mode='authored';
+   if(!m.exam_type||!['TX','GK1','CK1','GK2','CK2'].includes(m.exam_type))m.exam_type='GK1';
+   if(!Number.isInteger(m.duration)||m.duration<1||m.duration>300)m.duration=Number(m.duration)>=1&&Number(m.duration)<=300?Math.round(Number(m.duration)):45;
+   if(m.total_points===undefined||m.total_points===null||m.total_points==='')m.total_points=10;
+   if(!m.school_year||!String(m.school_year).trim())m.school_year='2026-2027';
+   if(!m.title||!String(m.title).trim())m.title='Ma trận & đặc tả '+m.exam_type+' - Khối '+(m.grade||9);
+   if(!m.owner_name||!String(m.owner_name).trim())m.owner_name='Giáo viên phụ trách';
+   if(!m.campus||!String(m.campus).trim())m.campus='Cao Thắng';
+   if(!Array.isArray(m.indicator_catalog))m.indicator_catalog=[];
+   if(!m.reconciliation||typeof m.reconciliation!=='object'||Array.isArray(m.reconciliation))m.reconciliation={confirmed:true,issues:[]};
+   if(m.reconciliation.confirmed===undefined||m.reconciliation.confirmed===null)m.reconciliation.confirmed=true;
+   if(!Array.isArray(m.reconciliation.issues))m.reconciliation.issues=[];
+   const mSubj=m.subject_name||subject;
+   if(Array.isArray(m.lessons)){
+    m.lessons.forEach(l=>{
+     if(!l||typeof l!=='object')return;
+     if(!l.title||!String(l.title).trim())l.title=String(l.lesson_name_source||l.lesson_name||l.lesson_code||'Bài học').trim();
+     if(!l.topic||!String(l.topic).trim())l.topic=String(l.topic_source||l.topic_name||'Chương trình GDPT').trim();
+     if(ppct&&Array.isArray(ppct.lessons)&&l.lesson_code){
+      let pl=ppct.lessons.find(x=>Number(x.grade)===Number(m.grade)&&(x.subject_name||'Tin học')===mSubj&&x.lesson_code===l.lesson_code);
+      if(!pl){
+       pl={grade:Number(m.grade),subject_name:mSubj,lesson_code:l.lesson_code,lesson_name:l.title,lesson_name_source:l.title,topic:l.topic,topic_source:l.topic,outcomes:[l.title]};
+       ppct.lessons.push(pl);
+      }else if(!Array.isArray(pl.outcomes)||!pl.outcomes.filter(Boolean).length){
+       pl.outcomes=[l.title||pl.lesson_name_source||pl.lesson_name||l.lesson_code];
+      }
+     }
+    });
+   }
+   if(Array.isArray(m.requirements)){
+    m.requirements.forEach((r,idx)=>{
+     if(!r||typeof r!=='object')return;
+     if(!r.id||!String(r.id).trim())r.id='R'+(idx+1);
+     const lv=String(r.level||'').trim();
+     if(/nhận\s*biết|^biết$/i.test(lv))r.level='Biết';
+     else if(/thông\s*hiểu|^hiểu$/i.test(lv))r.level='Hiểu';
+     else if(/vận\s*dụng\s*cao|^vdc$/i.test(lv))r.level='Vận dụng cao';
+     else if(/vận\s*dụng|^vd$/i.test(lv))r.level='Vận dụng';
+     const pl=ppct&&Array.isArray(ppct.lessons)?ppct.lessons.find(x=>Number(x.grade)===Number(m.grade)&&(x.subject_name||'Tin học')===mSubj&&x.lesson_code===r.lesson_code):null;
+     const outLen=Array.isArray(pl?.outcomes)&&pl.outcomes.length?pl.outcomes.length:1;
+     if(!Number.isInteger(r.ppct_outcome_index)||r.ppct_outcome_index<0||r.ppct_outcome_index>=outLen)r.ppct_outcome_index=0;
+    });
+   }
+   if(!Array.isArray(m.slots))return m;
    const groups={};
-   m.slots.forEach(s=>{if(s&&typeof s==='object')(groups[s.kind]||(groups[s.kind]=[])).push(s);});
+   m.slots.forEach((s,idx)=>{
+    if(!s||typeof s!=='object')return;
+    if(!s.id||!String(s.id).trim())s.id='S'+(idx+1);
+    if(!s.scoring||typeof s.scoring!=='object'||s.scoring.mode!=='sum_parts')s.scoring={mode:'sum_parts'};
+    if(Array.isArray(s.parts)){
+     s.parts.forEach((p,pIdx)=>{
+      if(!p||typeof p!=='object')return;
+      if(!p.id||!String(p.id).trim())p.id='P'+(idx+1)+(s.parts.length>1?String.fromCharCode(97+pIdx):'');
+     });
+    }
+    (groups[s.kind]||(groups[s.kind]=[])).push(s);
+   });
    Object.values(groups).forEach(list=>{
     const ordered=list.map((s,i)=>[s,i]).sort((a,b)=>(Number(a[0].number)||0)-(Number(b[0].number)||0)||a[1]-b[1]).map(x=>x[0]);
     ordered.forEach((s,i)=>{s.number=i+1;});

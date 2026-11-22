@@ -341,6 +341,22 @@ Khối: 9
   const updatedWordHtml = ui.generateMatrixWordHtml(customSpecMatrix, 'all');
   assert(updatedWordHtml.includes('Câu 1 - 4 (Tùy chỉnh)'), 'Word export must reflect custom question refs');
   assert(updatedWordHtml.includes('4 MC (B) (NLb)'), 'Word export must reflect customized competency (NLb)');
+
+  // Test splitting requirements into per-question objectives (đặc tả theo mục tiêu của từng câu hỏi)
+  const perQuestionMatrix = ui.newDraft(9, true);
+  const splitCount = ui.splitQuestionRequirements(perQuestionMatrix, 'B1', 'Biết');
+  assert.equal(splitCount, 4, 'B1 - Biết has 4 MC questions so splitting must create 4 per-question objective rows');
+  const b1BietReqs = perQuestionMatrix.requirements.filter(r => r.lesson_code === 'B1' && r.level === 'Biết');
+  assert.equal(b1BietReqs.length, 4);
+  b1BietReqs[0].text = 'Mục tiêu riêng của Câu 1';
+  b1BietReqs[1].text = 'Mục tiêu riêng của Câu 2';
+  const perQSpecHtml = ui.specGridHtml(perQuestionMatrix, false, false);
+  assert(perQSpecHtml.includes('4 mục tiêu câu hỏi'), 'Spec grid must show count of per-question objectives');
+  assert(perQSpecHtml.includes('Mục tiêu riêng của Câu 1'), 'Spec grid must render objective of Question 1');
+  assert(perQSpecHtml.includes('Mục tiêu riêng của Câu 2'), 'Spec grid must render objective of Question 2');
+  const perQWordHtml = ui.generateMatrixWordHtml(perQuestionMatrix, 'specification');
+  assert(perQWordHtml.includes('Mục tiêu riêng của Câu 1<strong> (Câu 1)</strong>'), 'Word spec table must pair Question 1 objective with (Câu 1)');
+  assert(perQWordHtml.includes('Mục tiêu riêng của Câu 2<strong> (Câu 2)</strong>'), 'Word spec table must pair Question 2 objective with (Câu 2)');
   console.log('PASS matrix UI: customizable question numbers and competency in Table 2 passed');
 }
 

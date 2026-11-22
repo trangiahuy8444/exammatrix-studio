@@ -3218,6 +3218,16 @@
     };
   }
 
+  function downloadMatrixExcelSample(grade = 9) {
+    const g = Number(grade) || 9;
+    if (typeof TableFileHelper !== 'undefined') {
+      const rows = TableFileHelper.getSampleMatrixRows(g, 'Tin học');
+      TableFileHelper.downloadCsv(rows, `Mau_Ma_tran_Dac_ta_Excel_${g}_2026-2027.csv`);
+    } else {
+      message('Bộ công cụ bảng tính đang nạp, vui lòng thử lại sau giây lát.', true);
+    }
+  }
+
   function downloadMatrixJsonSample(grade = 9) {
     const g = Number(grade) || 9;
     const isHigh = g >= 10;
@@ -3461,24 +3471,25 @@ Quy ước:
     const i=ui.importing;
     qs('#mx-work').innerHTML=`<section class="card">
       <p class="eyebrow">GIỮ NGUYÊN BẢN CỦA GIÁO VIÊN PHỤ TRÁCH</p>
-      <h2>Nhận ma trận & đặc tả (JSON, Markdown hoặc Word)</h2>
+      <h2>Nhận ma trận & đặc tả (Excel, JSON, Markdown hoặc Word)</h2>
       <div class="callout" style="background:#f0f7ff;border-left:4px solid #0267b1;padding:12px;margin:10px 0;font-size:13px;line-height:1.6">
         <strong>💡 Lưu ý xử lý ma trận nhiều bảng, nhiều cột:</strong><br>
         Ma trận GDPT 2018 thường có nhiều bảng (Khung ma trận & Bản đặc tả) với các ô gộp dòng/cột phức tạp.<br>
-        • Khuyên dùng <strong>JSON</strong> (chuẩn xác 100%) hoặc dạng <strong>Markdown phân cấp theo đề mục</strong> để hệ thống nhận diện chính xác tuyệt đối, không lo lệch cột.<br>
-        • Bấm <strong>"📥 Tải mẫu"</strong> hoặc <strong>"📋 Chép Prompt AI"</strong> để AI tạo ngay dữ liệu chuẩn.
+        • Khuyên dùng <strong>Excel (.xlsx / .csv)</strong> hoặc <strong>JSON</strong> để hệ thống nhận diện chính xác tuyệt đối, không lo lệch cột.<br>
+        • Bấm <strong>"📊 Tải mẫu"</strong> hoặc <strong>"📋 Chép Prompt AI"</strong> để AI tạo ngay dữ liệu chuẩn.
       </div>
-      <div style="display:flex;gap:10px;margin:10px 0 14px;flex-wrap:wrap">
-        <button type="button" class="button quiet" id="mx-download-json-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📥 Tải mẫu Ma trận (JSON)</button>
-        <button type="button" class="button quiet" id="mx-download-md-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📝 Tải mẫu Ma trận (Markdown)</button>
-        <button type="button" class="button quiet" id="mx-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI tạo Ma trận</button>
+      <div style="display:flex;gap:10px;margin:10px 0 14px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="button" id="mx-download-excel-sample" style="background:#15803d;color:#fff;border-color:#15803d;padding:6px 12px;font-size:12px;font-weight:700">📊 Tải mẫu Ma trận (Excel)</button>
+        <button type="button" class="button quiet" id="mx-download-json-sample" style="color:#0267b1;padding:6px 12px;font-size:12px;font-weight:600">📥 Tải mẫu Ma trận (JSON)</button>
+        <button type="button" class="button quiet" id="mx-download-md-sample" style="color:#0267b1;padding:6px 12px;font-size:12px;font-weight:600">📝 Tải mẫu Ma trận (Markdown)</button>
+        <button type="button" class="button quiet" id="mx-copy-prompt" style="color:#0267b1;padding:6px 12px;font-size:12px;font-weight:600">📋 Chép Prompt AI tạo Ma trận</button>
       </div>
       <div class="form-grid">
         <div class="field"><label for="mx-import-grade">Khối lớp</label><select id="mx-import-grade">${grades().map(g=>opt(g,'Khối '+g,i.grade===g)).join('')}</select></div>
-        <div class="field span2"><label for="mx-file">Chọn tệp Markdown (.md), JSON hoặc Word (.docx)</label><input type="file" id="mx-file" accept=".docx,.json,.md,.txt"></div>
+        <div class="field span2"><label for="mx-file">Chọn tệp Excel (.xlsx, .csv), Markdown (.md), JSON hoặc Word (.docx)</label><input type="file" id="mx-file" accept=".xlsx,.xls,.csv,.tsv,.docx,.json,.md,.txt"></div>
       </div>
       <div id="mx-import-result">
-        ${i.package?`<p class="callout">${E(packageSummary(i.package))}</p>`:i.candidate?`<p class="callout">Đã nhận dạng ${E(i.candidate.profile||'THCS')} · Khối ${i.grade} · ${i.candidate.slots?.length||0} vị trí câu hỏi. Đạt chuẩn cấu trúc ma trận & đặc tả.</p><ul class="mx-errors">${(i.issues||[]).map(x=>`<li>${E(x.message||x)}</li>`).join('')}</ul><p class="muted">Các chỉ báo và ánh xạ sẽ được mở ở màn hình đối chiếu. Nội dung gốc được bảo toàn.</p>`:'<p class="muted">Hỗ trợ tệp Markdown (.md), gói JSON chuẩn và Word (.docx). Bấm nút tải mẫu ở trên để xem định dạng chuẩn.</p>'}
+        ${i.package?`<p class="callout">${E(packageSummary(i.package))}</p>`:i.candidate?`<p class="callout">Đã nhận dạng ${E(i.candidate.profile||'THCS')} · Khối ${i.grade} · ${i.candidate.slots?.length||0} vị trí câu hỏi. Đạt chuẩn cấu trúc ma trận & đặc tả.</p><ul class="mx-errors">${(i.issues||[]).map(x=>`<li>${E(x.message||x)}</li>`).join('')}</ul><p class="muted">Các chỉ báo và ánh xạ sẽ được mở ở màn hình đối chiếu. Nội dung gốc được bảo toàn.</p>`:'<p class="muted">Hỗ trợ tệp Excel (.xlsx, .csv), Markdown (.md), gói JSON chuẩn và Word (.docx). Bấm nút tải mẫu ở trên để xem định dạng chuẩn.</p>'}
         ${i.package||i.candidate?'<button class="primary" data-action="accept-import">Lưu bản nhận để đối chiếu & khóa</button>':''}
       </div>
       ${(i.candidate||i.package?.matrix)?`
@@ -3495,6 +3506,8 @@ Quy ước:
       `:''}
     </section>`;
 
+    const btnExcel = qs('#mx-download-excel-sample');
+    if (btnExcel) btnExcel.onclick = () => downloadMatrixExcelSample(Number(qs('#mx-import-grade').value || 9));
     const btnJson = qs('#mx-download-json-sample');
     if (btnJson) btnJson.onclick = () => downloadMatrixJsonSample(Number(qs('#mx-import-grade').value || 9));
     const btnMd = qs('#mx-download-md-sample');
@@ -3508,7 +3521,24 @@ Quy ước:
     const grade=Number(qs('#mx-import-grade').value);
     await run(async()=>{
       const ext = file.name.toLowerCase().split('.').pop();
-      if(ext === 'json') {
+      if(ext === 'xlsx' || ext === 'xls' || ext === 'csv' || ext === 'tsv') {
+        if(typeof TableFileHelper !== 'undefined') {
+          const res = await TableFileHelper.readTableFile(file);
+          if(res.type === 'table') {
+            const mdText = res.rows.map(r => '| ' + r.map(c => String(c || '').replace(/\|/g, '-')).join(' | ') + ' |').join('\n');
+            const parsed = parseMatrixFromMarkdown(mdText, grade);
+            if (!parsed || !parsed.matrix) throw new Error('Không đọc được cấu trúc ma trận từ bảng tính Excel.');
+            ui.importing = {
+              grade: parsed.matrix.grade || grade,
+              candidate: parsed.matrix,
+              package: parsed,
+              filename: file.name
+            };
+          } else {
+            throw new Error('Không đọc được bảng dữ liệu trong tệp.');
+          }
+        }
+      } else if(ext === 'json') {
         const text = await file.text();
         const data = JSON.parse(text);
         const rawMatrix = (data && typeof data === 'object' && data.matrix && typeof data.matrix === 'object') ? data.matrix : data;
@@ -3546,6 +3576,6 @@ Quy ước:
   function coverage(){if(!ui.generation||!qs('#mx-coverage'))return;const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));let count=0,matched=0;for(const e of ui.generation.slots){const q=e.candidates.find(q=>q.id===qs('#mx-choice-'+e.slot.id).value);if(q){count++;if(hashes.has(q.content_hash))matched++;}}qs('#mx-coverage').textContent=`Đã chọn ${count}/${ui.generation.slots.length} câu · Khớp nội dung đề cương ${matched} câu. Máy chủ sẽ kiểm tra lại khi tạo đề.`;}
   function suggest(){const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));const used=new Set();for(const e of ui.generation.slots){const pool=e.candidates.slice().sort((a,b)=>Number(hashes.has(b.content_hash))-Number(hashes.has(a.content_hash)));const q=pool.find(q=>!used.has(q.id));qs('#mx-choice-'+e.slot.id).value=q?.id||'';if(q)used.add(q.id);ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===e.slot.id)c.checked=false;});showChoice(e.slot.id);}captureGeneration();coverage();message('Đã gợi ý câu. Thầy cần xem nội dung và đánh dấu đối chiếu từng chỉ báo trước khi lưu đề.');}
   async function generate(){const g=ui.generation;const placements=g.slots.map(e=>({slot_id:e.slot.id,question_id:qs('#mx-choice-'+e.slot.id).value,reviewed_part_ids:[...ui.container.querySelectorAll('[data-review-slot]')].filter(x=>x.dataset.reviewSlot===e.slot.id&&x.checked).map(x=>x.value)}));const result=await ui.ctx.request('/api/exams/from-matrix',{matrix_id:g.matrix.id,revision_id:qs('#mx-exam-revision').value,title:qs('#mx-exam-title').value,campus:qs('#mx-exam-campus').value,exam_code:qs('#mx-exam-code').value,seed:qs('#mx-exam-seed').value,placements});const e=result.exam,base='/api/exams/'+encodeURIComponent(e.id)+'/export';qs('#mx-created-exam').innerHTML=`<div class="callout"><h3>Đã lưu đề ${E(e.exam_code)} · ${E(e.campus)}</h3><p>${e.question_count} câu · 10 điểm · Khớp đề cương ${e.revision_match_count}/${e.question_count} câu · Ma trận V${e.matrix_version}</p><div class="actions"><button type="button" class="primary" data-view-exam="${E(e.id)}" data-mode="student">Xem đề học sinh</button><button type="button" data-view-exam="${E(e.id)}" data-mode="answers">Xem đáp án & HDC</button><a class="button" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button" href="${base}?format=docx&answers=1">Word đáp án</a></div></div>`;ui.ctx.onExamCreated?.(e);message('Đã tạo đề riêng và lưu phiên bản ma trận dùng chung cùng đề.');}
-  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,STANDARD_PRESETS,newDraft,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
+  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,STANDARD_PRESETS,newDraft,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

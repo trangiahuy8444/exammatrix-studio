@@ -738,6 +738,214 @@ Theo chương trình GDPT 2018 môn Tin học, viết tắt của thành phần 
 ${commonEs}`;
   }
 
+  function downloadBankExcelSample(grade = 9) {
+    const g = Number(grade) || 9;
+    const subj = subject();
+    if (typeof TableFileHelper !== 'undefined') {
+      const rows = TableFileHelper.getSampleBankRows(g, subj);
+      TableFileHelper.downloadCsv(rows, `Mau_Cau_hoi_Excel_${C.normalize(subj).replace(/\s+/g, '_')}_${g}_2026-2027.csv`);
+    } else {
+      notify('Bộ công cụ bảng tính đang được khởi tạo, vui lòng thử lại sau giây lát.', true);
+    }
+  }
+
+  function openBankAiPromptDialog(initialGrade = 9) {
+    const dlg = $('#ai-prompt-lesson-dialog');
+    if (!dlg) return;
+    const container = $('#ai-prompt-lesson-content');
+    if (!container) return;
+
+    let curGrade = Number(initialGrade) || Number(store.filters.grade) || Number(store.ppctGrade) || 9;
+    const subj = subject();
+
+    const renderDialogContent = () => {
+      const ls = lessons(curGrade, subj);
+      const uniqueLessons = [];
+      const seenCodes = new Set();
+      ls.forEach(l => {
+        if (!seenCodes.has(l.lesson_code)) {
+          seenCodes.add(l.lesson_code);
+          uniqueLessons.push(l);
+        }
+      });
+      if (!uniqueLessons.length) {
+        uniqueLessons.push({ lesson_code: 'B1', lesson_name: 'Bài học 1', outcomes: ['Nắm vững kiến thức trọng tâm của bài'] });
+      }
+
+      let selectedLessonCode = uniqueLessons[0].lesson_code;
+      let selectedPart = 'MC';
+      let selectedFormat = 'EXCEL';
+      let selectedCount = 4;
+
+      const getCurLesson = () => uniqueLessons.find(l => l.lesson_code === selectedLessonCode) || uniqueLessons[0];
+
+      const getCurOutcomes = () => {
+        const l = getCurLesson();
+        if (l.outcomes && l.outcomes.length) return l.outcomes;
+        return [l.lesson_name_source || l.lesson_name || l.name || 'Yêu cầu cần đạt theo chương trình'];
+      };
+
+      const updatePromptPreview = () => {
+        const l = getCurLesson();
+        const outcomes = getCurOutcomes();
+        if (typeof TableFileHelper !== 'undefined') {
+          const prompt = TableFileHelper.buildAiPromptByLesson({
+            grade: curGrade,
+            subject: subj,
+            lessonCode: l.lesson_code,
+            lessonName: l.lesson_name_source || l.lesson_name || l.name || 'Bài học',
+            outcomes: outcomes,
+            part: selectedPart,
+            outputFormat: selectedFormat,
+            count: Number(selectedCount) || 4
+          });
+          const previewEl = $('#ai-prompt-preview-text');
+          if (previewEl) previewEl.value = prompt;
+        }
+      };
+
+      container.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:14px">
+          <div>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:12px">
+              <h4 style="margin:0 0 8px;color:#0267b1;font-size:13px">1. Chọn Khối &amp; Bài học từ PPCT</h4>
+              <div style="display:flex;gap:10px;margin-bottom:8px">
+                <div style="flex:1">
+                  <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px">Khối lớp</label>
+                  <select id="ai-prompt-select-grade" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;font-size:12px">
+                    ${grades().map(g => `<option value="${g}" ${g === curGrade ? 'selected' : ''}>Khối ${g}</option>`).join('')}
+                  </select>
+                </div>
+                <div style="flex:2">
+                  <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px">Bài học (PPCT)</label>
+                  <select id="ai-prompt-select-lesson" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;font-size:12px">
+                    ${uniqueLessons.map(l => `<option value="${esc(l.lesson_code)}">${esc(l.lesson_code)} · ${esc(l.lesson_name_source || l.lesson_name || l.name)}</option>`).join('')}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px">Mục tiêu &amp; YCCĐ của bài học đã chọn:</label>
+                <div id="ai-prompt-outcomes-box" style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:8px;font-size:12px;max-height:85px;overflow-y:auto;line-height:1.4">
+                  ${getCurOutcomes().map(o => `<div>• ${esc(o)}</div>`).join('')}
+                </div>
+              </div>
+            </div>
+
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
+              <h4 style="margin:0 0 8px;color:#0267b1;font-size:13px">2. Chọn Phần câu hỏi &amp; Định dạng</h4>
+              <div style="margin-bottom:10px">
+                <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px">Phần muốn tạo (Nạp từng phần):</label>
+                <div style="display:flex;flex-direction:column;gap:5px;font-size:12px">
+                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                    <input type="radio" name="ai_part" value="MC" checked>
+                    <strong>Phần 1: Trắc nghiệm 4 lựa chọn (MC)</strong>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                    <input type="radio" name="ai_part" value="YN">
+                    <strong>Phần 2: Đúng/Sai 4 ý a-d (YN · chuẩn CV 7991)</strong>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                    <input type="radio" name="ai_part" value="SHORT_ES">
+                    <strong>Phần 3: Trả lời ngắn (SHORT) &amp; Tự luận (ES)</strong>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                    <input type="radio" name="ai_part" value="ALL">
+                    <span>Trọn gói cả 3 phần cho bài học này</span>
+                  </label>
+                </div>
+              </div>
+
+              <div style="display:flex;gap:10px;align-items:center">
+                <div style="flex:2">
+                  <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px">Định dạng đầu ra:</label>
+                  <select id="ai-prompt-select-format" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;font-size:12px;font-weight:600">
+                    <option value="EXCEL">📊 Bảng Excel / TSV (Khuyên dùng #1)</option>
+                    <option value="JSON">📥 JSON chuẩn hệ thống (#2)</option>
+                    <option value="MARKDOWN">📝 Markdown văn bản (#3)</option>
+                  </select>
+                </div>
+                <div style="flex:1">
+                  <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px">Số lượng câu:</label>
+                  <input type="number" id="ai-prompt-count" value="4" min="1" max="20" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;font-size:12px">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column">
+            <label style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;display:flex;justify-content:space-between">
+              <span>Nội dung Prompt AI được tạo tự động:</span>
+              <span style="color:#0267b1;font-size:11px">Có thể chỉnh sửa thêm bên dưới</span>
+            </label>
+            <textarea id="ai-prompt-preview-text" rows="12" style="flex:1;width:100%;padding:10px;border-radius:8px;border:1px solid #cbd5e1;font-family:monospace;font-size:12px;line-height:1.45;resize:vertical;background:#fff"></textarea>
+          </div>
+        </div>
+
+        <div style="background:#eef6fd;border:1px solid #c6daed;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1e293b;line-height:1.5">
+          <strong>💡 Quy trình 3 bước dành cho Thầy/Cô:</strong>
+          <ol style="margin:4px 0 0;padding-left:18px">
+            <li>Bấm nút <strong>"📋 Chép Prompt AI vào bộ nhớ tạm"</strong> bên dưới. Mở <strong>ChatGPT</strong> hoặc <strong>Gemini</strong>, dán vào khung chat và gửi đi.</li>
+            <li>Copy bảng kết quả mà AI trả về, dán vào phần mềm <strong>Microsoft Excel</strong> rồi bấm <strong>File &rarr; Save As</strong> lưu thành tệp <code>.xlsx</code> hoặc <code>.csv</code>.</li>
+            <li>Tại giao diện Ngân hàng câu hỏi, bấm nút <strong>"📥 Nhập câu hỏi (Excel / JSON / Markdown)"</strong> để tải tệp lên hệ thống!</li>
+          </ol>
+        </div>
+
+        <div class="actions" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="display:flex;gap:8px">
+            <button type="button" class="button" id="ai-prompt-btn-download-excel" style="background:#15803d;color:#fff;border-color:#15803d;font-weight:600;font-size:12px;padding:7px 14px">📊 Tải file mẫu Excel (.csv)</button>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="button primary" id="ai-prompt-btn-copy" style="background:#0267b1;border-color:#0267b1;font-weight:700;font-size:13px;padding:8px 20px">📋 Chép Prompt AI vào bộ nhớ tạm</button>
+            <button type="button" class="button quiet" data-close="ai-prompt-lesson-dialog">Đóng</button>
+          </div>
+        </div>
+      `;
+
+      $('#ai-prompt-select-grade').onchange = ev => {
+        curGrade = Number(ev.target.value) || 9;
+        renderDialogContent();
+      };
+      $('#ai-prompt-select-lesson').onchange = ev => {
+        selectedLessonCode = ev.target.value;
+        const box = $('#ai-prompt-outcomes-box');
+        if (box) box.innerHTML = getCurOutcomes().map(o => `<div>• ${esc(o)}</div>`).join('');
+        updatePromptPreview();
+      };
+      container.querySelectorAll('input[name="ai_part"]').forEach(radio => {
+        radio.onchange = ev => {
+          selectedPart = ev.target.value;
+          if (selectedPart === 'MC') selectedCount = 4;
+          else if (selectedPart === 'YN') selectedCount = 2;
+          else if (selectedPart === 'SHORT_ES') selectedCount = 2;
+          else selectedCount = 5;
+          const countEl = $('#ai-prompt-count');
+          if (countEl) countEl.value = selectedCount;
+          updatePromptPreview();
+        };
+      });
+      $('#ai-prompt-select-format').onchange = ev => {
+        selectedFormat = ev.target.value;
+        updatePromptPreview();
+      };
+      $('#ai-prompt-count').oninput = ev => {
+        selectedCount = ev.target.value;
+        updatePromptPreview();
+      };
+      $('#ai-prompt-btn-copy').onclick = () => {
+        const text = $('#ai-prompt-preview-text')?.value || '';
+        copyTextWithFallback(text, 'Đã chép Prompt AI theo bài học vào bộ nhớ tạm! Thầy/cô chỉ việc dán vào ChatGPT / Gemini.');
+      };
+      $('#ai-prompt-btn-download-excel').onclick = () => {
+        downloadBankExcelSample(curGrade);
+      };
+
+      updatePromptPreview();
+    };
+
+    renderDialogContent();
+    dlg.showModal();
+  }
+
   function downloadBankJsonSample(grade = 9) {
     const g = Number(grade) || 9;
     const subj = subject();
@@ -964,21 +1172,24 @@ Chỉ xuất trực tiếp nội dung Markdown, không kèm bình luận.`;
 function renderBank(){
  const f=store.filters;
  const bankGradeForSample=()=>Number(store.filters.grade)||Number(store.ppctGrade)||9;
- $('#bank').innerHTML=title('Biên soạn & tra cứu','Ngân hàng câu hỏi','Lọc theo chương trình, xem đáp án và lưu những câu cần dùng.',`<button class="primary" id="add-question">+ Thêm câu hỏi</button><button type="button" class="button" id="export-bank-lms">📤 Xuất Word LMS</button><a class="button" href="/api/bank/export">Xuất JSON</a><button id="import-bank">📥 Nhập JSON / Markdown</button><input class="json-import" id="import-file" type="file" accept=".json,.md,.txt,application/json">`)+
- `<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-   <button type="button" class="button quiet" id="bank-download-json-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📥 Tải mẫu câu hỏi (JSON)</button>
-   <button type="button" class="button quiet" id="bank-download-md-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📝 Tải mẫu câu hỏi (Markdown)</button>
-   <button type="button" class="button quiet" id="bank-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI soạn câu hỏi</button>
+ $('#bank').innerHTML=title('Biên soạn & tra cứu','Ngân hàng câu hỏi','Lọc theo chương trình, xem đáp án và lưu những câu cần dùng.',`<button class="primary" id="add-question">+ Thêm câu hỏi</button><button type="button" class="button" id="export-bank-lms">📤 Xuất Word LMS</button><a class="button" href="/api/bank/export">Xuất JSON</a><button id="import-bank" style="font-weight:700">📥 Nhập câu hỏi (Excel / JSON / Markdown)</button><input class="json-import" id="import-file" type="file" accept=".xlsx,.xls,.csv,.tsv,.json,.md,.txt">`)+
+ `<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+   <button type="button" class="button" id="bank-download-excel-sample" style="background:#15803d;color:#fff;border-color:#15803d;padding:6px 12px;font-size:12px;font-weight:700">📊 Tải mẫu câu hỏi (Excel)</button>
+   <button type="button" class="button quiet" id="bank-download-json-sample" style="color:#0267b1;padding:6px 12px;font-size:12px;font-weight:600">📥 Tải mẫu câu hỏi (JSON)</button>
+   <button type="button" class="button quiet" id="bank-download-md-sample" style="color:#0267b1;padding:6px 12px;font-size:12px;font-weight:600">📝 Tải mẫu câu hỏi (Markdown)</button>
+   <button type="button" class="button primary" id="bank-open-ai-prompt-dialog" style="background:#0267b1;border-color:#0267b1;padding:6px 14px;font-size:12px;font-weight:700">🤖 Hướng dẫn &amp; Chép Prompt AI theo bài (3 phần)</button>
  </div>`+
  `<div class="card"><div class="filters"><div class="field"><label for="filter-grade">Khối lớp</label><select id="filter-grade">${opt('','Tất cả khối',!f.grade)}${gradeOptions(f.grade)}</select></div><div class="field"><label for="filter-lesson">Bài học</label><select id="filter-lesson">${lessonFilterOptions()}</select></div><div class="field"><label for="filter-type">Dạng câu</label><select id="filter-type">${opt('','Tất cả dạng',!f.type)}${Object.entries(typeNames).map(([k,v])=>opt(k,v,f.type===k)).join('')}</select></div><div class="field"><label for="filter-level">Mức độ</label><select id="filter-level">${opt('','Tất cả mức độ',!f.level)}${C.levelOptions(f.level)}</select></div><div class="field"><label for="filter-section">Mạch PPCT</label><select id="filter-section">${opt('','Tất cả mạch',!f.section)}${opt('core','Nội dung cốt lõi (Mục II.1)',f.section==='core')}${opt('elective_topic','Chuyên đề học tập (Mục II.2)',f.section==='elective_topic')}</select></div><div class="field"><label for="filter-status">Trạng thái</label><select id="filter-status">${opt('active','Đang sử dụng',f.status==='active')}${Object.entries(statusNames).map(([k,v])=>opt(k,v,k===f.status)).join('')}${opt('all','Tất cả trạng thái',f.status==='all')}</select></div><div class="field search"><label for="filter-search">Tìm trong câu hỏi, mã câu, phương án hoặc YCCĐ</label><input id="filter-search" type="search" placeholder="Tìm nội dung, mã câu hoặc yêu cầu cần đạt…" value="${esc(f.search)}"></div></div></div>`+
  `<div class="bank-layout"><div><div id="bank-toolbar"></div><div id="bank-list" class="question-list"></div><div id="bank-pagination"></div></div><aside class="bank-aside card"><h2>Câu đã chọn</h2><div id="selection-summary"></div><div class="callout">Lựa chọn được giữ khi đổi bộ lọc. Khi lưu đề cương, ứng dụng chỉ lấy câu thuộc khối đã chọn.</div><div class="actions" style="margin-bottom:10px"><a class="button primary" href="#revisions">Tạo đề cương từ lựa chọn</a><button class="quiet" id="clear-selection">Bỏ chọn tất cả</button></div><div class="bulk-box"><label for="bulk-status-select">Thao tác hàng loạt với câu đã chọn</label><div class="actions" style="margin-top:6px"><select id="bulk-status-select" style="flex:1;min-width:140px">${Object.entries(statusNames).filter(([k])=>['pending_review','archived'].includes(k)).map(([k,v])=>opt(k,`Đổi thành: ${v}`)).join('')}</select><button type="button" id="bulk-apply-status">Áp dụng</button><button type="button" class="danger" id="bulk-delete-selected">Xóa câu đã chọn</button></div></div><hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><p class="small muted">Bấm nội dung câu để xem đáp án, giải thích, thang điểm và yêu cầu cần đạt. Dùng các nút bên phải mỗi câu để Sửa, Nhân bản, Lưu trữ/Khôi phục hoặc Xóa.</p></aside></div>`;
  $('#add-question').onclick=()=>openEditor();$('#import-bank').onclick=()=>$('#import-file').click();$('#import-file').onchange=importBank;
+ const btnBankExcel = $('#bank-download-excel-sample');
+ if (btnBankExcel) btnBankExcel.onclick = () => downloadBankExcelSample(bankGradeForSample());
  const btnBankJson = $('#bank-download-json-sample');
  if (btnBankJson) btnBankJson.onclick = () => downloadBankJsonSample(bankGradeForSample());
  const btnBankMd = $('#bank-download-md-sample');
  if (btnBankMd) btnBankMd.onclick = () => downloadBankMdSample(bankGradeForSample());
- const btnBankPrompt = $('#bank-copy-prompt');
- if (btnBankPrompt) btnBankPrompt.onclick = () => copyBankAiPrompt(bankGradeForSample());
+ const btnBankPrompt = $('#bank-open-ai-prompt-dialog');
+ if (btnBankPrompt) btnBankPrompt.onclick = () => openBankAiPromptDialog(bankGradeForSample());
  $('#export-bank-lms').onclick=()=>{const ids=[...store.selected];const g=store.filters.grade;const url='/api/bank/export-lms?'+(ids.length?'ids='+ids.join(','):(g?'grade='+g:''));window.open(apiUrl(url),'_blank');};
  ['grade','lesson','type','level','section','status'].forEach(k=>$('#filter-'+k).onchange=ev=>{store.filters[k]=ev.target.value;store.page=1;if(k==='grade'){store.filters.lesson='';$('#filter-lesson').innerHTML=lessonFilterOptions();}renderBankList();});
  $('#filter-search').oninput=ev=>{store.filters.search=ev.target.value;store.page=1;renderBankList();};$('#clear-selection').onclick=()=>{store.selected.clear();renderBankList();};
@@ -1484,10 +1695,52 @@ async function importBank(event){
   if(!file)return;
   const ext=file.name.toLowerCase().split('.').pop();
   try{
+    const g=Number(store.filters.grade)||Number(store.ppctGrade)||9;
+    const s=store.selectedSubject||store.ppctSubject||subject()||'Tin học';
+
+    if(typeof TableFileHelper !== 'undefined') {
+      const res = await TableFileHelper.readTableFile(file);
+      if(res.type === 'table') {
+        const parsed = TableFileHelper.parseQuestionsFromRows(res.rows, g, s);
+        if(!parsed.length){
+          notify('Không tìm thấy câu hỏi hợp lệ trong bảng tính. Hãy bấm "📊 Tải mẫu câu hỏi (Excel)" để xem mẫu 11 cột chuẩn.', true);
+          return;
+        }
+        if(!confirm(`Tìm thấy ${parsed.length} câu hỏi từ tệp bảng tính (${file.name}). Bạn có muốn nạp vào Ngân hàng câu hỏi?`)) return;
+        await mutate('/api/bank/import', { bank: { questions: parsed } }, () => {
+          render();
+          notify(`Đã nạp thành công ${parsed.length} câu hỏi từ tệp Excel (${file.name}). Câu mới ở trạng thái Nháp, cần kiểm định trước khi ra đề.`);
+        });
+        return;
+      } else if(res.type === 'json') {
+        let bank = res.data;
+        if(Array.isArray(bank)) bank = { questions: bank };
+        else if(bank && bank.bank) bank = bank.bank;
+        if(!confirm('Nhập ngân hàng từ tệp JSON này? Ứng dụng sẽ kiểm tra dữ liệu và sao lưu trước khi ghi. PPCT gốc được giữ theo danh mục đang có.')) return;
+        await mutate('/api/bank/import', { bank }, () => {
+          render();
+          notify('Đã nhập ngân hàng từ JSON thành công và lưu bản sao trước thay đổi.');
+        });
+        return;
+      } else if(res.type === 'markdown' || res.type === 'text') {
+        const text = res.text;
+        const parsed = parseQuestionsFromRawText(text, g, s);
+        if(!parsed.length){
+          notify('Không tìm thấy câu hỏi hợp lệ trong tệp Markdown. Bấm "📝 Tải mẫu câu hỏi (Markdown)" để xem định dạng chuẩn.', true);
+          return;
+        }
+        if(!confirm(`Tìm thấy ${parsed.length} câu hỏi từ tệp Markdown (${file.name}). Bạn có muốn nạp vào Ngân hàng câu hỏi?`)) return;
+        await mutate('/api/bank/import', { bank: { questions: parsed } }, () => {
+          render();
+          notify(`Đã nhập ${parsed.length} câu hỏi từ Markdown. Câu mới ở trạng thái Nháp, cần kiểm định trước khi ra đề.`);
+        });
+        return;
+      }
+    }
+
+    // Fallback nếu chưa load được TableFileHelper
     if(ext==='md'||ext==='txt'){
       const text=await file.text();
-      const g=Number(store.filters.grade)||9;
-      const s=store.selectedSubject||store.ppctSubject||'Tin học';
       const parsed=parseQuestionsFromRawText(text,g,s);
       if(!parsed.length){
         notify('Không tìm thấy câu hỏi hợp lệ trong tệp Markdown. Bấm "📝 Tải mẫu câu hỏi (Markdown)" để xem định dạng chuẩn.',true);
@@ -2065,23 +2318,24 @@ function ppctImportCard(g){
    ? `<div class="ppct-section-header" style="margin-top:16px"><h3>Mục II.2 · Chuyên đề học tập lựa chọn THPT (${electivePreviewList.length} chuyên đề · ${previewCompliance?.electivePeriods || 0} tiết${previewCompliance?.orientations?.length ? ' · ' + esc(previewCompliance.orientations.join(', ')) : ''})</h3></div><div class="table-wrap"><table class="ppct-table ppct-khdh-table ppct-elective-table"><thead><tr><th class="ppct-col-week">STT / Tuần</th><th class="ppct-col-lesson">Chuyên đề học tập</th><th class="ppct-col-duration">Số tiết</th><th class="ppct-col-outcomes">Yêu cầu cần đạt</th><th class="ppct-col-nls">Phát triển năng lực số &amp; AI</th><th class="ppct-col-notes">Ghi chú</th></tr></thead><tbody>${electiveRowsHtml}</tbody></table></div>`
    : '';
 
- return `<div class="card"><h2>Nhập PPCT từ JSON, Markdown hoặc Word</h2>
-  <p class="muted">Khuyên dùng <strong>JSON</strong> (chuẩn xác 100%) hoặc <strong>Markdown (.md)</strong> (dễ đọc/sửa) đủ <strong>7 cột chuẩn Phụ lục I (CV 5512, TT 02/2025 &amp; QĐ 2422)</strong>${isHighSchoolView ? ' kèm <strong>Bảng II.2 Chuyên đề lựa chọn THPT</strong> (TT 32/2018 &amp; TT 22/2021)' : ''} để nạp tức thì và tránh lỗi định dạng ngầm của Word. Vẫn hỗ trợ tệp Word KHDH Phụ lục 1 (.docx). Khối lớp tự động nhận diện theo tên tệp hoặc theo Khối ${esc(g)} đang chọn.</p>
+ return `<div class="card"><h2>Nhập PPCT từ Excel, JSON, Markdown hoặc Word</h2>
+  <p class="muted">Khuyên dùng <strong>Excel (.xlsx / .csv)</strong> (phổ biến và thuận tiện nhất cho giáo viên mọi bộ môn) hoặc <strong>JSON / Markdown</strong> đủ <strong>7 cột chuẩn Phụ lục I (CV 5512, TT 02/2025 &amp; QĐ 2422)</strong>${isHighSchoolView ? ' kèm <strong>Bảng II.2 Chuyên đề lựa chọn THPT</strong> (TT 32/2018 &amp; TT 22/2021)' : ''} để nạp tức thì và bảo đảm chính xác 100%. Vẫn hỗ trợ tệp Word KHDH Phụ lục 1 (.docx). Khối lớp tự động nhận diện theo tên tệp hoặc theo Khối ${esc(g)} đang chọn.</p>
   <div style="background:#eef6fd;border:1px solid #c6daed;border-radius:8px;padding:12px 16px;margin:12px 0;color:#1e293b;font-size:13px;line-height:1.6">
-    <strong>🤖 Hướng dẫn thầy/cô dùng AI (Gemini / ChatGPT / Claude) chuyển Word sang JSON để tải lên:</strong>
+    <strong>🤖 Hướng dẫn thầy/cô dùng AI (Gemini / ChatGPT / Claude) chuyển Word sang Excel / JSON để tải lên:</strong>
     <ol style="margin:6px 0 0;padding-left:20px">
-      <li>Bấm nút <strong>📋 Chép Prompt AI chuyển Word → JSON</strong> bên dưới (Prompt tự động điều chỉnh theo cấp THCS / THPT).</li>
-      <li>Mở <strong>Gemini</strong>, <strong>ChatGPT</strong> hoặc <strong>Claude</strong>, dán câu lệnh (Prompt) vào khung chat rồi <strong>đính kèm tệp Word KHDH Phụ lục 1 (<code>.docx</code>)</strong> (hoặc copy cả bảng PPCT ${isHighSchoolView ? 'và bảng Chuyên đề lựa chọn ' : ''}trong Word dán xuống cuối câu lệnh) và gửi.</li>
-      <li>Lưu đoạn mã <strong>JSON</strong> AI trả về thành tệp đuôi <strong><code>.json</code></strong> <em>(ví dụ: <code>ppct_khoi_${esc(g)}.json</code>)</em>.</li>
-      <li>Bấm <strong>Choose File</strong> bên dưới để chọn tệp <code>.json</code> vừa lưu → bấm <strong>Đọc và đối chiếu</strong> → kiểm tra bảng xem trước rồi bấm <strong>Xác nhận nhập</strong>.</li>
+      <li>Bấm nút <strong>📋 Chép Prompt AI chuyển Word → Excel/JSON</strong> bên dưới.</li>
+      <li>Mở <strong>Gemini</strong> hoặc <strong>ChatGPT</strong>, dán câu lệnh (Prompt) vào khung chat rồi <strong>đính kèm tệp Word KHDH Phụ lục 1 (<code>.docx</code>)</strong> (hoặc copy bảng PPCT trong Word dán vào) và gửi.</li>
+      <li>Sao chép bảng kết quả AI trả về dán vào Excel rồi lưu thành tệp <strong><code>.xlsx</code> / <code>.csv</code></strong> (hoặc lưu mã JSON thành tệp <code>.json</code>).</li>
+      <li>Bấm <strong>Choose File</strong> bên dưới để chọn tệp vừa lưu → bấm <strong>Đọc và đối chiếu</strong> → kiểm tra bảng xem trước rồi bấm <strong>Xác nhận nhập</strong>.</li>
     </ol>
   </div>
-  <div style="display:flex;gap:10px;margin:10px 0 14px;flex-wrap:wrap">
-    <button type="button" class="button quiet" id="ppct-download-json-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📥 Tải mẫu PPCT (JSON)</button>
-    <button type="button" class="button quiet" id="ppct-download-md-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📝 Tải mẫu PPCT (Markdown)</button>
-    <button type="button" class="button quiet" id="ppct-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI chuyển Word → JSON</button>
+  <div style="display:flex;gap:10px;margin:10px 0 14px;flex-wrap:wrap;align-items:center">
+    <button type="button" class="button" id="ppct-download-excel-sample" style="background:#15803d;color:#fff;border-color:#15803d;padding:6px 12px;font-size:12px;font-weight:700">📊 Tải mẫu PPCT (Excel)</button>
+    <button type="button" class="button quiet" id="ppct-download-json-sample" style="color:#0267b1;padding:6px 12px;font-size:12px;font-weight:600">📥 Tải mẫu PPCT (JSON)</button>
+    <button type="button" class="button quiet" id="ppct-download-md-sample" style="color:#0267b1;padding:6px 12px;font-size:12px;font-weight:600">📝 Tải mẫu PPCT (Markdown)</button>
+    <button type="button" class="button quiet" id="ppct-copy-prompt" style="color:#0267b1;padding:6px 12px;font-size:12px;font-weight:600">📋 Chép Prompt AI chuyển Word → Excel/JSON</button>
   </div>
-  <div class="actions"><input type="file" id="ppct-import-file" accept=".docx,.json,.md,.txt"><button type="button" class="button" id="ppct-import-inspect">Đọc và đối chiếu</button>
+  <div class="actions"><input type="file" id="ppct-import-file" accept=".xlsx,.xls,.csv,.tsv,.docx,.json,.md,.txt"><button type="button" class="button" id="ppct-import-inspect">Đọc và đối chiếu</button>
   ${r?`<button type="button" class="primary" id="ppct-import-apply" ${sm.new+sm.changed?'':'disabled'}>Xác nhận nhập (${sm.new+sm.changed} mục)</button><button type="button" class="quiet" id="ppct-import-cancel">Hủy</button>`:''}</div>
   ${r?`<p class="callout">Tệp ${esc(r.filename||'Đã nạp')} · Khối ${gradesList.map(esc).join(', ')} · Đọc được ${corePreviewList.length} mục cốt lõi${electivePreviewList.length ? ` và ${electivePreviewList.length} chuyên đề lựa chọn` : ''} (tổng ${lessonsList.length} mục). Hãy kiểm tra lại nội dung bên dưới trước khi bấm Xác nhận nhập.${sm.conflict ? ` ⚠️ Có ${sm.conflict} mục xung đột sẽ bị bỏ qua.` : ''}</p>
   ${renderPpctComplianceBanner(previewCompliance)}
@@ -2092,13 +2346,29 @@ function ppctImportCard(g){
 function bindPpctImport(g){
  const read=async()=>{
    const file=$('#ppct-import-file')?.files?.[0];
-   if(!file)throw new Error('Chọn tệp JSON, Markdown (.md) hoặc Word (.docx) trước.');
+   if(!file)throw new Error('Chọn tệp Excel (.xlsx, .csv), JSON, Markdown (.md) hoặc Word (.docx) trước.');
 
    // Nhận diện Khối lớp tự động từ tên tệp (ví dụ: TIN 9, KHOI 9, LOP 9, K9)
    let detectedGrade = Number(g || store.ppctGrade || 9);
    const mGrade = file.name.match(/(?:TIN|KHỐI|KHOI|LỚP|LOP|K)\s*(\d+)/i);
    if (mGrade) {
      detectedGrade = Number(mGrade[1]);
+   }
+
+   const ext = file.name.toLowerCase().split('.').pop();
+
+   // Ưu tiên số 1: Excel (.xlsx, .csv, .tsv)
+   if (ext === 'xlsx' || ext === 'xls' || ext === 'csv' || ext === 'tsv') {
+     if (typeof TableFileHelper !== 'undefined') {
+       const res = await TableFileHelper.readTableFile(file);
+       if (res.type === 'table') {
+         const parsedLessons = TableFileHelper.parsePpctFromRows(res.rows, detectedGrade, subject());
+         if (!parsedLessons.length) {
+           throw new Error(`Không tìm thấy cấu trúc bảng PPCT 7 cột hợp lệ trong tệp ${file.name}. Bấm nút "📊 Tải mẫu PPCT (Excel)" để xem mẫu chuẩn.`);
+         }
+         return { filename: file.name, grade: detectedGrade, subject_name: subject(), json: { lessons: parsedLessons } };
+       }
+     }
    }
 
    if(file.name.toLowerCase().endsWith('.json')) {
@@ -2171,6 +2441,19 @@ function bindPpctImport(g){
  };
  const cancel=$('#ppct-import-cancel');
  if(cancel)cancel.onclick=()=>{store.ppctImport=null;renderPPCT();};
+
+ const dlExcel = $('#ppct-download-excel-sample');
+ if (dlExcel) {
+   dlExcel.onclick = () => {
+     const curGrade = Number(g || store.ppctGrade || 9);
+     if (typeof TableFileHelper !== 'undefined') {
+       const rows = TableFileHelper.getSamplePpctRows(curGrade, subject());
+       TableFileHelper.downloadCsv(rows, `Mau_PPCT_Excel_KHDH_${C.normalize(subject()).replace(/\s+/g, '_')}_${curGrade}_2026-2027.csv`);
+     } else {
+       notify('Bộ công cụ bảng tính đang nạp, vui lòng thử lại sau giây lát.', true);
+     }
+   };
+ }
 
  const dlJson = $('#ppct-download-json-sample');
  if (dlJson) {

@@ -280,14 +280,13 @@ def validate_matrix(matrix, ppct, for_lock=False):
             except ServiceError:error('points','slots','Điểm mỗi ý phải là số hữu hạn.')
             code = p.get('indicator')
             if isinstance(code, str): code = code.strip()
-            if code:
-                ind = indicators.get(code) if isinstance(code, str) else None
-                location = f"Câu {n} ({kind})" + (f" · ý {p['label']}" if p.get('label') else '')
-                path = f"slots.{sid}.parts.{pid}.indicator"
-                if not ind:
-                    error('indicator', path, f'{location}: mã chỉ báo “{code}” không có trong danh mục.')
-                elif ind and r and ind.get('competency') != r.get('competency'):
-                    error('indicator', path, f"{location}: mã “{code}” thuộc năng lực {ind.get('competency')}, không khớp năng lực {r.get('competency')} của YCCĐ {rid}.")
+            if ('competency_catalog' in m and (bool(arrays['indicator_catalog']) or code is not None and code != '')) or (m.get('profile')=='THPT' and (indicators_required or code is not None and code != '')):
+                ind=indicators.get(code) if isinstance(code,str) else None
+                location=f"Câu {n} ({kind})"+(f" · ý {p['label']}" if p.get('label') else '')
+                path=f"slots.{sid}.parts.{pid}.indicator"
+                if not code:error('indicator',path,location+': chưa chọn mã chỉ báo trong danh mục.')
+                elif not ind:error('indicator',path,f'{location}: mã chỉ báo “{code}” không có trong danh mục.')
+                elif r and ind.get('competency')!=r.get('competency'):error('indicator',path,f"{location}: mã “{code}” thuộc năng lực {ind.get('competency')}, không khớp năng lực {r.get('competency')} của YCCĐ {rid}.")
     for kind,ns in numbers.items():
         if sorted(ns)!=list(range(1,len(ns)+1)):error('number_sequence','slots','Số câu trong mỗi dạng phải liên tục và không trùng.')
     if total!=10:error('total','slots','Phân bố hiện tại chưa đủ đúng 10 điểm.')

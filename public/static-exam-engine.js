@@ -150,34 +150,13 @@
         if(!r)error('unknown_requirement','slots','Vị trí chưa gắn YCCĐ hợp lệ.');
         if(!/^[a-z]?$/.test(p.label||''))error('labels','slots','Nhãn ý không hợp lệ.');
         if(!positive(p.points))error('points','slots','Điểm mỗi ý phải hữu hạn và lớn hơn 0.');else total+=Number(p.points);
-        let indicator=typeof p.indicator==='string'?p.indicator.trim():p.indicator;
-        if((m.profile==='THPT'||m.competency_catalog?.length)&&(indicatorsRequired||arrays.indicator_catalog.length>0||indicator!==undefined&&indicator!==null&&indicator!=='')){
-          if(!arrays.indicator_catalog.length){
-            const defaultInds=[
-              { code: 'NLa.1', competency: 'NLa', text: 'Nhận diện, phân biệt thiết bị số, phần mềm.' },
-              { code: 'NLb.1', competency: 'NLb', text: 'Ứng xử an toàn, tuân thủ pháp luật và văn hoá giao tiếp trên mạng.' },
-              { code: 'NLc.1', competency: 'NLc', text: 'Mô tả ý tưởng thuật toán, phân tích bài toán và giải quyết vấn đề.' },
-              { code: 'NLd.1', competency: 'NLd', text: 'Khai thác học liệu số, tự học và mở rộng kiến thức.' },
-              { code: 'NLe.1', competency: 'NLe', text: 'Hợp tác trong môi trường số.' }
-            ];
-            arrays.indicator_catalog = defaultInds;
-            if(Array.isArray(m.indicator_catalog)&&!m.indicator_catalog.length)m.indicator_catalog = defaultInds;
-          }
-          let match=typeof indicator==='string'&&arrays.indicator_catalog.find(i=>typeof i.code==='string'&&i.code.trim()===indicator);
-          if(!indicator){
-            const targetComp=r?.competency||'NLa';
-            const autoMatch=arrays.indicator_catalog.find(i=>i.competency===targetComp)||arrays.indicator_catalog[0];
-            if(autoMatch){
-              p.indicator=autoMatch.code;
-              indicator=autoMatch.code;
-              match=autoMatch;
-            }
-          }
+        const indicator=typeof p.indicator==='string'?p.indicator.trim():p.indicator;
+        if(indicator){
           const location=`Câu ${s.number} (${s.kind})${p.label?' · ý '+p.label:''}`;
           const path=`slots.${s.id}.parts.${p.id}.indicator`;
-          if(!indicator)error('indicator',path,`${location}: chưa chọn mã chỉ báo trong danh mục.`);
-          else if(!match)error('indicator',path,`${location}: mã chỉ báo “${String(indicator)}” không có trong danh mục.`);
-          else if(r&&match.competency!==r.competency)error('indicator',path,`${location}: mã “${indicator}” thuộc năng lực ${match.competency}, không khớp năng lực ${r.competency} của YCCĐ ${r.id}.`);
+          const match=arrays.indicator_catalog.find(i=>typeof i.code==='string'&&i.code.trim()===indicator);
+          if(!match)error('indicator',path,`${location}: mã chỉ báo “${String(indicator)}” không có trong danh mục.`);
+          else if(match&&r&&match.competency!==r.competency)error('indicator',path,`${location}: mã “${indicator}” thuộc năng lực ${match.competency}, không khớp năng lực ${r.competency} của YCCĐ ${r.id}.`);
         }
         if(m.mode==='received'&&'source_index' in p&&(!r||r.source_index!==p.source_index||r.level!==p.source_level||('source_competency' in p&&r.competency!==p.source_competency)))error('received_scope','slots','Phạm vi khác nguồn đã đối chiếu.');
       }

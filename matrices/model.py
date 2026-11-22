@@ -280,29 +280,14 @@ def validate_matrix(matrix, ppct, for_lock=False):
             except ServiceError:error('points','slots','Điểm mỗi ý phải là số hữu hạn.')
             code = p.get('indicator')
             if isinstance(code, str): code = code.strip()
-            if ('competency_catalog' in m and (bool(arrays['indicator_catalog']) or code is not None and code != '')) or (m.get('profile')=='THPT' and (indicators_required or code is not None and code != '')):
-                if not arrays['indicator_catalog']:
-                    from .competency_catalog import preset_catalog_for_subject
-                    preset = preset_catalog_for_subject(m.get('subject_name') or 'Tin học')
-                    if preset and preset.get('indicators'):
-                        arrays['indicator_catalog'] = copy.deepcopy(preset['indicators'])
-                        m['indicator_catalog'] = copy.deepcopy(preset['indicators'])
-                        indicators = {r['code'].strip(): r for r in arrays['indicator_catalog'] if isinstance(r.get('code'), str) and r['code'].strip()}
+            if code:
                 ind = indicators.get(code) if isinstance(code, str) else None
-                if not code:
-                    target_comp = r.get('competency', 'NLa') if r else 'NLa'
-                    auto_ind = next((i for i in arrays['indicator_catalog'] if i.get('competency') == target_comp), None)
-                    if not auto_ind and arrays['indicator_catalog']:
-                        auto_ind = arrays['indicator_catalog'][0]
-                    if auto_ind:
-                        code = auto_ind['code']
-                        p['indicator'] = code
-                        ind = auto_ind
-                location=f"Câu {n} ({kind})"+(f" · ý {p['label']}" if p.get('label') else '')
-                path=f"slots.{sid}.parts.{pid}.indicator"
-                if not code:error('indicator',path,location+': chưa chọn mã chỉ báo trong danh mục.')
-                elif not ind:error('indicator',path,f'{location}: mã chỉ báo “{code}” không có trong danh mục.')
-                elif r and ind.get('competency')!=r.get('competency'):error('indicator',path,f"{location}: mã “{code}” thuộc năng lực {ind.get('competency')}, không khớp năng lực {r.get('competency')} của YCCĐ {rid}.")
+                location = f"Câu {n} ({kind})" + (f" · ý {p['label']}" if p.get('label') else '')
+                path = f"slots.{sid}.parts.{pid}.indicator"
+                if not ind:
+                    error('indicator', path, f'{location}: mã chỉ báo “{code}” không có trong danh mục.')
+                elif ind and r and ind.get('competency') != r.get('competency'):
+                    error('indicator', path, f"{location}: mã “{code}” thuộc năng lực {ind.get('competency')}, không khớp năng lực {r.get('competency')} của YCCĐ {rid}.")
     for kind,ns in numbers.items():
         if sorted(ns)!=list(range(1,len(ns)+1)):error('number_sequence','slots','Số câu trong mỗi dạng phải liên tục và không trùng.')
     if total!=10:error('total','slots','Phân bố hiện tại chưa đủ đúng 10 điểm.')

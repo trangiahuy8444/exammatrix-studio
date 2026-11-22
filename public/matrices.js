@@ -420,26 +420,41 @@
   function splitQuestionRequirements(m, targetLessonCode = null, targetLevel = null) {
     if (!m || !Array.isArray(m.slots) || !Array.isArray(m.requirements)) return 0;
     const reqMap = new Map(m.requirements.map(r => [r.id, r]));
+    // Group by (lessonCode|level), where each item in a group is { slot, parts: [part, ...] }
     const groups = new Map();
     m.slots.forEach(s => {
       if (!s || !Array.isArray(s.parts) || !s.parts.length) return;
-      const r0 = reqMap.get(s.parts[0]?.requirement_id);
-      if (!r0) return;
-      if (targetLessonCode && r0.lesson_code !== targetLessonCode) return;
-      if (targetLevel && r0.level !== targetLevel) return;
-      const key = r0.lesson_code + '|' + r0.level;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(s);
+      const byKeyInSlot = new Map();
+      s.parts.forEach(p => {
+        const r = reqMap.get(p?.requirement_id);
+        if (!r) return;
+        if (targetLessonCode && r.lesson_code !== targetLessonCode) return;
+        if (targetLevel && r.level !== targetLevel) return;
+        const key = r.lesson_code + '|' + r.level;
+        if (!byKeyInSlot.has(key)) byKeyInSlot.set(key, []);
+        byKeyInSlot.get(key).push(p);
+      });
+      byKeyInSlot.forEach((partsForKey, key) => {
+        if (!groups.has(key)) groups.set(key, []);
+        // If YN has multiple parts in the same level (e.g. 1a, 1b both Biết), split each part or keep per-slot?
+        // For YN, if a single YN question has multiple statements at the same level (e.g., 1a and 1b), splitting per statement or per question:
+        if (s.kind === 'YN' && partsForKey.length > 1) {
+          partsForKey.forEach(p => groups.get(key).push({ slot: s, parts: [p] }));
+        } else {
+          groups.get(key).push({ slot: s, parts: partsForKey });
+        }
+      });
     });
+
     let splitCount = 0;
-    groups.forEach((slotList, key) => {
-      if (slotList.length <= 1) return;
+    groups.forEach((itemList, key) => {
+      if (itemList.length <= 1) return;
       const [lessonCode, level] = key.split('|');
       const existingReqs = m.requirements.filter(r => r.lesson_code === lessonCode && r.level === level);
-      if (existingReqs.length >= slotList.length) {
-        slotList.forEach((s, idx) => {
+      if (existingReqs.length >= itemList.length) {
+        itemList.forEach((item, idx) => {
           const targetReq = existingReqs[Math.min(idx, existingReqs.length - 1)];
-          if (targetReq) s.parts.forEach(p => { p.requirement_id = targetReq.id; });
+          if (targetReq) item.parts.forEach(p => { p.requirement_id = targetReq.id; });
         });
         return;
       }
@@ -451,15 +466,31 @@
         ppct_outcome_index: 0,
         choice_group: null
       };
-      const bulletLines = existingReqs
-        .flatMap(r => String(r.text || '').split(/\r?\n|(?<=\.)\s*(?=[–\-•+]\s*)/))
+      const clauses = existingReqs
+        .flatMap(r => String(r.text || '').split(/\r?\n|;\s+|(?<=\.)\s*(?=[–\-•+]\s*)/))
         .map(line => line.replace(/^[–\-•+]\s*/, '').trim())
         .filter(Boolean);
       const firstIdxInAll = m.requirements.findIndex(r => r.lesson_code === lessonCode && r.level === level);
-      const newReqs = slotList.map((s, idx) => {
+      const newReqs = itemList.map((item, idx) => {
+        const s = item.slot;
+        const pLabels = item.parts.map(p => p.label || '').filter(Boolean).join(', ');
         const oldR = existingReqs[idx];
-        const qLabel = s.kind === 'ES' ? `Câu ${s.number} TL` : s.kind === 'YN' ? `Câu ${s.number} Đ/S` : s.kind === 'SHORT' ? `Câu ${s.number} TLN` : `Câu ${s.number}`;
-        const defaultObjText = oldR?.text || bulletLines[idx] || bulletLines[0] || baseReq.text || `Mục tiêu đánh giá của ${qLabel}.`;
+        const qLabel = s.kind === 'ES'
+          ? `Câu ${s.number} TL`
+          : s.kind === 'YN'
+            ? `Câu ${s.number}${pLabels ? pLabels : ''} Đ/S`
+            : s.kind === 'SHORT'
+              ? `Câu ${s.number} TLN`
+              : `Câu ${s.number}`;
+        let defaultObjText = '';
+        if (oldR?.text && existingReqs.length > 1) {
+          defaultObjText = oldR.text;
+        } else if (clauses[idx]) {
+          defaultObjText = clauses[idx];
+        } else {
+          const baseText = clauses[0] || baseReq.text || `Yêu cầu cần đạt mức ${level}`;
+          defaultObjText = `${baseText} (Mục tiêu ${qLabel})`;
+        }
         const reqObj = {
           id: oldR?.id || uid('R'),
           lesson_code: lessonCode,
@@ -469,7 +500,7 @@
           ppct_outcome_index: Number.isInteger(oldR?.ppct_outcome_index) ? oldR.ppct_outcome_index : (Number.isInteger(baseReq.ppct_outcome_index) ? baseReq.ppct_outcome_index : 0),
           choice_group: oldR?.choice_group ?? null
         };
-        s.parts.forEach(p => { p.requirement_id = reqObj.id; });
+        item.parts.forEach(p => { p.requirement_id = reqObj.id; });
         return reqObj;
       });
       if (m.custom_level_refs) delete m.custom_level_refs[key];
@@ -485,14 +516,19 @@
   function fillLessonPpctRequirements(m, lessonCode) {
     if (!m) return;
     const pl = lessons(m.grade).find(l => l.lesson_code === lessonCode);
-    const outcomes = Array.isArray(pl?.outcomes) ? pl.outcomes.filter(Boolean) : [];
+    const presetLessonReqs = (STANDARD_PRESETS[String(m.grade)]?.requirements || []).filter(r => r.lesson_code === lessonCode);
+    const outcomes = Array.isArray(pl?.outcomes) && pl.outcomes.filter(Boolean).length
+      ? pl.outcomes.filter(Boolean)
+      : presetLessonReqs.map(r => r.text).filter(Boolean);
     if (!outcomes.length) return;
 
     const reqMap = new Map((m.requirements || []).map(r => [r.id, r]));
     const usedLevels = new Set();
     (m.slots || []).forEach(s => {
-      const r = reqMap.get(s.parts?.[0]?.requirement_id);
-      if (r && r.lesson_code === lessonCode) usedLevels.add(r.level);
+      (s.parts || []).forEach(p => {
+        const r = reqMap.get(p?.requirement_id);
+        if (r && r.lesson_code === lessonCode) usedLevels.add(r.level);
+      });
     });
     if (!usedLevels.size) {
       usedLevels.add('Biết');
@@ -504,21 +540,31 @@
     const activeLevels = order.filter(lvl => usedLevels.has(lvl));
 
     activeLevels.forEach((lvl, idx) => {
-      const outcome = outcomes[idx] || outcomes[outcomes.length - 1] || outcomes[0];
+      const presetForLvl = presetLessonReqs.find(r => r.level === lvl);
+      const outcome = presetForLvl?.text || outcomes[idx] || outcomes[outcomes.length - 1] || outcomes[0];
       const levelReqs = (m.requirements || []).filter(req => req.lesson_code === lessonCode && req.level === lvl);
       if (levelReqs.length) {
-        levelReqs.forEach((r, rIdx) => {
-          r.text = outcomes[(idx + rIdx) % outcomes.length] || outcome;
-          r.ppct_outcome_index = Math.min(idx, outcomes.length - 1);
-        });
+        const primaryReq = levelReqs[0];
+        primaryReq.text = outcome;
+        primaryReq.ppct_outcome_index = Math.min(idx, Math.max(0, (pl?.outcomes?.length || 1) - 1));
+        delete primaryReq.custom_refs;
+        if (levelReqs.length > 1) {
+          const oldIds = new Set(levelReqs.map(r => r.id));
+          (m.slots || []).forEach(s => {
+            (s.parts || []).forEach(p => {
+              if (oldIds.has(p.requirement_id)) p.requirement_id = primaryReq.id;
+            });
+          });
+          m.requirements = m.requirements.filter(r => !(r.lesson_code === lessonCode && r.level === lvl && r.id !== primaryReq.id));
+        }
       } else {
         m.requirements.push({
           id: uid('R'),
           lesson_code: lessonCode,
           level: lvl,
           text: outcome,
-          competency: competencies()[0] || 'NLa',
-          ppct_outcome_index: Math.min(idx, outcomes.length - 1)
+          competency: presetForLvl?.competency || competencies()[0] || 'NLa',
+          ppct_outcome_index: Math.min(idx, Math.max(0, (pl?.outcomes?.length || 1) - 1))
         });
       }
     });

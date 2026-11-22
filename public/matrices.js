@@ -304,7 +304,16 @@
     const addedCodes = new Set((m.lessons || []).map(x => x.lesson_code));
     const availPpctLessons = allPpctLessons.filter(l => !addedCodes.has(l.lesson_code));
     const firstAvailCode = availPpctLessons[0]?.lesson_code || '';
-    const vdVdcPts = Math.max(0, totalScore - (tot_mc_b + tot_mc_h) * 0.25);
+    let knowPts = 0, underPts = 0, applyPts = 0;
+    (m.slots || []).forEach(s => {
+      (s.parts || []).forEach(p => {
+        const r = reqMap.get(p.requirement_id);
+        const pts = Number(p.points || 0);
+        if (r?.level === 'Biết') knowPts += pts;
+        else if (r?.level === 'Hiểu') underPts += pts;
+        else applyPts += pts;
+      });
+    });
 
     return `
       <div class="card" style="border:1px solid #c2dbf1;background:#fafdff;margin-bottom:20px;padding:20px">
@@ -314,7 +323,7 @@
             <p style="margin:0;font-size:13px;color:var(--muted)">Nhập trực tiếp số câu vào từng ô theo từng mức độ nhận thức. Hệ thống tự động tính điểm và đồng bộ vào danh sách câu hỏi chi tiết.</p>
           </div>
           <div class="actions">
-            <button type="button" data-action="apply-preset" title="Điền nhanh mẫu 5 bài đầu học kì (28 câu TN + 3 câu TL = 10.0 điểm) chuẩn Trường Quốc tế Á Châu để tham khảo hoặc sửa nhanh">⚡ Điền mẫu tham khảo Giữa kì (5 bài · 10đ)</button>
+            <button type="button" data-action="apply-preset" title="${isTHPT ? 'Điền nhanh mẫu chuẩn THPT (Phần 1: 19 câu TN 4,75đ + Phần 2: 3 câu Đ/S 3,0đ + Phần 3: 3 câu TL 2,25đ = 10,0 điểm)' : 'Điền nhanh mẫu 5 bài đầu học kì (28 câu TN 7,0đ + 3 câu TL 3,0đ = 10,0 điểm)'}">${isTHPT ? '⚡ Điền mẫu THPT (19 TN + 3 Đ/S + 3 TL · 10đ)' : '⚡ Điền mẫu tham khảo Giữa kì (5 bài · 10đ)'}</button>
             <button type="button" data-action="sort-lessons-ppct" title="Tự động sắp xếp lại các bài học theo đúng thứ tự B1, B2, B3... của PPCT">⇅ Sắp xếp đúng thứ tự bài</button>
             <button type="button" class="danger quiet" data-action="clear-slots" title="Xóa trắng bài học và câu hỏi phân bố để làm lại từ đầu">🗑️ Làm trống ma trận</button>
           </div>
@@ -324,7 +333,7 @@
           <ol>
             <li><strong>Chọn bài</strong> ở ô "Chọn bài đưa vào ma trận" rồi bấm "+ Thêm bài đã chọn" (hoặc "+ Tự nhập bài mới"). Bài mới hiện thành một hàng trong bảng.</li>
             <li><strong>Nhập số câu</strong> vào từng ô theo dạng câu và mức độ nhận thức. Hệ thống tự cộng tổng số câu và tổng điểm ở hàng cuối.</li>
-            <li><strong>Điểm:</strong> mỗi câu trắc nghiệm nhiều lựa chọn là 0,25 điểm. Câu Đúng/Sai tính điểm theo thang bậc thang của CV 7991. Mục tiêu là <strong>tổng đúng 10,0 điểm</strong>; nếu thiếu hoặc vượt, hệ thống báo số điểm lệch.</li>
+            <li><strong>Điểm:</strong> mỗi câu trắc nghiệm nhiều lựa chọn là 0,25 điểm (${isTHPT ? 'THPT chuẩn 19 câu = 4,75đ; Đúng/Sai 3 câu × 1,0đ = 3,0đ; Tự luận 3 câu × 0,75đ = 2,25đ' : 'THCS chuẩn 28 câu = 7,0đ; Tự luận 3 câu × 1,0đ = 3,0đ'}). Câu Đúng/Sai tính điểm theo thang bậc thang của CV 7991. Mục tiêu là <strong>tổng đúng 10,0 điểm</strong>; nếu thiếu hoặc vượt, hệ thống báo số điểm lệch.</li>
             <li><strong>Mã câu:</strong> ở bảng đặc tả, mỗi mức độ có ô mã câu và ô năng lực để bạn sửa tay (có nút đặt lại về mặc định). Hãy ghi từng câu cụ thể, ví dụ <code>(1, 2, 3, 4)</code> hoặc <code>(1a, 1b)</code>, không ghi dải câu <code>(C1 - C4)</code>.</li>
             <li><strong>Khóa:</strong> sau khi đủ số liệu, khóa ma trận 2D rồi khóa bảng đặc tả. Hai bảng khóa độc lập nhau; bảng đã khóa không sửa được cho đến khi mở khóa.</li>
           </ol>
@@ -350,9 +359,9 @@
               <tr style="background:#0267B1;color:white;text-align:center">
                 <th rowspan="2" style="width:40px;padding:8px;border:1px solid #7ab6e2">TT</th>
                 <th rowspan="2" style="padding:8px;border:1px solid #7ab6e2;text-align:left">Bài học / Nội dung</th>
-                <th colspan="2" style="padding:6px;border:1px solid #7ab6e2">Phần I: TN nhiều lựa chọn (0.25đ/câu)</th>
-                ${isTHPT ? `<th rowspan="2" style="padding:6px;border:1px solid #7ab6e2">Phần II: Đúng/Sai (1.0đ/câu - 4 ý)</th>` : ''}
-                <th colspan="2" style="padding:6px;border:1px solid #7ab6e2">Phần ${isTHPT ? 'III' : 'II'}: Tự luận</th>
+                <th colspan="2" style="padding:6px;border:1px solid #7ab6e2">Phần 1: TN nhiều lựa chọn (0,25đ/câu · ${isTHPT ? '19 câu = 4,75đ' : '28 câu = 7,0đ'})</th>
+                ${isTHPT ? `<th rowspan="2" style="padding:6px;border:1px solid #7ab6e2">Phần 2: Đúng/Sai (1,0đ/câu - 4 ý · 3 câu = 3,0đ)</th>` : ''}
+                <th colspan="2" style="padding:6px;border:1px solid #7ab6e2">Phần ${isTHPT ? '3' : '2'}: Tự luận (${isTHPT ? '0,75đ/câu · 3 câu = 2,25đ' : '1,0đ/câu · 3 câu = 3,0đ'})</th>
                 <th rowspan="2" style="width:80px;padding:8px;border:1px solid #7ab6e2">Tổng câu</th>
                 <th rowspan="2" style="width:80px;padding:8px;border:1px solid #7ab6e2">Điểm số</th>
               </tr>
@@ -364,7 +373,7 @@
               </tr>
             </thead>
             <tbody>
-              ${lessonRows || `<tr><td colspan="${isTHPT ? 8 : 7}" style="text-align:center;padding:24px;color:var(--muted)">Ma trận đang trống. Hãy chọn từng bài học ở thanh phía trên rồi bấm <strong>+ Thêm bài đã chọn</strong> (hoặc bấm <strong>⚡ Điền mẫu tham khảo Giữa kì</strong>).</td></tr>`}
+              ${lessonRows || `<tr><td colspan="${isTHPT ? 8 : 7}" style="text-align:center;padding:24px;color:var(--muted)">Ma trận đang trống. Hãy chọn từng bài học ở thanh phía trên rồi bấm <strong>+ Thêm bài đã chọn</strong> (hoặc bấm <strong>⚡ Điền mẫu ${isTHPT ? 'THPT (19 TN + 3 Đ/S + 3 TL · 10đ)' : 'tham khảo Giữa kì'}</strong>).</td></tr>`}
             </tbody>
             <tfoot>
               <tr style="background:#eaf3fb;font-weight:700">
@@ -387,8 +396,9 @@
               : `<span style="display:inline-flex;align-items:center;gap:6px;background:#fce8e6;color:#c5221f;padding:5px 12px;border-radius:20px;font-weight:700">⚠️ Tổng điểm hiện tại: ${totalScore} / 10.0 điểm (${totalScore < 10 ? 'Thiếu ' + (10 - totalScore).toFixed(2) + 'đ' : 'Vượt ' + (totalScore - 10).toFixed(2) + 'đ'})</span>`
             }
           </div>
-          <div style="font-size:12px;color:var(--muted)">
-            Phân bố tỉ lệ: <strong>Nhận biết ${(tot_mc_b*0.25*10).toFixed(0)}%</strong> · <strong>Thông hiểu ${(tot_mc_h*0.25*10).toFixed(0)}%</strong> · <strong>Vận dụng + VDC ${(vdVdcPts*10).toFixed(0)}%</strong>
+          <div style="font-size:12px;color:var(--muted);text-align:right">
+            ${isTHPT ? `<div style="margin-bottom:2px;color:var(--navy)">Khung điểm: <strong>Phần 1 (TN): ${tot_mc_b + tot_mc_h}/19 câu (${((tot_mc_b + tot_mc_h) * 0.25).toFixed(2)}/4,75đ)</strong> · <strong>Phần 2 (Đ/S): ${tot_yn}/3 câu (${(tot_yn * 1.0).toFixed(2)}/3,00đ)</strong> · <strong>Phần 3 (TL): ${tot_es_vd + tot_es_vdc}/3 câu (${((tot_es_vd + tot_es_vdc) * 0.75).toFixed(2)}/2,25đ)</strong></div>` : ''}
+            Phân bố tỉ lệ: <strong>Nhận biết ${(knowPts*10).toFixed(0)}%</strong> · <strong>Thông hiểu ${(underPts*10).toFixed(0)}%</strong> · <strong>Vận dụng + VDC ${(applyPts*10).toFixed(0)}%</strong>
           </div>
         </div>
         <div style="margin-top:16px;padding-top:14px;border-top:1px dashed #c2dbf1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
@@ -857,14 +867,17 @@
       }
     }
     const kindNames={MC:'Nhiều lựa chọn',YN:'Đúng – Sai',SHORT:'Trả lời ngắn',ES:'Tự luận'};
+    const isAsianThptKind=byKind.SHORT<1e-9&&Math.abs(byKind.MC-4.75)<=tol+1e-9&&Math.abs(byKind.YN-3)<=tol+1e-9&&Math.abs(byKind.ES-2.25)<=tol+1e-9;
     const targets={MC:3,YN:2,SHORT:2,ES:3};
     if(byKind.SHORT<1e-9){targets.YN+=targets.SHORT;delete targets.SHORT;delete byKind.SHORT;}
     const fmt=n=>String(Math.round(n*1000)/1000).replace('.',',');
     const out=[];
-    for(const [k,t] of Object.entries(targets)){
-      const diff=byKind[k]-t;
-      if(Math.abs(diff)>tol+1e-9){
-        out.push({code:'ratio_kind',message:`${kindNames[k]}: ${fmt(byKind[k])} điểm; CV 7991 tham khảo khoảng ${fmt(t)} điểm (lệch ${fmt(Math.abs(diff))}, vượt ngưỡng nội bộ ±${fmt(tol)}). Chỉ là cảnh báo.`});
+    if(!isAsianThptKind){
+      for(const [k,t] of Object.entries(targets)){
+        const diff=byKind[k]-t;
+        if(Math.abs(diff)>tol+1e-9){
+          out.push({code:'ratio_kind',message:`${kindNames[k]}: ${fmt(byKind[k])} điểm; CV 7991 tham khảo khoảng ${fmt(t)} điểm (lệch ${fmt(Math.abs(diff))}, vượt ngưỡng nội bộ ±${fmt(tol)}). Chỉ là cảnh báo.`});
+        }
       }
     }
     for(const [lv,t] of Object.entries({'Biết':4,'Hiểu':3,'Vận dụng':3})){
@@ -888,16 +901,16 @@
     });
     const parts=[];
     if(isThpt&&!isTx){
-      parts.push('<div class="callout"><strong>Quy chuẩn THPT định kỳ (CV 7991 &amp; TT 22/2021 Điều 7.1):</strong> Tỉ lệ tham khảo dạng câu <em>MC 3đ · Đ/S 2đ · TLN 2đ · TL 3đ</em> (hoặc <em>MC 3đ · Đ/S 4đ · TL 3đ</em> nếu không dùng TLN); mức độ <em>Biết 4đ · Hiểu 3đ · VD+VDC 3đ</em>. Chỉ dùng bài <strong>Phần cốt lõi (Mục II.1)</strong>, không đưa Chuyên đề học tập vào kiểm tra giữa kỳ/cuối kỳ.</div>');
+      parts.push('<div class="callout"><strong>Khung điểm THPT Á Châu &amp; Quy chuẩn định kỳ (CV 7991 · TT 22/2021 Điều 7.1):</strong> <strong>Phần 1 (Câu hỏi trắc nghiệm MC):</strong> 19 câu = <strong>4,75 điểm</strong> (0,25đ/câu) · <strong>Phần 2 (Câu hỏi Đúng/Sai 4 ý):</strong> 3 câu = <strong>3,0 điểm</strong> (1,0đ/câu) · <strong>Phần 3 (Câu hỏi Tự luận):</strong> 3 câu = <strong>2,25 điểm</strong> (0,75đ/câu) — <strong>Tổng: 25 câu = 10,0 điểm</strong>; mức độ <em>Biết 4,0đ (40%) · Hiểu 3,0đ (30%) · VD+VDC 3,0đ (30%)</em>. Chỉ dùng bài <strong>Phần cốt lõi (Mục II.1)</strong>, không đưa Chuyên đề học tập vào kiểm tra giữa kỳ/cuối kỳ.</div>');
     }else if(isThpt&&isTx){
       parts.push('<div class="callout"><strong>Quy chuẩn THPT KTTX (TT 22/2021 Điều 6.3):</strong> Đánh giá thường xuyên được phép chọn bài <strong>Phần cốt lõi (Mục II.1)</strong> hoặc <strong>[CĐHT] Chuyên đề lựa chọn (Mục II.2)</strong>. Kết quả bài TX làm tròn đến số nguyên.</div>');
     }else{
-      parts.push('<div class="callout"><strong>Quy chuẩn THCS (Mẫu Á Châu · TT 22/2021):</strong> Gồm câu <strong>Trắc nghiệm (MC)</strong> và <strong>Tự luận (ES)</strong> phân bố theo 4 mức độ (Biết, Hiểu, Vận dụng, Vận dụng cao); cấp THCS không có Chuyên đề lựa chọn.</div>');
+      parts.push('<div class="callout"><strong>Quy chuẩn THCS (Mẫu Á Châu · TT 22/2021):</strong> <strong>Phần 1 (Trắc nghiệm MC):</strong> 28 câu = <strong>7,0 điểm</strong> (0,25đ/câu) · <strong>Phần 2 (Tự luận ES):</strong> 3 câu = <strong>3,0 điểm</strong> (1,0đ/câu) phân bố theo 4 mức độ (Biết, Hiểu, Vận dụng, Vận dụng cao); cấp THCS không có Chuyên đề lựa chọn.</div>');
     }
     if(!isTx&&electiveSelected.length){
       parts.push(`<div class="callout error"><strong>⚠️ Vi phạm phạm vi TT 22/2021 (Điều 7, khoản 1):</strong> Kỳ kiểm tra định kỳ (${E(m.exam_type)}) đang chứa ${electiveSelected.length} Chuyên đề lựa chọn (${electiveSelected.map(x=>E(x.lesson_code)).join(', ')}). Hãy chuyển sang kỳ <strong>Thường xuyên (TX)</strong> hoặc gỡ các Chuyên đề khỏi ma trận định kỳ.</div>`);
     }
-    const cvWarnings=computeCv7991Warnings(m);
+    const cvWarnings=(m.slots&&m.slots.length)?computeCv7991Warnings(m):[];
     if(cvWarnings.length){
       parts.push(`<div class="callout warning"><strong>Cảnh báo tỉ lệ tham khảo CV 7991 (không chặn lưu/khóa)</strong><ul>${cvWarnings.map(w=>`<li>${E(w.message)}</li>`).join('')}</ul></div>`);
     }
@@ -3121,12 +3134,13 @@
       format: 'asian-school-matrix',
       schema_version: 1,
       matrix: {
+        mode: 'authored',
         profile: 'THPT',
         grade: g,
         exam_type: 'GK1',
         duration: 45,
         school_year: '2026-2027',
-        title: `Ma trận & đặc tả Kiểm tra Giữa HK1 · Môn Tin học Khối ${g} (CV 7991)`,
+        title: `Ma trận & đặc tả Kiểm tra Giữa HK1 · Môn Tin học Khối ${g}`,
         owner_name: 'Tổ Tin học Á Châu',
         campus: 'Cao Thắng',
         total_points: 10,
@@ -3136,40 +3150,47 @@
         ],
         requirements: [
           { id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'Nhận biết khái niệm thông tin, dữ liệu và thiết bị số.', ppct_outcome_index: 0, competency: 'NLa' },
-          { id: 'R2', lesson_code: 'B1', level: 'Hiểu', text: 'Phân tích được quy trình xử lí và lưu trữ dữ liệu số.', ppct_outcome_index: 1, competency: 'NLb' },
+          { id: 'R2', lesson_code: 'B1', level: 'Hiểu', text: 'Phân tích được quy trình xử lí và lưu trữ dữ liệu số.', ppct_outcome_index: 0, competency: 'NLb' },
           { id: 'R3', lesson_code: 'B2', level: 'Vận dụng', text: 'Vận dụng biện pháp bảo mật, an toàn thông tin trong thực tiễn.', ppct_outcome_index: 0, competency: 'NLc' },
-          { id: 'R4', lesson_code: 'B2', level: 'Vận dụng cao', text: 'Đề xuất và tối ưu giải pháp bảo vệ hệ thống số.', ppct_outcome_index: 1, competency: 'NLc' }
+          { id: 'R4', lesson_code: 'B2', level: 'Vận dụng cao', text: 'Đề xuất và tối ưu giải pháp bảo vệ hệ thống số.', ppct_outcome_index: 0, competency: 'NLc' }
         ],
         indicator_catalog: [
           { code: 'NLa', competency: 'NLa', text: 'Sử dụng và quản lí thiết bị công nghệ thông tin.' },
           { code: 'NLb', competency: 'NLb', text: 'Ứng xử phù hợp và an toàn trong môi trường số.' },
           { code: 'NLc', competency: 'NLc', text: 'Giải quyết vấn đề với sự hỗ trợ của công nghệ thông tin.' }
         ],
+        reconciliation: { confirmed: true, issues: [] },
         slots: [
-          ...Array.from({ length: 8 }, (_, idx) => ({ id: `S${idx + 1}`, kind: 'MC', number: idx + 1, parts: [{ id: `P${idx + 1}`, label: '', requirement_id: 'R1', points: 0.25, indicator: 'NLa' }], scoring: { mode: 'sum_parts' } })),
-          ...Array.from({ length: 4 }, (_, idx) => ({ id: `S${idx + 9}`, kind: 'MC', number: idx + 9, parts: [{ id: `P${idx + 9}`, label: '', requirement_id: 'R2', points: 0.25, indicator: 'NLb' }], scoring: { mode: 'sum_parts' } })),
-          { id: 'S13', kind: 'YN', number: 1, parts: [
-            { id: 'P13a', label: 'a', requirement_id: 'R1', points: 0.25, indicator: 'NLa' },
-            { id: 'P13b', label: 'b', requirement_id: 'R2', points: 0.25, indicator: 'NLb' },
-            { id: 'P13c', label: 'c', requirement_id: 'R3', points: 0.25, indicator: 'NLc' },
-            { id: 'P13d', label: 'd', requirement_id: 'R3', points: 0.25, indicator: 'NLc' }
+          ...Array.from({ length: 10 }, (_, idx) => ({ id: `S${idx + 1}`, kind: 'MC', number: idx + 1, parts: [{ id: `P${idx + 1}`, label: '', requirement_id: 'R1', points: 0.25, indicator: 'NLa' }], scoring: { mode: 'sum_parts' } })),
+          ...Array.from({ length: 9 }, (_, idx) => ({ id: `S${idx + 11}`, kind: 'MC', number: idx + 11, parts: [{ id: `P${idx + 11}`, label: '', requirement_id: 'R2', points: 0.25, indicator: 'NLb' }], scoring: { mode: 'sum_parts' } })),
+          { id: 'S20', kind: 'YN', number: 1, parts: [
+            { id: 'P20a', label: 'a', requirement_id: 'R1', points: 0.25, indicator: 'NLa' },
+            { id: 'P20b', label: 'b', requirement_id: 'R1', points: 0.25, indicator: 'NLa' },
+            { id: 'P20c', label: 'c', requirement_id: 'R2', points: 0.25, indicator: 'NLb' },
+            { id: 'P20d', label: 'd', requirement_id: 'R3', points: 0.25, indicator: 'NLc' }
           ], scoring: { mode: 'sum_parts' } },
-          { id: 'S14', kind: 'YN', number: 2, parts: [
-            { id: 'P14a', label: 'a', requirement_id: 'R1', points: 0.25, indicator: 'NLa' },
-            { id: 'P14b', label: 'b', requirement_id: 'R2', points: 0.25, indicator: 'NLb' },
-            { id: 'P14c', label: 'c', requirement_id: 'R2', points: 0.25, indicator: 'NLb' },
-            { id: 'P14d', label: 'd', requirement_id: 'R3', points: 0.25, indicator: 'NLc' }
+          { id: 'S21', kind: 'YN', number: 2, parts: [
+            { id: 'P21a', label: 'a', requirement_id: 'R1', points: 0.25, indicator: 'NLa' },
+            { id: 'P21b', label: 'b', requirement_id: 'R1', points: 0.25, indicator: 'NLa' },
+            { id: 'P21c', label: 'c', requirement_id: 'R2', points: 0.25, indicator: 'NLb' },
+            { id: 'P21d', label: 'd', requirement_id: 'R3', points: 0.25, indicator: 'NLc' }
           ], scoring: { mode: 'sum_parts' } },
-          ...Array.from({ length: 4 }, (_, idx) => ({ id: `S${idx + 15}`, kind: 'SHORT', number: idx + 1, parts: [{ id: `P${idx + 15}`, label: '', requirement_id: idx < 2 ? 'R2' : 'R3', points: 0.5, indicator: idx < 2 ? 'NLb' : 'NLc' }], scoring: { mode: 'sum_parts' } })),
-          { id: 'S19', kind: 'ES', number: 1, parts: [{ id: 'P19', label: '', requirement_id: 'R3', points: 1.0, indicator: 'NLc' }], scoring: { mode: 'sum_parts' } },
-          { id: 'S20', kind: 'ES', number: 2, parts: [{ id: 'P20', label: '', requirement_id: 'R3', points: 1.0, indicator: 'NLc' }], scoring: { mode: 'sum_parts' } },
-          { id: 'S21', kind: 'ES', number: 3, parts: [{ id: 'P21', label: '', requirement_id: 'R4', points: 1.0, indicator: 'NLc' }], scoring: { mode: 'sum_parts' } }
+          { id: 'S22', kind: 'YN', number: 3, parts: [
+            { id: 'P22a', label: 'a', requirement_id: 'R1', points: 0.25, indicator: 'NLa' },
+            { id: 'P22b', label: 'b', requirement_id: 'R1', points: 0.25, indicator: 'NLa' },
+            { id: 'P22c', label: 'c', requirement_id: 'R2', points: 0.25, indicator: 'NLb' },
+            { id: 'P22d', label: 'd', requirement_id: 'R3', points: 0.25, indicator: 'NLc' }
+          ], scoring: { mode: 'sum_parts' } },
+          { id: 'S23', kind: 'ES', number: 1, parts: [{ id: 'P23', label: '', requirement_id: 'R3', points: 0.75, indicator: 'NLc' }], scoring: { mode: 'sum_parts' } },
+          { id: 'S24', kind: 'ES', number: 2, parts: [{ id: 'P24', label: '', requirement_id: 'R3', points: 0.75, indicator: 'NLc' }], scoring: { mode: 'sum_parts' } },
+          { id: 'S25', kind: 'ES', number: 3, parts: [{ id: 'P25', label: '', requirement_id: 'R4', points: 0.75, indicator: 'NLc' }], scoring: { mode: 'sum_parts' } }
         ]
       }
     } : {
       format: 'asian-school-matrix',
       schema_version: 1,
       matrix: {
+        mode: 'authored',
         profile: 'THCS',
         grade: g,
         exam_type: 'GK1',
@@ -3185,10 +3206,12 @@
         ],
         requirements: [
           { id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'Nhận biết được một số thiết bị số thông dụng.', ppct_outcome_index: 0, competency: 'NLa' },
-          { id: 'R2', lesson_code: 'B1', level: 'Hiểu', text: 'Giải thích được vai trò của thiết bị số trong đời sống và học tập.', ppct_outcome_index: 1, competency: 'NLa' },
+          { id: 'R2', lesson_code: 'B1', level: 'Hiểu', text: 'Giải thích được vai trò của thiết bị số trong đời sống và học tập.', ppct_outcome_index: 0, competency: 'NLa' },
           { id: 'R3', lesson_code: 'B2', level: 'Vận dụng', text: 'Vận dụng được kiến thức để tìm kiếm và đánh giá chất lượng thông tin.', ppct_outcome_index: 0, competency: 'NLb' },
-          { id: 'R4', lesson_code: 'B2', level: 'Vận dụng cao', text: 'Đề xuất cách khai thác thông tin an toàn, hiệu quả trong tình huống thực tế.', ppct_outcome_index: 1, competency: 'NLc' }
+          { id: 'R4', lesson_code: 'B2', level: 'Vận dụng cao', text: 'Đề xuất cách khai thác thông tin an toàn, hiệu quả trong tình huống thực tế.', ppct_outcome_index: 0, competency: 'NLc' }
         ],
+        indicator_catalog: [],
+        reconciliation: { confirmed: true, issues: [] },
         slots: [
           ...Array.from({ length: 16 }, (_, idx) => ({ id: `S${idx + 1}`, kind: 'MC', number: idx + 1, parts: [{ id: `P${idx + 1}`, label: '', requirement_id: 'R1', points: 0.25, indicator: '' }], scoring: { mode: 'sum_parts' } })),
           ...Array.from({ length: 12 }, (_, idx) => ({ id: `S${idx + 17}`, kind: 'MC', number: idx + 17, parts: [{ id: `P${idx + 17}`, label: '', requirement_id: 'R2', points: 0.25, indicator: '' }], scoring: { mode: 'sum_parts' } })),
@@ -3209,23 +3232,22 @@
   function downloadMatrixMdSample(grade = 9) {
     const g = Number(grade) || 9;
     const isHigh = g >= 10;
-    const sampleMd = isHigh ? `# MA TRẬN & ĐẶC TẢ ĐỀ KIỂM TRA GIỮA HỌC KỲ 1 (CHUẨN CV 7991 THPT)
+    const sampleMd = isHigh ? `# MA TRẬN & ĐẶC TẢ ĐỀ KIỂM TRA GIỮA HỌC KỲ 1 (THPT Á CHÂU · CV 7991)
 Môn: Tin học - Khối: ${g} - Thời gian: 45 phút - Năm học: 2026-2027
 
-> Quy chuẩn THPT định kỳ: Chỉ sử dụng Phần cốt lõi Mục II.1 (TT 22/2021 Điều 7.1 không đưa Chuyên đề CD1..CD3 vào đề giữa kỳ/cuối kỳ). Gồm đủ 4 dạng (MC 3đ · Đúng/Sai 2đ · Trả lời ngắn 2đ · Tự luận 3đ) và 4 mức độ (Biết 4đ · Hiểu 3đ · VD+VDC 3đ).
+> Khung điểm THPT Á Châu: Phần 1 Trắc nghiệm (MC) 19 câu = 4,75đ (0,25đ/câu) · Phần 2 Đúng/Sai (YN) 3 câu = 3,0đ (1,0đ/câu · 4 ý a, b, c, d) · Phần 3 Tự luận (ES) 3 câu = 2,25đ (0,75đ/câu). Tổng: 25 câu = 10,0 điểm. Chỉ sử dụng Phần cốt lõi Mục II.1 (TT 22/2021 Điều 7.1 không đưa Chuyên đề CD1..CD3 vào đề giữa kỳ/cuối kỳ).
 
 ## Chủ đề A: Máy tính và xã hội tri thức
 ### Bài 1: Thông tin và xử lí thông tin (Mã: B1)
-- [Biết] [MC] Nhận biết khái niệm thông tin, dữ liệu và thiết bị số. (8 câu · 2.0đ · Câu 1..8)
-- [Hiểu] [MC] Phân tích quy trình xử lí và lưu trữ dữ liệu số. (4 câu · 1.0đ · Câu 9..12)
+- [Biết] [MC] Nhận biết khái niệm thông tin, dữ liệu và thiết bị số. (10 câu · 2.5đ · Câu 1..10)
+- [Hiểu] [MC] Phân tích quy trình xử lí và lưu trữ dữ liệu số. (9 câu · 2.25đ · Câu 11..19)
 
 ## Chủ đề B: Mạng máy tính và Internet
 ### Bài 2: Mạng máy tính và an toàn số (Mã: B2)
-- [Biết] [YN] Nhận diện thành phần mạng và quy tắc an toàn cơ bản. (1 câu 4 ý · 1.0đ · Câu 1 ĐS)
-- [Hiểu] [YN] Phân tích tình huống rủi ro an toàn thông tin. (1 câu 4 ý · 1.0đ · Câu 2 ĐS)
-- [Vận dụng] [SHORT] Tính toán hoặc xác định thông số kỹ thuật dữ liệu/mạng. (4 câu · 2.0đ · Câu 1..4 TLN)
-- [Vận dụng] [ES] Vận dụng kiến thức bảo mật và giải quyết vấn đề thực tiễn. (2 câu · 2.0đ · Câu 1, Câu 2 TL)
-- [Vận dụng cao] [ES] Đề xuất và tối ưu giải pháp bảo vệ hệ thống số. (1 câu · 1.0đ · Câu 3 TL)
+- [Biết] [YN] Nhận diện thành phần mạng và quy tắc an toàn cơ bản. (2 câu 4 ý · 2.0đ · Câu 1, Câu 2 ĐS)
+- [Hiểu] [YN] Phân tích tình huống rủi ro an toàn thông tin. (1 câu 4 ý · 1.0đ · Câu 3 ĐS)
+- [Vận dụng] [ES] Vận dụng kiến thức bảo mật và giải quyết vấn đề thực tiễn. (2 câu · 1.5đ · Câu 1, Câu 2 TL)
+- [Vận dụng cao] [ES] Đề xuất và tối ưu giải pháp bảo vệ hệ thống số. (1 câu · 0.75đ · Câu 3 TL)
 ` : `# MA TRẬN & ĐẶC TẢ ĐỀ KIỂM TRA GIỮA HỌC KỲ 1 (THCS Á CHÂU)
 Môn: Tin học - Khối: ${g}
 Thời gian: 45 phút - Năm học: 2026-2027
@@ -3262,10 +3284,13 @@ Thời gian: 45 phút - Năm học: 2026-2027
     const compSummaryLines = compList.map(c => `  * ${c.code}: ${c.name}`).join('\n');
     const indSampleLines = indList.slice(0, 6).map(i => `  * ${i.code} (${i.competency}): ${i.text}`).join('\n');
     const thptRules = isHigh
-      ? `\nQUY CHUẨN BẮT BUỘC VỚI THPT (KHỐI ${g} — CV 7991/BGDĐT-GDTrH & TT 22/2021):
+      ? `\nQUY CHUẨN BẮT BUỘC VỚI THPT (KHỐI ${g} — KHUNG ĐIỂM THPT Á CHÂU · CV 7991/BGDĐT-GDTrH & TT 22/2021):
 - Profile = "THPT", tổng điểm = 10.0. Gắn đúng mã thành phần năng lực & chỉ báo môn ${subjName} vào từng yêu cầu/vị trí câu.
-- Cơ cấu tham khảo đề định kỳ CV 7991: Nhiều lựa chọn (MC ~3,0đ), Đúng/Sai 4 ý a-d (YN ~2,0đ), Trả lời ngắn (SHORT ~2,0đ; môn không dùng SHORT thì chuyển toàn bộ 2,0đ sang YN thành 4,0đ), Tự luận (ES ~3,0đ).
-- Phân bố 3 mức độ đánh giá chuẩn CV 7991: Biết ~4,0đ (40%) · Hiểu ~3,0đ (30%) · Vận dụng ~3,0đ (30%). (Chỉ tách "Vận dụng cao" khi hồ sơ nội bộ của trường yêu cầu riêng).
+- Khung điểm chuẩn THPT Á Châu (tổng 25 câu = 10,0 điểm):
+  + Phần 1 — Câu hỏi trắc nghiệm nhiều lựa chọn (MC): 19 câu × 0,25 điểm = 4,75 điểm (đánh số number từ 1 đến 19).
+  + Phần 2 — Câu hỏi trắc nghiệm Đúng/Sai 4 ý a, b, c, d (YN): 3 câu × 1,0 điểm (mỗi ý a, b, c, d là 0,25 điểm) = 3,0 điểm (đánh số number từ 1 đến 3).
+  + Phần 3 — Câu hỏi Tự luận (ES): 3 câu × 0,75 điểm = 2,25 điểm (đánh số number từ 1 đến 3).
+- Phân bố mức độ đánh giá chuẩn: Biết ~4,0đ (40%) · Hiểu ~3,0đ (30%) · Vận dụng (gồm Vận dụng + Vận dụng cao) ~3,0đ (30%).
 - QUAN TRỌNG (TT 22/2021 Điều 7, khoản 1): Nếu kỳ kiểm tra là định kỳ (GK1, CK1, GK2, CK2), CHỈ chọn bài thuộc Phần cốt lõi (Mục II.1, mã B1, B2...), KHÔNG đưa Chuyên đề học tập (CD1..CD3). Chỉ đưa Chuyên đề vào Ma trận Kiểm tra thường xuyên (exam_type = "TX").`
       : `\nQUY CHUẨN BẮT BUỘC VỚI THCS (KHỐI ${g} — MẪU Á CHÂU & TT 22/2021):
 - Profile = "THCS", tổng điểm = 10.0. Sử dụng 2 dạng chính: MC (Trắc nghiệm 4 lựa chọn, thường 7.0đ = 28 câu) và ES (Tự luận/thực hành, thường 3.0đ = 3 câu).

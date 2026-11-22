@@ -99,12 +99,19 @@ def ratio_warnings(matrix):
                 by_level['Vận dụng'] += points
             elif level in by_level:
                 by_level[level] += points
+    is_asian_thpt_kind = (
+        by_kind['SHORT'] == 0
+        and abs(by_kind['MC'] - Decimal('4.75')) <= tolerance
+        and abs(by_kind['YN'] - Decimal('3.0')) <= tolerance
+        and abs(by_kind['ES'] - Decimal('2.25')) <= tolerance
+    )
     targets = dict(KIND_TARGETS)
     if by_kind['SHORT'] == 0:  # CV 7991, chú thích 3
         targets['YN'] += targets.pop('SHORT')
         by_kind.pop('SHORT')
     warnings = []
-    for code, actual, target, name in ([('ratio_kind', by_kind[k], t, KIND_NAMES[k]) for k, t in targets.items()] +
+    kind_checks = [] if is_asian_thpt_kind else [('ratio_kind', by_kind[k], t, KIND_NAMES[k]) for k, t in targets.items()]
+    for code, actual, target, name in (kind_checks +
                                        [('ratio_level', by_level[k], t, ('Mức Vận dụng + Vận dụng cao (quy đổi kỹ thuật để so tham khảo ba mức)' if k == 'Vận dụng' and has_vdc else 'Mức ' + k)) for k, t in LEVEL_TARGETS.items()]):
         diff = actual - target
         if abs(diff) > tolerance:

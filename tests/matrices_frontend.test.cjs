@@ -386,5 +386,8 @@ Khối: 9
     assert(p && p.requirements.length > 0, `Preset grade ${g} must exist`);
     assert(p.requirements.every(r => ['NLa', 'NLb', 'NLc', 'NLd', 'NLe'].includes(r.competency)), `Preset grade ${g} must only use Informatics competencies NLa..NLe (no TDLL)`);
   }
+  assert(js.includes("function switchGradeContext(rawGrade,source='create')"), 'switchGradeContext must exist to refresh UI and clear old grade preview/editor');
+  assert(js.includes("if(el.id==='mx-create-grade')"), 'Changing #mx-create-grade must invoke switchGradeContext');
+  assert(js.includes("ui.editing.requirements=[];\n      ui.editing.slots=[];"), 'Switching grade in editor must always clear old requirements and slots even if new grade has no PPCT');
   console.log('PASS matrix UI: help panel and display-only preview zoom passed');
 }

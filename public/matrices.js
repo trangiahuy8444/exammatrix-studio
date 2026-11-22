@@ -1121,29 +1121,38 @@
     object[key]=value;changed();
     if(key==='grade'){
       const newGrade=Number(value);
+      ui.createGrade=newGrade;
       ui.editing.grade=newGrade;
       ui.editing.profile=generic()?'GENERAL':newGrade>=10?'THPT':'THCS';
+      ui.editing.matrix_locked=false;
+      ui.editing.spec_locked=false;
+      ui.editing.custom_level_refs={};
+      ui.editing.custom_level_comp={};
       if(newGrade>=10&&!generic()&&subject(ui.editing)==='Tin học'&&!(ui.editing.indicator_catalog||[]).length){
         ui.editing.indicator_catalog=[
           {code:'NLa',competency:'NLa',text:'Nhận biết và giải thích các khái niệm tin học cơ bản.'},
           {code:'NLb',competency:'NLb',text:'Sử dụng và ứng dụng công nghệ thông tin trong học tập.'},
           {code:'NLc',competency:'NLc',text:'Tư duy giải quyết vấn đề với sự trợ giúp của máy tính.'}
         ];
+      }else if(newGrade<10){
+        ui.editing.indicator_catalog=[];
       }
       ui.editing.title=`Ma trận ${periods[ui.editing.exam_type]||'Giữa HK1'} ${subject()} ${newGrade}`;
       const pl=selectableLessons(newGrade,ui.editing.exam_type);
-      if(pl.length){
-        ui.editing.lessons=pl.slice(0,newGrade>=10?8:5).map(l=>({
-          lesson_code:l.lesson_code,
-          title:l.lesson_name_source||l.lesson_code,
-          topic:l.topic_source||''
-        }));
-        ui.editing.requirements=[];
-        ui.editing.slots=[];
-      }
+      ui.editing.lessons=pl.length?pl.slice(0,newGrade>=10?8:5).map(l=>({
+        lesson_code:l.lesson_code,
+        title:l.lesson_name_source||l.lesson_code,
+        topic:l.topic_source||''
+      })):[];
+      ui.editing.requirements=[];
+      ui.editing.slots=[];
+      ui.previewState=null;
+      ui.comparison=null;
+      ui.shortfall=null;
+      ui.report=null;
       changed();
-      renderEditor();
-      message('Đã chuyển sang Khối ' + newGrade + ' và nạp danh sách bài học tương ứng.');
+      render();
+      message('Đã chuyển sang Khối ' + newGrade + ' và làm mới toàn bộ bảng ma trận & đặc tả.');
       return;
     }else if(key==='exam_type'){
       if(value==='TX'&&Number(ui.editing.duration)===45)ui.editing.duration=15;
@@ -1286,8 +1295,72 @@
       message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi chỉnh sửa.', true);
       return;
     }
-    if(el.id==='mx-create-grade'){ui.createGrade=Number(el.value)||8;return;}
-    if(el.matches('[data-field]')&&(el.tagName==='SELECT'||el.type==='checkbox')){assign(el);if(el.dataset.field.endsWith('.competency')||el.dataset.field.endsWith('.requirement_id'))renderEditor();}if(el.matches('[data-allow-kind],[data-yn-coef]'))assign(el);if(el.dataset.filter){ui.filter[el.dataset.filter]=el.value;if(el.dataset.filter==='grade'&&el.value)ui.createGrade=Number(el.value);render();}if(el.id==='mx-file')await readImport(el.files[0]);if(el.id==='mx-confirm-agreement'||el.dataset.field==='reconciliation.confirmed')restoreButtons();if(el.dataset.choice){const id=el.dataset.choice;ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===id)c.checked=false;});showChoice(id);coverage();}if(el.id==='mx-exam-revision')coverage();captureGeneration();}
+    if(el.id==='mx-create-grade'){
+      switchGradeContext(el.value,'create');
+      return;
+    }
+    if(el.id==='mx-import-grade'){
+      const g=Number(el.value)||8;
+      ui.createGrade=g;
+      ui.importing={grade:g};
+      renderImport();
+      return;
+    }
+    if(el.matches('[data-field]')&&(el.tagName==='SELECT'||el.type==='checkbox')){assign(el);if(el.dataset.field.endsWith('.competency')||el.dataset.field.endsWith('.requirement_id'))renderEditor();}
+    if(el.matches('[data-allow-kind],[data-yn-coef]'))assign(el);
+    if(el.dataset.filter){
+      ui.filter[el.dataset.filter]=el.value;
+      if(el.dataset.filter==='grade'){
+        if(el.value){
+          switchGradeContext(el.value,'filter');
+          return;
+        }
+      }
+      render();
+    }
+    if(el.id==='mx-file')await readImport(el.files[0]);
+    if(el.id==='mx-confirm-agreement'||el.dataset.field==='reconciliation.confirmed')restoreButtons();
+    if(el.dataset.choice){const id=el.dataset.choice;ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===id)c.checked=false;});showChoice(id);coverage();}
+    if(el.id==='mx-exam-revision')coverage();
+    captureGeneration();
+  }
+  function switchGradeContext(rawGrade,source='create'){
+    const g=Number(rawGrade)||0;
+    if(g)ui.createGrade=g;
+    if(source==='create'&&g){
+      ui.filter.grade=String(g);
+    }
+    if(g){
+      if(ui.previewState&&Number(ui.previewState.matrix?.grade)!==g){
+        ui.previewState=null;
+      }
+      if(ui.comparison&&Number(ui.comparison.matrix?.grade)!==g){
+        ui.comparison=null;
+      }
+      if(ui.generation&&Number(ui.generation.matrix?.grade)!==g){
+        ui.generation=null;
+      }
+      if(ui.importing&&Number(ui.importing.grade)!==g){
+        ui.importing={grade:g};
+      }
+      if(ui.editing&&Number(ui.editing.grade)!==g){
+        const matching=filterRecords(ui.records,{...ui.filter,grade:String(g)});
+        ui.editing=matching.length?null:newDraft(g,false);
+        ui.report=null;
+        ui.shortfall=null;
+        ui.dirty=false;
+      }else if(!ui.editing&&!ui.importing&&!ui.generation&&source==='create'){
+        const matching=filterRecords(ui.records,{...ui.filter,grade:String(g)});
+        if(!matching.length){
+          ui.editing=newDraft(g,false);
+          ui.report=null;
+          ui.shortfall=null;
+          ui.dirty=false;
+        }
+      }
+    }
+    render();
+  }
   function guard(){
     if(ui.dirty){
       if(confirm('Bạn đang có thay đổi chưa lưu trên ma trận hiện tại. Bạn có muốn bỏ thay đổi để tiếp tục không?')){
@@ -1369,7 +1442,11 @@
     }
     ui.importing=null;
     ui.generation=null;
+    ui.previewState=null;
+    ui.comparison=null;
+    ui.shortfall=null;
     render();
+    qs('#mx-work')?.scrollIntoView?.({behavior:'smooth',block:'start'});
   }
   async function save(silent=false){
     normalizeSlotNumbers(ui.editing);
@@ -2281,16 +2358,35 @@
       if(!guard())return;
       const g=Number(b.dataset.grade||qs('#mx-create-grade')?.value||ui.createGrade||ui.filter.grade)||8;
       ui.createGrade=g;
+      ui.filter.grade=String(g);
       ui.editing=newDraft(g,false);
       ui.report=null;
+      ui.shortfall=null;
       ui.importing=null;
       ui.generation=null;
+      ui.previewState=null;
+      ui.comparison=null;
       ui.dirty=false;
       render();
+      qs('#mx-work')?.scrollIntoView?.({behavior:'smooth',block:'start'});
       message('Đã mở tạo ma trận mới cho Khối ' + g + '. Bạn có thể nhập số câu trực tiếp vào bảng 2D hoặc bấm "⚡ Nạp mẫu chuẩn Á Châu (10.0đ)".');
       return;
     }
-    if(action==='import'){if(!guard())return;ui.editing=null;ui.generation=null;const g=Number(qs('#mx-create-grade')?.value||ui.createGrade||ui.filter.grade)||8;ui.importing={grade:g};render();return;}
+    if(action==='import'){
+      if(!guard())return;
+      ui.editing=null;
+      ui.generation=null;
+      ui.report=null;
+      ui.shortfall=null;
+      ui.previewState=null;
+      ui.comparison=null;
+      const g=Number(qs('#mx-create-grade')?.value||ui.createGrade||ui.filter.grade)||8;
+      ui.createGrade=g;
+      ui.importing={grade:g};
+      render();
+      qs('#mx-work')?.scrollIntoView?.({behavior:'smooth',block:'start'});
+      return;
+    }
     if(action==='discard'){await run(async()=>{if(ui.dirty&&ui.editing.id)await openRecord(ui.editing.id,true);else{ui.editing=null;ui.dirty=false;render();}});return;}
     const isGloballyLocked = ['locked', 'archived'].includes(ui.editing?.status);
     const isMatrixLocked = isGloballyLocked || Boolean(ui.editing?.matrix_locked);

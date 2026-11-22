@@ -97,7 +97,45 @@
      if(!Number.isInteger(r.ppct_outcome_index)||r.ppct_outcome_index<0||r.ppct_outcome_index>=outLen)r.ppct_outcome_index=0;
     });
    }
+   const isHighSchool = m.profile === 'THPT' || Number(m.grade) >= 10;
+   const catLib = typeof BankCompetencyCatalog !== 'undefined' ? BankCompetencyCatalog : null;
+   if(isHighSchool){
+    if(!m.indicator_catalog.length){
+     const preset = catLib && typeof catLib.presetCatalogForSubject === 'function' ? catLib.presetCatalogForSubject(m.subject_name || 'Tin học') : null;
+     if(preset && Array.isArray(preset.indicators) && preset.indicators.length){
+      m.competency_catalog = preset.competencies;
+      m.indicator_catalog = preset.indicators;
+      m.catalog_revision = 1;
+     } else {
+      m.competency_catalog = [
+       { code: 'NLa', name: 'Sử dụng và quản lí các phương tiện CNTT' },
+       { code: 'NLb', name: 'Ứng xử phù hợp trong môi trường số' },
+       { code: 'NLc', name: 'Giải quyết vấn đề với sự hỗ trợ của CNTT' },
+       { code: 'NLd', name: 'Ứng dụng CNTT trong học và tự học' },
+       { code: 'NLe', name: 'Hợp tác trong môi trường số' }
+      ];
+      m.indicator_catalog = [
+       { code: 'NLa.1', competency: 'NLa', text: 'Nhận diện, phân biệt thiết bị và công nghệ.' },
+       { code: 'NLb.1', competency: 'NLb', text: 'Ứng xử an toàn và hợp pháp trên mạng.' },
+       { code: 'NLc.1', competency: 'NLc', text: 'Giải quyết vấn đề bằng tin học.' },
+       { code: 'NLd.1', competency: 'NLd', text: 'Ứng dụng CNTT trong tự học.' },
+       { code: 'NLe.1', competency: 'NLe', text: 'Hợp tác trong môi trường số.' }
+      ];
+     }
+    }
+   }
+
    if(!Array.isArray(m.slots))return m;
+   const reqMap = new Map((m.requirements || []).filter(r => r && typeof r === 'object').map(r => [r.id, r]));
+   const indByComp = {};
+   if(Array.isArray(m.indicator_catalog)){
+    m.indicator_catalog.forEach(ind => {
+     if(ind && ind.code && ind.competency){
+      (indByComp[ind.competency] || (indByComp[ind.competency] = [])).push(ind.code);
+     }
+    });
+   }
+
    const groups={};
    m.slots.forEach((s,idx)=>{
     if(!s||typeof s!=='object')return;
@@ -107,6 +145,16 @@
      s.parts.forEach((p,pIdx)=>{
       if(!p||typeof p!=='object')return;
       if(!p.id||!String(p.id).trim())p.id='P'+(idx+1)+(s.parts.length>1?String.fromCharCode(97+pIdx):'');
+      if(isHighSchool){
+       const req = reqMap.get(p.requirement_id);
+       const targetComp = req?.competency || 'NLa';
+       const candCodes = indByComp[targetComp] || indByComp['NLa'] || (m.indicator_catalog[0] ? [m.indicator_catalog[0].code] : ['NLa.1']);
+       const curInd = typeof p.indicator === 'string' ? p.indicator.trim() : '';
+       const isValid = curInd && m.indicator_catalog.some(i => i.code === curInd && i.competency === targetComp);
+       if(!isValid){
+        p.indicator = candCodes[0] || (m.indicator_catalog[0]?.code) || 'NLa.1';
+       }
+      }
      });
     }
     (groups[s.kind]||(groups[s.kind]=[])).push(s);

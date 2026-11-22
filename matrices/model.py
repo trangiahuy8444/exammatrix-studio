@@ -54,17 +54,43 @@ def normalize_matrix(payload, ppct):
     else:
         m['reconciliation'].setdefault('confirmed', True)
         m['reconciliation'].setdefault('issues', [])
+    is_high_school = m.get('profile') == 'THPT' or (isinstance(m.get('grade'), int) and m['grade'] >= 10)
+    if is_high_school and not m.get('indicator_catalog'):
+        from .competency_catalog import preset_catalog_for_subject
+        preset = preset_catalog_for_subject(m.get('subject_name') or 'Tin học')
+        if preset and preset.get('indicators'):
+            m['competency_catalog'] = copy.deepcopy(preset['competencies'])
+            m['indicator_catalog'] = copy.deepcopy(preset['indicators'])
+            m['catalog_revision'] = 1
+
     if m.get('status') not in ('locked', 'archived'):
         if isinstance(m.get('requirements'), list):
             for r in m['requirements']:
                 if isinstance(r, dict) and r.get('ppct_outcome_index') is None:
                     r['ppct_outcome_index'] = 0
         if isinstance(m.get('slots'), list):
+            req_map = {r['id']: r for r in m.get('requirements', []) if isinstance(r, dict) and 'id' in r}
+            ind_by_comp = defaultdict(list)
+            if isinstance(m.get('indicator_catalog'), list):
+                for ind in m['indicator_catalog']:
+                    if isinstance(ind, dict) and ind.get('code') and ind.get('competency'):
+                        ind_by_comp[ind['competency']].append(ind['code'])
+
             groups = defaultdict(list)
             for s in m['slots']:
                 if isinstance(s, dict):
                     if not isinstance(s.get('scoring'), dict) or not s['scoring'].get('mode'):
                         s['scoring'] = dict(mode='sum_parts')
+                    if is_high_school and isinstance(s.get('parts'), list):
+                        for p in s['parts']:
+                            if isinstance(p, dict):
+                                req = req_map.get(p.get('requirement_id'))
+                                target_comp = req.get('competency', 'NLa') if req else 'NLa'
+                                cands = ind_by_comp.get(target_comp) or ind_by_comp.get('NLa') or (m['indicator_catalog'][0]['code'] if m.get('indicator_catalog') else ['NLa.1'])
+                                cur_ind = p.get('indicator', '').strip() if isinstance(p.get('indicator'), str) else ''
+                                is_valid = cur_ind and any(isinstance(i, dict) and i.get('code') == cur_ind and i.get('competency') == target_comp for i in m.get('indicator_catalog', []))
+                                if not is_valid:
+                                    p['indicator'] = cands[0] if isinstance(cands, list) and cands else 'NLa.1'
                     if 'kind' in s:
                         groups[s['kind']].append(s)
             for kind_slots in groups.values():

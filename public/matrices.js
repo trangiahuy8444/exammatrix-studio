@@ -1529,11 +1529,12 @@
     ui.editing=d.matrix;
     const hadSlotFix=normalizeSlotNumbers(ui.editing);
     const eng=root.BankStaticEngine||root.StaticExamEngine;
-    if(hadSlotFix){
+    if(ui.ctx?.ppct && eng){
+      ui.report=eng.validateMatrix(ui.editing,ui.ctx.ppct);
+      if(hadSlotFix)ui.dirty=true;else ui.dirty=false;
+    } else if(hadSlotFix){
       ui.dirty=true;
-      if(ui.ctx?.ppct && eng){
-        ui.report=eng.validateMatrix(ui.editing,ui.ctx.ppct);
-      } else if(d.validation){
+      if(d.validation){
         const errs=(d.validation.errors||[]).filter(e=>e.code!=='number_sequence');
         ui.report={...d.validation,errors:errs,valid:errs.length===0};
       } else {

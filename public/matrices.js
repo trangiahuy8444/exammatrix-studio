@@ -21,9 +21,7 @@
     else m.scoring_policy={yn_table:t,blank_counts_as:'wrong'};}  // cách làm tròn theo loại bài, không lưu ở ma trận
   function profileOptionsHtml(m,locked){
     const eff=effectiveKinds(m),dis=locked?' disabled':'',t=ynTable(m);
-    const indicatorHint=m.profile==='THPT'?'<p class="callout">Mã chỉ báo bắt buộc với mẫu Tin học THPT. Với Vật lí và các môn khác, nếu không dùng danh mục chỉ báo thì được để trống; nếu đã khai báo danh mục hoặc mã, cần gắn đúng năng lực của YCCĐ. Không cần đổi sang mã Tin học.</p>':'';
-    const tolerance=m.profile==='THPT'?`<div class="form-grid"><div class="field"><label for="mx-ratio_tolerance">Ngưỡng cảnh báo tỉ lệ CV 7991 (± điểm, để trống = 0,5)</label><input id="mx-ratio_tolerance" data-field="ratio_tolerance" type="number" min="0" max="10" step="0.05" value="${E(m.ratio_tolerance??'')}"${dis}></div></div><p class="small muted">Ngưỡng nội bộ của tổ, chỉ để cảnh báo; CV 7991 ghi các tỉ lệ là "khoảng" và Phụ lục chỉ để tham khảo. Vận dụng + Vận dụng cao được quy đổi kỹ thuật khi so với tham khảo ba mức; các mức trong hồ sơ vẫn giữ riêng.</p>`:'';
-    return tolerance+indicatorHint+`<h3 id="mx-profile-kinds">Dạng câu được phép và cách chấm Đúng/Sai</h3><p class="muted">Mặc định theo mẫu: THCS gồm trắc nghiệm và tự luận; THPT theo CV 7991 gồm cả Đúng/Sai và trả lời ngắn. Với KTTX có thể chọn dạng khác; lựa chọn được lưu cùng ma trận và đề.</p>
+    return `<h3 id="mx-profile-kinds">Dạng câu được phép và cách chấm Đúng/Sai</h3><p class="muted">Mặc định theo mẫu: THCS gồm trắc nghiệm và tự luận; THPT gồm trắc nghiệm, Đúng/Sai và tự luận. Với KTTX có thể chọn dạng khác; lựa chọn được lưu cùng ma trận và đề.</p>
     <div class="actions">${ALL_KINDS.map(k=>`<label class="inline-check"><input type="checkbox" data-allow-kind="${k}"${eff.includes(k)?' checked':''}${dis}> ${E(kinds[k])}</label>`).join('')}</div>
     ${eff.includes('YN')?`<div class="form-grid mx-yn-table">${[1,2,3,4].map(n=>`<div class="field"><label for="mx-yn-${n}">Đúng ${n} ý: hệ số</label><input id="mx-yn-${n}" data-yn-coef="${n}" inputmode="decimal" value="${E(String(t[n]).replace('.',','))}"${dis}></div>`).join('')}</div><p class="small muted">Điểm câu = điểm tối đa × hệ số. Ý bỏ trống, chọn cả hai hoặc lỗi tính là sai. Tổng bài: định kì làm tròn đến 0,1; thường xuyên làm tròn đến số nguyên (TT 22/2021, Điều 5; quy ước tổ).</p>`:''}`;
   }
@@ -893,26 +891,14 @@
     if(!m)return '';
     const g=Number(m.grade)||0;
     const isTx=m.exam_type==='TX';
-    const isThpt=m.profile==='THPT'||g>=10;
     const ppctByCode=new Map(lessons(g).map(l=>[l.lesson_code,l]));
     const electiveSelected=(m.lessons||[]).filter(l=>{
       const pl=ppctByCode.get(l.lesson_code);
       return lessonSectionOf(pl||l)==='elective_topic';
     });
     const parts=[];
-    if(isThpt&&!isTx){
-      parts.push('<div class="callout"><strong>Khung điểm THPT Á Châu &amp; Quy chuẩn định kỳ (CV 7991 · TT 22/2021 Điều 7.1):</strong> <strong>Phần 1 (Câu hỏi trắc nghiệm MC):</strong> 19 câu = <strong>4,75 điểm</strong> (0,25đ/câu) · <strong>Phần 2 (Câu hỏi Đúng/Sai 4 ý):</strong> 3 câu = <strong>3,0 điểm</strong> (1,0đ/câu) · <strong>Phần 3 (Câu hỏi Tự luận):</strong> 3 câu = <strong>2,25 điểm</strong> (0,75đ/câu) — <strong>Tổng: 25 câu = 10,0 điểm</strong>; mức độ <em>Biết 4,0đ (40%) · Hiểu 3,0đ (30%) · VD+VDC 3,0đ (30%)</em>. Chỉ dùng bài <strong>Phần cốt lõi (Mục II.1)</strong>, không đưa Chuyên đề học tập vào kiểm tra giữa kỳ/cuối kỳ.</div>');
-    }else if(isThpt&&isTx){
-      parts.push('<div class="callout"><strong>Quy chuẩn THPT KTTX (TT 22/2021 Điều 6.3):</strong> Đánh giá thường xuyên được phép chọn bài <strong>Phần cốt lõi (Mục II.1)</strong> hoặc <strong>[CĐHT] Chuyên đề lựa chọn (Mục II.2)</strong>. Kết quả bài TX làm tròn đến số nguyên.</div>');
-    }else{
-      parts.push('<div class="callout"><strong>Quy chuẩn THCS (Mẫu Á Châu · TT 22/2021):</strong> <strong>Phần 1 (Trắc nghiệm MC):</strong> 28 câu = <strong>7,0 điểm</strong> (0,25đ/câu) · <strong>Phần 2 (Tự luận ES):</strong> 3 câu = <strong>3,0 điểm</strong> (1,0đ/câu) phân bố theo 4 mức độ (Biết, Hiểu, Vận dụng, Vận dụng cao); cấp THCS không có Chuyên đề lựa chọn.</div>');
-    }
     if(!isTx&&electiveSelected.length){
       parts.push(`<div class="callout error"><strong>⚠️ Vi phạm phạm vi TT 22/2021 (Điều 7, khoản 1):</strong> Kỳ kiểm tra định kỳ (${E(m.exam_type)}) đang chứa ${electiveSelected.length} Chuyên đề lựa chọn (${electiveSelected.map(x=>E(x.lesson_code)).join(', ')}). Hãy chuyển sang kỳ <strong>Thường xuyên (TX)</strong> hoặc gỡ các Chuyên đề khỏi ma trận định kỳ.</div>`);
-    }
-    const cvWarnings=(m.slots&&m.slots.length)?computeCv7991Warnings(m):[];
-    if(cvWarnings.length){
-      parts.push(`<div class="callout warning"><strong>Cảnh báo tỉ lệ tham khảo CV 7991 (không chặn lưu/khóa)</strong><ul>${cvWarnings.map(w=>`<li>${E(w.message)}</li>`).join('')}</ul></div>`);
     }
     return parts.join('');
   }

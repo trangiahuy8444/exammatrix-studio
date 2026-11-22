@@ -50,7 +50,17 @@
    return put(data.revisions,{...(existing||{}),id:existing?.id||id('REV'),title:payload.title.trim(),grade,subject_name:subject,lessons:scope,
     status:existing?.status||'drafting',created_at:existing?.created_at||now(),updated_at:now(),question_ids:ids,questions,question_count:questions.length});
   }
-  function checkedMatrix(key){return own(find(data.matrices,key));}
+  function normalizeMatrixSlots(m){
+   if(!m||!Array.isArray(m.slots)||m.status==='locked'||m.status==='archived')return m;
+   const groups={};
+   m.slots.forEach(s=>{if(s&&typeof s==='object')(groups[s.kind]||(groups[s.kind]=[])).push(s);});
+   Object.values(groups).forEach(list=>{
+    const ordered=list.map((s,i)=>[s,i]).sort((a,b)=>(Number(a[0].number)||0)-(Number(b[0].number)||0)||a[1]-b[1]).map(x=>x[0]);
+    ordered.forEach((s,i)=>{s.number=i+1;});
+   });
+   return m;
+  }
+  function checkedMatrix(key){return normalizeMatrixSlots(own(find(data.matrices,key)));}
   function revisionFor(exam){return exam.revision_id?own(find(data.revisions,exam.revision_id)):null;}
   function verification(exam){return engine.verifyExam(data,exam);}
   async function refreshIntegrity(exam){exam.snapshot_integrity=await workflow.contentHash({questions:exam.questions,matrix:exam.matrix_snapshot||null,blueprint:exam.blueprint,revision:exam.revision_snapshot,ppct:exam.ppct_snapshot});}
@@ -198,13 +208,14 @@
    if(!all_passed)fail('Đề nhập chưa đạt đối chiếu thực tế với ngân hàng, ma trận và đề cương; không thể xác nhận đạt.',409);
    candidates.forEach(e=>put(data.exams,e));return result({exams:data.exams,imported:candidates},true);
   }
-  if(path==='/api/matrices')return result({matrices:data.matrices});
+  if(path==='/api/matrices'){data.matrices.forEach(normalizeMatrixSlots);return result({matrices:data.matrices});}
   if(path==='/api/matrices/save'){
    const raw=clone(p.matrix||{}),old=raw.id?data.matrices.find(m=>m.id===raw.id):null;
    if(old){own(old);if(old.status==='locked'||old.status==='archived')fail('Ma trận đã khóa/lưu trữ. Hãy mở khóa hoặc tạo phiên bản mới.',409);
     if(p.expected_revision!==old.revision)fail('Ma trận đã đổi phiên bản; hãy tải lại trước khi lưu.',409);}
    const matrix={...raw,id:old?.id||id('MX'),family_id:old?.family_id||id('FAM'),subject_name:subject,status:'draft',version:old?.version||1,revision:(old?.revision||0)+1,updated_at:now()};
    delete matrix.content_sha256;
+   normalizeMatrixSlots(matrix);
    const validation=engine.validateMatrix(matrix,ppct);
    if(validation.errors.some(e=>e.code==='catalog'))fail('Danh mục trong ma trận chưa hợp lệ.',400,validation);
    put(data.matrices,matrix);return result({matrix,validation},true);
@@ -212,14 +223,16 @@
   if(path==='/api/matrices/review'){const matrix=checkedMatrix(p.id);return result({matrix,validation:engine.validateMatrix(matrix,ppct)});}
   if(path==='/api/matrices/lock'||path==='/api/matrices/unlock'){
    const matrix=checkedMatrix(p.id);if(p.expected_revision!==undefined&&p.expected_revision!==matrix.revision)fail('Ma trận đã đổi phiên bản; hãy tải lại.',409);
+   if(path.endsWith('/lock'))normalizeMatrixSlots(matrix);
    const validation=engine.validateMatrix(matrix,ppct);
    if(path.endsWith('/lock')){if(!validation.valid)fail('Chưa thể khóa ma trận. Hãy sửa các mục được chỉ rõ bên dưới.',409,validation);
     if(!p.confirmation?.confirmed_by||p.confirmation.external_agreement!==true)fail('Cần xác nhận của giáo viên trước khi khóa ma trận.');matrix.status='locked';matrix.confirmation=clone(p.confirmation);matrix.content_sha256=engine.matrixDigest(matrix);}
-   else {if(matrix.status!=='locked')fail('Ma trận chưa ở trạng thái khóa.');matrix.status='draft';delete matrix.content_sha256;}
+   else {if(matrix.status!=='locked')fail('Ma trận chưa ở trạng thái khóa.');matrix.status='draft';delete matrix.content_sha256;normalizeMatrixSlots(matrix);}
    matrix.revision=(matrix.revision||0)+1;matrix.updated_at=now();return result({matrix,validation},true);
   }
   if(path==='/api/matrices/duplicate'||path==='/api/matrices/new-version'){
    const old=checkedMatrix(p.id),matrix=clone(old);matrix.id=id('MX');matrix.status='draft';matrix.revision=0;delete matrix.confirmation;delete matrix.content_sha256;
+   normalizeMatrixSlots(matrix);
    if(path.endsWith('/new-version')){matrix.previous_id=old.id;matrix.version=(old.version||1)+1;}else{matrix.family_id=id('FAM');matrix.version=1;matrix.title=old.title+' (Bản sao)';}
    put(data.matrices,matrix);return result({matrix,validation:engine.validateMatrix(matrix,ppct)},true);
   }
@@ -235,6 +248,7 @@
    const raw=p.package?.matrix;if(!raw)fail('Gói nhập chưa có ma trận.');
    if(p.package.content_sha256!==undefined&&p.package.content_sha256!==engine.jsonDigest(raw))fail('Nội dung gói đã thay đổi hoặc dấu kiểm tra không còn khớp.');
    const matrix={...clone(raw),id:id('MX'),family_id:id('FAM'),subject_name:subject,status:'draft',revision:1,version:1};delete matrix.confirmation;delete matrix.content_sha256;
+   normalizeMatrixSlots(matrix);
    const validation=engine.validateMatrix(matrix,ppct);
    if(validation.errors.some(e=>e.code==='catalog'))fail('Danh mục trong gói ma trận chưa hợp lệ.',400,validation);
    put(data.matrices,matrix);return result({matrix,validation},true);

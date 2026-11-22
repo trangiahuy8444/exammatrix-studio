@@ -43,7 +43,7 @@ def normalize_matrix(payload, ppct):
                           reconciliation=dict(confirmed=True, issues=[]),
                           matrix_locked=False, spec_locked=False).items():
         m.setdefault(key, copy.deepcopy(value))
-    if m.get('status') not in ('locked', 'archived') and not m.get('matrix_locked') and isinstance(m.get('slots'), list):
+    if m.get('status') not in ('locked', 'archived') and isinstance(m.get('slots'), list):
         groups = defaultdict(list)
         for s in m['slots']:
             if isinstance(s, dict) and 'kind' in s:

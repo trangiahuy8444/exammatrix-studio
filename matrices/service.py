@@ -122,7 +122,9 @@ class MatrixService:
         return shortfall_report(self.get(ident),self.bank._load_bank()['questions'],self.bank.catalog)
 
     def review(self,ident):
-        return validate_matrix(self.get(ident),self.bank.catalog,True)
+        m=self.get(ident)
+        if m.get('status') not in ('locked','archived'):m=normalize_matrix(m,self.bank.catalog)
+        return validate_matrix(m,self.bank.catalog,True)
 
     def _source_pages_prefix(self, m):
         import re
@@ -168,7 +170,8 @@ class MatrixService:
             if m['status'] not in ('draft','review'):raise ServiceError('Trạng thái không cho phép khóa.',status=409)
             if not isinstance(confirmation,dict) or confirmation.get('external_agreement') is not True or not all(isinstance(confirmation.get(k),str) and confirmation[k].strip() for k in ('confirmed_by','confirmed_at','basis')):
                 raise ServiceError('Cần người xác nhận, ngày và căn cứ bản đã thống nhất; kiểm tra kỹ thuật không thay xác nhận của tổ.')
-            report=self.review(ident)
+            m=normalize_matrix(m,self.bank.catalog)
+            report=validate_matrix(m,self.bank.catalog,True)
             if not report['valid']:raise ServiceError('Ma trận còn nội dung cần đối chiếu.',report)
             m['status']='locked';m['content_sha256']=matrix_digest(m);m['confirmation']=copy.deepcopy(confirmation)
             return self._write(m,'lock',confirmation)

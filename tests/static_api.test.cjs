@@ -65,6 +65,17 @@ async function main(){
  assert.equal(stagedResult.response.exams.length,2);const setId=sets.exams[0].exam_set.id;
  sets.exams[1].questions[0].question='Sửa để tái hiện lỗi';const savedSet=JSON.stringify(sets);
  await assert.rejects(api.handle('/api/exams/set/transition',{set_id:setId,action:'submit'},sets,env));assert.equal(JSON.stringify(sets),savedSet);
+ const legacyEs=fixture();
+ legacyEs.matrices[0].matrix_locked=true;
+ legacyEs.matrices[0].spec_locked=true;
+ legacyEs.matrices[0].slots=[
+  {id:'S1',kind:'MC',number:1,scoring:{mode:'sum_parts'},parts:[{id:'P1',requirement_id:'R1',points:4}]},
+  {id:'S29',kind:'ES',number:29,scoring:{mode:'sum_parts'},parts:[{id:'P29',requirement_id:'R1',points:3}]},
+  {id:'S30',kind:'ES',number:30,scoring:{mode:'sum_parts'},parts:[{id:'P30',requirement_id:'R1',points:3}]}
+ ];
+ const lockedLegacy=await api.handle('/api/matrices/lock',{id:'M1',expected_revision:1,confirmation:{confirmed_by:'GV',confirmed_at:'2026-11-22',external_agreement:true}},legacyEs,env);
+ assert.equal(lockedLegacy.response.matrix.status,'locked');
+ assert.deepEqual(lockedLegacy.response.matrix.slots.filter(s=>s.kind==='ES').map(s=>s.number),[1,2]);
  console.log('PASS static API: ma trận → đề cương → sinh thật → khóa → phát hành; lỗi nguyên tử, bất biến snapshot và không tự duyệt câu');
 }
 if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1;});

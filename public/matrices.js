@@ -1201,9 +1201,9 @@
     return true;
   }
   function normalizeSlotNumbers(m){
-    if(!m||!Array.isArray(m.slots)||m.status==='locked'||m.status==='archived'||m.matrix_locked)return false;
+    if(!m||!Array.isArray(m.slots)||m.status==='locked'||m.status==='archived')return false;
     let changedAny=false;const groups={};
-    m.slots.forEach(s=>{(groups[s.kind]||(groups[s.kind]=[])).push(s);});
+    m.slots.forEach(s=>{if(s&&typeof s==='object')(groups[s.kind]||(groups[s.kind]=[])).push(s);});
     Object.values(groups).forEach(list=>{
       const ordered=list.map((s,i)=>[s,i]).sort((a,b)=>(Number(a[0].number)||0)-(Number(b[0].number)||0)||a[1]-b[1]).map(x=>x[0]);
       ordered.forEach((s,i)=>{if(s.number!==i+1){s.number=i+1;changedAny=true;}});
@@ -1215,10 +1215,14 @@
     const d=await ui.ctx.request('/api/matrices/'+encodeURIComponent(id));
     ui.editing=d.matrix;
     const hadSlotFix=normalizeSlotNumbers(ui.editing);
+    const eng=root.BankStaticEngine||root.StaticExamEngine;
     if(hadSlotFix){
       ui.dirty=true;
-      if(ui.ctx?.ppct && window.StaticExamEngine){
-        ui.report=window.StaticExamEngine.validateMatrix(ui.editing,ui.ctx.ppct);
+      if(ui.ctx?.ppct && eng){
+        ui.report=eng.validateMatrix(ui.editing,ui.ctx.ppct);
+      } else if(d.validation){
+        const errs=(d.validation.errors||[]).filter(e=>e.code!=='number_sequence');
+        ui.report={...d.validation,errors:errs,valid:errs.length===0};
       } else {
         ui.report=null;
       }
@@ -2405,6 +2409,7 @@
         message('Đã mở khóa Bảng ma trận 2D để chỉnh sửa.');
       }
       else if(action==='lock-spec'){
+        normalizeSlotNumbers(ui.editing);
         ui.editing.spec_locked = true;
         await save(true);
         message('Đã lưu & chốt Bảng đặc tả! Toàn bộ Yêu cầu cần đạt đã được cố định.');
@@ -2421,6 +2426,7 @@
         message('Đã mở khóa Bảng đặc tả để chỉnh sửa.');
       }
       else if(action==='save-and-lock'){
+        normalizeSlotNumbers(ui.editing);
         await save(true);
         const confirmation={
           confirmed_by:qs('#mx-confirm-name')?.value||ui.editing.owner_name||'Trần Gia Huy',
@@ -2479,6 +2485,7 @@
         ui.editing=result.matrix;ui.report=result.validation;ui.dirty=false;await refresh();render();
         message('Đã mở khóa hồ sơ về trạng thái Bản nháp.');
       }else if(action==='lock'){
+        if(normalizeSlotNumbers(ui.editing))ui.dirty=true;
         if(!ui.editing.id||ui.dirty)await save(true);
         const confirmation={
           confirmed_by:qs('#mx-confirm-name')?.value||ui.editing.owner_name||'Trần Gia Huy',

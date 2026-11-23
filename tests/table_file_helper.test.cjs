@@ -107,3 +107,87 @@ test('TableFileHelper: sample generators produce valid rows for Bank, PPCT and M
   assert.ok(matrixRows.length >= 6);
   assert.ok(TableFileHelper.toCsv(bankRows).startsWith('\ufeff'));
 });
+
+test('TableFileHelper: THCS samples exclude YN (True/False) and match grade requirements', () => {
+  [6, 7, 8, 9].forEach(g => {
+    const rows = TableFileHelper.getSampleBankRows(g, 'Tin học');
+    assert.equal(rows[0][4], 'Phương án A'); // Không có '/ Ý a'
+    const types = rows.slice(1).map(r => r[2]);
+    assert.ok(types.includes('MC'));
+    assert.ok(types.includes('ES'));
+    assert.ok(!types.includes('YN'), `Khối ${g} THCS không được có dạng Đúng/Sai (YN)`);
+    assert.ok(!types.includes('SHORT'), `Khối ${g} THCS không được có dạng Trả lời ngắn (SHORT)`);
+  });
+
+  const matrixRows9 = TableFileHelper.getSampleMatrixRows(9, 'Tin học');
+  const mHeaders = matrixRows9[1];
+  assert.ok(!mHeaders.includes('DS_Biet'), 'Ma trận THCS không có cột DS_Biet');
+  assert.ok(!mHeaders.includes('DS_Hieu'), 'Ma trận THCS không có cột DS_Hieu');
+  assert.ok(!mHeaders.includes('DS_VD'), 'Ma trận THCS không có cột DS_VD');
+  assert.ok(mHeaders.includes('TN_Biet'));
+  assert.ok(mHeaders.includes('TL_VD'));
+
+  const specRows = matrixRows9.slice(6);
+  const specTypes = specRows.slice(1).map(r => r[2]);
+  assert.ok(!specTypes.includes('YN'), 'Bản đặc tả THCS không có dạng YN');
+});
+
+test('TableFileHelper: THPT samples contain all 4 question types (MC, YN, SHORT, ES)', () => {
+  [10, 11, 12].forEach(g => {
+    const rows = TableFileHelper.getSampleBankRows(g, 'Tin học');
+    const types = rows.slice(1).map(r => r[2]);
+    assert.ok(types.includes('MC'));
+    assert.ok(types.includes('YN'));
+    assert.ok(types.includes('SHORT'));
+    assert.ok(types.includes('ES'));
+  });
+
+  const matrixRows10 = TableFileHelper.getSampleMatrixRows(10, 'Tin học');
+  const mHeaders = matrixRows10[1];
+  assert.ok(mHeaders.includes('DS_Biet'));
+  assert.ok(mHeaders.includes('DS_Hieu'));
+  assert.ok(mHeaders.includes('DS_VD'));
+});
+
+test('TableFileHelper: buildAiPromptByLesson handles THCS vs THPT constraints properly', () => {
+  // THCS tự động chuyển YN thành MC và kèm cảnh báo nghiêm ngặt
+  const promptThcs = TableFileHelper.buildAiPromptByLesson({
+    grade: 8,
+    subject: 'Tin học',
+    lessonCode: 'B2',
+    lessonName: 'Xử lí dữ liệu',
+    outcomes: ['Sử dụng hàm SUM, AVERAGE'],
+    part: 'YN', // Người dùng chọn YN cho THCS
+    outputFormat: 'EXCEL'
+  });
+  assert.ok(promptThcs.includes('THCS'));
+  assert.ok(promptThcs.includes('TUYỆT ĐỐI KHÔNG SỬ DỤNG dạng câu hỏi trắc nghiệm Đúng/Sai (YN)'));
+  assert.ok(promptThcs.includes('MC - 4 phương án'));
+
+  // THCS chọn ALL
+  const promptThcsAll = TableFileHelper.buildAiPromptByLesson({
+    grade: 9,
+    subject: 'Tin học',
+    lessonCode: 'B3',
+    lessonName: 'Lưu trữ đám mây',
+    outcomes: ['Phân quyền tệp'],
+    part: 'ALL',
+    outputFormat: 'EXCEL'
+  });
+  assert.ok(promptThcsAll.includes('trọn gói bộ câu hỏi chuẩn THCS'));
+  assert.ok(promptThcsAll.includes('Cấp THCS tuyệt đối KHÔNG sinh câu hỏi Đúng/Sai YN'));
+
+  // THPT chọn YN chuẩn CV 7991
+  const promptThptYn = TableFileHelper.buildAiPromptByLesson({
+    grade: 10,
+    subject: 'Tin học',
+    lessonCode: 'B1',
+    lessonName: 'Thông tin số',
+    outcomes: ['Xử lí thông tin'],
+    part: 'YN',
+    outputFormat: 'EXCEL'
+  });
+  assert.ok(promptThptYn.includes('Công văn 7991'));
+  assert.ok(promptThptYn.includes('4 lệnh hỏi / phát biểu a), b), c), d)'));
+  assert.ok(promptThptYn.includes('Đ, S, Đ, S'));
+});

@@ -757,8 +757,16 @@ ${commonEs}`;
 
     let curGrade = Number(initialGrade) || Number(store.filters.grade) || Number(store.ppctGrade) || 9;
     const subj = subject();
+    let selectedPart = 'MC';
+    let selectedFormat = 'EXCEL';
+    let selectedCount = 4;
 
     const renderDialogContent = () => {
+      const isThpt = curGrade >= 10;
+      if (!isThpt && selectedPart === 'YN') {
+        selectedPart = 'MC';
+      }
+
       const ls = lessons(curGrade, subj);
       const uniqueLessons = [];
       const seenCodes = new Set();
@@ -773,9 +781,6 @@ ${commonEs}`;
       }
 
       let selectedLessonCode = uniqueLessons[0].lesson_code;
-      let selectedPart = 'MC';
-      let selectedFormat = 'EXCEL';
-      let selectedCount = 4;
 
       const getCurLesson = () => uniqueLessons.find(l => l.lesson_code === selectedLessonCode) || uniqueLessons[0];
 
@@ -837,20 +842,21 @@ ${commonEs}`;
                 <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px">Phần muốn tạo (Nạp từng phần):</label>
                 <div style="display:flex;flex-direction:column;gap:5px;font-size:12px">
                   <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-                    <input type="radio" name="ai_part" value="MC" checked>
+                    <input type="radio" name="ai_part" value="MC" ${selectedPart === 'MC' ? 'checked' : ''}>
                     <strong>Phần 1: Trắc nghiệm 4 lựa chọn (MC)</strong>
                   </label>
-                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-                    <input type="radio" name="ai_part" value="YN">
-                    <strong>Phần 2: Đúng/Sai 4 ý a-d (YN · chuẩn CV 7991)</strong>
+                  <label style="display:flex;align-items:center;gap:6px;cursor:${isThpt ? 'pointer' : 'not-allowed'};opacity:${isThpt ? '1' : '0.55'}">
+                    <input type="radio" name="ai_part" value="YN" ${selectedPart === 'YN' ? 'checked' : ''} ${isThpt ? '' : 'disabled'}>
+                    <strong>Phần 2: Đúng/Sai 4 ý a-d (YN · CV 7991)</strong>
+                    ${isThpt ? '' : '<span style="color:#ef4444;font-size:11px;font-weight:600">(Không áp dụng cho THCS - TT 22/2021)</span>'}
                   </label>
                   <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-                    <input type="radio" name="ai_part" value="SHORT_ES">
-                    <strong>Phần 3: Trả lời ngắn (SHORT) &amp; Tự luận (ES)</strong>
+                    <input type="radio" name="ai_part" value="SHORT_ES" ${selectedPart === 'SHORT_ES' ? 'checked' : ''}>
+                    <strong>${isThpt ? 'Phần 3: Trả lời ngắn (SHORT) &amp; Tự luận (ES)' : 'Phần 2: Tự luận / Thực hành (ES)'}</strong>
                   </label>
                   <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-                    <input type="radio" name="ai_part" value="ALL">
-                    <span>Trọn gói cả 3 phần cho bài học này</span>
+                    <input type="radio" name="ai_part" value="ALL" ${selectedPart === 'ALL' ? 'checked' : ''}>
+                    <span>${isThpt ? 'Trọn gói cả 3 phần cho bài học này (MC + YN + Tự luận/SHORT)' : 'Trọn gói 2 phần chuẩn THCS (Trắc nghiệm MC + Tự luận ES)'}</span>
                   </label>
                 </div>
               </div>
@@ -859,14 +865,14 @@ ${commonEs}`;
                 <div style="flex:2">
                   <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px">Định dạng đầu ra:</label>
                   <select id="ai-prompt-select-format" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;font-size:12px;font-weight:600">
-                    <option value="EXCEL">📊 Bảng Excel / TSV (Khuyên dùng #1)</option>
-                    <option value="JSON">📥 JSON chuẩn hệ thống (#2)</option>
-                    <option value="MARKDOWN">📝 Markdown văn bản (#3)</option>
+                    <option value="EXCEL" ${selectedFormat === 'EXCEL' ? 'selected' : ''}>📊 Bảng Excel / TSV (Khuyên dùng #1)</option>
+                    <option value="JSON" ${selectedFormat === 'JSON' ? 'selected' : ''}>📥 JSON chuẩn hệ thống (#2)</option>
+                    <option value="MARKDOWN" ${selectedFormat === 'MARKDOWN' ? 'selected' : ''}>📝 Markdown văn bản (#3)</option>
                   </select>
                 </div>
                 <div style="flex:1">
                   <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px">Số lượng câu:</label>
-                  <input type="number" id="ai-prompt-count" value="4" min="1" max="20" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;font-size:12px">
+                  <input type="number" id="ai-prompt-count" value="${selectedCount}" min="1" max="20" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;font-size:12px">
                 </div>
               </div>
             </div>

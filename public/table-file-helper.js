@@ -653,7 +653,183 @@
   // 8. TẠO MẪU FILE CSV (CÓ UTF-8 BOM) CHO CẢ 3 PHÂN HỆ
   // =========================================================================
   function getSampleBankRows(grade = 9, subject = 'Tin học') {
-    const isThpt = Number(grade) >= 10;
+    const g = Number(grade) || 9;
+    const isThpt = g >= 10;
+
+    if (!isThpt) {
+      // CẤP THCS (Khối 6, 7, 8, 9 · TT 22/2021): Chỉ gồm Trắc nghiệm 4 lựa chọn (MC) và Tự luận (ES).
+      // TUYỆT ĐỐI KHÔNG CÓ Đúng/Sai (YN) và Trả lời ngắn (SHORT).
+      const header = [
+        'Mã bài', 'Mức độ', 'Dạng câu', 'Nội dung câu hỏi',
+        'Phương án A', 'Phương án B', 'Phương án C', 'Phương án D',
+        'Đáp án đúng', 'Hướng dẫn giải / Tiêu chí chấm', 'Yêu cầu cần đạt'
+      ];
+
+      if (g === 6) {
+        return [
+          header,
+          [
+            'B1', 'Biết', 'MC',
+            'Thiết bị nào sau đây là thiết bị vào dùng để nhập dữ liệu chữ và số vào máy tính?',
+            'Bàn phím (Keyboard)', 'Màn hình (Monitor)', 'Máy in (Printer)', 'Loa (Speaker)',
+            'A',
+            'Bàn phím là thiết bị vào dùng để nhập kí tự và dữ liệu vào máy tính. Màn hình, máy in và loa là các thiết bị ra.',
+            'Nhận biết được các thiết bị vào - ra cơ bản của hệ thống máy tính.'
+          ],
+          [
+            'B1', 'Hiểu', 'MC',
+            'Đơn vị đo dung lượng thông tin nhỏ nhất trong máy tính lưu trữ một trong hai chữ số 0 hoặc 1 là gì?',
+            'Byte (B)', 'Bit (b)', 'Kilobyte (KB)', 'Megabyte (MB)',
+            'B',
+            'Bit (viết tắt của binary digit) là đơn vị cơ bản và nhỏ nhất để đo dung lượng thông tin.',
+            'Hiểu được các đơn vị đo dung lượng thông tin cơ bản.'
+          ],
+          [
+            'B2', 'Vận dụng', 'MC',
+            'Để bảo vệ máy tính và tài khoản cá nhân khỏi virus và các phần mềm độc hại, hành động nào sau đây là đúng đắn?',
+            'Mở tất cả các tệp đính kèm gửi từ địa chỉ email không rõ nguồn gốc',
+            'Cài đặt và cập nhật thường xuyên chương trình diệt virus có bản quyền',
+            'Đặt mật khẩu tài khoản rất ngắn và đơn giản như "123456" cho dễ nhớ',
+            'Tắt tính năng tường lửa bảo vệ của hệ điều hành khi lướt mạng',
+            'B',
+            'Cài đặt chương trình diệt virus giúp tự động phát hiện, ngăn chặn và loại bỏ mã độc xâm nhập.',
+            'Vận dụng được các biện pháp an toàn cơ bản để bảo vệ máy tính và dữ liệu.'
+          ],
+          [
+            'B3', 'Vận dụng cao', 'ES',
+            'Em hãy giải thích vì sao cần phải định kì sao lưu các tệp dữ liệu học tập quan trọng trên máy tính và đề xuất 02 cách sao lưu an toàn, hiệu quả mà học sinh lớp 6 có thể thực hiện.',
+            '', '', '', '',
+            '',
+            '1. Giải thích được sự cần thiết: phòng ngừa rủi ro hư hỏng ổ đĩa, nhiễm virus mã hóa hoặc vô tình xóa nhầm tệp (0.5 điểm).\n2. Đề xuất đúng 02 cách: sao chép lưu trữ sang thiết bị nhớ ngoài (ổ USB) hoặc đồng bộ lên dịch vụ lưu trữ đám mây của nhà trường/cá nhân (0.5 điểm).',
+            'Đề xuất và thực hiện được các giải pháp sao lưu, bảo vệ dữ liệu cá nhân an toàn.'
+          ]
+        ];
+      }
+
+      if (g === 7) {
+        return [
+          header,
+          [
+            'B1', 'Biết', 'MC',
+            'Thiết bị nào sau đây vừa đảm nhận chức năng của thiết bị vào, vừa đảm nhận chức năng của thiết bị ra?',
+            'Bàn phím cơ', 'Màn hình cảm ứng (Touchscreen)', 'Chuột không dây', 'Máy quét ảnh (Scanner)',
+            'B',
+            'Màn hình cảm ứng vừa nhận thao tác chạm ngón tay (vào) vừa hiển thị hình ảnh kết quả (ra).',
+            'Nhận biết và phân loại được các thiết bị vào - ra thông dụng.'
+          ],
+          [
+            'B1', 'Hiểu', 'MC',
+            'Mạng xã hội mang lại lợi ích nổi bật nào sau đây cho học sinh trong quá trình học tập và rèn luyện?',
+            'Chia sẻ thông tin cá nhân và mật khẩu cho tất cả mọi người',
+            'Kết nối bạn bè, tham gia nhóm học tập và trao đổi tri thức bổ ích',
+            'Tải và cài đặt các trò chơi điện tử không rõ nguồn gốc',
+            'Đăng tải các nội dung chưa được kiểm chứng để thu hút tương tác',
+            'B',
+            'Mạng xã hội là kênh giao lưu, hợp tác và chia sẻ tài liệu học tập hiệu quả nếu được sử dụng đúng cách.',
+            'Hiểu được vai trò, lợi ích và trách nhiệm khi tham gia mạng xã hội.'
+          ],
+          [
+            'B2', 'Vận dụng', 'MC',
+            'Khi nhận được tin nhắn từ một tài khoản lạ kèm đường liên kết mời nhận quà tặng miễn phí trên mạng xã hội, hành vi ứng xử an toàn nhất là gì?',
+            'Nhấp vào liên kết ngay để xem quà tặng và nhập số điện thoại',
+            'Chuyển tiếp đường liên kết cho bạn bè trong lớp để cùng nhận thưởng',
+            'Không nhấp vào liên kết, chặn tài khoản lạ và thông báo cho người lớn/thầy cô',
+            'Cung cấp mã xác thực OTP ngân hàng của gia đình theo hướng dẫn',
+            'C',
+            'Đường liên kết lạ có thể chứa mã độc đánh cắp tài khoản hoặc lừa đảo tài chính; không nhấp và chặn tài khoản là cách an toàn nhất.',
+            'Thực hiện được các quy tắc bảo đảm an toàn khi giao tiếp trên không gian mạng.'
+          ],
+          [
+            'B3', 'Vận dụng cao', 'ES',
+            'Em hãy viết một đoạn văn ngắn (từ 5 đến 7 dòng) đưa ra lời khuyên cho các bạn học sinh về văn hóa ứng xử lịch sự trên mạng xã hội và nêu 02 biện pháp để bảo vệ quyền riêng tư cá nhân khi tham gia Internet.',
+            '', '', '', '',
+            '',
+            '- Nêu được chuẩn mực giao tiếp văn minh: tôn trọng ý kiến người khác, không dùng từ ngữ xúc phạm hay lan truyền thông tin sai sự thật (0.5 điểm).\n- Nêu được 02 biện pháp bảo vệ quyền riêng tư: không công khai địa chỉ nhà/số điện thoại/lịch trình, đặt mật khẩu mạnh và không đăng ảnh riêng tư của người khác khi chưa xin phép (0.5 điểm).',
+            'Hình thành ý thức, kỹ năng giao tiếp văn hóa và bảo vệ đời tư trong môi trường số.'
+          ]
+        ];
+      }
+
+      if (g === 8) {
+        return [
+          header,
+          [
+            'B1', 'Biết', 'MC',
+            'Lịch sử phát triển của ngành công nghiệp máy tính điện tử từ trước đến nay được phân chia thành bao nhiêu thế hệ chính?',
+            '3 thế hệ', '4 thế hệ', '5 thế hệ', '6 thế hệ',
+            'C',
+            'Máy tính điện tử đã trải qua 5 thế hệ chính: thế hệ đèn điện tử chân không, bóng bán dẫn, mạch tích hợp (IC), mạch tích hợp quy mô rất lớn (VLSI) và máy tính thông minh tích hợp AI.',
+            'Nêu được các mốc phát triển chính của máy tính điện tử qua 5 thế hệ.'
+          ],
+          [
+            'B2', 'Hiểu', 'MC',
+            'Trong phần mềm bảng tính, công thức nào sau đây tính trung bình cộng các giá trị số trong khối ô từ B2 đến B8?',
+            '=AVERAGE(B2:B8)', '=SUM(B2:B8)', '=COUNT(B2:B8)', '=TOTAL(B2:B8)',
+            'A',
+            'Hàm AVERAGE thực hiện tính trung bình cộng của các ô chứa giá trị số trong phạm vi chỉ định.',
+            'Sử dụng được các hàm tính toán cơ bản trong phần mềm bảng tính.'
+          ],
+          [
+            'B2', 'Vận dụng', 'MC',
+            'Tại ô tính D2 có công thức =B2*C2. Khi thực hiện sao chép công thức từ ô D2 xuống ô D3, công thức tại ô D3 sẽ tự động biến đổi thành gì?',
+            '=$B$2*$C$2', '=B3*C3', '=B2*C3', '=C2*D2',
+            'B',
+            'Do sử dụng địa chỉ tương đối, chỉ số hàng của các ô tham chiếu B2 và C2 sẽ tự động tăng tương ứng thêm 1 thành B3 và C3.',
+            'Hiểu và vận dụng thành thạo cơ chế sao chép công thức với địa chỉ tương đối.'
+          ],
+          [
+            'B3', 'Vận dụng cao', 'ES',
+            'Để quản lí bảng điểm thi đua của các tổ trong lớp bằng bảng tính, em hãy nêu 02 nguyên tắc trình bày bảng tính khoa học, rõ ràng và nêu tên các hàm cần dùng để tìm điểm cao nhất, điểm thấp nhất và điểm trung bình của cả lớp.',
+            '', '', '', '',
+            '',
+            '1. Nêu 02 nguyên tắc trình bày: tiêu đề cột rõ ràng, định dạng kiểu dữ liệu đúng (số thập phân, căn lề), kẻ đường viền và phân biệt màu sắc hợp lí (0.5 điểm).\n2. Nêu đúng các hàm tương ứng: hàm =MAX(...) để tìm điểm cao nhất, hàm =MIN(...) để tìm điểm thấp nhất và hàm =AVERAGE(...) để tính điểm trung bình (0.5 điểm).',
+            'Vận dụng bảng tính điện tử để giải quyết bài toán quản lí dữ liệu học tập thực tế.'
+          ]
+        ];
+      }
+
+      // Mặc định Khối 9 (THCS)
+      return [
+        header,
+        [
+          'B1', 'Biết', 'MC',
+          'Thiết bị mạng nào sau đây có chức năng định tuyến, kết nối các mạng máy tính khác nhau và chuyển tiếp các gói tin ra môi trường Internet toàn cầu?',
+          'Bộ định tuyến (Router)', 'Bộ chuyển mạch (Switch)', 'Bộ lặp tín hiệu (Repeater)', 'Điểm truy cập không dây (Access Point)',
+          'A',
+          'Bộ định tuyến (Router) là thiết bị kết nối mạng nội bộ (LAN) với mạng Internet bên ngoài và định tuyến lưu lượng dữ liệu.',
+          'Nhận biết được chức năng và vai trò của các thiết bị mạng thông dụng.'
+        ],
+        [
+          'B1', 'Hiểu', 'MC',
+          'Hành vi nào sau đây vi phạm quyền tác giả và quyền sở hữu trí tuệ trong việc sử dụng sản phẩm công nghệ số?',
+          'Sử dụng phần mềm mã nguồn mở miễn phí theo giấy phép GNU/GPL',
+          'Tải và cài đặt phần mềm bẻ khóa (crack) rồi phát tán cho nhiều người dùng',
+          'Mua bản quyền phần mềm chính hãng từ trang chủ của nhà sản xuất',
+          'Trích dẫn rõ nguồn gốc và tác giả khi sử dụng một đoạn tài liệu trên mạng',
+          'B',
+          'Hành vi giải mã, bẻ khóa và phát tán phần mềm lậu là vi phạm pháp luật về bản quyền và sở hữu trí tuệ.',
+          'Hiểu và chấp hành nghiêm túc quy định pháp luật về bản quyền trong môi trường số.'
+        ],
+        [
+          'B2', 'Vận dụng', 'MC',
+          'Khi chia sẻ tệp tài liệu học tập của nhóm trên Google Drive, để các bạn có thể đọc và viết nhận xét góp ý nhưng không thể tự ý chỉnh sửa hay xóa nội dung gốc, em nên cấp quyền gì?',
+          'Quyền Người xem (Viewer)', 'Quyền Người nhận xét (Commenter)', 'Quyền Người chỉnh sửa (Editor)', 'Quyền Chủ sở hữu (Owner)',
+          'B',
+          'Quyền "Người nhận xét" cho phép xem và thêm bình luận/góp ý bên lề tài liệu mà không làm thay đổi trực tiếp nội dung văn bản gốc.',
+          'Vận dụng được kỹ năng phân quyền chia sẻ tài nguyên an toàn trên nền tảng đám mây.'
+        ],
+        [
+          'B3', 'Vận dụng cao', 'ES',
+          'Em hãy phân tích 02 nguy cơ khi sao chép toàn bộ nội dung hoặc hình ảnh từ Internet vào bài báo cáo học tập mà không trích dẫn nguồn. Từ đó, hãy đề xuất 02 hành động cụ thể để thể hiện tính liêm chính học thuật.',
+          '', '', '', '',
+          '',
+          '1. Phân tích 02 nguy cơ: vi phạm quyền sở hữu trí tuệ của tác giả gốc, bị xử lí kỷ luật học vụ vì gian lận và đánh mất năng lực tư duy sáng tạo của bản thân (0.5 điểm).\n2. Đề xuất 02 hành động: luôn ghi rõ nguồn tham khảo (tên tác giả, liên kết, ngày truy cập) và tự diễn đạt lại ý tưởng bằng cách viết của chính mình (paraphrasing) kèm chú thích nguồn (0.5 điểm).',
+          'Vận dụng và cam kết thực hành tính liêm chính học thuật, đạo đức trong kỉ nguyên số.'
+        ]
+      ];
+    }
+
+    // CẤP THPT (Khối 10, 11, 12 · CV 7991): Đầy đủ 4 dạng MC, YN (Đúng/Sai 4 ý), SHORT, ES
     return [
       [
         'Mã bài', 'Mức độ', 'Dạng câu', 'Nội dung câu hỏi',
@@ -681,9 +857,7 @@
       ],
       [
         'B2', 'Vận dụng', 'YN',
-        isThpt
-          ? 'Trong dự án học tập, một nhóm học sinh sử dụng Google Drive để lưu trữ và chia sẻ tài liệu chung. Xét tính Đúng/Sai của các nhận định sau:'
-          : 'Khi chia sẻ tệp tin và thư mục trên môi trường mạng máy tính, xét tính Đúng/Sai của các phát biểu sau:',
+        'Trong dự án học tập, một nhóm học sinh sử dụng Google Drive để lưu trữ và chia sẻ tài liệu chung. Xét tính Đúng/Sai của các nhận định sau:',
         'Có thể phân quyền "Người xem" để người khác chỉ đọc tài liệu mà không chỉnh sửa được',
         'Khi chủ sở hữu xóa thư mục gốc trên đám mây, các thành viên được chia sẻ vẫn truy cập bình thường',
         'Chủ sở hữu thư mục có toàn quyền thêm, bớt thành viên hoặc thu hồi quyền truy cập bất cứ lúc nào',
@@ -712,43 +886,171 @@
   }
 
   function getSamplePpctRows(grade = 9, subject = 'Tin học') {
+    const g = Number(grade) || 9;
+    const isThpt = g >= 10;
+    const header = ['Tuần', 'Tên bài học', 'Số tiết', 'Tiết PPCT', 'Yêu cầu cần đạt', 'Phát triển năng lực số & AI', 'Ghi chú'];
+
+    if (!isThpt) {
+      if (g === 6) {
+        return [
+          header,
+          [
+            'Tuần 1', 'Bài 1: Thông tin và dữ liệu trong đời sống', '1', 'Tiết 1',
+            'Nhận biết được thông tin và dữ liệu trong các tình huống thực tế.\nBiết được các dạng thông tin cơ bản: văn bản, hình ảnh, âm thanh.',
+            'Năng lực nhận diện và thu nhận thông tin số (NLS 1.1)',
+            'Nội dung cốt lõi'
+          ],
+          [
+            'Tuần 2', 'Bài 2: Biểu diễn thông tin trong máy tính', '1', 'Tiết 2',
+            'Hiểu được vai trò của hai kí hiệu 0 và 1 (bit) trong biểu diễn thông tin.\nBiết được các đơn vị đo dung lượng thông tin cơ bản: B, KB, MB, GB.',
+            'Hiểu nguyên lí lưu trữ dữ liệu số (NLS 1.2)',
+            'Nội dung cốt lõi'
+          ],
+          [
+            'Tuần 3', 'Bài 3: Thực hành sao lưu và bảo vệ tệp tin', '2', 'Tiết 3, 4',
+            'Thực hiện được việc quản lí thư mục và tệp tin trên máy tính.\nBiết cách sao lưu dữ liệu quan trọng sang thiết bị lưu trữ ngoài hoặc đám mây.',
+            'Quản trị dữ liệu và an toàn thiết bị số (NLS 4.1)',
+            'Thực hành tại phòng máy'
+          ]
+        ];
+      }
+      if (g === 7) {
+        return [
+          header,
+          [
+            'Tuần 1', 'Bài 1: Thiết bị vào và thiết bị ra của máy tính', '1', 'Tiết 1',
+            'Nhận biết và phân loại được các thiết bị vào - ra thông dụng.\nBiết cách kết nối an toàn các thiết bị ngoại vi với máy tính.',
+            'Sử dụng và quản lí thiết bị phần cứng (NLS 1.1)',
+            'Nội dung cốt lõi'
+          ],
+          [
+            'Tuần 2', 'Bài 2: Mạng xã hội và giao tiếp trên Internet', '1', 'Tiết 2',
+            'Hiểu được vai trò của mạng xã hội trong trao đổi tri thức và học tập.\nNhận biết các nguy cơ rủi ro khi chia sẻ thông tin cá nhân trên mạng.',
+            'Giao tiếp và cộng tác số có trách nhiệm (NLS 2.1)',
+            'Nội dung cốt lõi'
+          ],
+          [
+            'Tuần 3', 'Bài 3: Văn hóa ứng xử trên không gian mạng', '2', 'Tiết 3, 4',
+            'Thực hiện được các quy tắc ứng xử văn minh, tôn trọng người khác trên mạng.\nBiết phòng tránh các hành vi lừa đảo và bảo vệ quyền riêng tư cá nhân.',
+            'Bảo vệ danh tính số và an toàn thông tin (NLS 4.2)',
+            'Thực hành phòng máy'
+          ]
+        ];
+      }
+      if (g === 8) {
+        return [
+          header,
+          [
+            'Tuần 1', 'Bài 1: Lịch sử phát triển của máy tính điện tử', '1', 'Tiết 1',
+            'Nêu được các mốc phát triển chính của máy tính qua 5 thế hệ.\nHiểu được vai trò của mạch tích hợp và sự xuất hiện của trí tuệ nhân tạo.',
+            'Hiểu biết tổng quan công nghệ số (NLS 1.1)',
+            'Nội dung cốt lõi'
+          ],
+          [
+            'Tuần 2', 'Bài 2: Thông tin trong môi trường số và bản quyền', '1', 'Tiết 2',
+            'Nhận biết được đặc điểm của thông tin số: dễ phát tán, khó kiểm soát.\nHiểu và tôn trọng bản quyền khi sử dụng tài nguyên thông tin trên mạng.',
+            'Đánh giá thông tin và liêm chính số (NLS 1.2)',
+            'Nội dung cốt lõi'
+          ],
+          [
+            'Tuần 3', 'Bài 3: Xử lí dữ liệu với phần mềm bảng tính', '2', 'Tiết 3, 4',
+            'Sử dụng thành thạo các hàm tính toán SUM, AVERAGE, MAX, MIN trong bảng tính.\nVận dụng được địa chỉ tương đối và tuyệt đối khi sao chép công thức.',
+            'Phân tích và trực quan hóa dữ liệu số (NLS 3.1)',
+            'Thực hành tại phòng máy'
+          ]
+        ];
+      }
+      // Khối 9
+      return [
+        header,
+        [
+          'Tuần 1', 'Bài 1: Thiết bị mạng và các dịch vụ Internet', '1', 'Tiết 1',
+          'Nhận biết được vai trò và chức năng của Router, Switch, Modem trong mạng.\nHiểu được cơ chế truyền tải thông tin qua mạng Internet.',
+          'Kết nối và hạ tầng mạng số (NLS 1.1)',
+          'Nội dung cốt lõi'
+        ],
+        [
+          'Tuần 2', 'Bài 2: Quyền tác giả và đạo đức trong môi trường số', '1', 'Tiết 2',
+          'Hiểu các quy định pháp luật cơ bản về quyền tác giả đối với phần mềm và nội dung số.\nNhận diện hành vi xâm phạm bản quyền và đề xuất giải pháp ứng xử chuẩn mực.',
+          'Đạo đức, pháp luật và liêm chính học thuật (NLS 4.1)',
+          'Nội dung cốt lõi'
+        ],
+        [
+          'Tuần 3', 'Bài 3: Lưu trữ đám mây và cộng tác làm việc nhóm', '2', 'Tiết 3, 4',
+          'Thực hiện được việc tổ chức thư mục, chia sẻ và phân quyền tệp tin trên Google Drive.\nCộng tác soạn thảo văn bản và thuyết trình trực tuyến an toàn, hiệu quả.',
+          'Cộng tác số và quản trị tài nguyên đám mây (NLS 2.2)',
+          'Thực hành tại phòng máy'
+        ]
+      ];
+    }
+
+    // Khối 10, 11, 12 THPT
     return [
-      ['Tuần', 'Tên bài học', 'Số tiết', 'Tiết PPCT', 'Yêu cầu cần đạt', 'Phát triển năng lực số & AI', 'Ghi chú'],
+      header,
       [
-        'Tuần 1', 'Bài 1: Thông tin trong môi trường số', '1', 'Tiết 1',
-        'Nhận biết được các dạng thông tin số và đặc điểm của thông tin trên mạng Internet.\nHiểu được tầm quan trọng của việc chọn lọc thông tin đáng tin cậy.',
-        'Năng lực tìm kiếm, đánh giá độ tin cậy của thông tin số (NLS 1.2)',
-        'Nội dung cốt lõi'
+        'Tuần 1', 'Bài 1: Dữ liệu, thông tin và tri thức trong kỉ nguyên số', '1', 'Tiết 1',
+        'Phân biệt được dữ liệu, thông tin và tri thức.\nNêu được vai trò của tri thức và các công nghệ thu thập dữ liệu lớn.',
+        'Năng lực xử lí dữ liệu số nâng cao (NLS 1.1)',
+        'Mục II.1 cốt lõi'
       ],
       [
-        'Tuần 2', 'Bài 2: Sử dụng dịch vụ lưu trữ đám mây', '2', 'Tiết 2, 3',
-        'Thực hiện được việc tải lên, tải xuống và tổ chức tệp tin trên dịch vụ lưu trữ đám mây.\nBiết cách thiết lập quyền truy cập và chia sẻ tệp an toàn cho người khác.',
-        'Hợp tác và chia sẻ tài nguyên qua công nghệ đám mây (NLS 2.1)',
-        'Thực hành tại phòng máy'
+        'Tuần 2', 'Bài 2: Mạng máy tính và điện toán đám mây', '2', 'Tiết 2, 3',
+        'Phân tích được kiến trúc mạng Internet và các dịch vụ điện toán đám mây.\nThực hiện phân quyền, chia sẻ tài nguyên an toàn trên môi trường số.',
+        'Cộng tác và kiến trúc đám mây (NLS 2.1)',
+        'Mục II.1 cốt lõi'
       ],
       [
-        'Tuần 3', 'Bài 3: Thực hành bảo mật dữ liệu cá nhân', '1', 'Tiết 4',
-        'Nhận diện được các rủi ro lộ lọt thông tin khi sử dụng Internet công cộng.\nĐề xuất và thực hiện được các thói quen bảo đảm an toàn dữ liệu.',
-        'Bảo đảm an toàn danh tính số và dữ liệu cá nhân (NLS 4.1)',
-        'Kiểm tra đánh giá thường xuyên'
+        'Tuần 3', 'Chuyên đề 1: Thực hành thiết kế và lập trình ứng dụng số', '2', 'Tiết 4, 5',
+        'Xây dựng được kịch bản thuật toán và cài đặt chương trình giải quyết bài toán thực tiễn.\nKiểm thử và đánh giá độ phức tạp của giải thuật.',
+        'Tư duy tính toán và sáng tạo thuật toán (NLS 3.2)',
+        'Chuyên đề lựa chọn'
       ]
     ];
   }
 
   function getSampleMatrixRows(grade = 9, subject = 'Tin học') {
+    const g = Number(grade) || 9;
+    const isThpt = g >= 10;
+
+    if (!isThpt) {
+      // CẤP THCS (Khối 6, 7, 8, 9 · TT 22/2021): Tỉ lệ 70% TN (28 câu = 7.0đ) + 30% TL (3 câu = 3.0đ).
+      // TUYỆT ĐỐI KHÔNG CÓ CỘT ĐÚNG/SAI (DS_Biet, DS_Hieu, DS_VD)!
+      return [
+        ['BẢNG 1: KHUNG MA TRẬN 2D ĐỀ KIỂM TRA ĐỊNH KỲ (CẤP THCS · TT 22/2021)'],
+        ['STT', 'Chủ đề', 'Mã bài', 'Tên bài học', 'Số tiết', 'TN_Biet', 'TN_Hieu', 'TN_VD', 'TL_VD', 'TL_VDC', 'Tong_Cau', 'Tong_Diem'],
+        ['1', 'Chủ đề 1: Máy tính và cộng đồng', 'B1', 'Thế giới kĩ thuật số', '2', '8', '4', '0', '0', '0', '12', '3.0'],
+        ['2', 'Chủ đề 2: Tổ chức lưu trữ, tìm kiếm và trao đổi thông tin', 'B2', 'Lưu trữ và xử lí dữ liệu số', '3', '5', '5', '2', '1', '0', '13', '4.5'],
+        ['3', 'Chủ đề 3: Đạo đức, pháp luật và văn hóa trong môi trường số', 'B3', 'An toàn và đạo đức số', '3', '3', '1', '0', '1', '1', '6', '2.5'],
+        [''],
+        ['BẢNG 2: BẢN ĐẶC TẢ TỪNG CÂU HỎI (CẤP THCS · TT 22/2021)'],
+        ['Câu', 'Phần', 'Dạng câu', 'Mã bài', 'Mức độ', 'Yêu cầu cần đạt / Mục tiêu đánh giá cụ thể', 'Điểm'],
+        ['Câu 1-16', 'Phần 1', 'MC', 'B1', 'Biết', 'Nhận biết được các khái niệm, thiết bị số và công cụ cơ bản của hệ thống máy tính.', '0.25'],
+        ['Câu 17-26', 'Phần 1', 'MC', 'B2', 'Hiểu', 'Giải thích được các nguyên lí xử lí thông tin, tổ chức và lưu trữ dữ liệu an toàn.', '0.25'],
+        ['Câu 27-28', 'Phần 1', 'MC', 'B2', 'Vận dụng', 'Vận dụng các thao tác công nghệ số để tìm kiếm và chia sẻ tài nguyên hợp lệ.', '0.25'],
+        ['Câu 1', 'Phần 2', 'ES', 'B2', 'Vận dụng', 'Vận dụng phần mềm ứng dụng để xử lí và quản lí bài toán thực tế trong học tập.', '1.0'],
+        ['Câu 2', 'Phần 2', 'ES', 'B3', 'Vận dụng', 'Đề xuất giải pháp bảo vệ dữ liệu cá nhân và an toàn thông tin khi tham gia Internet.', '1.0'],
+        ['Câu 3', 'Phần 2', 'ES', 'B3', 'Vận dụng cao', 'Phân tích các tình huống đạo đức số và thực hành liêm chính học thuật trong kỉ nguyên số.', '1.0']
+      ];
+    }
+
+    // CẤP THPT (Khối 10, 11, 12 · CV 7991): Đầy đủ các cột TN, Đúng/Sai, Tự luận
     return [
-      ['BẢNG 1: KHUNG MA TRẬN 2D ĐỀ KIỂM TRA ĐỊNH KỲ'],
+      ['BẢNG 1: KHUNG MA TRẬN 2D ĐỀ KIỂM TRA ĐỊNH KỲ (CẤP THPT · CV 7991)'],
       ['STT', 'Chủ đề', 'Mã bài', 'Tên bài học', 'Số tiết', 'TN_Biet', 'TN_Hieu', 'TN_VD', 'DS_Biet', 'DS_Hieu', 'DS_VD', 'TL_VD', 'TL_VDC', 'Tong_Cau', 'Tong_Diem'],
-      ['1', 'Chủ đề 1', 'B1', 'Thông tin trong môi trường số', '2', '4', '2', '0', '1', '0', '0', '0', '0', '7', '2.0'],
-      ['2', 'Chủ đề 2', 'B2', 'Lưu trữ đám mây và chia sẻ', '3', '3', '3', '1', '0', '1', '1', '1', '0', '10', '4.5'],
-      ['3', 'Chủ đề 3', 'B3', 'An toàn thông tin dữ liệu', '3', '2', '2', '1', '0', '0', '0', '0', '1', '6', '3.5'],
+      ['1', 'Chủ đề A. Máy tính và xã hội tri thức (Mục II.1 cốt lõi)', 'B1', 'Thông tin và xử lí thông tin số', '2', '6', '4', '0', '1', '0', '0', '0', '0', '11', '3.5'],
+      ['2', 'Chủ đề B. Mạng máy tính và Internet (Mục II.1 cốt lõi)', 'B2', 'Mạng máy tính và an toàn thông tin', '3', '4', '3', '2', '0', '1', '1', '1', '0', '12', '4.75'],
+      ['3', 'Chủ đề D. Đạo đức, pháp luật và văn hóa trong môi trường số (Mục II.1 cốt lõi)', 'B3', 'Ứng xử nhân văn và bản quyền số', '2', '0', '0', '0', '0', '0', '0', '1', '1', '2', '1.75'],
       [''],
-      ['BẢNG 2: BẢN ĐẶC TẢ TỪNG CÂU HỎI'],
+      ['BẢNG 2: BẢN ĐẶC TẢ TỪNG CÂU HỎI (CẤP THPT · CV 7991)'],
       ['Câu', 'Phần', 'Dạng câu', 'Mã bài', 'Mức độ', 'Yêu cầu cần đạt / Mục tiêu đánh giá cụ thể', 'Điểm'],
-      ['Câu 1', 'Phần 1', 'MC', 'B1', 'Biết', 'Nhận biết được các thiết bị vào - ra cơ bản của hệ thống máy tính.', '0.25'],
-      ['Câu 2', 'Phần 1', 'MC', 'B1', 'Hiểu', 'Hiểu được vai trò và lợi ích của dịch vụ lưu trữ đám mây.', '0.25'],
-      ['Câu 1', 'Phần 2', 'YN', 'B2', 'Vận dụng', 'Vận dụng quy tắc phân quyền chia sẻ tệp an toàn trên Google Drive.', '1.0'],
-      ['Câu 1', 'Phần 3', 'ES', 'B3', 'Vận dụng cao', 'Đề xuất giải pháp bảo vệ dữ liệu cá nhân trên máy tính công cộng.', '1.0']
+      ['Câu 1-10', 'Phần 1', 'MC', 'B1', 'Biết', 'Nhận biết được các khái niệm về thông tin, dữ liệu và xử lí thông tin số.', '0.25'],
+      ['Câu 11-19', 'Phần 1', 'MC', 'B2', 'Hiểu', 'Phân tích được quy trình truyền tải, bảo mật và kết nối mạng máy tính.', '0.25'],
+      ['Câu 1', 'Phần 2', 'YN', 'B1', 'Biết', 'Đánh giá tính Đúng/Sai của các mệnh đề về biểu diễn thông tin và mã hóa dữ liệu.', '1.0'],
+      ['Câu 2', 'Phần 2', 'YN', 'B2', 'Hiểu', 'Đánh giá tính Đúng/Sai của các nhận định về giao thức mạng và phân quyền dữ liệu đám mây.', '1.0'],
+      ['Câu 3', 'Phần 2', 'YN', 'B2', 'Vận dụng', 'Vận dụng các nguyên tắc an ninh mạng để nhận diện mã độc và phòng chống tấn công lừa đảo.', '1.0'],
+      ['Câu 1', 'Phần 3', 'ES', 'B2', 'Vận dụng', 'Xây dựng phương án kết nối mạng an toàn và tối ưu hóa tài nguyên cho doanh nghiệp nhỏ.', '0.75'],
+      ['Câu 2', 'Phần 3', 'ES', 'B3', 'Vận dụng', 'Đề xuất giải pháp bảo vệ quyền tác giả và quyền riêng tư cá nhân trong môi trường số.', '0.75'],
+      ['Câu 3', 'Phần 3', 'ES', 'B3', 'Vận dụng cao', 'Phân tích tác động xã hội của trí tuệ nhân tạo và đưa ra khuyến nghị đạo đức sử dụng AI có trách nhiệm.', '0.75']
     ];
   }
 
@@ -767,41 +1069,68 @@
       count = 4
     } = params || {};
 
-    const isThpt = Number(grade) >= 10;
     const g = Number(grade) || 9;
+    const isThpt = g >= 10;
+
+    // Nếu cấp THCS chọn YN, tự động đổi sang MC vì THCS không có dạng Đúng/Sai YN
+    let effectivePart = part;
+    if (!isThpt && effectivePart === 'YN') {
+      effectivePart = 'MC';
+    }
+
     const formattedOutcomes = (outcomes && outcomes.length)
       ? outcomes.map((o, idx) => `   ${idx + 1}. ${o}`).join('\n')
       : `   1. Nắm vững kiến thức và kỹ năng trọng tâm của ${lessonName}.`;
 
-    let partInstruction = '';
-    let tableColumnsHeader = '';
+    let gradePolicyNotice = '';
+    if (!isThpt) {
+      gradePolicyNotice = `LƯU Ý QUY CHUẨN ĐẶC BIỆT CẤP THCS (KHỐI ${g} · THEO THÔNG TƯ 22/2021/TT-BGDĐT):
+- Đề kiểm tra và đề cương ôn tập cấp THCS TUYỆT ĐỐI KHÔNG SỬ DỤNG dạng câu hỏi trắc nghiệm Đúng/Sai (YN).
+- Cấu trúc đề chuẩn Á Châu cấp THCS chỉ gồm 2 phần: Phần 1 Trắc nghiệm nhiều lựa chọn (MC - 4 phương án A, B, C, D) và Phần 2 Tự luận / Thực hành (ES). Tỉ lệ chuẩn 70% Trắc nghiệm (7.0 điểm) + 30% Tự luận (3.0 điểm).\n\n`;
+    }
 
-    if (part === 'MC') {
+    let partInstruction = '';
+    if (effectivePart === 'MC') {
       partInstruction = `NHIỆM VỤ: Biên soạn ${count} câu hỏi Trắc nghiệm nhiều lựa chọn (MC - 4 phương án A, B, C, D) cho bài học này:
 - Phân bổ mức độ nhận thức: Biết, Hiểu, Vận dụng bám sát từng Yêu cầu cần đạt (YCCĐ) bên trên.
 - Mỗi câu hỏi gồm câu dẫn ngắn gọn, trong sáng + 4 phương án A, B, C, D. Độ dài các phương án tương đương nhau.
 - TUYỆT ĐỐI KHÔNG dùng các phương án "Tất cả các đáp án trên đều đúng/sai", "Cả A và B đều đúng".
 - Cung cấp lời giải thích chi tiết vì sao phương án đúng là đúng và vì sao 3 phương án còn lại sai.`;
-    } else if (part === 'YN') {
-      partInstruction = `NHIỆM VỤ: Biên soạn ${count} câu hỏi Đúng/Sai (YN - chuẩn Công văn 7991/BGDĐT-GDTrH):
+    } else if (effectivePart === 'YN') {
+      partInstruction = `NHIỆM VỤ: Biên soạn ${count} câu hỏi Đúng/Sai (YN - chuẩn Công văn 7991/BGDĐT-GDTrH cấp THPT):
 - Mỗi câu gồm 01 đoạn dẫn ngữ liệu tình huống thực tế chung (dài ít nhất 25 ký tự) gắn liền với bài học.
 - Kèm theo 4 lệnh hỏi / phát biểu a), b), c), d) độc lập nhau, tăng dần mức độ nhận thức (Biết -> Hiểu -> Vận dụng -> Vận dụng cao).
 - TUYỆT ĐỐI KHÔNG để cả 4 ý cùng Đúng hoặc cả 4 ý cùng Sai (phải đan xen Đúng và Sai, ví dụ: Đ, S, Đ, S hoặc Đ, Đ, S, Đ).
 - Lời giải thích rõ căn cứ tính Đúng/Sai của từng ý a, b, c, d.`;
-    } else if (part === 'SHORT_ES') {
-      partInstruction = `NHIỆM VỤ: Biên soạn câu hỏi Trả lời ngắn (SHORT) và Tự luận (ES):
+    } else if (effectivePart === 'SHORT_ES') {
+      if (isThpt) {
+        partInstruction = `NHIỆM VỤ: Biên soạn câu hỏi Trả lời ngắn (SHORT) và Tự luận (ES):
 - Dạng Trả lời ngắn (SHORT): Nêu rõ đơn vị tính và quy ước làm tròn. Đáp án ngắn gọn duy nhất (tối đa 4 ký tự nếu là số theo QĐ 764).
-- Dạng Tự luận (ES): Nêu rõ tình huống thực tế, yêu cầu thực hiện và barem tiêu chí chấm (Rubric) chi tiết theo từng bước/ý (tổng 1.0 đến 2.0 điểm).`;
+- Dạng Tự luận (ES): Nêu rõ tình huống thực tế, yêu cầu thực hiện và barem tiêu chí chấm (Rubric) chi tiết theo từng bước/ý (tổng 0.75 đến 1.5 điểm).`;
+      } else {
+        partInstruction = `NHIỆM VỤ: Biên soạn câu hỏi Tự luận / Thực hành (ES) cho cấp THCS:
+- Dạng Tự luận (ES): Nêu rõ tình huống thực tế gắn liền với bài học, yêu cầu học sinh giải quyết vấn đề hoặc viết đoạn văn/thao tác bảng tính.
+- Kèm theo Barem tiêu chí chấm điểm (Rubric) chi tiết cho từng ý (tổng điểm 1.0 đến 2.0 điểm).`;
+      }
     } else {
-      partInstruction = `NHIỆM VỤ: Biên soạn trọn gói một bộ câu hỏi hoàn chỉnh cho bài học này gồm đủ 3 phần:
+      // ALL
+      if (isThpt) {
+        partInstruction = `NHIỆM VỤ: Biên soạn trọn gói một bộ câu hỏi hoàn chỉnh cho bài học này gồm đủ 3 phần (chuẩn CV 7991):
 1. Phần 1 (MC): 3 câu trắc nghiệm 4 lựa chọn (Biết, Hiểu, Vận dụng).
 2. Phần 2 (YN): 1 câu Đúng/Sai gồm ngữ liệu tình huống thực tế chung + 4 ý a, b, c, d (chuẩn CV 7991, không để cả 4 ý cùng Đúng hoặc cùng Sai).
-3. Phần 3: 1 câu Trả lời ngắn (SHORT) hoặc Tự luận (ES) kèm barem tiêu chí chấm.`;
+3. Phần 3: 1 câu Trả lời ngắn (SHORT) hoặc Tự luận (ES) kèm barem tiêu chí chấm chi tiết.`;
+      } else {
+        partInstruction = `NHIỆM VỤ: Biên soạn trọn gói bộ câu hỏi chuẩn THCS (Thông tư 22/2021) cho bài học này gồm 2 phần:
+1. Phần 1 (MC): 3 câu trắc nghiệm 4 lựa chọn A, B, C, D (1 câu Biết, 1 câu Hiểu, 1 câu Vận dụng).
+2. Phần 2 (ES): 1 câu hỏi Tự luận / Thực hành (Vận dụng hoặc Vận dụng cao) kèm barem tiêu chí chấm điểm chi tiết (1.0 điểm).
+(LƯU Ý NGHIÊM NGẶT: Cấp THCS tuyệt đối KHÔNG sinh câu hỏi Đúng/Sai YN).`;
+      }
     }
 
     let formatInstruction = '';
     if (outputFormat === 'EXCEL') {
-      formatInstruction = `YÊU CẦU ĐỊNH DẠNG ĐẦU RA (DẠNG BẢNG EXCEL / TSV HOẶC MARKDOWN TABLE ĐỂ GIÁO VIÊN COPY DÁN THẲNG VÀO EXCEL):
+      if (isThpt) {
+        formatInstruction = `YÊU CẦU ĐỊNH DẠNG ĐẦU RA (DẠNG BẢNG EXCEL / TSV HOẶC MARKDOWN TABLE ĐỂ GIÁO VIÊN COPY DÁN THẲNG VÀO EXCEL):
 Hãy xuất kết quả dưới dạng BẢNG gồm đúng 11 cột sau (ngăn cách bằng ký tự Tab hoặc bảng Markdown):
 Cột 1: Mã bài (ghi "${lessonCode}")
 Cột 2: Mức độ (Biết / Hiểu / Vận dụng / Vận dụng cao)
@@ -816,6 +1145,23 @@ Cột 10: Hướng dẫn giải / Tiêu chí chấm (Giải thích chi tiết v�
 Cột 11: Yêu cầu cần đạt (Gắn đúng YCCĐ tương ứng của bài)
 
 CHỈ XUẤT TRỰC TIẾP BẢNG DỮ LIỆU, KHÔNG VIẾT LỜI MỞ ĐẦU HOẶC LỜI BÌNH BÊN NGOÀI.`;
+      } else {
+        formatInstruction = `YÊU CẦU ĐỊNH DẠNG ĐẦU RA (DẠNG BẢNG EXCEL / TSV HOẶC MARKDOWN TABLE ĐỂ GIÁO VIÊN COPY DÁN THẲNG VÀO EXCEL):
+Hãy xuất kết quả dưới dạng BẢNG gồm đúng 11 cột sau (ngăn cách bằng ký tự Tab hoặc bảng Markdown):
+Cột 1: Mã bài (ghi "${lessonCode}")
+Cột 2: Mức độ (Biết / Hiểu / Vận dụng / Vận dụng cao)
+Cột 3: Dạng câu (MC / ES)
+Cột 4: Nội dung câu hỏi (Câu hỏi trắc nghiệm MC hoặc đề bài tự luận ES)
+Cột 5: Phương án A
+Cột 6: Phương án B
+Cột 7: Phương án C
+Cột 8: Phương án D
+Cột 9: Đáp án đúng (Ghi "A", "B", "C" hoặc "D" cho MC; để trống cho ES)
+Cột 10: Hướng dẫn giải / Tiêu chí chấm (Giải thích chi tiết vì sao đúng/sai hoặc barem chấm điểm)
+Cột 11: Yêu cầu cần đạt (Gắn đúng YCCĐ tương ứng của bài)
+
+CHỈ XUẤT TRỰC TIẾP BẢNG DỮ LIỆU, KHÔNG VIẾT LỜI MỞ ĐẦU HOẶC LỜI BÌNH BÊN NGOÀI.`;
+      }
     } else if (outputFormat === 'JSON') {
       formatInstruction = `YÊU CẦU ĐỊNH DẠNG ĐẦU RA (DẠNG JSON CHUẨN ĐỂ NHẬP TRỰC TIẾP VÀO HỆ THỐNG):
 Xuất duy nhất 01 khối mã JSON hợp lệ cấu trúc:
@@ -863,7 +1209,7 @@ Bài học: ${lessonCode} · ${lessonName}
 Mục tiêu & Yêu cầu cần đạt (YCCĐ) theo chương trình:
 ${formattedOutcomes}
 
-${partInstruction}
+${gradePolicyNotice}${partInstruction}
 
 ${formatInstruction}`;
   }

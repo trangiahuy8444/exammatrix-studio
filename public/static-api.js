@@ -119,7 +119,7 @@
    return m;
   }
   const normSubj=x=>String(x||'Tin học').normalize('NFC').trim().toLowerCase().replace(/\s+/g,' ');
-  const normLesson=c=>String(c||'').trim().toUpperCase().replace(/^BÀI\s*/i,'B').replace(/\s+/g,'');
+  const normLesson=c=>String(c||'').trim().toUpperCase().replace(/^BÀI\s*/i,'B').replace(/\s+/g,'').replace(/^B0+(\d)/,'B$1');
   const normLevel=lv=>({'nhận biết':'Biết','biết':'Biết','thông hiểu':'Hiểu','hiểu':'Hiểu','vận dụng':'Vận dụng','vận dụng thấp':'Vận dụng','vd':'Vận dụng','vận dụng cao':'Vận dụng cao','vdc':'Vận dụng cao'}[String(lv||'').trim().toLowerCase()]||String(lv||'').trim());
   const normText=s=>String(s||'').normalize('NFC').trim().toLowerCase().replace(/\s+/g,' ');
   const flexTechnical=q=>{
@@ -134,14 +134,17 @@
    slots:(matrix.slots||[]).map(slot=>{
     const reqs=(slot.parts||[]).map(pt=>(matrix.requirements||[]).find(r=>r.id===pt.requirement_id)).filter(Boolean);
     const mSubj=normSubj(matrix.subject_name||subject);
-    const matches=(bankQuestions||[]).filter(q=>{
-     if(!flexTechnical(q)||Number(q.grade)!==Number(matrix.grade)||normSubj(q.subject_name)!==mSubj)return false;
-     if(String(q.type||'').trim().toUpperCase()!==String(slot.kind||'').trim().toUpperCase())return false;
-     return (slot.parts||[]).every(pt=>{
-      const r=(matrix.requirements||[]).find(x=>x.id===pt.requirement_id);
-      return r&&normLesson(q.lesson_code)===normLesson(r.lesson_code)&&normLevel(q.level)===normLevel(r.level);
-     });
-    });
+    const slotKind=String(slot.kind||'').trim().toUpperCase();
+    const baseMatches=(bankQuestions||[]).filter(q=>flexTechnical(q)&&Number(q.grade)===Number(matrix.grade)&&normSubj(q.subject_name)===mSubj&&String(q.type||'').trim().toUpperCase()===slotKind);
+    const matchesPart=(q,pt)=>{
+     const r=(matrix.requirements||[]).find(x=>x.id===pt.requirement_id);
+     return r&&normLesson(q.lesson_code)===normLesson(r.lesson_code)&&normLevel(q.level)===normLevel(r.level);
+    };
+    const parts=slot.parts||[];
+    let matches=baseMatches.filter(q=>parts.every(pt=>matchesPart(q,pt)));
+    if(!matches.length&&parts.length>1){
+     matches=baseMatches.filter(q=>parts.some(pt=>matchesPart(q,pt)));
+    }
     const expectedOutcomes=new Set();
     reqs.forEach(r=>{
      const les=(ppctData?.lessons||[]).find(l=>Number(l.grade)===Number(matrix.grade)&&normSubj(l.subject_name)===mSubj&&normLesson(l.lesson_code)===normLesson(r.lesson_code));
@@ -168,6 +171,101 @@
     return {slot:clone(slot),requirements:clone(reqs),candidates};
    })
   }).slots;
+  const assignFlexibleSlots=(flexSlots,opts={})=>{
+   if(flexSlots.length>500)fail('Vượt giới hạn 500 vị trí câu hỏi.');
+   const revQs=Array.isArray(opts.revision?.questions)?opts.revision.questions:[];
+   const revIds=new Set(revQs.map(q=>q.id).filter(Boolean));
+   const revTexts=new Set(revQs.map(q=>normText(q.question)).filter(Boolean));
+   const inRev=q=>(revIds.has(q.id)||(normText(q.question)&&revTexts.has(normText(q.question))))?1:0;
+   const isApp=q=>q.review_status==='approved'?1:0;
+   const seedStr=String(opts.seed??'');
+   const seedKey=q=>String(engine?.jsonDigest?engine.jsonDigest(seedStr+':'+q.id):q.id);
+   const ordered=flexSlots.map((entry,idx)=>({
+    idx,
+    slot:entry.slot,
+    requirements:entry.requirements||[],
+    cell:entry.cell||null,
+    pool:[...(entry.candidates||[])].sort((a,b)=>(inRev(b)-inRev(a))||(isApp(b)-isApp(a))||seedKey(a).localeCompare(seedKey(b)))
+   })).sort((a,b)=>a.pool.length-b.pool.length||a.idx-b.idx);
+   const usedIds=new Set(),usedTexts=new Set(),chosen=new Array(flexSlots.length);
+   let attempts=0;
+   function backtrack(pos){
+    if(pos>=ordered.length)return true;
+    if(++attempts>100000)return false;
+    const item=ordered[pos];
+    for(const q of item.pool){
+     const qt=normText(q.question);
+     if(usedIds.has(q.id)||(qt&&usedTexts.has(qt)))continue;
+     usedIds.add(q.id);
+     if(qt)usedTexts.add(qt);
+     chosen[item.idx]=q;
+     if(backtrack(pos+1))return true;
+     usedIds.delete(q.id);
+     if(qt)usedTexts.delete(qt);
+     chosen[item.idx]=undefined;
+    }
+    return false;
+   }
+   if(ordered.every(item=>item.pool.length>0)&&backtrack(0))return chosen;
+   const gIds=new Set(),gTexts=new Set(),gAssigned=new Array(flexSlots.length);
+   for(const item of ordered){
+    const found=item.pool.find(q=>{const qt=normText(q.question);return !gIds.has(q.id)&&!(qt&&gTexts.has(qt));});
+    if(found){gIds.add(found.id);const qt=normText(found.question);if(qt)gTexts.add(qt);gAssigned[item.idx]=found;}
+   }
+   const kindLabels={MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'};
+   const missing=[];
+   flexSlots.forEach((entry,i)=>{
+    if(!gAssigned[i]){
+     const srcCell=(entry.requirements&&entry.requirements[0])||entry.cell||{};
+     const kindName=kindLabels[String(entry.slot?.kind||'').toUpperCase()]||entry.slot?.kind||'';
+     const meta=[kindName,srcCell.lesson_code,srcCell.level].filter(Boolean).join(' · ');
+     missing.push(`Câu ${entry.slot?.number||(i+1)}${meta?` (${meta})`:''}`);
+    }
+   });
+   fail(`Chưa đủ câu hỏi trong ngân hàng cho ${missing.length} vị trí: ${missing.slice(0,5).join(', ')}${missing.length>5?'…':''}. Vui lòng bổ sung câu hỏi cho các bài/mức độ này.`);
+  };
+  const buildFlexibleBlueprintSlots=(blueprint,grade,subj,bankQuestions)=>{
+   if(!Array.isArray(blueprint)||!blueprint.length)fail('Cần ma trận đã lưu hoặc phân bố đủ 10 điểm.');
+   const slots=[];let total=0;
+   const mSubj=normSubj(subj||subject);
+   blueprint.forEach((r,index)=>{
+    const cnt=Number(r?.count),pts=Number(r?.points_per_question);
+    const kind=String(r?.type||'').trim().toUpperCase();
+    const lv=normLevel(r?.level);
+    if(!r||!Number.isInteger(cnt)||cnt<1||cnt>500||!(pts>0)||!['MC','YN','SHORT','ES'].includes(kind)||!lv){
+     fail('Phân bố câu hỏi không hợp lệ.');
+    }
+    const matches=(bankQuestions||[]).filter(q=>
+     flexTechnical(q)&&Number(q.grade)===Number(grade)&&normSubj(q.subject_name)===mSubj&&
+     normLesson(q.lesson_code)===normLesson(r.lesson_code)&&String(q.type||'').trim().toUpperCase()===kind&&
+     normLevel(q.level)===lv
+    ).sort((a,b)=>(b.review_status==='approved'?1:0)-(a.review_status==='approved'?1:0));
+    const seenIds=new Set(),seenTexts=new Set(),candidates=[];
+    for(const q of matches){
+     const qt=normText(q.question);
+     if(seenIds.has(q.id)||seenTexts.has(qt))continue;
+     seenIds.add(q.id);seenTexts.add(qt);
+     candidates.push({
+      ...clone(q),
+      content_hash:q.content_hash||engine.jsonDigest?.({question:q.question,options:q.options,correct:q.correct,rubric:q.rubric})||q.id,
+      recently_used:Array.isArray(q.recently_used)?clone(q.recently_used):[]
+     });
+    }
+    for(let i=0;i<cnt;i++){
+     const num=slots.filter(s=>s.slot.kind===kind).length+1;
+     slots.push({
+      slot:{id:'BP-'+index+'-'+i,kind,number:num,parts:[{id:'BP-P-'+index+'-'+i,points:pts}]},
+      requirements:[],
+      candidates,
+      cell:{lesson_code:r.lesson_code,type:kind,level:lv,outcomes:Array.isArray(r.outcomes)?clone(r.outcomes):[]}
+     });
+    }
+    total+=cnt*pts;
+   });
+   if(Math.abs(total-10)>1e-4)fail('Tổng điểm phân bố phải bằng 10.');
+   if(slots.length>500)fail('Phân bố vượt giới hạn 500 câu.');
+   return slots;
+  };
   function checkedMatrix(key){return normalizeMatrixSlots(own(find(data.matrices,key)));}
   function revisionFor(exam){return exam.revision_id?own(find(data.revisions,exam.revision_id)):null;}
   function verification(exam){return engine.verifyExam(data,exam);}
@@ -334,20 +432,111 @@
    const old=own(find(data.revisions,p.id)),revision=await workflow.transitionRevision(old,p.action,{...options,exams:data.exams});
    put(data.revisions,revision);return result({revision,revisions:data.revisions},true);
   }
-  if(path==='/api/exams/generate'||path==='/api/exams/from-matrix'){
-   const genPayload={...p,subject_name:p.subject_name||subject};
-   let targetMatrix=null;
-   if(genPayload.matrix_id){
-    targetMatrix=data.matrices.find(m=>m.id===genPayload.matrix_id)||null;
-    if(targetMatrix){
-     if(genPayload.grade===undefined||genPayload.grade===null||genPayload.grade==='')genPayload.grade=Number(targetMatrix.grade);
-     if(!genPayload.exam_type)genPayload.exam_type=targetMatrix.exam_type;
-     if(genPayload.duration===undefined||genPayload.duration===null||genPayload.duration==='')genPayload.duration=Number(targetMatrix.duration||45);
-     if(!p.subject_name&&targetMatrix.subject_name)genPayload.subject_name=targetMatrix.subject_name;
+  const enrichExamPayload=rawP=>{
+   const gp={...rawP,subject_name:rawP.subject_name||subject};
+   let tm=null;
+   if(gp.matrix_id){
+    tm=data.matrices.find(m=>m.id===gp.matrix_id)||null;
+    if(tm){
+     if(gp.grade===undefined||gp.grade===null||gp.grade==='')gp.grade=Number(tm.grade);
+     if(!gp.exam_type)gp.exam_type=tm.exam_type;
+     if(gp.duration===undefined||gp.duration===null||gp.duration==='')gp.duration=Number(tm.duration||45);
+     if(!rawP.subject_name&&tm.subject_name)gp.subject_name=tm.subject_name;
     }
    }
-   if(genPayload.grade!==undefined&&genPayload.grade!==null&&genPayload.grade!=='')genPayload.grade=Number(genPayload.grade);
-   if(genPayload.duration!==undefined&&genPayload.duration!==null&&genPayload.duration!=='')genPayload.duration=Number(genPayload.duration);
+   if(gp.grade!==undefined&&gp.grade!==null&&gp.grade!=='')gp.grade=Number(gp.grade);
+   if(gp.duration!==undefined&&gp.duration!==null&&gp.duration!=='')gp.duration=Number(gp.duration);
+   return {genPayload:gp,targetMatrix:tm};
+  };
+  const resolveFlexSource=(genPayload,rawP,targetMatrix)=>{
+   if(typeof genPayload.title!=='string'||!genPayload.title.trim())fail('Cần nhập tên đề kiểm tra.');
+   if(!Number.isInteger(genPayload.grade)||!['TX','GK1','CK1','GK2','CK2'].includes(genPayload.exam_type)||!String(genPayload.subject_name||'').trim()){
+    fail('Cần khối, môn học và kì kiểm tra hợp lệ.');
+   }
+   const dur=genPayload.duration??45;
+   if(!Number.isInteger(dur)||dur<1||dur>300)fail('Thời gian phải từ 1 đến 300 phút.');
+   if(targetMatrix){
+    if(targetMatrix.status!=='locked')fail('Chọn phiên bản ma trận đã khóa.');
+    if(Number(targetMatrix.grade)!==Number(genPayload.grade)||normSubj(targetMatrix.subject_name||subject)!==normSubj(genPayload.subject_name||subject)||targetMatrix.exam_type!==genPayload.exam_type){
+     fail('Ma trận không khớp khối, môn hoặc kì kiểm tra.');
+    }
+    return buildFlexibleSlots(targetMatrix,bank,ppct);
+   }
+   if(Array.isArray(rawP.blueprint)&&rawP.blueprint.length){
+    return buildFlexibleBlueprintSlots(rawP.blueprint,genPayload.grade,genPayload.subject_name||subject,bank);
+   }
+   fail('Cần ma trận đã lưu hoặc phân bố đủ 10 điểm.');
+  };
+  const assembleFlexibleExam=({targetMatrix,blueprint,flexSlots,pickedQuestions,genPayload,rev,reviewedPartsMap})=>{
+   let totalPts=0;
+   const mGrade=Number(targetMatrix?targetMatrix.grade:genPayload.grade);
+   const mSubj=(targetMatrix&&targetMatrix.subject_name)||genPayload.subject_name||subject;
+   const mType=(targetMatrix&&targetMatrix.exam_type)||genPayload.exam_type;
+   const selectedQuestions=flexSlots.map((entry,i)=>{
+    const s=entry.slot;
+    const cand=pickedQuestions[i];
+    const slotPts=(s.parts||[]).reduce((sum,pt)=>sum+Number(pt.points||0),0);
+    totalPts+=slotPts;
+    const firstPart=s.parts&&s.parts[0];
+    const req=targetMatrix&&firstPart?(targetMatrix.requirements||[]).find(r=>r.id===firstPart.requirement_id):null;
+    const ppctLes=req?(ppct.lessons||[]).find(l=>Number(l.grade)===mGrade&&normSubj(l.subject_name)===normSubj(mSubj)&&normLesson(l.lesson_code)===normLesson(req.lesson_code)):null;
+    const ppctOutcome=(ppctLes&&Array.isArray(ppctLes.outcomes)&&req.ppct_outcome_index!=null)?ppctLes.outcomes[req.ppct_outcome_index]:'';
+    const fallbackOutcome=ppctOutcome||req?.text||(entry.cell?.outcomes?.[0]||'');
+    return {
+     ...clone(cand),
+     points:slotPts,
+     slot_id:s.id,
+     slot_number:s.number,
+     reviewed_part_ids:reviewedPartsMap?clone(reviewedPartsMap.get(s.id)||[]):[],
+     learning_outcome:(cand.learning_outcome&&String(cand.learning_outcome).trim())?cand.learning_outcome:fallbackOutcome,
+     competency:cand.competency||req?.competency||'',
+     level:normLevel(cand.level)||req?.level||entry.cell?.level||''
+    };
+   });
+   const revHashes=new Set((rev?.questions||[]).map(rq=>rq.content_hash).filter(Boolean));
+   const revMatched=rev?selectedQuestions.filter(q=>revHashes.has(q.content_hash)||rev.questions.some(rq=>rq.id===q.id||normText(rq.question)===normText(q.question))).length:null;
+   const note=targetMatrix
+    ?'Bản nháp tạo từ Ma trận 2D (Chế độ linh hoạt). Cần duyệt các câu hỏi Nháp/Chờ duyệt và gắn đề cương trước khi khóa/phát hành.'
+    :'Bản nháp tạo theo phân bố linh hoạt. Cần duyệt câu hỏi Nháp/Chờ duyệt và chọn ma trận đã khóa/đề cương trước khi khóa/phát hành.';
+   const exam={
+    id:id('EXAM'),
+    title:genPayload.title.trim(),
+    grade:mGrade,
+    subject_name:mSubj,
+    exam_type:mType,
+    duration:Number(genPayload.duration||targetMatrix?.duration||45),
+    campus:genPayload.campus||targetMatrix?.campus||'',
+    exam_code:genPayload.exam_code||'101',
+    created_at:now(),
+    seed:genPayload.seed??'',
+    status:'drafting',
+    flexible_draft:true,
+    question_count:selectedQuestions.length,
+    total_points:Number(totalPts.toFixed(4)),
+    questions:selectedQuestions,
+    ...(targetMatrix?{
+     matrix_id:targetMatrix.id,
+     matrix_version:targetMatrix.version,
+     matrix_digest:targetMatrix.content_sha256||engine.matrixDigest?.(targetMatrix)||null,
+     matrix_snapshot:clone(targetMatrix)
+    }:{
+     blueprint:clone(blueprint||[])
+    }),
+    ppct_snapshot:clone(ppct),
+    revision_id:rev?.id||null,
+    revision_snapshot:rev?clone(rev):null,
+    revision_match_count:revMatched,
+    similarity_target_percent:Number(genPayload.similarity_percent??90),
+    similarity_mode:genPayload.similarity_mode||'min',
+    scoring_policy:clone(targetMatrix?.scoring_policy||{yn_table:{'0':'0','1':'0.1','2':'0.25','3':'0.5','4':'1'},rounding:mType==='TX'?'half_up_integer':'half_up_1dp',blank_counts_as:'wrong'}),
+    allowed_kinds:clone(targetMatrix?.allowed_kinds||[...new Set(selectedQuestions.map(q=>q.type))]),
+    validation_note:note
+   };
+   exam.verification=verification(exam);
+   return exam;
+  };
+  if(path==='/api/exams/generate'||path==='/api/exams/from-matrix'){
+   const {genPayload,targetMatrix}=enrichExamPayload(p);
    if(path==='/api/exams/from-matrix'&&p.flexible===true&&targetMatrix){
     if(typeof genPayload.title!=='string'||!genPayload.title.trim())fail('Cần nhập tên đề kiểm tra.');
     if(targetMatrix.status!=='locked')fail('Chọn phiên bản ma trận đã khóa.');
@@ -358,8 +547,8 @@
     if(!Array.isArray(p.placements)||p.placements.length!==flexSlots.length||new Set(p.placements.map(x=>x&&x.slot_id)).size!==flexSlots.length){
      fail('Phải chọn đủ đúng một câu cho mỗi vị trí, không trùng.');
     }
-    const seenIds=new Set(),seenTexts=new Set(),selectedQuestions=[];
-    let totalPts=0;
+    const seenIds=new Set(),seenTexts=new Set(),pickedQuestions=[];
+    const reviewedPartsMap=new Map();
     for(const entry of flexSlots){
      const s=entry.slot;
      const pl=p.placements.find(x=>x&&x.slot_id===s.id);
@@ -373,59 +562,82 @@
      const qt=normText(cand.question);
      if(seenIds.has(cand.id)||(qt&&seenTexts.has(qt)))fail('Không được lặp câu trong một đề.');
      seenIds.add(cand.id);if(qt)seenTexts.add(qt);
-     const slotPts=(s.parts||[]).reduce((sum,pt)=>sum+Number(pt.points||0),0);
-     totalPts+=slotPts;
-     const firstPart=s.parts&&s.parts[0];
-     const req=firstPart?(targetMatrix.requirements||[]).find(r=>r.id===firstPart.requirement_id):null;
-     const ppctLes=req?(ppct.lessons||[]).find(l=>Number(l.grade)===Number(targetMatrix.grade)&&normSubj(l.subject_name)===normSubj(targetMatrix.subject_name||subject)&&normLesson(l.lesson_code)===normLesson(req.lesson_code)):null;
-     const ppctOutcome=(ppctLes&&Array.isArray(ppctLes.outcomes)&&req.ppct_outcome_index!=null)?ppctLes.outcomes[req.ppct_outcome_index]:'';
-     selectedQuestions.push({
-      ...clone(cand),
-      points:slotPts,
-      slot_id:s.id,
-      slot_number:s.number,
-      reviewed_part_ids:clone(pl.reviewed_part_ids),
-      learning_outcome:(cand.learning_outcome&&String(cand.learning_outcome).trim())?cand.learning_outcome:(ppctOutcome||req?.text||''),
-      competency:cand.competency||req?.competency||'',
-      level:normLevel(cand.level)||req?.level||''
-     });
+     pickedQuestions.push(cand);
+     reviewedPartsMap.set(s.id,pl.reviewed_part_ids);
     }
     const rev=genPayload.revision_id?own(find(data.revisions,genPayload.revision_id)):null;
-    const revHashes=new Set((rev?.questions||[]).map(rq=>rq.content_hash).filter(Boolean));
-    const revMatched=rev?selectedQuestions.filter(q=>revHashes.has(q.content_hash)||rev.questions.some(rq=>rq.id===q.id||normText(rq.question)===normText(q.question))).length:null;
-    const exam={
-     id:id('EXAM'),
-     title:genPayload.title.trim(),
-     grade:Number(targetMatrix.grade),
-     subject_name:targetMatrix.subject_name||subject,
-     exam_type:targetMatrix.exam_type,
-     duration:Number(genPayload.duration||targetMatrix.duration||45),
-     campus:genPayload.campus||targetMatrix.campus||'',
-     exam_code:genPayload.exam_code||'101',
-     created_at:now(),
-     seed:genPayload.seed??'',
-     status:'drafting',
-     flexible_draft:true,
-     question_count:selectedQuestions.length,
-     total_points:Number(totalPts.toFixed(4)),
-     questions:selectedQuestions,
-     matrix_id:targetMatrix.id,
-     matrix_version:targetMatrix.version,
-     matrix_digest:targetMatrix.content_sha256||engine.matrixDigest?.(targetMatrix)||null,
-     matrix_snapshot:clone(targetMatrix),
-     ppct_snapshot:clone(ppct),
-     revision_id:rev?.id||null,
-     revision_match_count:revMatched,
-     scoring_policy:clone(targetMatrix.scoring_policy||{yn_table:{'0':'0','1':'0.1','2':'0.25','3':'0.5','4':'1'},rounding:targetMatrix.exam_type==='TX'?'half_up_integer':'half_up_1dp',blank_counts_as:'wrong'}),
-     allowed_kinds:clone(targetMatrix.allowed_kinds||[...new Set(selectedQuestions.map(q=>q.type))]),
-     validation_note:'Bản nháp tạo từ Ma trận 2D (Chế độ linh hoạt). Cần duyệt các câu hỏi Nháp/Chờ duyệt và gắn đề cương trước khi khóa/phát hành.'
-    };
-    exam.verification=verification(exam);put(data.exams,exam);return result({exam,exams:data.exams},true);
+    const exam=assembleFlexibleExam({targetMatrix,flexSlots,pickedQuestions,genPayload,rev,reviewedPartsMap});
+    put(data.exams,exam);return result({exam,exams:data.exams},true);
+   }
+   if(path==='/api/exams/generate'&&p.flexible===true){
+    const flexSlots=resolveFlexSource(genPayload,p,targetMatrix);
+    const rev=genPayload.revision_id?own(find(data.revisions,genPayload.revision_id)):null;
+    if(rev&&Number(rev.grade)!==Number(genPayload.grade))fail('Đề cương phải cùng khối, môn và kì kiểm tra.');
+    const pickedQuestions=assignFlexibleSlots(flexSlots,{revision:rev,seed:genPayload.seed,percent:genPayload.similarity_percent??90});
+    const exam=assembleFlexibleExam({targetMatrix,blueprint:p.blueprint,flexSlots,pickedQuestions,genPayload,rev});
+    put(data.exams,exam);return result({exam,exams:data.exams},true);
    }
    const exam=clone(engine.generateExam(data,genPayload));exam.created_at=now();exam.verification=verification(exam);put(data.exams,exam);return result({exam,exams:data.exams},true);
   }
   if(path==='/api/exams/generate-set'){
    const count=Number(p.exam_count);if(!Number.isInteger(count)||count<1||count>6)fail('Số đề trong bộ phải từ 1 đến 6.');
+   if(p.flexible===true){
+    const {genPayload,targetMatrix}=enrichExamPayload(p);
+    const flexSlots=resolveFlexSource(genPayload,p,targetMatrix);
+    let revision=genPayload.revision_id?own(find(data.revisions,genPayload.revision_id)):null;
+    if(revision&&Number(revision.grade)!==Number(genPayload.grade))fail('Đề cương phải cùng khối, môn và kì kiểm tra.');
+    let createdRev=null;
+    if(!revision){
+     const revSet=new Set();
+     if(p.revision_counts&&typeof p.revision_counts==='object'&&Object.values(p.revision_counts).some(v=>Number(v)>0)){
+      const wantByGroup=new Map();
+      Object.entries(p.revision_counts).forEach(([k,v])=>{
+       const parts=String(k).split('|');
+       const gk=[normLesson(parts[0]),String(parts[1]||'').toUpperCase(),normLevel(parts[2])].join('|');
+       wantByGroup.set(gk,(wantByGroup.get(gk)||0)+Math.max(0,Math.floor(Number(v)||0)));
+      });
+      const takenByGroup=new Map();
+      for(const entry of flexSlots){
+       const srcCell=(entry.requirements&&entry.requirements[0])||entry.cell||{};
+       const gk=[normLesson(srcCell.lesson_code),String(entry.slot?.kind||'').toUpperCase(),normLevel(srcCell.level)].join('|');
+       const limit=wantByGroup.get(gk)||0;
+       if((takenByGroup.get(gk)||0)<limit){
+        for(const q of (entry.candidates||[])){
+         if((takenByGroup.get(gk)||0)>=limit)break;
+         if(!revSet.has(q.id)){revSet.add(q.id);takenByGroup.set(gk,(takenByGroup.get(gk)||0)+1);}
+        }
+       }
+      }
+     }
+     if(!revSet.size){
+      for(const entry of flexSlots){
+       for(const q of (entry.candidates||[]))revSet.add(q.id);
+      }
+     }
+     const revIds=[...revSet];
+     const revQs=revIds.map(qid=>clone(bank.find(q=>q.id===qid))).filter(Boolean);
+     const codes=new Set(revQs.map(q=>normLesson(q.lesson_code)));
+     const mSubj=normSubj(genPayload.subject_name||subject);
+     const scope=(ppct.lessons||[]).filter(l=>Number(l.grade)===Number(genPayload.grade)&&normSubj(l.subject_name)===mSubj&&codes.has(normLesson(l.lesson_code))).map(l=>({lesson_code:l.lesson_code,title:l.title||l.lesson_name_source||l.lesson_name||l.lesson_code,topic:l.topic||l.topic_source||l.topic_name||''}));
+     createdRev={id:id('REV'),title:genPayload.title.trim()+' — Đề cương',grade:Number(genPayload.grade),subject_name:genPayload.subject_name||subject,exam_type:genPayload.exam_type,lessons:scope,status:'drafting',created_at:now(),updated_at:now(),question_ids:revIds,questions:revQs,question_count:revQs.length};
+     revision=createdRev;
+    }
+    const setId=id('SET'),exams=[];
+    for(let n=0;n<count;n++){
+     const examSeed=String(genPayload.seed??'')+':'+n;
+     const pickedQuestions=assignFlexibleSlots(flexSlots,{revision,seed:examSeed,percent:genPayload.similarity_percent??90});
+     const exam=assembleFlexibleExam({targetMatrix,blueprint:p.blueprint,flexSlots,pickedQuestions,genPayload:{...genPayload,title:genPayload.title.trim()+` — Đề ${n+1}`,exam_code:String(101+n),seed:examSeed},rev:revision});
+     exam.exam_set={id:setId,index:n+1,count};
+     exams.push(exam);
+    }
+    if(createdRev)put(data.revisions,createdRev);
+    exams.forEach(ex=>put(data.exams,ex));
+    const revIdSet=new Set(revision.question_ids||(revision.questions||[]).map(q=>q.id));
+    const shared=exams.some((e,i)=>exams.slice(i+1).some(other=>e.questions.some(q=>other.questions.some(x=>x.id===q.id))));
+    return result({exams,exams_all:data.exams,revisions:data.revisions,revision,revision_size:revision.questions.length,
+     outside_per_exam:exams[0].questions.filter(q=>!revIdSet.has(q.id)).length,
+     warnings:shared?['Các đề trong bộ có dùng chung câu; hãy xem báo cáo so sánh trước khi chọn dùng.']:[]},true);
+   }
    let revision=p.revision_id?own(find(data.revisions,p.revision_id)):null;
    if(!revision){const plan=engine.proposeRevision(data,{...p,subject_name:subject,counts:p.revision_counts,total:p.revision_total});revision=saveRevision({title:p.title+' — Đề cương',grade:p.grade,question_ids:plan.question_ids});}
    const setId=id('SET'),exams=[];

@@ -182,6 +182,47 @@ async function main(){
  assert.equal(flexExamRes.response.exam.questions.length,2);
  assert.equal(flexExamRes.response.exam.questions[0].level,'Biết');
 
+ // Tạo đề tự động từ tab Tạo đề kiểm tra (/api/exams/generate và /api/exams/generate-set) ở chế độ linh hoạt
+ const flexLessonData=JSON.parse(JSON.stringify(flexData));
+ flexLessonData.bank.questions[1].lesson_code='Bài 1';
+ flexLessonData.bank.questions[2].lesson_code='B01';
+ await assert.rejects(api.handle('/api/exams/generate',{
+  matrix_id:'M1',grade:9,exam_type:'GK1',duration:45,title:'Chế độ chặt vẫn chặn',flexible:false
+ },flexLessonData,env));
+ const autoFlexRes=await api.handle('/api/exams/generate',{
+  matrix_id:'M1',grade:9,exam_type:'GK1',duration:45,seed:'2026',
+  title:'Đề tự động K9 linh hoạt',flexible:true
+ },flexLessonData,env);
+ assert.equal(autoFlexRes.response.exam.flexible_draft,true);
+ assert.equal(autoFlexRes.response.exam.status,'drafting');
+ assert.equal(autoFlexRes.response.exam.total_points,10);
+ assert.equal(autoFlexRes.response.exam.questions.length,2);
+ assert.notEqual(autoFlexRes.response.exam.questions[0].id,autoFlexRes.response.exam.questions[1].id);
+
+ const bpFlexRes=await api.handle('/api/exams/generate',{
+  grade:9,exam_type:'TX',duration:15,seed:'2026',title:'Đề tự thiết lập linh hoạt',flexible:true,
+  blueprint:[{lesson_code:'B1',type:'MC',level:'Biết',count:2,points_per_question:5}]
+ },flexLessonData,env);
+ assert.equal(bpFlexRes.response.exam.flexible_draft,true);
+ assert.equal(bpFlexRes.response.exam.questions.length,2);
+ assert.equal(bpFlexRes.response.exam.total_points,10);
+
+ const setFlexRes=await api.handle('/api/exams/generate-set',{
+  matrix_id:'M1',grade:9,exam_type:'GK1',duration:45,exam_count:2,seed:'2026',
+  title:'Bộ đề K9 linh hoạt',flexible:true,revision_counts:{}
+ },flexLessonData,env);
+ assert.equal(setFlexRes.response.exams.length,2);
+ assert.ok(setFlexRes.response.revision.questions.length>=2);
+ assert.equal(setFlexRes.response.exams[0].flexible_draft,true);
+ assert.equal(setFlexRes.response.exams[1].exam_code,'102');
+
+ const emptyFlex=JSON.parse(JSON.stringify(flexData));
+ emptyFlex.bank.questions=[];
+ await assert.rejects(
+  api.handle('/api/exams/generate',{matrix_id:'M1',grade:9,exam_type:'GK1',duration:45,title:'Đề rỗng',flexible:true},emptyFlex,env),
+  err=>err.message.includes('Chưa đủ câu hỏi trong ngân hàng cho')&&!err.message.includes('S1')&&!err.message.includes('MX-')
+ );
+
  console.log('PASS static API: ma trận → đề cương → sinh thật → khóa → phát hành; lỗi nguyên tử, bất biến snapshot và không tự duyệt câu');
 }
 if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1;});

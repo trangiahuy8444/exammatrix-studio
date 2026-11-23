@@ -210,3 +210,44 @@ test('TableFileHelper: giữ mã bài chữ thường và tách hướng chấm 
   assert.deepEqual(TableFileHelper.parseRubricText('Hướng chấm tự do'), []);
   assert.deepEqual(TableFileHelper.parseRubricText('A (0,5 điểm). B (0,25 điểm).'), []);
 });
+
+test('TableFileHelper: classifyQuestionsForImport phân loại chính xác câu mới, trùng ngân hàng và trùng nội bộ', () => {
+  const existingQuestions = [
+    { id: 'OLD-01', grade: 9, lesson_code: 'B1', question: 'Câu hỏi đã có trong ngân hàng đề?', learning_outcome: 'YCCĐ cũ' },
+    { id: 'OLD-02', grade: 8, lesson_code: 'B2', question: 'Câu của khối 8?', learning_outcome: 'YCCĐ K8' }
+  ];
+
+  const incomingQuestions = [
+    { grade: 9, question: 'Câu hỏi hoàn toàn mới 1?', lesson_code: 'B1', type: 'MC' },
+    { grade: 9, question: '  câu hỏi ĐÃ CÓ trong ngân hàng đề?  ', lesson_code: 'B1', type: 'MC' }, // Trùng ngân hàng (khác hoa thường và khoảng trắng)
+    { grade: 9, question: 'Câu hỏi trùng lặp nội bộ trong file?', lesson_code: 'B3', type: 'MC' },
+    { grade: 9, question: 'Câu hỏi trùng lặp nội bộ trong file?', lesson_code: 'B3', type: 'MC' }, // Trùng nội bộ
+    { grade: 9, question: 'Câu hỏi của khối 9 giống chữ khối 8 nhưng khác khối: Câu của khối 8?', lesson_code: 'B2', type: 'MC' }
+  ];
+
+  const res = TableFileHelper.classifyQuestionsForImport(incomingQuestions, existingQuestions, 9);
+
+  assert.equal(res.counts.total, 5);
+  assert.equal(res.counts.new, 3);
+  assert.equal(res.counts.bank_dup, 1);
+  assert.equal(res.counts.internal_dup, 1);
+
+  // Câu 1: mới
+  assert.equal(res.items[0].status, 'new');
+  // Câu 2: trùng ngân hàng
+  assert.equal(res.items[1].status, 'bank_dup');
+  assert.equal(res.items[1].matchedId, 'OLD-01');
+  assert.equal(res.items[1].matchedLesson, 'B1');
+  // Câu 3: mới (xuất hiện lần đầu)
+  assert.equal(res.items[2].status, 'new');
+  // Câu 4: trùng nội bộ với câu 3 (index 2)
+  assert.equal(res.items[3].status, 'internal_dup');
+  assert.equal(res.items[3].firstIndex, 2);
+  // Câu 5: mới
+  assert.equal(res.items[4].status, 'new');
+
+  // Danh sách câu mới hợp lệ loại bỏ cả trùng ngân hàng và trùng nội bộ
+  assert.equal(res.validNewQuestions.length, 3);
+  assert.equal(res.validNewQuestions[0].question, 'Câu hỏi hoàn toàn mới 1?');
+  assert.equal(res.validNewQuestions[1].question, 'Câu hỏi trùng lặp nội bộ trong file?');
+});

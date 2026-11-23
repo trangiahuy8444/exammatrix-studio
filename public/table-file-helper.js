@@ -1242,6 +1242,76 @@ ${gradePolicyNotice}${partInstruction}
 ${formatInstruction}`;
   }
 
+  function normalizeQuestionText(str) {
+    return String(str == null ? '' : str)
+      .normalize('NFC')
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/gu, ' ');
+  }
+
+  function classifyQuestionsForImport(incomingQuestions = [], existingQuestions = [], fallbackGrade = 9) {
+    const defaultGrade = Number(fallbackGrade) || 9;
+    const existingMap = new Map();
+    for (const q of (existingQuestions || [])) {
+      if (!q) continue;
+      const g = Number(q.grade) || defaultGrade;
+      const key = `${g}|${normalizeQuestionText(q.question)}`;
+      if (!existingMap.has(key)) {
+        existingMap.set(key, q);
+      }
+    }
+
+    const seenInBatch = new Map();
+    const items = (incomingQuestions || []).map((rawQ, idx) => {
+      const q = { ...rawQ };
+      q.grade = Number(q.grade) || defaultGrade;
+      q.type = q.type || 'MC';
+      const key = `${q.grade}|${normalizeQuestionText(q.question)}`;
+
+      if (existingMap.has(key)) {
+        const matched = existingMap.get(key);
+        return {
+          status: 'bank_dup',
+          matchedId: matched.id || '',
+          matchedLesson: matched.lesson_code || '',
+          matchedOutcome: matched.learning_outcome || '',
+          question: q,
+          index: idx
+        };
+      } else if (seenInBatch.has(key)) {
+        const firstIdx = seenInBatch.get(key);
+        return {
+          status: 'internal_dup',
+          firstIndex: firstIdx,
+          question: q,
+          index: idx
+        };
+      } else {
+        seenInBatch.set(key, idx);
+        return {
+          status: 'new',
+          question: q,
+          index: idx
+        };
+      }
+    });
+
+    const counts = {
+      total: items.length,
+      new: items.filter(x => x.status === 'new').length,
+      bank_dup: items.filter(x => x.status === 'bank_dup').length,
+      internal_dup: items.filter(x => x.status === 'internal_dup').length
+    };
+
+    return {
+      items,
+      counts,
+      validNewQuestions: items.filter(x => x.status === 'new').map(x => x.question),
+      nonInternalDupQuestions: items.filter(x => x.status !== 'internal_dup').map(x => x.question)
+    };
+  }
+
   // =========================================================================
   // EXPORT PUBLIC API
   // =========================================================================
@@ -1259,6 +1329,8 @@ ${formatInstruction}`;
     getSampleMatrixRows,
     buildAiPromptByLesson,
     stripAccents,
-    norm
+    norm,
+    normalizeQuestionText,
+    classifyQuestionsForImport
   };
 });

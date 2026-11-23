@@ -2204,6 +2204,289 @@ function importReportText(result,fileName){
   if(!r)return `Đã nạp câu hỏi từ ${fileName}. Câu mới ở trạng thái Nháp, cần kiểm định trước khi ra đề.`;
   return `Đã thêm ${r.added} câu mới từ ${fileName}`+(r.skipped?`; bỏ qua ${r.skipped} câu đã có trong ngân hàng`:'')+'. Câu mới ở trạng thái Nháp, cần kiểm định trước khi ra đề.';
 }
+
+function openImportDedupDialog({ filename, questions, grade, subjectName }) {
+  const dlg = $('#import-dedup-dialog');
+  if (!dlg) return;
+  const container = $('#import-dedup-content');
+  if (!container) return;
+  const titleEl = $('#import-dedup-title');
+  if (titleEl) {
+    titleEl.textContent = `🔍 Xem trước & Kiểm soát trùng lặp: ${filename}`;
+  }
+
+  const effectiveGrade = Number(grade) || Number(store.filters?.grade) || Number(store.ppctGrade) || 9;
+  const effectiveSubject = subjectName || store.selectedSubject || store.ppctSubject || subject() || 'Tin học';
+
+  // Phân loại câu hỏi dựa trên TableFileHelper hoặc fallback nội bộ
+  let classified;
+  const currentBankQs = store.bank?.questions || [];
+  if (typeof TableFileHelper !== 'undefined' && typeof TableFileHelper.classifyQuestionsForImport === 'function') {
+    classified = TableFileHelper.classifyQuestionsForImport(questions, currentBankQs, effectiveGrade);
+  } else {
+    const norm = x => String(x == null ? '' : x).normalize('NFC').toLowerCase().trim().replace(/\s+/gu, ' ');
+    const existingMap = new Map();
+    for (const q of currentBankQs) {
+      if (!q) continue;
+      const g = Number(q.grade) || effectiveGrade;
+      const key = `${g}|${norm(q.question)}`;
+      if (!existingMap.has(key)) existingMap.set(key, q);
+    }
+    const seenInBatch = new Map();
+    const items = (questions || []).map((rawQ, idx) => {
+      const q = { ...rawQ };
+      q.grade = Number(q.grade) || effectiveGrade;
+      q.type = q.type || 'MC';
+      const key = `${q.grade}|${norm(q.question)}`;
+      if (existingMap.has(key)) {
+        const matched = existingMap.get(key);
+        return { status: 'bank_dup', matchedId: matched.id || '', matchedLesson: matched.lesson_code || '', matchedOutcome: matched.learning_outcome || '', question: q, index: idx };
+      } else if (seenInBatch.has(key)) {
+        return { status: 'internal_dup', firstIndex: seenInBatch.get(key), question: q, index: idx };
+      } else {
+        seenInBatch.set(key, idx);
+        return { status: 'new', question: q, index: idx };
+      }
+    });
+    classified = {
+      items,
+      counts: {
+        total: items.length,
+        new: items.filter(x => x.status === 'new').length,
+        bank_dup: items.filter(x => x.status === 'bank_dup').length,
+        internal_dup: items.filter(x => x.status === 'internal_dup').length
+      },
+      validNewQuestions: items.filter(x => x.status === 'new').map(x => x.question),
+      nonInternalDupQuestions: items.filter(x => x.status !== 'internal_dup').map(x => x.question)
+    };
+  }
+
+  const { items: itemsInfo, counts } = classified;
+  const totalCount = counts.total;
+  const newCount = counts.new;
+  const bankDupCount = counts.bank_dup;
+  const internalDupCount = counts.internal_dup;
+
+  let currentTab = 'all';
+
+  function renderDialogView() {
+    const filteredItems = itemsInfo.filter(item => {
+      if (currentTab === 'new') return item.status === 'new';
+      if (currentTab === 'bank_dup') return item.status === 'bank_dup';
+      if (currentTab === 'internal_dup') return item.status === 'internal_dup';
+      return true;
+    });
+
+    container.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:12px;font-size:13px">
+        <!-- Thống kê 4 khối KPI -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:10px">
+          <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:10px 14px">
+            <div style="color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase">📊 Tổng số câu trong tệp</div>
+            <div style="font-size:22px;font-weight:700;color:#1e293b;margin-top:2px">${totalCount} <span style="font-size:12px;font-weight:400;color:#64748b">câu</span></div>
+          </div>
+          <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px">
+            <div style="color:#166534;font-size:11px;font-weight:600;text-transform:uppercase">🟢 Câu mới sẵn sàng nạp</div>
+            <div style="font-size:22px;font-weight:700;color:#15803d;margin-top:2px">${newCount} <span style="font-size:12px;font-weight:400;color:#166534">câu</span></div>
+          </div>
+          <div style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:10px 14px">
+            <div style="color:#854d0e;font-size:11px;font-weight:600;text-transform:uppercase">🟡 Trùng lặp Ngân hàng</div>
+            <div style="font-size:22px;font-weight:700;color:#ca8a04;margin-top:2px">${bankDupCount} <span style="font-size:12px;font-weight:400;color:#854d0e">câu</span></div>
+          </div>
+          <div style="background:${internalDupCount > 0 ? '#fef2f2' : '#f8fafc'};border:1px solid ${internalDupCount > 0 ? '#fca5a5' : '#cbd5e1'};border-radius:8px;padding:10px 14px">
+            <div style="color:${internalDupCount > 0 ? '#991b1b' : '#64748b'};font-size:11px;font-weight:600;text-transform:uppercase">🔴 Trùng nội bộ trong tệp</div>
+            <div style="font-size:22px;font-weight:700;color:${internalDupCount > 0 ? '#dc2626' : '#64748b'};margin-top:2px">${internalDupCount} <span style="font-size:12px;font-weight:400;color:#64748b">câu</span></div>
+          </div>
+        </div>
+
+        <!-- Thanh Tab lọc câu hỏi -->
+        <div style="display:flex;gap:8px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-top:4px;flex-wrap:wrap">
+          <button type="button" class="button ${currentTab === 'all' ? 'primary' : 'quiet'}" id="import-tab-all" style="font-size:12px;padding:5px 12px;border-radius:20px">
+            Tất cả (${totalCount})
+          </button>
+          <button type="button" class="button ${currentTab === 'new' ? 'primary' : 'quiet'}" id="import-tab-new" style="font-size:12px;padding:5px 12px;border-radius:20px;color:${currentTab === 'new' ? '#fff' : '#15803d'}">
+            🟢 Câu mới (${newCount})
+          </button>
+          <button type="button" class="button ${currentTab === 'bank_dup' ? 'primary' : 'quiet'}" id="import-tab-bank-dup" style="font-size:12px;padding:5px 12px;border-radius:20px;color:${currentTab === 'bank_dup' ? '#fff' : '#854d0e'}">
+            🟡 Trùng Ngân hàng (${bankDupCount})
+          </button>
+          ${internalDupCount > 0 ? `
+          <button type="button" class="button ${currentTab === 'internal_dup' ? 'primary' : 'quiet'}" id="import-tab-internal-dup" style="font-size:12px;padding:5px 12px;border-radius:20px;color:${currentTab === 'internal_dup' ? '#fff' : '#dc2626'}">
+            🔴 Trùng nội bộ (${internalDupCount})
+          </button>` : ''}
+        </div>
+
+        <!-- Danh sách câu hỏi cuộn dọc -->
+        <div style="max-height:46vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:2px 6px 6px 2px">
+          ${filteredItems.length === 0 ? `
+            <div style="text-align:center;padding:30px;color:#94a3b8;font-style:italic;background:#fff;border-radius:8px;border:1px dashed #cbd5e1">
+              Không có câu hỏi nào trong danh mục này.
+            </div>
+          ` : filteredItems.map(item => {
+            const q = item.question;
+            const idx = item.index;
+            let statusBadge = '';
+            let cardBorder = '#e2e8f0';
+            let cardBg = '#fff';
+
+            if (item.status === 'new') {
+              statusBadge = `<span style="background:#dcfce7;color:#15803d;border:1px solid #86efac;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">🟢 Câu mới</span>`;
+              cardBorder = '#bbf7d0';
+            } else if (item.status === 'bank_dup') {
+              statusBadge = `<span style="background:#fef9c3;color:#854d0e;border:1px solid #fde047;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">🟡 Trùng Ngân hàng: ${esc(item.matchedId)}${item.matchedLesson ? ' · Bài ' + esc(item.matchedLesson) : ''}</span>`;
+              cardBorder = '#fef08a';
+              cardBg = '#fffdf5';
+            } else if (item.status === 'internal_dup') {
+              statusBadge = `<span style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">🔴 Trùng lặp với câu #${item.firstIndex + 1}</span>`;
+              cardBorder = '#fecaca';
+              cardBg = '#fefafa';
+            }
+
+            const typeLabel = (typeof typeNames !== 'undefined' && typeNames[q.type]) || q.type || 'MC';
+            const levelLabel = q.level || 'Biết';
+            const lessonLabel = q.lesson_code ? `Bài ${esc(q.lesson_code)}` : 'Chưa gắn mã bài';
+
+            let answerHtml = '';
+            if (q.type === 'MC' && Array.isArray(q.options)) {
+              answerHtml = `
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:6px;margin-top:6px">
+                  ${q.options.map((opt, oIdx) => {
+                    const isCorrect = Number(q.correct) === oIdx;
+                    return `
+                      <div style="padding:4px 8px;border-radius:4px;font-size:12px;border:1px solid ${isCorrect ? '#86efac' : '#e2e8f0'};background:${isCorrect ? '#dcfce7' : '#f8fafc'};color:${isCorrect ? '#166534' : '#334155'};font-weight:${isCorrect ? '600' : '400'}">
+                        <strong>${String.fromCharCode(65 + oIdx)}.</strong> ${esc(opt)} ${isCorrect ? '✓' : ''}
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              `;
+            } else if (q.type === 'YN' && Array.isArray(q.branches)) {
+              answerHtml = `
+                <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">
+                  ${q.branches.map((b, bIdx) => `
+                    <div style="padding:4px 8px;border-radius:4px;font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;display:flex;align-items:center;gap:8px">
+                      <strong style="min-width:18px">${String.fromCharCode(97 + bIdx)})</strong>
+                      <span style="padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;background:${b.correct ? '#dcfce7' : '#fee2e2'};color:${b.correct ? '#166534' : '#b91c1c'}">
+                        ${b.correct ? 'ĐÚNG' : 'SAI'}
+                      </span>
+                      <span>${esc(b.content || '')}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              `;
+            } else if (q.type === 'SHORT') {
+              answerHtml = `
+                <div style="margin-top:6px;padding:6px 10px;background:#f0fdf4;border-radius:4px;border:1px solid #bbf7d0;font-size:12px;color:#166534">
+                  <strong>Đáp án ngắn:</strong> ${esc(q.answer || '(Trống)')}
+                </div>
+              `;
+            } else if (q.type === 'ES') {
+              answerHtml = `
+                <div style="margin-top:6px;padding:6px 10px;background:#f8fafc;border-radius:4px;border:1px solid #e2e8f0;font-size:12px;color:#334155">
+                  <strong>Hướng dẫn chấm / Lời giải:</strong> ${esc(q.explanation || (Array.isArray(q.rubric) ? q.rubric.map(r=>r.criterion + ': ' + r.points + 'đ').join('; ') : '—'))}
+                </div>
+              `;
+            }
+
+            return `
+              <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:8px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.02)">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                    <span style="font-weight:700;color:#0267B1">#${idx + 1}</span>
+                    ${statusBadge}
+                    <span style="background:#e0f2fe;color:#0369a1;border-radius:3px;padding:1px 6px;font-size:11px;font-weight:600">${esc(typeLabel)}</span>
+                    <span style="background:#f1f5f9;color:#475569;border-radius:3px;padding:1px 6px;font-size:11px">${esc(levelLabel)}</span>
+                    <span style="background:#f1f5f9;color:#475569;border-radius:3px;padding:1px 6px;font-size:11px">${esc(lessonLabel)}</span>
+                  </div>
+                </div>
+                <div style="font-size:13px;color:#0f172a;line-height:1.5;margin:4px 0">
+                  ${(typeof C !== 'undefined' && C.questionTextHtml) ? C.questionTextHtml(q.question) : esc(q.question)}
+                </div>
+                ${answerHtml}
+                ${q.learning_outcome ? `
+                  <div style="margin-top:6px;font-size:11px;color:#64748b">
+                    🎯 <em>YCCĐ:</em> ${esc(q.learning_outcome)}
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <!-- Thanh điều khiển và xác nhận nhập -->
+        <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;padding-top:12px;margin-top:4px;flex-wrap:wrap;gap:10px">
+          <div>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:#1e293b">
+              <input type="checkbox" id="import-dedup-skip-dups" checked>
+              <span>Chỉ nạp các câu hỏi mới hợp lệ (Tự động bỏ qua <strong>${bankDupCount}</strong> câu trùng ngân hàng &amp; loại trừ trùng nội bộ)</span>
+            </label>
+            ${newCount === 0 ? `
+              <div style="color:#b91c1c;font-size:12px;font-weight:600;margin-top:3px">
+                ⚠️ Tất cả ${totalCount} câu trong tệp đều đã có trong Ngân hàng hoặc bị trùng lặp. Không có câu mới nào cần nạp!
+              </div>
+            ` : ''}
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button type="button" class="button quiet" data-close="import-dedup-dialog">Hủy</button>
+            <button type="button" class="button primary" id="import-dedup-btn-submit"
+              ${newCount === 0 ? 'disabled' : ''}
+              style="background:#0267B1;border-color:#0267B1;color:#fff;font-weight:700;padding:7px 18px;${newCount === 0 ? 'opacity:0.5;cursor:not-allowed;' : ''}">
+              ${newCount > 0 ? `📥 Nạp ${newCount} câu mới vào Ngân hàng` : '📥 Không có câu mới'}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Gắn sự kiện tab
+    const tabAll = $('#import-tab-all');
+    if (tabAll) tabAll.onclick = () => { currentTab = 'all'; renderDialogView(); };
+    const tabNew = $('#import-tab-new');
+    if (tabNew) tabNew.onclick = () => { currentTab = 'new'; renderDialogView(); };
+    const tabBankDup = $('#import-tab-bank-dup');
+    if (tabBankDup) tabBankDup.onclick = () => { currentTab = 'bank_dup'; renderDialogView(); };
+    const tabInternalDup = $('#import-tab-internal-dup');
+    if (tabInternalDup) tabInternalDup.onclick = () => { currentTab = 'internal_dup'; renderDialogView(); };
+
+    // Gắn sự kiện nạp
+    const submitBtn = $('#import-dedup-btn-submit');
+    if (submitBtn && newCount > 0) {
+      submitBtn.onclick = async () => {
+        const skipDups = $('#import-dedup-skip-dups')?.checked;
+        let toImport = [];
+        if (skipDups) {
+          toImport = itemsInfo.filter(x => x.status === 'new').map(x => x.question);
+        } else {
+          toImport = itemsInfo.filter(x => x.status !== 'internal_dup').map(x => x.question);
+        }
+
+        if (!toImport.length) {
+          notify('Không có câu hỏi hợp lệ nào được chọn để nạp.', true);
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = '⏳ Đang nạp dữ liệu...';
+
+        try {
+          await mutate('/api/bank/import', { bank: { questions: toImport }, mode: 'append' }, result => {
+            dlg.close();
+            render();
+            notify(importReportText(result, filename));
+          });
+        } catch (err) {
+          notify('Lỗi nạp câu hỏi: ' + (err.message || err), true);
+          submitBtn.disabled = false;
+          submitBtn.textContent = `📥 Nạp ${newCount} câu mới vào Ngân hàng`;
+        }
+      };
+    }
+  }
+
+  renderDialogView();
+  dlg.showModal();
+}
+
 async function importBank(event){
   const file=event.target.files[0];
   if(!file)return;
@@ -2220,16 +2503,19 @@ async function importBank(event){
           notify('Không tìm thấy câu hỏi hợp lệ trong bảng tính. Hãy bấm "📊 Tải mẫu câu hỏi (Excel)" để xem mẫu 11 cột chuẩn.', true);
           return;
         }
-        if(!confirm(`Tìm thấy ${parsed.length} câu hỏi từ tệp bảng tính (${file.name}).\nCác câu sẽ được THÊM vào ngân hàng Khối ${g} (giữ nguyên câu đang có, bỏ qua câu trùng).\nNếu tệp không phải của Khối ${g}, hãy bấm Hủy và chọn đúng khối ở bộ lọc trước.`)) return;
-        await mutate('/api/bank/import', { bank: { questions: parsed }, mode: 'append' }, result => {
-          render();
-          notify(importReportText(result, file.name));
-        });
+        openImportDedupDialog({ filename: file.name, questions: parsed, grade: g, subjectName: s });
         return;
       } else if(res.type === 'json') {
         let bank = res.data;
         if(Array.isArray(bank)) bank = { questions: bank };
         else if(bank && bank.bank) bank = bank.bank;
+        
+        // Nếu file JSON chứa danh sách câu hỏi: mở hộp thoại đối chiếu trùng lặp
+        if (bank && Array.isArray(bank.questions) && (!bank.revisions || !bank.revisions.length) && (!bank.exams || !bank.exams.length) && (!bank.matrices || !bank.matrices.length)) {
+          openImportDedupDialog({ filename: file.name, questions: bank.questions, grade: g, subjectName: s });
+          return;
+        }
+
         if(!confirm('Khôi phục ngân hàng từ tệp JSON này? Toàn bộ câu hỏi hiện có sẽ được THAY bằng câu trong tệp. Ứng dụng kiểm tra dữ liệu và sao lưu trước khi ghi; PPCT gốc được giữ nguyên.')) return;
         await mutate('/api/bank/import', { bank }, () => {
           render();
@@ -2243,11 +2529,7 @@ async function importBank(event){
           notify('Không tìm thấy câu hỏi hợp lệ trong tệp Markdown. Bấm "📝 Tải mẫu câu hỏi (Markdown)" để xem định dạng chuẩn.', true);
           return;
         }
-        if(!confirm(`Tìm thấy ${parsed.length} câu hỏi từ tệp Markdown (${file.name}).\nCác câu sẽ được THÊM vào ngân hàng Khối ${g} (giữ nguyên câu đang có, bỏ qua câu trùng).`)) return;
-        await mutate('/api/bank/import', { bank: { questions: parsed }, mode: 'append' }, result => {
-          render();
-          notify(importReportText(result, file.name));
-        });
+        openImportDedupDialog({ filename: file.name, questions: parsed, grade: g, subjectName: s });
         return;
       }
     }
@@ -2260,13 +2542,16 @@ async function importBank(event){
         notify('Không tìm thấy câu hỏi hợp lệ trong tệp Markdown. Bấm "📝 Tải mẫu câu hỏi (Markdown)" để xem định dạng chuẩn.',true);
         return;
       }
-      if(!confirm(`Tìm thấy ${parsed.length} câu hỏi từ tệp Markdown (${file.name}).\nCác câu sẽ được THÊM vào ngân hàng Khối ${g} (giữ nguyên câu đang có, bỏ qua câu trùng).`))return;
-      await mutate('/api/bank/import',{bank:{questions:parsed},mode:'append'},result=>{render();notify(importReportText(result,file.name));});
+      openImportDedupDialog({ filename: file.name, questions: parsed, grade: g, subjectName: s });
     }else{
       const text=await file.text();
       let bank=JSON.parse(text);
       if(Array.isArray(bank))bank={questions:bank};
       else if(bank.bank)bank=bank.bank;
+      if (bank && Array.isArray(bank.questions) && (!bank.revisions || !bank.revisions.length) && (!bank.exams || !bank.exams.length) && (!bank.matrices || !bank.matrices.length)) {
+        openImportDedupDialog({ filename: file.name, questions: bank.questions, grade: g, subjectName: s });
+        return;
+      }
       if(!confirm('Khôi phục ngân hàng từ tệp JSON này? Toàn bộ câu hỏi hiện có sẽ được THAY bằng câu trong tệp. Ứng dụng kiểm tra dữ liệu và sao lưu trước khi ghi; PPCT gốc được giữ nguyên.'))return;
       await mutate('/api/bank/import',{bank},()=>{render();notify('Đã nhập ngân hàng và lưu bản sao trước thay đổi.');});
     }

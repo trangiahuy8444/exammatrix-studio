@@ -401,6 +401,21 @@
   </div>
 </dialog>
 
+<!-- Modal Xem trước & Đối chiếu trùng lặp khi nạp câu hỏi -->
+<dialog id="import-dedup-dialog" style="max-width:960px;width:95vw;border-radius:14px;padding:22px;border:1px solid #dce5ee;box-shadow:0 16px 48px rgba(16,45,74,0.18)">
+  <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:1px solid #e2e8f0;padding-bottom:10px">
+    <div>
+      <span class="badge" style="background:#0267B1;color:#fff;font-weight:700">ĐỐI CHIẾU &amp; PHÁT HIỆN TRÙNG LẶP</span>
+      <h2 id="import-dedup-title" style="margin:4px 0 2px;color:var(--navy,#1e3a8a);font-size:1.3rem">🔍 Xem trước câu hỏi &amp; Kiểm soát trùng lặp</h2>
+      <p class="muted small" style="margin:0">Kiểm tra danh sách câu mới, phát hiện câu trùng lặp với Ngân hàng đề và lựa chọn phương thức nạp dữ liệu an toàn.</p>
+    </div>
+    <button type="button" data-close="import-dedup-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer;color:#64748b">✕</button>
+  </div>
+  <div id="import-dedup-content">
+    <!-- Nội dung render động từ app.js -->
+  </div>
+</dialog>
+
 <!-- Backup & Restore Dialog -->
 <dialog id="backup-dialog" style="max-width:550px;width:90vw;border-radius:12px;padding:24px;border:1px solid var(--line,#ccc);box-shadow:0 12px 36px rgba(0,0,0,0.2)">
   <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--line,#eee);padding-bottom:12px">

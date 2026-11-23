@@ -84,26 +84,27 @@ const activeGradeOptions=g=>{
 };
 const gradeOptions=g=>activeGradeOptions(g);
 function renderSidebarGradeSwitcher(){
- const pills=document.getElementById('sidebar-grade-pills');
+ const sel=document.getElementById('sidebar-grade-select');
  const badgeEl=document.getElementById('current-grade-badge');
  const cfgBtn=document.getElementById('btn-config-active-grades');
  if(cfgBtn)cfgBtn.onclick=()=>openGradeConfigDialog();
- const avail=availableGrades();
  const activeVal=store.activeGrade===undefined?'all':store.activeGrade;
+ const avail=availableGrades().slice();
+ const activeNum=activeVal!=='all'?Number(activeVal):0;
+ if(activeNum&&!avail.includes(activeNum)&&grades().includes(activeNum)){
+  avail.push(activeNum);
+  avail.sort((a,b)=>a-b);
+ }
  if(badgeEl){
   badgeEl.textContent=activeVal==='all'?'Tất cả khối':('Khối '+activeVal);
  }
- if(!pills)return;
- pills.innerHTML=avail.map(g=>{
-  const isAct=String(activeVal)===String(g);
-  return `<button type="button" class="grade-pill-btn${isAct?' active':''}" data-sidebar-grade="${g}" role="tab" aria-selected="${isAct}" title="Làm việc với Khối ${g}"><span class="grade-pill-short">K${g}</span><span class="grade-pill-full">Khối ${g}</span></button>`;
- }).join('')+`<button type="button" class="grade-pill-btn${activeVal==='all'?' active':''}" data-sidebar-grade="all" role="tab" aria-selected="${activeVal==='all'}" title="Xem tất cả các khối đang giảng dạy"><span class="grade-pill-short">All</span><span class="grade-pill-full">Tất cả</span></button>`;
- pills.querySelectorAll('[data-sidebar-grade]').forEach(btn=>{
-  btn.onclick=()=>{
-   const raw=btn.dataset.sidebarGrade;
-   setActiveGrade(raw==='all'?'all':Number(raw));
-  };
- });
+ if(!sel)return;
+ sel.innerHTML=avail.map(g=>opt(g,`Khối ${g}`,String(activeVal)===String(g))).join('')+opt('all','Tất cả khối',activeVal==='all');
+ sel.value=String(activeVal);
+ sel.onchange=e=>{
+  const raw=e.target.value;
+  setActiveGrade(raw==='all'?'all':Number(raw));
+ };
 }
 function setActiveGrade(nextGrade,opts={}){
  const raw=(nextGrade===''||nextGrade===null||nextGrade===undefined)?'all':nextGrade;

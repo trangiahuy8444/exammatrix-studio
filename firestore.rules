@@ -9,11 +9,15 @@ service cloud.firestore {
     // Toàn bộ Ngân hàng câu hỏi, Đề thi, Đề cương, Ma trận nằm trong nhánh:
     // /workspaces/{userId}/...
     
-    match /workspaces/{userId}/{allDocuments=**} {
+    match /workspaces/{userId} {
       // Chỉ cho phép ĐỌC và GHI khi:
       // 1. Người dùng đã đăng nhập (request.auth != null)
       // 2. UID của người đăng nhập trùng khớp 100% với userId của không gian làm việc
       allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      match /{allDocuments=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     // Danh mục PPCT chuẩn dùng chung cho toàn trường (nếu có) chỉ cho đọc

@@ -30,13 +30,10 @@ jobs:
         run: |
           node tests/frontend.test.cjs
           node tests/matrices_frontend.test.cjs
+          node --test tests/table_file_helper.test.cjs
           node --test tests/static_*.test.cjs
 
-  deploy:
-    needs: verify-static
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout mã nguồn
@@ -56,6 +53,13 @@ jobs:
         with:
           path: 'public'
 
+  deploy:
+    needs: [verify-static, build]
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Xuất bản lên GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

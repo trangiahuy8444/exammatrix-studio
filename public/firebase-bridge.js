@@ -678,7 +678,7 @@
       if (window.BankStaticAPI?.canHandle(path)) {
         const op = await window.BankStaticAPI.handle(path, body, currentWorkspaceData, {subject:subj, actor:'Giáo viên trên trình duyệt',engine:window.BankStaticEngine,workflow:window.BankStaticWorkflow,comparison:window.BankExamComparison});
         if (op.changed) {
-          await syncToFirestore(uid, op.data);
+          await syncToFirestore(uid, op.data, { path, allowShrink: Boolean(window.CloudStorageV2?.isShrinkAllowedAction?.(path, body)) });
           if ((window.FirebaseState.user?.uid || 'offline') !== uid)
             throw new Error('Tài khoản đã thay đổi trong khi lưu. Hãy tải lại dữ liệu của tài khoản hiện tại.');
           currentWorkspaceData = op.data;

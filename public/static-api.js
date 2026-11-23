@@ -535,6 +535,30 @@
    exam.verification=verification(exam);
    return exam;
   };
+  const findRecentDuplicateExam=(exams,genPayload,targetMatrix,expectedIds)=>{
+   const nowMs=Date.now();
+   const targetTitle=String(genPayload.title||'').trim();
+   const targetGrade=Number(targetMatrix?targetMatrix.grade:genPayload.grade);
+   const targetSubj=normSubj((targetMatrix&&targetMatrix.subject_name)||genPayload.subject_name||subject);
+   const targetType=(targetMatrix&&targetMatrix.exam_type)||genPayload.exam_type;
+   const targetMxId=targetMatrix?targetMatrix.id:null;
+   const targetCode=String(genPayload.exam_code||'101');
+   const targetSeed=String(genPayload.seed??'');
+   const idSig=JSON.stringify(expectedIds||[]);
+   return (exams||[]).find(ex=>{
+    if(!ex||ex.status!=='drafting')return false;
+    const t=Date.parse(ex.created_at||'');
+    if(!Number.isFinite(t)||Math.abs(nowMs-t)>=15000)return false;
+    return Number(ex.grade)===targetGrade
+     &&normSubj(ex.subject_name)===targetSubj
+     &&ex.exam_type===targetType
+     &&String(ex.title||'').trim()===targetTitle
+     &&(ex.matrix_id||null)===targetMxId
+     &&String(ex.exam_code||'101')===targetCode
+     &&String(ex.seed??'')===targetSeed
+     &&JSON.stringify((ex.questions||[]).map(q=>q.id))===idSig;
+   })||null;
+  };
   if(path==='/api/exams/generate'||path==='/api/exams/from-matrix'){
    const {genPayload,targetMatrix}=enrichExamPayload(p);
    if(path==='/api/exams/from-matrix'&&p.flexible===true&&targetMatrix){
@@ -565,6 +589,8 @@
      pickedQuestions.push(cand);
      reviewedPartsMap.set(s.id,pl.reviewed_part_ids);
     }
+    const dup=findRecentDuplicateExam(data.exams,genPayload,targetMatrix,pickedQuestions.map(q=>q.id));
+    if(dup)return result({exam:dup,exams:data.exams},false);
     const rev=genPayload.revision_id?own(find(data.revisions,genPayload.revision_id)):null;
     const exam=assembleFlexibleExam({targetMatrix,flexSlots,pickedQuestions,genPayload,rev,reviewedPartsMap});
     put(data.exams,exam);return result({exam,exams:data.exams},true);
@@ -574,6 +600,8 @@
     const rev=genPayload.revision_id?own(find(data.revisions,genPayload.revision_id)):null;
     if(rev&&Number(rev.grade)!==Number(genPayload.grade))fail('Đề cương phải cùng khối, môn và kì kiểm tra.');
     const pickedQuestions=assignFlexibleSlots(flexSlots,{revision:rev,seed:genPayload.seed,percent:genPayload.similarity_percent??90});
+    const dup=findRecentDuplicateExam(data.exams,genPayload,targetMatrix,pickedQuestions.map(q=>q.id));
+    if(dup)return result({exam:dup,exams:data.exams},false);
     const exam=assembleFlexibleExam({targetMatrix,blueprint:p.blueprint,flexSlots,pickedQuestions,genPayload,rev});
     put(data.exams,exam);return result({exam,exams:data.exams},true);
    }
@@ -701,6 +729,16 @@
    return result({result:{exams,codes},exams:data.exams},true);
   }
   if(path==='/api/exams/delete'){
+   if(Array.isArray(p.ids)&&p.ids.length){
+    const idSet=new Set();
+    for(const key of p.ids){
+     const old=own(find(data.exams,key));
+     workflow.assertEditable(old);
+     idSet.add(old.id);
+    }
+    data.exams=data.exams.filter(e=>!idSet.has(e.id));
+    return result({exams:data.exams,deleted_count:idSet.size},true);
+   }
    const old=own(find(data.exams,p.id));workflow.assertEditable(old);data.exams=data.exams.filter(e=>e.id!==old.id);return result({exams:data.exams},true);
   }
   if(path==='/api/exams/inspect-import'||path==='/api/exams/import-verified'){

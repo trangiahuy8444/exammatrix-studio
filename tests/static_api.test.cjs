@@ -223,6 +223,24 @@ async function main(){
   err=>err.message.includes('Chưa đủ câu hỏi trong ngân hàng cho')&&!err.message.includes('S1')&&!err.message.includes('MX-')
  );
 
+ // Chống tạo trùng khi bấm đúp trong 15 giây & hỗ trợ xóa nhiều đề nháp cùng lúc
+ const dupRes=await api.handle('/api/exams/generate',{
+  matrix_id:'M1',grade:9,exam_type:'GK1',duration:45,seed:'2026',
+  title:'Đề tự động K9 linh hoạt',flexible:true
+ },autoFlexRes.data,env);
+ assert.equal(dupRes.changed,false);
+ assert.equal(dupRes.response.exams.length,1);
+ assert.equal(dupRes.response.exam.id,autoFlexRes.response.exam.id);
+
+ const delSingle=await api.handle('/api/exams/delete',{id:autoFlexRes.response.exam.id},dupRes.data,env);
+ assert.equal(delSingle.changed,true);
+ assert.equal(delSingle.response.exams.length,0);
+
+ const bulkDelRes=await api.handle('/api/exams/delete',{ids:setFlexRes.response.exams.map(e=>e.id)},setFlexRes.data,env);
+ assert.equal(bulkDelRes.changed,true);
+ assert.equal(bulkDelRes.response.deleted_count,2);
+ assert.equal(bulkDelRes.response.exams.length,0);
+
  console.log('PASS static API: ma trận → đề cương → sinh thật → khóa → phát hành; lỗi nguyên tử, bất biến snapshot và không tự duyệt câu');
 }
 if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1;});

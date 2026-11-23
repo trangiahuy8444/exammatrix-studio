@@ -3346,6 +3346,7 @@
           message('Chưa thể nạp câu hỏi cho ma trận này: '+err.message,true);
         }
       }else if(action==='quick-generate-exam'){
+        if(ui.generating)return;
         const pick=suggest({autoCheck:true,silent:true});
         if(pick.missing.length>0){
           message(`Chưa đủ câu hỏi đã duyệt trong ngân hàng cho ${pick.missing.length} vị trí: ${pick.missing.slice(0,5).join(', ')}${pick.missing.length>5?'…':''}. Vui lòng duyệt thêm câu ở mục "Duyệt câu hỏi" hoặc bổ sung ngân hàng.`,true);
@@ -4148,6 +4149,18 @@ Quy ước:
     return {chosenCount:slots.length-missing.length,total:slots.length,missing};
   }
   async function generate(){
+    if(ui.generating)return;
+    ui.generating=true;
+    const btns=[...(ui.container?.querySelectorAll('[data-action="quick-generate-exam"],[data-action="generate"]')||[])];
+    btns.forEach(b=>{b.disabled=true;});
+    try{
+      return await generateExamInner();
+    }finally{
+      ui.generating=false;
+      btns.forEach(b=>{b.disabled=false;});
+    }
+  }
+  async function generateExamInner(){
     const g=ui.generation,slots=generationSlots(g);
     const placements=slots.map(e=>({
       slot_id:e.slot.id,

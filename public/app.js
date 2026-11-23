@@ -4886,6 +4886,7 @@ function examLinks(r){
    `<button type="button" data-load-exam="${esc(r.id)}">Nạp cấu hình tạo đề</button>`+
    (editable?`<hr><button type="button" class="danger" data-del-exam="${esc(r.id)}">Xóa đề kiểm tra</button>`:'<p class="small muted">Đề đã khóa: không sửa, không xóa. Muốn sửa hãy tạo bản chỉnh sửa mới.</p>')+
   `</div></details>`+
+  (editable?`<button type="button" class="export-link danger" data-del-exam="${esc(r.id)}" title="Xóa đề nháp này">🗑 Xóa</button>`:'')+
  `</div>`;
 }
 function openExamComparison(id){
@@ -5016,7 +5017,21 @@ function renderExams(){
     :examSetCard())+
   `</div>`+
  `</form>`;
- const savedViewHtml=`<div class="card"><div class="list-toolbar" style="margin-top:0"><h2 style="margin:0">Đề kiểm tra đã lưu & kiểm định (${shownExams.length} / ${store.exams.length})</h2><div class="actions" style="display:flex;align-items:center;gap:8px"><label for="exam-grade-filter-select" class="small muted" style="font-weight:600">Khối lớp:</label><select id="exam-grade-filter-select" style="min-width:160px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff">${opt('all',`Tất cả khối (${store.exams.length})`,String(filterG)==='all')}${examFilterGrades.map(g=>opt(g,`Khối ${g} (${store.exams.filter(x=>Number(x.grade)===g).length})`,String(filterG)===String(g))).join('')}</select><button type="button" class="primary" data-exam-subtab="create">✨ Tạo đề mới</button></div></div>${shownExams.length?shownExams.map(r=>{const v=r.verification;const revPct=v?.revision_check?.coverage_percent_points??null;return `<article class="saved-item"><div><h3>${esc(r.title)} ${v?.passed?'<span class="badge approved">✅ Đạt chuẩn Ma trận</span>':'<span class="badge draft">Cần kiểm định</span>'}</h3><p><strong>Khối ${r.grade}</strong> · Mã đề: <strong>${esc(r.exam_code||'GỐC')}</strong> · ${countRecord(r)} câu · ${r.total_points??'Chưa xác định'} điểm · Thời gian: ${r.duration||45} phút${r.campus?` · Cơ sở: ${esc(r.campus)}`:''}</p><p class="small muted">Độ phủ đề cương: <strong>${revPct===null?'Chưa kiểm định':fmtPts(revPct)+'% điểm'}</strong> (${r.revision_match_count??'—'}/${countRecord(r)} câu) · Ma trận: <strong>${esc(matrixDisplayName(v,r))}</strong></p></div><div class="actions">${examLinks(r)}</div></article>`;}).join(''):empty('Chưa có đề kiểm tra','Bấm "✨ Tạo đề mới" để lập đề từ ngân hàng câu hỏi, hoặc nhập đề từ tệp bên dưới.')}</div>`+
+ const dupGroups=new Map();
+ shownExams.forEach((r,idx)=>{
+  if(!C.examEditable(r))return;
+  const dk=[Number(r.grade),String(r.title||'').trim(),String(r.exam_code||'101').trim(),countRecord(r)].join('|');
+  if(!dupGroups.has(dk))dupGroups.set(dk,[]);
+  dupGroups.get(dk).push({id:r.id,t:Date.parse(r.created_at||'')||0,idx});
+ });
+ const dupExamIds=[];
+ dupGroups.forEach(list=>{
+  if(list.length>1){
+   list.sort((a,b)=>(a.t-b.t)||(a.idx-b.idx));
+   list.slice(0,-1).forEach(x=>dupExamIds.push(x.id));
+  }
+ });
+ const savedViewHtml=`<div class="card"><div class="list-toolbar" style="margin-top:0"><h2 style="margin:0">Đề kiểm tra đã lưu & kiểm định (${shownExams.length} / ${store.exams.length})</h2><div class="actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><label for="exam-grade-filter-select" class="small muted" style="font-weight:600">Khối lớp:</label><select id="exam-grade-filter-select" style="min-width:160px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff">${opt('all',`Tất cả khối (${store.exams.length})`,String(filterG)==='all')}${examFilterGrades.map(g=>opt(g,`Khối ${g} (${store.exams.filter(x=>Number(x.grade)===g).length})`,String(filterG)===String(g))).join('')}</select>${dupExamIds.length?`<button type="button" class="danger" id="dedupe-exams-btn">🧹 Xóa ${dupExamIds.length} đề trùng</button>`:''}<button type="button" class="primary" data-exam-subtab="create">✨ Tạo đề mới</button></div></div>${shownExams.length?shownExams.map(r=>{const v=r.verification;const revPct=v?.revision_check?.coverage_percent_points??null;return `<article class="saved-item"><div><h3>${esc(r.title)} ${v?.passed?'<span class="badge approved">✅ Đạt chuẩn Ma trận</span>':'<span class="badge draft">Cần kiểm định</span>'}</h3><p><strong>Khối ${r.grade}</strong> · Mã đề: <strong>${esc(r.exam_code||'GỐC')}</strong> · ${countRecord(r)} câu · ${r.total_points??'Chưa xác định'} điểm · Thời gian: ${r.duration||45} phút${r.campus?` · Cơ sở: ${esc(r.campus)}`:''}</p><p class="small muted">Độ phủ đề cương: <strong>${revPct===null?'Chưa kiểm định':fmtPts(revPct)+'% điểm'}</strong> (${r.revision_match_count??'—'}/${countRecord(r)} câu) · Ma trận: <strong>${esc(matrixDisplayName(v,r))}</strong></p></div><div class="actions">${examLinks(r)}</div></article>`;}).join(''):empty('Chưa có đề kiểm tra','Bấm "✨ Tạo đề mới" để lập đề từ ngân hàng câu hỏi, hoặc nhập đề từ tệp bên dưới.')}</div>`+
  `<div id="exam-inline-viewer" class="card" hidden></div>`+
  `<details class="card"${inspected?' open':''}><summary style="cursor:pointer;font-weight:700;color:var(--navy)">📥 Nhập đề thi từ tệp (.docx / .json / .md) & Tải mẫu</summary>`+
   `<div style="margin-top:14px">`+
@@ -5040,6 +5055,14 @@ function renderExams(){
  document.querySelectorAll('[data-exam-create-mode]').forEach(btn=>{
   btn.onclick=()=>{readExamInputs();d.create_mode=btn.dataset.examCreateMode||'single';renderExams();};
  });
+ if($('#dedupe-exams-btn'))$('#dedupe-exams-btn').onclick=async()=>{
+  if(!dupExamIds.length||!confirm(`Xóa ${dupExamIds.length} bản đề nháp bị trùng lặp (giữ lại 1 bản mới nhất cho mỗi đề)?`))return;
+  await mutate('/api/exams/delete',{ids:dupExamIds},res=>{
+   if(dupExamIds.includes(store.activeExamViewId))store.activeExamViewId=null;
+   store.exams=res.exams||store.exams.filter(x=>!dupExamIds.includes(x.id));
+   renderExams();notify(`Đã xóa ${res.deleted_count||dupExamIds.length} đề trùng.`);
+  });
+ };
  const btnExamJson = $('#exam-download-json-sample');
  if (btnExamJson) btnExamJson.onclick = () => downloadExamJsonSample(Number(store.examDraft.grade) || effectiveGrade(), store.examDraft.exam_type || 'GK1');
  const btnExamMd = $('#exam-download-md-sample');
@@ -5169,8 +5192,9 @@ function loadExamConfig(id){
  notify('Đã nạp cấu hình đề lên biểu mẫu. Bạn có thể đổi Mã xáo trộn để tạo đề mới.');
 }
 async function deleteExam(id){
- const ex=store.exams.find(x=>x.id===id);if(!ex||!confirm(`Xóa đề kiểm tra "${ex.title}" (${ex.id})?`))return;
+ const ex=store.exams.find(x=>x.id===id);if(!ex||!confirm(`Xóa đề kiểm tra "${ex.title}" (Khối ${ex.grade} · Mã đề ${ex.exam_code||'101'})?`))return;
  await mutate('/api/exams/delete',{id},res=>{
+  if(store.activeExamViewId===id)store.activeExamViewId=null;
   store.exams=res.exams||store.exams.filter(x=>x.id!==id);
   renderExams();notify('Đã xóa đề kiểm tra.');
  });
@@ -5219,9 +5243,29 @@ function matrixRow(r,i,locked){const d=store.examDraft;const key=`data-row="${i}
 function readExamInputs(){const d=store.examDraft;if(!$('#exam-title'))return;d.title=$('#exam-title').value;d.duration=Number($('#exam-duration').value);d.seed=$('#exam-seed').value;d.revision_id=$('#exam-revision').value;if($('#exam-sim-pct-num'))d.similarity_percent=Number($('#exam-sim-pct-num').value);if($('#exam-sim-mode'))d.similarity_mode=$('#exam-sim-mode').value;}
 function generationProblems(){const d=store.examDraft,t=selectedTemplate(),rows=examRows(),summary=C.blueprintSummary(rows),p=[];if(C.templateBlocked(t))p.push('Chưa thể tạo đề từ ma trận này: các phần Đúng/Sai hoặc tự luận còn cần xác minh. Xem căn cứ ma trận phía trên. Có thể chọn kiểm tra Thường xuyên để tự thiết lập.');if(needsSource(d.grade,d.exam_type)&&!t&&!d.matrix_id)p.push('Kì kiểm tra này cần ma trận nguồn đã xác minh.');if(d.matrix_id){const pl=examPlan();if(!pl||pl.loading)p.push('Đang đọc ma trận…');else if(pl.error)p.push(pl.error);}if(!rows.length)p.push('Thêm ít nhất một dòng phân bố câu hỏi.');if(summary.points!==10)p.push(`Tổng hiện tại ${summary.points} điểm; cần đúng 10 điểm.`);if(rows.some(r=>!Number.isInteger(Number(r.count))||Number(r.count)<1||Number(r.points_per_question)<=0))p.push('Số câu phải là số nguyên dương và điểm mỗi câu phải lớn hơn 0.');return p;}
 function updateGenerationState(){if(!$('#generate-exam'))return;const p=generationProblems();$('#generate-exam').disabled=store.busy||Boolean(p.length);$('#generation-warning').hidden=!p.length;$('#generation-warning').textContent=p.join('\n');}
-async function generateExam(event){event.preventDefault();readExamInputs();const d=store.examDraft,p=generationProblems();if(p.length){notify(p.join('\n'),true);return;}const payload={title:d.title.trim(),grade:Number(d.grade),exam_type:d.exam_type,duration:Number(d.duration),...examSourcePayload(),revision_id:d.revision_id||null,seed:d.seed,similarity_percent:Number(d.similarity_percent??90),similarity_mode:d.similarity_mode||'min',flexible:Boolean(d.flexible_mode)};if(!payload.title){notify('Nhập tên đề kiểm tra trước khi tạo.',true);return;}await mutate('/api/exams/generate',payload,result=>{store.exams.push(result.exam);store.activeExamViewId=result.exam.id;store.examSubTab='saved';renderExams();const msg=result.exam?.flexible_draft?'Đã tạo đề kiểm tra nháp (Chế độ linh hoạt). Thầy/Cô có thể xem, xuất Word/PDF ngay hoặc duyệt câu hỏi trước khi khóa đề.':(result.exam.revision_id?'Đã tạo và lưu đề kiểm tra. Chọn bản học sinh hoặc bản giáo viên bên dưới để xuất.':'Đã tạo đề theo ma trận (chưa gắn đề cương). Mở Kiểm định để gắn đề cương trước khi gửi duyệt.');notify(msg);});}
+async function generateExam(event){
+ event.preventDefault();readExamInputs();
+ const d=store.examDraft,p=generationProblems();
+ if(p.length){notify(p.join('\n'),true);return;}
+ const payload={title:d.title.trim(),grade:Number(d.grade),exam_type:d.exam_type,duration:Number(d.duration),...examSourcePayload(),revision_id:d.revision_id||null,seed:d.seed,similarity_percent:Number(d.similarity_percent??90),similarity_mode:d.similarity_mode||'min',flexible:Boolean(d.flexible_mode)};
+ if(!payload.title){notify('Nhập tên đề kiểm tra trước khi tạo.',true);return;}
+ const genBtn=$('#generate-exam'),origTxt=genBtn?.textContent;
+ if(genBtn){genBtn.disabled=true;genBtn.textContent='⏳ Đang tạo đề…';}
+ try{
+  await mutate('/api/exams/generate',payload,result=>{
+   store.exams=Array.isArray(result.exams)?result.exams:[...store.exams.filter(x=>x.id!==result.exam.id),result.exam];
+   store.activeExamViewId=result.exam.id;store.examSubTab='saved';renderExams();
+   const msg=result.exam?.flexible_draft?'Đã tạo đề kiểm tra nháp (Chế độ linh hoạt). Thầy/Cô có thể xem, xuất Word/PDF ngay hoặc duyệt câu hỏi trước khi khóa đề.':(result.exam.revision_id?'Đã tạo và lưu đề kiểm tra. Chọn bản học sinh hoặc bản giáo viên bên dưới để xuất.':'Đã tạo đề theo ma trận (chưa gắn đề cương). Mở Kiểm định để gắn đề cương trước khi gửi duyệt.');
+   notify(msg);
+  });
+ }finally{
+  if(genBtn&&document.body.contains(genBtn)){genBtn.textContent=origTxt||'✨ Tạo và lưu đề kiểm tra';updateGenerationState();}
+ }
+}
 // Delegate controls that are re-rendered as the filter, list or matrix changes.
 document.addEventListener('click',event=>{
+ const menuItem=event.target.closest('.dropdown-menu .dropdown-content button, .dropdown-menu .dropdown-content a');
+ if(menuItem)menuItem.closest('.dropdown-menu')?.removeAttribute('open');
  const close=event.target.closest('[data-close]');if(close){$('#'+close.dataset.close).close();return;}
  const openCustomExport=event.target.closest('[data-open-custom-export]');if(openCustomExport){openCustomExportDialog(openCustomExport.dataset.openCustomExport);return;}
  const openCustomRevExport=event.target.closest('[data-open-custom-rev-export]');if(openCustomRevExport){openCustomRevExportDialog(openCustomRevExport.dataset.openCustomRevExport);return;}

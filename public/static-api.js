@@ -7,13 +7,14 @@
  function find(list,key){if(typeof key!=='string'||!key)fail('Thiếu mã hồ sơ.');const r=list.find(x=>x.id===key);if(!r)fail('Không tìm thấy hồ sơ trong không gian hiện tại.',404);return r;}
  function put(list,value){const i=list.findIndex(x=>x.id===value.id);if(i<0)list.push(value);else list[i]=value;return value;}
  function draft(record,prefix){const r=clone(record);for(const k of ['approved_hash','approved_by','approved_at','locked_at','published_at','published_by','locked_by','usage','lifecycle','verification','exam_set','parent_exam_id'])delete r[k];r.id=id(prefix);r.status='drafting';r.created_at=now();return r;}
- function canHandle(path){return /^\/api\/(exams|revisions|questions|matrices)(\/|$)/.test(path)||['/api/bank/import','/api/bank/save','/api/bank/save-question','/api/bank/delete-question','/api/ppct/clear-grade','/api/ppct/restore-grade'].includes(path);}
+ function canHandle(path){return /^\/api\/(exams|revisions|questions|matrices|assessment-plans)(\/|$)/.test(path)||['/api/bank/import','/api/bank/save','/api/bank/save-question','/api/bank/delete-question','/api/ppct/clear-grade','/api/ppct/restore-grade'].includes(path);}
  async function handle(path,body,input,env={}){
   const data=clone(input),p=body||{},engine=env.engine||root.BankStaticEngine,workflow=env.workflow||root.BankStaticWorkflow;
   if(!engine||!workflow)fail('Bộ xử lý ra đề chưa nạp xong. Vui lòng tải lại trang.',503);
   const subject=env.subject||'Tin học',actor=env.actor||'Giáo viên trên trình duyệt';
   const options={actor,reason:p.reason,checklist:p.checklist};
   data.bank=data.bank||{questions:[],ppct:{lessons:[]}};
+  data.assessment_plans=Array.isArray(data.assessment_plans)?data.assessment_plans:[];
   for(const k of ['exams','revisions','matrices'])if(!Array.isArray(data[k]))fail('Dữ liệu hồ sơ không đúng định dạng. Hãy khôi phục bản sao lưu hợp lệ.');
   const result=(response,changed=false)=>({response,data,changed});
   if(path==='/api/matrices/catalog'||path==='/api/matrices/catalog/save'){
@@ -414,6 +415,46 @@
    if(match[2]==='shortfall')return result(engine.shortfall(matrix,bank,ppct));
    if(match[2]==='candidates')return result(engine.candidates(matrix,bank,ppct));
    const validation=engine.validateMatrix(matrix,ppct);return result({matrix,validation,ppct_differences:validation.errors||[]});}
+  if(path==='/api/assessment-plans'||path==='/api/assessment-plans/list'){
+   const g=p.grade?Number(p.grade):null;
+   let list=(data.assessment_plans||[]).filter(plan=>(plan.subject_name||'Tin học')===subject);
+   if(g)list=list.filter(plan=>Number(plan.grade)===g);
+   return result({assessment_plans:list});
+  }
+  if(path==='/api/assessment-plans/save'){
+   const raw=clone(p.plan||{});
+   if(!raw.name?.trim())fail('Tên đợt kiểm tra đánh giá không được để trống.');
+   const grade=Number(raw.grade||p.grade||8);
+   const planModel=root.BankAssessmentPlan||(typeof require==='function'?require('./assessment-plan-model.js'):null);
+   const normalized=planModel?planModel.normalizePlan(raw,grade,subject):{id:raw.id||id('AP'),grade,subject_name:subject,...raw};
+   put(data.assessment_plans,normalized);
+   return result({plan:normalized,assessment_plans:data.assessment_plans},true);
+  }
+  if(path==='/api/assessment-plans/delete'){
+   const targetId=p.id;
+   if(!targetId)fail('Thiếu mã kế hoạch kiểm tra đánh giá.');
+   data.assessment_plans=(data.assessment_plans||[]).filter(ap=>ap.id!==targetId);
+   return result({success:true,assessment_plans:data.assessment_plans},true);
+  }
+  if(path==='/api/assessment-plans/reset-defaults'){
+   const grade=Number(p.grade||8);
+   const planModel=root.BankAssessmentPlan||(typeof require==='function'?require('./assessment-plan-model.js'):null);
+   if(!planModel)fail('Chưa nạp bộ định nghĩa KHKTĐG.',503);
+   const defaults=planModel.buildDefaultAssessmentPlans(grade,subject);
+   data.assessment_plans=[...(data.assessment_plans||[]).filter(ap=>Number(ap.grade)!==grade||(ap.subject_name||'Tin học')!==subject),...defaults];
+   return result({success:true,assessment_plans:data.assessment_plans,defaults},true);
+  }
+  if(path==='/api/assessment-plans/import'){
+   const planModel=root.BankAssessmentPlan||(typeof require==='function'?require('./assessment-plan-model.js'):null);
+   if(!planModel)fail('Chưa nạp bộ định nghĩa KHKTĐG.',503);
+   const grade=Number(p.grade||8);
+   let imported=[];
+   if(Array.isArray(p.plans)){imported=p.plans.map(raw=>planModel.normalizePlan(raw,grade,subject));}
+   else if(Array.isArray(p.rows)){imported=planModel.parseAssessmentPlansFromRows(p.rows,grade,subject);}
+   else{fail('Thiếu danh sách kế hoạch (plans hoặc rows).');}
+   imported.forEach(plan=>put(data.assessment_plans,plan));
+   return result({success:true,imported,assessment_plans:data.assessment_plans},true);
+  }
   fail('Thao tác này chưa được hỗ trợ trên bản Pages. Không có dữ liệu nào được thay đổi.',501);
  }
  const api={canHandle,handle};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.BankStaticAPI=api;

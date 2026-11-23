@@ -26,7 +26,7 @@ const statusNames={draft:'Bản nháp',pending_review:'Chờ duyệt',needs_revi
 const typeNames={MC:'Trắc nghiệm 4 lựa chọn',YN:'Đúng/Sai (4 ý)',SHORT:'Trả lời ngắn',ES:'Tự luận / thực hành'};
 const periodNames={TX:'Thường xuyên',GK1:'Giữa học kì I',CK1:'Cuối học kì I',GK2:'Giữa học kì II',CK2:'Cuối học kì II'};
 function browserValue(storage,key){try{return window[storage].getItem(key);}catch{return null;}}
-const store={context:{},bank:null,exams:[],revisions:[],templates:[],tab:'overview',selected:new Set(),selectedSubject:browserValue('localStorage','exammatrix_active_subject')||(typeof location!=='undefined'&&new URLSearchParams(location.search).get('subject'))||'Tin học',filters:{grade:'',lesson:'',type:'',level:'',section:'',status:'active',search:'',subject:''},page:1,ppctGrade:10,ppctSubject:'Tin học',revisionGrade:10,examDraft:{grade:10,exam_type:'GK1',template_id:'',revision_id:'',title:'',duration:45,seed:'2026',similarity_percent:90,similarity_mode:'min',blueprint:[]},editing:null,busy:false,testPpctLoaded:false};
+const store={context:{},bank:null,exams:[],revisions:[],matrices:[],assessmentPlans:[],assessmentPlanGrade:8,assessmentPlanSubject:'Tin học',templates:[],tab:'overview',selected:new Set(),selectedSubject:browserValue('localStorage','exammatrix_active_subject')||(typeof location!=='undefined'&&new URLSearchParams(location.search).get('subject'))||'Tin học',filters:{grade:'',lesson:'',type:'',level:'',section:'',status:'active',search:'',subject:''},page:1,ppctGrade:10,ppctSubject:'Tin học',revisionGrade:10,examDraft:{grade:10,exam_type:'GK1',template_id:'',revision_id:'',title:'',duration:45,seed:'2026',similarity_percent:90,similarity_mode:'min',blueprint:[]},editing:null,busy:false,testPpctLoaded:false};
 window.store=store; // firebase-bridge.js cần đọc/ghi store để cập nhật giao diện sau khi đăng nhập, đăng xuất hoặc khôi phục tệp
 const opt=(value,label,selected=false)=>`<option value="${esc(value)}"${selected?' selected':''}>${esc(label)}</option>`;
 const badge=q=>{const s=C.reviewStatusOf(q);return `<span class="badge ${esc(s)}">${esc(statusNames[s]||s)}</span>`;};
@@ -462,16 +462,16 @@ async function load(initial=false){
  finally{$('#refresh').disabled=false;}
 }
 function switchTab(tab){
- store.tab=['overview','bank','review','ppct','revisions','matrices','exams','kttx'].includes(tab)?tab:'overview';
+ store.tab=['overview','bank','review','ppct','assessment-plans','revisions','matrices','exams','kttx'].includes(tab)?tab:'overview';
  document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==store.tab);
  document.querySelectorAll('[data-tab]').forEach(a=>{if(a.dataset.tab===store.tab)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
- const tabLabels={overview:'Tổng quan',bank:'Ngân hàng câu hỏi',review:'Duyệt câu hỏi',ppct:'Phân phối chương trình',revisions:'Đề cương ôn tập',matrices:'Ma trận & đặc tả',exams:'Tạo đề kiểm tra',kttx:'Kiểm tra thường xuyên'};
+ const tabLabels={overview:'Tổng quan',bank:'Ngân hàng câu hỏi',review:'Duyệt câu hỏi',ppct:'Phân phối chương trình','assessment-plans':'Kế hoạch KTĐG',revisions:'Đề cương ôn tập',matrices:'Ma trận & đặc tả',exams:'Tạo đề kiểm tra',kttx:'Kiểm tra thường xuyên'};
  const curEl=document.getElementById('current-tab-label');if(curEl)curEl.textContent=tabLabels[store.tab]||'Khảo thí';
  if(store.bank)renderCurrent();
 }
 function render(){switchTab(location.hash.slice(1)||store.tab);}
 function renderCurrent(){
- ({overview:renderOverview,bank:renderBank,review:renderReview,ppct:renderPPCT,revisions:renderRevisions,exams:renderExams,kttx:renderKttx,matrices:renderMatrices}[store.tab])();
+ ({overview:renderOverview,bank:renderBank,review:renderReview,ppct:renderPPCT,'assessment-plans':renderAssessmentPlans,revisions:renderRevisions,exams:renderExams,kttx:renderKttx,matrices:renderMatrices}[store.tab])();
  setTimeout(() => renderLatex(), 40);
 }
 // B1: màn hình duyệt câu hỏi số lượng lớn. Không có nút "duyệt tất cả": mỗi câu phải mở và xác nhận phiếu riêng.
@@ -2860,7 +2860,10 @@ function renderPPCT(){
        <h2>Mục II.3 · Kiểm tra, đánh giá định kỳ (Phụ lục I CV 5512 &amp; TT 22/2021 Điều 7)</h2>
        <p class="small muted" style="margin:4px 0 0">Tổng hợp mốc kiểm tra định kỳ trong học kì. Không tổ chức kiểm tra định kỳ riêng đối với Cụm chuyên đề học tập (Điều 7.1 TT 22/2021) và Giáo dục AI (Mục VI.1 QĐ 2422).</p>
      </div>
-     <span class="badge">${assessmentRows.length}/4 mốc đã nạp từ PPCT</span>
+     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+       <span class="badge">${assessmentRows.length}/4 mốc đã nạp từ PPCT</span>
+       <a href="#assessment-plans" class="button primary" style="font-size:12px;padding:5px 12px;background:#0267B1;border-color:#0267B1;color:#fff;font-weight:700">📋 Quản lý KHKTĐG &amp; Liên kết Ma trận →</a>
+     </div>
    </div>
    <div class="table-wrap">
      <table class="ppct-table ppct-periodic-table">
@@ -3923,6 +3926,447 @@ function bindRevisionMatrixPanel(g){const el=$('#revision-matrix');if(!el)return
  if($('#rev-split'))$('#rev-split').onclick=()=>{const cells=store.plans?.rev?.data?.cells||[];Object.assign(store.revCounts,C.distributeCounts(cells,Math.max(1,Math.floor(Number($('#rev-total').value)||0))));renderRevisions();};
  if($('#rev-auto'))$('#rev-auto').onclick=async()=>{const cells=store.plans?.rev?.data?.cells||[],counts={};cells.forEach(c=>{counts[c.key]=store.revCounts[c.key]??defaultRevCount(c);});
   try{const res=await request('/api/revisions/propose',{...src().payload,counts,seed:String(Date.now())});questions().filter(q=>Number(q.grade)===Number(g)).forEach(q=>store.selected.delete(q.id));res.question_ids.forEach(id=>store.selected.add(id));renderRevisions();notify(`Đã chọn ${res.total} câu theo ma trận cho khối ${g}. Xem lại danh sách, chỉnh ở Ngân hàng nếu cần, rồi bấm "Lưu phiên bản đề cương".`+(res.warnings?.length?'\nLưu ý: '+res.warnings.join(' '):''),Boolean(res.warnings?.length));}catch(err){notify(detailError(err),true);}};}
+function getAssessmentPlans(grade, subj) {
+  const s = subj || store.selectedSubject || 'Tin học';
+  const g = grade ? Number(grade) : Number(store.assessmentPlanGrade || 8);
+  const all = Array.isArray(store.assessmentPlans) ? store.assessmentPlans : [];
+  let list = all.filter(p => (p.subject_name || 'Tin học') === s && Number(p.grade) === g);
+  if (list.length === 0 && window.BankAssessmentPlan) {
+    list = window.BankAssessmentPlan.buildDefaultAssessmentPlans(g, s);
+    if (!Array.isArray(store.assessmentPlans)) store.assessmentPlans = [];
+    store.assessmentPlans.push(...list);
+  }
+  return list;
+}
+
+function renderAssessmentPlans() {
+  const g = Number(store.assessmentPlanGrade || 8);
+  const s = store.assessmentPlanSubject || store.selectedSubject || 'Tin học';
+  const plans = getAssessmentPlans(g, s);
+  const ppctLs = lessons(g, s);
+
+  const plansHtml = plans.length ? plans.map((p, idx) => {
+    const scopeBadges = (p.scope_lessons || []).map(code => {
+      const match = ppctLs.find(l => l.lesson_code === code);
+      const title = match ? (match.lesson_name_source || match.lesson_name || match.title || code) : code;
+      return `<span class="badge" title="${esc(title)}" style="margin:2px 0">${esc(code)}</span>`;
+    }).join(' ') || '<span class="muted small">Tất cả bài học</span>';
+
+    return `<tr>
+      <td style="text-align:center"><strong>${idx + 1}</strong></td>
+      <td>
+        <strong>${esc(p.name)}</strong>
+        <div class="muted small">${esc(p.exam_type ? (periodNames[p.exam_type] || p.exam_type) : '')}</div>
+      </td>
+      <td style="text-align:center"><span class="badge" style="font-weight:700">${esc(p.duration || 45)} phút</span></td>
+      <td>
+        <div><strong>${esc(p.week || 'Chưa định')}</strong></div>
+        <div class="small muted">${esc(p.period || '')}</div>
+      </td>
+      <td style="text-align:center"><strong style="color:var(--navy);font-size:13px">x${esc(p.coefficient || (['CK1','CK2'].includes(p.exam_type) ? 3 : 2))}</strong></td>
+      <td><span class="small">${esc(p.form || 'Viết / Máy tính')}</span></td>
+      <td><div style="display:flex;gap:4px;flex-wrap:wrap">${scopeBadges}</div></td>
+      <td style="text-align:right">
+        <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+          <button type="button" class="primary" style="padding:4px 10px;font-size:12px;background:#0267B1;border-color:#0267B1" data-plan-make-matrix="${esc(p.id)}">📐 Lập ma trận</button>
+          <button type="button" class="export-link" style="padding:4px 8px;font-size:12px" data-plan-edit="${esc(p.id)}">Sửa</button>
+          <button type="button" class="export-link danger" style="padding:4px 8px;font-size:12px" data-plan-delete="${esc(p.id)}">Xóa</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="8" class="empty" style="text-align:center;padding:24px">Chưa có kế hoạch kiểm tra cho môn ${esc(s)} Khối ${g}. Bấm nút "Khôi phục mẫu GDPT 2018" hoặc "Thêm đợt kiểm tra" để bắt đầu.</td></tr>`;
+
+  $('#assessment-plans').innerHTML = `
+    ${title(`Kế hoạch môn ${s}`,'Kế hoạch kiểm tra, đánh giá định kỳ',`Kế hoạch kiểm tra định kỳ (Phụ lục 3 CV 5512/BGDĐT-GDTrH &amp; TT 22/2021) môn ${esc(s)} Khối ${g}. Mọi Ma trận và Bảng đặc tả sẽ tự động liên kết - tham chiếu đến các thông số và phạm vi bài học tại đây.`,
+    `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <label for="ap-grade-select" class="small muted" style="font-weight:600">Khối:</label>
+      <select id="ap-grade-select" style="min-height:36px;padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;font-weight:600">${gradeOptions(g)}</select>
+      <label for="ap-subject-select" class="small muted" style="font-weight:600">Môn:</label>
+      <select id="ap-subject-select" style="min-height:36px;padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;font-weight:600">${['Tin học','Toán','Ngữ văn','Tiếng Anh','Khoa học tự nhiên','Lịch sử và Địa lí','Công nghệ','Giáo dục công dân'].map(subj=>opt(subj,subj,subj===s)).join('')}</select>
+    </div>`)}
+
+    <div class="card" style="margin-bottom:16px;background:#f8fafc;border:1px solid #cbd5e1">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div>
+          <h3 style="margin:0 0 4px;font-size:15px;color:#1e3a8a">📌 Nguyên tắc kiểm tra định kỳ chuẩn Bộ GD&amp;ĐT (TT 22/2021 &amp; CV 5512)</h3>
+          <p class="small muted" style="margin:0">Môn Tin học: 04 bài ĐĐGđk/năm học (Giữa HK1: hệ số 2; Cuối HK1: hệ số 3; Giữa HK2: hệ số 2; Cuối HK2: hệ số 3). Cụm Chuyên đề học tập chỉ tính 01 điểm ĐĐGtx (Điều 7.1).</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="primary" id="btn-add-assessment-plan">+ Thêm đợt kiểm tra</button>
+          <button type="button" class="button" id="btn-import-assessment-plan">📥 Nạp KHKTĐG từ tệp</button>
+          <button type="button" class="button quiet" id="btn-reset-default-assessment-plan">🔄 Khôi phục 4 mốc GDPT 2018</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table class="ppct-table">
+          <thead>
+            <tr>
+              <th style="width:40px;text-align:center">TT</th>
+              <th>Bài kiểm tra, đánh giá</th>
+              <th style="width:90px;text-align:center">Thời gian</th>
+              <th style="width:130px">Thời điểm / Tiết</th>
+              <th style="width:80px;text-align:center">Hệ số</th>
+              <th style="width:160px">Hình thức</th>
+              <th>Phạm vi bài học (CV 5512)</th>
+              <th style="width:200px;text-align:right">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${plansHtml}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  const gSel = $('#ap-grade-select');
+  if (gSel) gSel.onchange = e => { store.assessmentPlanGrade = Number(e.target.value); renderAssessmentPlans(); };
+  const sSel = $('#ap-subject-select');
+  if (sSel) sSel.onchange = e => { store.assessmentPlanSubject = e.target.value; setGlobalSubject(e.target.value); };
+
+  const btnAdd = $('#btn-add-assessment-plan');
+  if (btnAdd) btnAdd.onclick = () => openAssessmentPlanEditor(g, s, null);
+
+  const btnReset = $('#btn-reset-default-assessment-plan');
+  if (btnReset) btnReset.onclick = async () => {
+    if (!confirm(`Khôi phục 4 đợt kiểm tra định kỳ (GK1, CK1, GK2, CK2) chuẩn GDPT 2018 cho môn ${s} Khối ${g}?`)) return;
+    await mutate('/api/assessment-plans/reset-defaults', { grade: g, subject_name: s }, () => {
+      notify(`Đã khôi phục kế hoạch KTĐG chuẩn GDPT 2018 cho Khối ${g}.`);
+      renderAssessmentPlans();
+    });
+  };
+
+  const btnImport = $('#btn-import-assessment-plan');
+  if (btnImport) btnImport.onclick = () => openAssessmentPlanImportDialog(g, s);
+
+  $$('[data-plan-edit]').forEach(btn => {
+    btn.onclick = () => {
+      const p = plans.find(x => x.id === btn.dataset.planEdit);
+      if (p) openAssessmentPlanEditor(g, s, p);
+    };
+  });
+
+  $$('[data-plan-delete]').forEach(btn => {
+    btn.onclick = async () => {
+      const pid = btn.dataset.planDelete;
+      if (!confirm('Xóa đợt kiểm tra đánh giá này khỏi kế hoạch?')) return;
+      await mutate('/api/assessment-plans/delete', { id: pid }, () => {
+        notify('Đã xóa đợt kiểm tra khỏi KHKTĐG.');
+        renderAssessmentPlans();
+      });
+    };
+  });
+
+  $$('[data-plan-make-matrix]').forEach(btn => {
+    btn.onclick = () => {
+      const p = plans.find(x => x.id === btn.dataset.planMakeMatrix);
+      if (!p) return;
+      createMatrixFromAssessmentPlan(p);
+    };
+  });
+}
+
+function openAssessmentPlanEditor(grade, subj, existing) {
+  const g = Number(grade || store.assessmentPlanGrade || 8);
+  const s = subj || store.assessmentPlanSubject || 'Tin học';
+  const ppctLs = lessons(g, s);
+  const p = existing || {
+    id: '',
+    name: 'Kiểm tra Đánh giá Giữa Học kỳ 1',
+    exam_type: 'GK1',
+    semester: 1,
+    grade: g,
+    subject_name: s,
+    duration: 45,
+    week: 'Tuần 9',
+    period: 'Tiết 9',
+    coefficient: 2,
+    form: 'Trắc nghiệm khách quan (70%) + Tự luận (30%)',
+    scope_lessons: [],
+    scope_description: '',
+    notes: 'Đánh giá định kỳ hệ số 2 theo TT 22/2021.'
+  };
+
+  const currentScope = new Set(p.scope_lessons || []);
+
+  const lessonCheckboxesHtml = ppctLs.length ? ppctLs.map(l => {
+    const isChecked = currentScope.has(l.lesson_code);
+    const label = `${esc(l.lesson_code)}: ${esc(l.lesson_name_source || l.lesson_name || l.title || '')}`;
+    return `<label style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:4px;cursor:pointer;background:${isChecked?'#eff6ff':'transparent'}">
+      <input type="checkbox" name="scope_lesson" value="${esc(l.lesson_code)}"${isChecked?' checked':''}>
+      <span class="small" style="font-weight:${isChecked?'600':'400'}">${label}</span>
+    </label>`;
+  }).join('') : '<p class="small muted">Chưa có bài học PPCT cho khối này. Thầy/Cô có thể nhập phạm vi bài học thủ công ở ô mô tả bên dưới.</p>';
+
+  $('#edit-content').innerHTML = `
+    <div class="dialog-heading">
+      <h2>${existing ? 'Sửa đợt kiểm tra đánh giá' : 'Thêm đợt kiểm tra đánh giá mới'} (Khối ${g})</h2>
+      <button data-close="edit-dialog" class="quiet">Đóng</button>
+    </div>
+    <form id="form-assessment-plan" class="stack">
+      <div class="two-col">
+        <div class="field">
+          <label for="ap-form-name">Tên bài kiểm tra, đánh giá *</label>
+          <input type="text" id="ap-form-name" name="name" value="${esc(p.name)}" required placeholder="Ví dụ: Kiểm tra Đánh giá Giữa Học kỳ 1">
+        </div>
+        <div class="field">
+          <label for="ap-form-type">Kỳ kiểm tra *</label>
+          <select id="ap-form-type" name="exam_type">
+            ${Object.entries(periodNames).map(([k,v])=>opt(k,`${k} - ${v}`,k===p.exam_type)).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div class="three-col">
+        <div class="field">
+          <label for="ap-form-duration">Thời gian (phút) *</label>
+          <input type="number" id="ap-form-duration" name="duration" min="15" max="180" value="${esc(p.duration || 45)}" required>
+        </div>
+        <div class="field">
+          <label for="ap-form-week">Thời điểm (Tuần)</label>
+          <input type="text" id="ap-form-week" name="week" value="${esc(p.week || '')}" placeholder="Ví dụ: Tuần 9">
+        </div>
+        <div class="field">
+          <label for="ap-form-period">Tiết PPCT</label>
+          <input type="text" id="ap-form-period" name="period" value="${esc(p.period || '')}" placeholder="Ví dụ: Tiết 9 hoặc Tiết 18">
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="field">
+          <label for="ap-form-coef">Hệ số điểm (TT 22/2021) *</label>
+          <select id="ap-form-coef" name="coefficient">
+            <option value="2"${Number(p.coefficient)===2?' selected':''}>Hệ số 2 (ĐĐGđk Giữa kì)</option>
+            <option value="3"${Number(p.coefficient)===3?' selected':''}>Hệ số 3 (ĐĐGđk Cuối kì)</option>
+            <option value="1"${Number(p.coefficient)===1?' selected':''}>Hệ số 1 (ĐĐGtx Thường xuyên)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="ap-form-format">Hình thức kiểm tra</label>
+          <input type="text" id="ap-form-format" name="form" value="${esc(p.form || 'Trắc nghiệm khách quan + Tự luận')}" placeholder="Ví dụ: TNKQ kết hợp TL trên máy tính">
+        </div>
+      </div>
+
+      <div class="field">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <label style="margin:0;font-weight:600">Phạm vi bài học PPCT kiểm tra (Phụ lục 3 CV 5512)</label>
+          <div style="display:flex;gap:6px">
+            <button type="button" class="quiet small" id="btn-select-all-scope" style="font-size:11px;padding:2px 8px">Chọn tất cả</button>
+            <button type="button" class="quiet small" id="btn-clear-all-scope" style="font-size:11px;padding:2px 8px">Bỏ chọn</button>
+          </div>
+        </div>
+        <div style="max-height:160px;overflow-y:auto;border:1px solid var(--line);border-radius:6px;padding:8px;background:#fff;display:flex;flex-direction:column;gap:3px">
+          ${lessonCheckboxesHtml}
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="ap-form-scope-desc">Tóm tắt nội dung / Yêu cầu cần đạt kiểm tra</label>
+        <textarea id="ap-form-scope-desc" name="scope_description" rows="2" placeholder="Ví dụ: Chủ đề 1, 2, 3: Lịch sử máy tính, Thông tin số & Đạo đức môi trường số">${esc(p.scope_description || '')}</textarea>
+      </div>
+
+      <div class="field">
+        <label for="ap-form-notes">Ghi chú</label>
+        <input type="text" id="ap-form-notes" name="notes" value="${esc(p.notes || '')}" placeholder="Ghi chú thêm (khung ma trận, hình thức nộp bài...)">
+      </div>
+
+      <div class="actions" style="margin-top:12px;justify-content:flex-end">
+        <button type="button" class="quiet" data-close="edit-dialog">Hủy</button>
+        <button type="submit" class="primary">${existing ? 'Lưu cập nhật' : 'Thêm vào KHKTĐG'}</button>
+      </div>
+    </form>
+  `;
+
+  $('#btn-select-all-scope')?.addEventListener('click', () => {
+    $$('input[name="scope_lesson"]').forEach(cb => { cb.checked = true; cb.closest('label').style.background = '#eff6ff'; });
+  });
+  $('#btn-clear-all-scope')?.addEventListener('click', () => {
+    $$('input[name="scope_lesson"]').forEach(cb => { cb.checked = false; cb.closest('label').style.background = 'transparent'; });
+  });
+  $$('input[name="scope_lesson"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      cb.closest('label').style.background = cb.checked ? '#eff6ff' : 'transparent';
+    });
+  });
+
+  $('#form-assessment-plan').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const selectedLessons = [...fd.getAll('scope_lesson')];
+    const payload = {
+      id: existing ? existing.id : '',
+      grade: g,
+      subject_name: s,
+      name: String(fd.get('name') || '').trim(),
+      exam_type: String(fd.get('exam_type') || 'GK1'),
+      duration: Number(fd.get('duration') || 45),
+      week: String(fd.get('week') || '').trim(),
+      period: String(fd.get('period') || '').trim(),
+      coefficient: Number(fd.get('coefficient') || 2),
+      form: String(fd.get('form') || '').trim(),
+      scope_lessons: selectedLessons,
+      scope_description: String(fd.get('scope_description') || '').trim(),
+      notes: String(fd.get('notes') || '').trim()
+    };
+
+    await mutate('/api/assessment-plans/save', { plan: payload }, () => {
+      $('#edit-dialog').close();
+      renderAssessmentPlans();
+      notify(`Đã lưu đợt kiểm tra "${payload.name}" vào KHKTĐG.`);
+    });
+  };
+
+  $('#edit-dialog').showModal();
+}
+
+function openAssessmentPlanImportDialog(grade, subj) {
+  const g = Number(grade || store.assessmentPlanGrade || 8);
+  const s = subj || store.assessmentPlanSubject || 'Tin học';
+
+  $('#edit-content').innerHTML = `
+    <div class="dialog-heading">
+      <h2>📥 Nạp Kế hoạch kiểm tra, đánh giá Khối ${g} (Phụ lục 3 CV 5512)</h2>
+      <button data-close="edit-dialog" class="quiet">Đóng</button>
+    </div>
+    <div class="stack" style="gap:14px">
+      <p class="small muted">
+        Hỗ trợ nạp tệp Excel (.xlsx, .xls), CSV, Word (.docx) hoặc dán bảng KHKTĐG theo mẫu Phụ lục 3 Công văn 5512/BGDĐT-GDTrH.
+      </p>
+
+      <div class="field">
+        <label for="ap-file-input">Chọn tệp dữ liệu KHKTĐG (.xlsx, .csv, .json, .docx)</label>
+        <input type="file" id="ap-file-input" accept=".xlsx,.xls,.csv,.json,.docx,.txt">
+      </div>
+
+      <div class="field">
+        <label for="ap-text-input">Hoặc dán nội dung bảng KHKTĐG (TSV, CSV, Markdown, JSON):</label>
+        <textarea id="ap-text-input" rows="6" placeholder="Bài kiểm tra, đánh giá | Thời gian | Thời điểm | Yêu cầu cần đạt | Hình thức&#10;Kiểm tra giữa kì 1 | 45 phút | Tuần 9 | B1, B2, B3, B4, B5, B6 | TNKQ + TL"></textarea>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <button type="button" class="quiet small" id="btn-download-ap-template">⬇ Tải tệp mẫu KHKTĐG (.csv)</button>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="quiet" data-close="edit-dialog">Hủy</button>
+          <button type="button" class="primary" id="btn-process-ap-import">Bắt đầu nạp</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  $('#btn-download-ap-template').onclick = () => {
+    const csvContent = "\uFEFF" +
+      "STT,Bài kiểm tra đánh giá,Thời gian (phút),Thời điểm (Tuần),Tiết PPCT,Hệ số,Hình thức,Phạm vi bài học,Yêu cầu cần đạt tóm tắt,Ghi chú\n" +
+      "1,Kiểm tra Đánh giá Giữa Học kỳ 1,45,Tuần 9,Tiết 9,2,Trắc nghiệm khách quan (70%) + Tự luận (30%),B1; B2; B3; B4; B5; B6,Chủ đề 1 2 3,ĐĐGđk hệ số 2 TT 22/2021\n" +
+      "2,Kiểm tra Đánh giá Cuối Học kỳ 1,45,Tuần 18,Tiết 18,3,Trắc nghiệm khách quan (70%) + Tự luận (30%),B1; B2; B3; B4; B5; B6; B7; B8; B9; B10; B11; B12; B13,Toàn bộ HK1,ĐĐGđk hệ số 3 TT 22/2021\n" +
+      "3,Kiểm tra Đánh giá Giữa Học kỳ 2,45,Tuần 27,Tiết 27,2,Trắc nghiệm khách quan (70%) + Tự luận (30%),B14; B15; B16,Chủ đề 5 Lập trình Scratch,ĐĐGđk hệ số 2 TT 22/2021\n" +
+      "4,Kiểm tra Đánh giá Cuối Học kỳ 2,45,Tuần 35,Tiết 35,3,Trắc nghiệm khách quan (70%) + Tự luận (30%),B14; B15; B16; B17; B18; B19; B20; B21,Toàn bộ HK2,ĐĐGđk hệ số 3 TT 22/2021\n";
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Ke_hoach_KTDG_Khoi_${g}_Mau_CV5512.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  $('#btn-process-ap-import').onclick = async () => {
+    const fileInput = $('#ap-file-input');
+    const textInput = $('#ap-text-input');
+    const text = textInput ? textInput.value.trim() : '';
+
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+      const file = fileInput.files[0];
+      const fileName = file.name.toLowerCase();
+      try {
+        if (fileName.endsWith('.json')) {
+          const rawText = await file.text();
+          const parsed = JSON.parse(rawText);
+          const plans = Array.isArray(parsed) ? parsed : (parsed.assessment_plans || parsed.plans || []);
+          await mutate('/api/assessment-plans/import', { grade: g, subject_name: s, plans }, () => {
+            $('#edit-dialog').close();
+            renderAssessmentPlans();
+            notify(`Đã nạp thành công ${plans.length} đợt kiểm tra từ tệp JSON!`);
+          });
+          return;
+        } else if (fileName.endsWith('.csv') || fileName.endsWith('.txt')) {
+          const rawText = await file.text();
+          const rows = rawText.split('\n').map(line => {
+            if (line.includes('\t')) return line.split('\t').map(c => c.trim().replace(/^"|"$/g, ''));
+            return line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+          }).filter(r => r.length > 1);
+          await mutate('/api/assessment-plans/import', { grade: g, subject_name: s, rows }, () => {
+            $('#edit-dialog').close();
+            renderAssessmentPlans();
+            notify(`Đã nạp thành công ${rows.length - 1} đợt kiểm tra từ tệp CSV!`);
+          });
+          return;
+        } else if (window.TableFileHelper && typeof window.TableFileHelper.parseTableFile === 'function') {
+          const parsed = await window.TableFileHelper.parseTableFile(file);
+          const rows = parsed.rows || [];
+          await mutate('/api/assessment-plans/import', { grade: g, subject_name: s, rows }, () => {
+            $('#edit-dialog').close();
+            renderAssessmentPlans();
+            notify(`Đã nạp thành công kế hoạch kiểm tra từ tệp bảng tính!`);
+          });
+          return;
+        }
+      } catch (err) {
+        notify('Lỗi nạp tệp: ' + err.message, true);
+        return;
+      }
+    }
+
+    if (text) {
+      try {
+        if (text.startsWith('[') || text.startsWith('{')) {
+          const parsed = JSON.parse(text);
+          const plans = Array.isArray(parsed) ? parsed : (parsed.assessment_plans || parsed.plans || []);
+          await mutate('/api/assessment-plans/import', { grade: g, subject_name: s, plans }, () => {
+            $('#edit-dialog').close();
+            renderAssessmentPlans();
+            notify(`Đã nạp thành công ${plans.length} đợt kiểm tra!`);
+          });
+          return;
+        }
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        const rows = lines.map(line => {
+          if (line.includes('|')) return line.split('|').map(c => c.trim()).filter(Boolean);
+          if (line.includes('\t')) return line.split('\t').map(c => c.trim());
+          return line.split(',').map(c => c.trim());
+        });
+        await mutate('/api/assessment-plans/import', { grade: g, subject_name: s, rows }, () => {
+          $('#edit-dialog').close();
+          renderAssessmentPlans();
+          notify(`Đã nạp thành công đợt kiểm tra từ dữ liệu bảng!`);
+        });
+      } catch (err) {
+        notify('Lỗi xử lý dữ liệu: ' + err.message, true);
+      }
+      return;
+    }
+
+    notify('Vui lòng chọn tệp hoặc dán nội dung bảng KHKTĐG.', true);
+  };
+
+  $('#edit-dialog').showModal();
+}
+
+function createMatrixFromAssessmentPlan(plan) {
+  if (!plan) return;
+  location.hash = '#matrices';
+  if (store.tab !== 'matrices') switchTab('matrices');
+
+  setTimeout(() => {
+    if (window.MatrixUI && typeof window.MatrixUI.createFromPlan === 'function') {
+      window.MatrixUI.createFromPlan(plan);
+      notify(`Đã tạo bản nháp ma trận liên kết KHKTĐG "${plan.name}"!`);
+    }
+  }, 120);
+}
+
 function renderRevisions(){
  const g=store.revisionGrade,ids=C.revisionIds(questions(),[...store.selected],g),qs=questions().filter(q=>ids.includes(q.id));
  const electiveQs=qs.filter(q=>questionSectionOf(q)==='elective_topic');
@@ -4455,7 +4899,7 @@ window.addEventListener('hashchange',()=>{clearNotice();switchTab(location.hash.
 $('#refresh').onclick=()=>load();
 load(true);
 
-function renderMatrices(){window.MatrixUI.mount($("#matrices"),{request,notify,context:store.context,ppct:store.bank.ppct,revisions:store.revisions,onExamCreated:e=>store.exams.push(e),
+function renderMatrices(){window.MatrixUI.mount($("#matrices"),{request,notify,context:store.context,ppct:store.bank.ppct,revisions:store.revisions,assessmentPlans:store.assessmentPlans||[],onExamCreated:e=>store.exams.push(e),
  openReview:cell=>{store.reviewFilters=C.reviewFiltersForCell(cell);store.reviewIndex=0;location.hash='#review';}});}
 
 // Keep download URLs tied to this tab's course, including newly rendered links.

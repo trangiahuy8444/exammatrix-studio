@@ -243,6 +243,7 @@
 
       const totalQ = mc_b + mc_h + yn + es_vd + es_vdc;
       const dis = (locked || received) ? ' disabled' : '';
+      const isPlanLesson = Boolean(m.assessment_plan?.scope_lessons?.includes(lesson.lesson_code));
 
       const totalLessonsCount = (m.lessons || []).length;
       return `
@@ -252,6 +253,7 @@
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
               <div>
                 <strong>${E(lesson.title)}</strong>
+                ${isPlanLesson ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;font-weight:600;font-size:10px;margin-left:4px">🎯 Trong KHKTĐG</span>` : ''}
                 <small style="display:block;color:var(--muted)">${E(lesson.lesson_code)}${lesson.topic ? ' · ' + E(lesson.topic) : ''}</small>
               </div>
               ${!(locked || received) ? `
@@ -750,6 +752,7 @@
           return `<div style="padding:2px 0;font-size:12px;white-space:nowrap"><strong>${c.count} ES</strong> <span class="badge" style="background:#fef9c3;color:#854d0e;font-size:11px;font-weight:700;border:1px solid #fde047;padding:1px 5px;border-radius:4px" title="Thành phần năng lực của mức ${LEVEL_NAMES[lvl]} (chỉnh sửa ở ô NL bên trái)">(${E(comp)})</span></div>`;
         }).filter(Boolean).join('') || '0';
 
+        const isPlanLesson = Boolean(m.assessment_plan?.scope_lessons?.includes(lesson.lesson_code));
         tableRows += `<tr>`;
         if (rowInGrp === 0) {
           tableRows += `<td rowspan="${grp.length}" style="text-align:center;font-weight:600;vertical-align:middle">${topicIdx}</td>`;
@@ -759,6 +762,7 @@
           <td style="vertical-align:middle;font-weight:600">
             ${E(lesson.title)}
             <small style="display:block;color:var(--muted);font-weight:400">${E(lesson.lesson_code)}</small>
+            ${isPlanLesson ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;font-weight:600;font-size:10px;margin-top:3px;display:inline-block">🎯 Trong KHKTĐG</span>` : ''}
           </td>
           <td style="vertical-align:top;padding:8px 10px">${reqsHtml}</td>
           <td style="text-align:center;vertical-align:middle;font-size:12px;line-height:1.4">${cellMC}</td>
@@ -1010,6 +1014,53 @@
   }
   function field(label,path,value,type='text',disabled=false){const id='mx-'+path.replaceAll('.','-');return `<div class="field"><label for="${id}">${E(label)}</label><input id="${id}" data-field="${E(path)}" type="${type}" value="${E(value??'')}"${disabled?' disabled':''}></div>`;}
   function select(label,path,options,disabled=false){const id='mx-'+path.replaceAll('.','-');return `<div class="field"><label for="${id}">${E(label)}</label><select id="${id}" data-field="${E(path)}"${disabled?' disabled':''}>${options}</select></div>`;}
+
+  function getAssessmentPlansForMatrix(grade, subj) {
+    const s = subj || subject();
+    const g = Number(grade);
+    const storePlans = (typeof window !== 'undefined' && window.store && Array.isArray(window.store.assessmentPlans))
+      ? window.store.assessmentPlans
+      : (Array.isArray(ui.ctx?.assessmentPlans) ? ui.ctx.assessmentPlans : []);
+    let list = storePlans.filter(p => (p.subject_name || 'Tin học') === s && Number(p.grade) === g);
+    if (!list.length && root.BankAssessmentPlan) {
+      list = root.BankAssessmentPlan.buildDefaultAssessmentPlans(g, s);
+    }
+    return list;
+  }
+
+  function renderAssessmentPlanDropdown(m, protectedFields) {
+    const g = Number(m.grade);
+    const s = subject(m);
+    const plans = getAssessmentPlansForMatrix(g, s);
+    const currentId = m.assessment_plan_id || '';
+    const currentPlan = plans.find(p => p.id === currentId) || m.assessment_plan;
+    return `
+      <div class="field span2" style="grid-column: 1 / -1; background:#f0f9ff; border:1px solid #bfdbfe; border-radius:8px; padding:12px 16px; margin:6px 0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
+          <label for="mx-assessment-plan" style="font-weight:700; color:#1e40af; margin:0;">
+            📋 Kế hoạch kiểm tra, đánh giá tham chiếu (Phụ lục 3 CV 5512 &amp; TT 22/2021)
+          </label>
+          ${currentPlan && !protectedFields ? `<button type="button" class="button primary" id="mx-sync-plan-lessons" style="font-size:12px; padding:4px 12px; background:#0267B1; border-color:#0267B1;">⚡ Đồng bộ bài học KHKTĐG (${(currentPlan.scope_lessons||[]).length} bài)</button>` : ''}
+        </div>
+        <select id="mx-assessment-plan" data-field="assessment_plan_id" ${protectedFields ? 'disabled' : ''} style="width:100%; font-weight:600; background:#fff; min-height:36px;">
+          ${opt('', '-- Tự do (Không liên kết KHKTĐG cụ thể) --', !currentId)}
+          ${plans.map(p => opt(p.id, `${p.name} · ${p.week || ''} (${p.period || ''}) · ${p.duration || 45}p · Hệ số ${p.coefficient || (['CK1','CK2'].includes(p.exam_type)?3:2)}`, p.id === currentId)).join('')}
+        </select>
+        ${currentPlan ? `
+          <div style="margin-top:8px; font-size:12px; color:#1e3a8a; display:flex; gap:14px; flex-wrap:wrap; align-items:center; line-height:1.5;">
+            <span><strong>Thời điểm:</strong> ${E(currentPlan.week || '—')}</span>
+            <span><strong>Tiết PPCT:</strong> ${E(currentPlan.period || '—')}</span>
+            <span><strong>Thời lượng:</strong> ${E(currentPlan.duration || 45)} phút</span>
+            <span><strong>Hình thức:</strong> ${E(currentPlan.form || 'Trắc nghiệm + Tự luận')}</span>
+            <span><strong>Hệ số:</strong> x${E(currentPlan.coefficient || (['CK1','CK2'].includes(currentPlan.exam_type)?3:2))}</span>
+            <div style="width:100%; margin-top:4px; color:#334155;">
+              <strong>Phạm vi bài học theo KHKTĐG:</strong> ${(currentPlan.scope_lessons || []).map(code => `<span class="badge" style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; font-weight:600; margin:0 2px;">${E(code)}</span>`).join('') || '<span class="muted">Tất cả bài học</span>'}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
   function newDraft(grade, usePreset=false){
     const g=Number(grade)||grades()[0];
     const isHigh=g>=10;
@@ -1068,7 +1119,7 @@
     qs('#mx-work').innerHTML=`<section class="card mx-editor"><div class="mx-editor-head"><div><p class="eyebrow">${custom?'CHẾ ĐỘ SỬA TOÀN DIỆN (TÙY CHỈNH)':received?'NHẬN NGUỒN · BẢO TOÀN CHỈ TIÊU':'PHỤ TRÁCH BIÊN SOẠN'}</p><h2>${E(m.title)} <span class="badge">V${m.version}</span></h2><p>${E(states[m.status])}${custom?' · Đang mở khóa tùy chỉnh toàn diện':''}<span id="mx-dirty">${ui.dirty?' · Có thay đổi chưa lưu':''}</span></p></div><div class="actions"><button data-action="preview">Xem toàn bộ bảng</button>${m.mode==='received'||m.source?`<button data-action="compare">Đối chiếu bản gốc (2 cột)</button>`:''}${received?`<button type="button" data-action="unlock-custom">🔓 Bật sửa toàn diện</button>`:''}${m.id?`<button type="button" data-action="duplicate-id" data-id="${E(m.id)}">Nhân bản</button><button type="button" class="danger" data-action="delete-id" data-id="${E(m.id)}">Xóa hồ sơ</button>`:''}<button data-action="save" class="primary">Lưu bản nháp</button><button data-action="discard">${ui.dirty?'Bỏ thay đổi / tải bản đã lưu':'Đóng hồ sơ'}</button></div></div>
     <div class="mx-section-nav"><button type="button" data-scroll="mx-information">Thông tin</button><button type="button" data-scroll="mx-grid">1. Bảng ma trận 2D ${m.matrix_locked ? '🔒' : ''}</button><button type="button" data-scroll="mx-spec-grid">2. Bảng đặc tả ${m.spec_locked ? '🔒' : ''}</button><button type="button" data-scroll="mx-output">3. Word & chốt phiên bản</button></div>
     ${received?'<div class="callout">Đang ở chế độ bảo toàn chỉ tiêu nguồn (chỉ bổ sung ánh xạ PPCT và số câu). Nếu bạn muốn thêm/sửa/xóa bài học, YCCĐ hoặc phân bố câu hỏi trực tiếp, hãy bấm nút <strong>"🔓 Bật sửa toàn diện"</strong> ở góc phải phía trên.</div>':''}
-    <h3 id="mx-information">1. Thông tin hồ sơ</h3><div class="form-grid">${field('Tên hồ sơ','title',m.title,'text',locked)}${select('Khối lớp','grade',grades().map(g=>opt(g,'Khối '+g,Number(m.grade)===g)).join(),protectedFields)}${field('Người phụ trách biên soạn','owner_name',m.owner_name,'text',locked)}${field('Cơ sở của người phụ trách','campus',m.campus,'text',locked)}${field('Năm học','school_year',m.school_year,'text',protectedFields)}${select('Kỳ kiểm tra','exam_type',Object.entries(periods).map(([k,v])=>opt(k,v,k===m.exam_type)).join(''),protectedFields)}${field('Thời gian (phút)','duration',m.duration,'number',protectedFields)}${select('Kiểu mẫu','profile',(generic()?['GENERAL']:['THCS','THPT']).map(k=>opt(k,profileLabel(k),k===m.profile)).join(''),protectedFields)}</div>
+    <h3 id="mx-information">1. Thông tin hồ sơ</h3><div class="form-grid">${field('Tên hồ sơ','title',m.title,'text',locked)}${select('Khối lớp','grade',grades().map(g=>opt(g,'Khối '+g,Number(m.grade)===g)).join(),protectedFields)}${field('Người phụ trách biên soạn','owner_name',m.owner_name,'text',locked)}${field('Cơ sở của người phụ trách','campus',m.campus,'text',locked)}${field('Năm học','school_year',m.school_year,'text',protectedFields)}${select('Kỳ kiểm tra','exam_type',Object.entries(periods).map(([k,v])=>opt(k,v,k===m.exam_type)).join(''),protectedFields)}${field('Thời gian (phút)','duration',m.duration,'number',protectedFields)}${select('Kiểu mẫu','profile',(generic()?['GENERAL']:['THCS','THPT']).map(k=>opt(k,profileLabel(k),k===m.profile)).join(''),protectedFields)}${renderAssessmentPlanDropdown(m,protectedFields)}</div>
     ${renderMatrixGuidanceBanner(m)}
     ${profileOptionsHtml(m,matrixLocked)}
     <div id="mx-grid">${matrixGridHtml(m, matrixLocked, received)}</div>
@@ -1170,6 +1221,17 @@
     for(const part of path)object=object[part];const previous=object[key];let value=el.value;
     if(el.type==='checkbox')value=key==='choice_group'?(el.checked?'alternative':null):el.checked;
     else if(el.type==='number'||key==='ppct_outcome_index'||key==='grade')value=value===''?null:Number(value);
+    if(key==='assessment_plan_id'){
+      object[key]=value;
+      const plans = getAssessmentPlansForMatrix(ui.editing.grade, subject(ui.editing));
+      const plan = plans.find(p => p.id === value);
+      ui.editing.assessment_plan = plan || null;
+      if(plan){
+        if(plan.exam_type)ui.editing.exam_type=plan.exam_type;
+        if(plan.duration)ui.editing.duration=plan.duration;
+      }
+      changed();renderEditor();return;
+    }
     object[key]=value;changed();
     if(key==='grade'){
       const newGrade=Number(value);
@@ -1792,6 +1854,13 @@
     const period = { TX: 'THƯỜNG XUYÊN', GK1: 'GIỮA KÌ 1', CK1: 'CUỐI KÌ 1', GK2: 'GIỮA KÌ 2', CK2: 'CUỐI KÌ 2' }[m.exam_type] || 'GIỮA KÌ 1';
     const subjUpper = (subject(m) || 'TIN HỌC').toLocaleUpperCase('vi');
 
+    const planCitation = (m.assessment_plan || (m.assessment_plan_id ? getAssessmentPlansForMatrix(m.grade, subject(m)).find(p => p.id === m.assessment_plan_id) : null));
+    const citationHtml = planCitation ? `
+      <p style="font-size:10pt;font-style:italic;margin:-10px 0 14px;text-align:center;color:#333;">
+        (Căn cứ Kế hoạch kiểm tra, đánh giá định kỳ: ${E(planCitation.name || 'Kiểm tra định kỳ')} — Thời điểm: ${E(planCitation.week || '')} · Tiết PPCT: ${E(planCitation.period || '')} · Thời lượng: ${E(planCitation.duration || 45)} phút · Hình thức: ${E(planCitation.form || 'Viết/Máy tính')})
+      </p>
+    ` : '';
+
     let out = '';
 
     const headerHtml = (title) => `
@@ -1813,9 +1882,10 @@
         <p class="mx-doc-heading" style="font-size:13pt;font-weight:700;margin:12px 0 4px;text-align:center;text-transform:uppercase;">
           <strong>${E(title)}</strong>
         </p>
-        <p class="mx-doc-subhead" style="font-size:11.5pt;font-weight:700;margin:0 0 16px;text-align:center;">
+        <p class="mx-doc-subhead" style="font-size:11.5pt;font-weight:700;margin:0 0 ${planCitation ? '6px' : '16px'};text-align:center;">
           <strong>MÔN: ${E(subjUpper)} ${E(m.grade)} - THỜI GIAN LÀM BÀI: ${E(m.duration || 45)} PHÚT</strong>
         </p>
+        ${citationHtml}
       </div>
     `;
 
@@ -2566,6 +2636,22 @@
     if(scroll)preview.scrollIntoView({behavior:'smooth',block:'start'});
   }
   async function click(event){
+    const syncPlanBtn=event.target.closest('#mx-sync-plan-lessons');
+    if(syncPlanBtn){
+      event.preventDefault();
+      const m=ui.editing;
+      if(!m)return;
+      const plans=getAssessmentPlansForMatrix(m.grade,subject(m));
+      const plan=plans.find(p=>p.id===m.assessment_plan_id)||m.assessment_plan;
+      if(!plan){message('Chưa chọn Kế hoạch KTĐG để đồng bộ.');return;}
+      const allLs=selectableLessons(m.grade,m.exam_type);
+      if(root.BankAssessmentPlan&&typeof root.BankAssessmentPlan.syncLessonsFromAssessmentPlan==='function'){
+        root.BankAssessmentPlan.syncLessonsFromAssessmentPlan(m,plan,allLs);
+        changed();renderEditor();
+        message(`Đã đồng bộ ${(plan.scope_lessons||[]).length} bài học từ KHKTĐG "${plan.name}" vào ma trận!`);
+      }
+      return;
+    }
     const scroll=event.target.closest('[data-scroll]');if(scroll){qs('#'+scroll.dataset.scroll)?.scrollIntoView({behavior:'smooth',block:'start'});return;}
     const open=event.target.closest('[data-open]');if(open){await run(()=>openRecord(open.dataset.open));return;}
     const b=event.target.closest('[data-action]');if(!b)return;event.preventDefault();const action=b.dataset.action;
@@ -3701,6 +3787,27 @@ Quy ước:
   function coverage(){if(!ui.generation||!qs('#mx-coverage'))return;const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));let count=0,matched=0;for(const e of ui.generation.slots){const q=e.candidates.find(q=>q.id===qs('#mx-choice-'+e.slot.id).value);if(q){count++;if(hashes.has(q.content_hash))matched++;}}qs('#mx-coverage').textContent=`Đã chọn ${count}/${ui.generation.slots.length} câu · Khớp nội dung đề cương ${matched} câu. Máy chủ sẽ kiểm tra lại khi tạo đề.`;}
   function suggest(){const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));const used=new Set();for(const e of ui.generation.slots){const pool=e.candidates.slice().sort((a,b)=>Number(hashes.has(b.content_hash))-Number(hashes.has(a.content_hash)));const q=pool.find(q=>!used.has(q.id));qs('#mx-choice-'+e.slot.id).value=q?.id||'';if(q)used.add(q.id);ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===e.slot.id)c.checked=false;});showChoice(e.slot.id);}captureGeneration();coverage();message('Đã gợi ý câu. Thầy cần xem nội dung và đánh dấu đối chiếu từng chỉ báo trước khi lưu đề.');}
   async function generate(){const g=ui.generation;const placements=g.slots.map(e=>({slot_id:e.slot.id,question_id:qs('#mx-choice-'+e.slot.id).value,reviewed_part_ids:[...ui.container.querySelectorAll('[data-review-slot]')].filter(x=>x.dataset.reviewSlot===e.slot.id&&x.checked).map(x=>x.value)}));const result=await ui.ctx.request('/api/exams/from-matrix',{matrix_id:g.matrix.id,revision_id:qs('#mx-exam-revision').value,title:qs('#mx-exam-title').value,campus:qs('#mx-exam-campus').value,exam_code:qs('#mx-exam-code').value,seed:qs('#mx-exam-seed').value,placements});const e=result.exam,base='/api/exams/'+encodeURIComponent(e.id)+'/export';qs('#mx-created-exam').innerHTML=`<div class="callout"><h3>Đã lưu đề ${E(e.exam_code)} · ${E(e.campus)}</h3><p>${e.question_count} câu · 10 điểm · Khớp đề cương ${e.revision_match_count}/${e.question_count} câu · Ma trận V${e.matrix_version}</p><div class="actions"><button type="button" class="primary" data-view-exam="${E(e.id)}" data-mode="student">Xem đề học sinh</button><button type="button" data-view-exam="${E(e.id)}" data-mode="answers">Xem đáp án & HDC</button><a class="button" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button" href="${base}?format=docx&answers=1">Word đáp án</a></div></div>`;ui.ctx.onExamCreated?.(e);message('Đã tạo đề riêng và lưu phiên bản ma trận dùng chung cùng đề.');}
-  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,STANDARD_PRESETS,newDraft,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
+  function openEditorWithDraft(draft){
+    ui.editing=draft;
+    ui.dirty=true;
+    ui.report=null;
+    ui.shortfall=null;
+    render();
+  }
+  function createFromPlan(plan){
+    const g=Number(plan.grade)||8;
+    const draft=newDraft(g,false);
+    draft.title=`Ma trận & Đặc tả ${plan.name} Khối ${g}`;
+    draft.exam_type=plan.exam_type||'GK1';
+    draft.duration=plan.duration||45;
+    draft.assessment_plan_id=plan.id;
+    draft.assessment_plan=plan;
+    const allLs=selectableLessons(g,draft.exam_type);
+    if(root.BankAssessmentPlan&&typeof root.BankAssessmentPlan.syncLessonsFromAssessmentPlan==='function'){
+      root.BankAssessmentPlan.syncLessonsFromAssessmentPlan(draft,plan,allLs);
+    }
+    openEditorWithDraft(draft);
+  }
+  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,STANDARD_PRESETS,newDraft,openEditorWithDraft,createFromPlan,getAssessmentPlansForMatrix,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

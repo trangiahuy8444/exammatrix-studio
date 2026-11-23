@@ -103,6 +103,7 @@
     exams: [],
     revisions: [],
     matrices: [],
+    assessment_plans: [],
     kttx: []
   };
 
@@ -259,6 +260,7 @@
         if (cached.exams) currentWorkspaceData.exams = cached.exams;
         if (cached.revisions) currentWorkspaceData.revisions = cached.revisions;
         if (cached.matrices) currentWorkspaceData.matrices = cached.matrices;
+        if (Array.isArray(cached.assessment_plans)) currentWorkspaceData.assessment_plans = cached.assessment_plans;
         if (Array.isArray(cached.kttx)) currentWorkspaceData.kttx = cached.kttx;
       }
     } catch(e) {}
@@ -1255,6 +1257,9 @@
         exams: Array.isArray(nextData.exams) ? nextData.exams : [],
         revisions: Array.isArray(nextData.revisions) ? nextData.revisions : [],
         matrices: Array.isArray(nextData.matrices) ? nextData.matrices : [],
+        assessment_plans: Array.isArray(nextData.assessment_plans)
+          ? nextData.assessment_plans
+          : (Array.isArray(currentWorkspaceData.assessment_plans) ? currentWorkspaceData.assessment_plans : []),
         kttx: Array.isArray(nextData.kttx)
           ? nextData.kttx
           : (Array.isArray(currentWorkspaceData.kttx) ? currentWorkspaceData.kttx : [])
@@ -1372,6 +1377,7 @@
         exams: data.exams || [],
         revisions: data.revisions || [],
         matrices: data.matrices || [],
+        assessment_plans: Array.isArray(data.assessment_plans) ? data.assessment_plans : [],
         kttx: Array.isArray(data.kttx) ? data.kttx : []
       };
       let timer;
@@ -1525,7 +1531,8 @@
         },
         exams: data.exams || [],
         revisions: data.revisions || [],
-        matrices: data.matrices || []
+        matrices: data.matrices || [],
+        assessment_plans: Array.isArray(data.assessment_plans) ? data.assessment_plans : []
       }, { merge: true });
       let timer;
       try {
@@ -1547,8 +1554,8 @@
     if (!user || !user.uid) return;
     const status = document.getElementById('static-sync-status');
     const valid = data => data && data.bank && Array.isArray(data.bank.questions) && Array.isArray(data.bank.ppct?.lessons) && ['exams', 'revisions', 'matrices'].every(k => Array.isArray(data[k]));
-    const empty = () => ({ bank: { questions: [], ppct: { lessons: [], cleared_grades: [] }, competency_catalogs: [] }, exams: [], revisions: [], matrices: [], kttx: [] });
-    const install = data => { currentWorkspaceData = JSON.parse(JSON.stringify({ ...data, kttx: Array.isArray(data?.kttx) ? data.kttx : [] })); window.FirebaseState.currentData = currentWorkspaceData; applyWorkspaceToStore(); };
+    const empty = () => ({ bank: { questions: [], ppct: { lessons: [], cleared_grades: [] }, competency_catalogs: [] }, exams: [], revisions: [], matrices: [], assessment_plans: [], kttx: [] });
+    const install = data => { currentWorkspaceData = JSON.parse(JSON.stringify({ ...data, assessment_plans: Array.isArray(data?.assessment_plans) ? data.assessment_plans : [], kttx: Array.isArray(data?.kttx) ? data.kttx : [] })); window.FirebaseState.currentData = currentWorkspaceData; applyWorkspaceToStore(); };
 
     const syncCached = getStorageData(user.uid);
     install(valid(syncCached) ? syncCached : empty());
@@ -1642,6 +1649,7 @@
           exams: result.data.exams,
           revisions: result.data.revisions,
           matrices: result.data.matrices,
+          assessment_plans: Array.isArray(result.data.assessment_plans) ? result.data.assessment_plans : [],
           kttx: Array.isArray(result.data.kttx) ? result.data.kttx : [],
           _sync: { pending: false, provider: 'google-drive', synced_at: result.updatedAt || new Date().toISOString() }
         });
@@ -1669,8 +1677,8 @@
   async function loadFromFirestore(user, db, helpers) {
     const cached=getStorageData(user.uid),cacheAtStart=JSON.stringify(cached);
     const valid=data=>data&&data.bank&&Array.isArray(data.bank.questions)&&Array.isArray(data.bank.ppct?.lessons)&&['exams','revisions','matrices'].every(k=>Array.isArray(data[k]));
-    const empty=()=>({bank:{questions:[],ppct:{lessons:[],cleared_grades:[]}},exams:[],revisions:[],matrices:[],kttx:[]});
-    const install=data=>{currentWorkspaceData=JSON.parse(JSON.stringify({...data,kttx:Array.isArray(data?.kttx)?data.kttx:[]}));window.FirebaseState.currentData=currentWorkspaceData;applyWorkspaceToStore();};
+    const empty=()=>({bank:{questions:[],ppct:{lessons:[],cleared_grades:[]}},exams:[],revisions:[],matrices:[],assessment_plans:[],kttx:[]});
+    const install=data=>{currentWorkspaceData=JSON.parse(JSON.stringify({...data,assessment_plans:Array.isArray(data?.assessment_plans)?data.assessment_plans:[],kttx:Array.isArray(data?.kttx)?data.kttx:[]}));window.FirebaseState.currentData=currentWorkspaceData;applyWorkspaceToStore();};
     install(valid(cached)?cached:empty());
     const status=document.getElementById('static-sync-status');
     if(cached?._sync?.pending&&valid(cached)){
@@ -1685,7 +1693,7 @@
       if(snap.exists()){
         const remote=snap.data();
         if(!valid(remote))throw new Error('Dữ liệu đám mây chưa đúng định dạng.');
-        install({bank:remote.bank,exams:remote.exams,revisions:remote.revisions,matrices:remote.matrices,kttx:Array.isArray(remote.kttx)?remote.kttx:[],_sync:{pending:false}});
+        install({bank:remote.bank,exams:remote.exams,revisions:remote.revisions,matrices:remote.matrices,assessment_plans:Array.isArray(remote.assessment_plans)?remote.assessment_plans:[],kttx:Array.isArray(remote.kttx)?remote.kttx:[],_sync:{pending:false}});
       }
       // Tài khoản mới chỉ nhận cache của chính UID đó hoặc dữ liệu rỗng; không lấy ngân hàng ngoại tuyến.
       // Không ghi hoặc dọn dữ liệu đám mây trong một thao tác đọc; lần lưu đầu sẽ tạo workspace.
@@ -1713,6 +1721,7 @@
     window.store.exams = snapshot.exams;
     window.store.revisions = snapshot.revisions;
     window.store.matrixRecords = snapshot.matrices;
+    window.store.assessmentPlans = Array.isArray(snapshot.assessment_plans) ? snapshot.assessment_plans : [];
     window.store.kttxActivities = Array.isArray(snapshot.kttx) ? snapshot.kttx : [];
     window.store.plans={};window.store.selected=new Set();
     window.store.activeExamViewId=null;window.store.activeRevisionViewId=null;
@@ -1728,6 +1737,7 @@
     currentWorkspaceData.exams = [];
     currentWorkspaceData.revisions = [];
     currentWorkspaceData.matrices = [];
+    currentWorkspaceData.assessment_plans = [];
     currentWorkspaceData.kttx = [];
     initLocalWorkspace();
     applyWorkspaceToStore();

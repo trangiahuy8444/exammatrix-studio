@@ -98,6 +98,12 @@ test('TableFileHelper: sample generators produce valid rows for Bank, PPCT and M
   assert.ok(bankRows.length >= 5);
   assert.equal(bankRows[0][0], 'Mã bài');
   assert.equal(bankRows[0][3], 'Nội dung câu hỏi');
+  assert.equal(bankRows[0][11], 'Năng lực');
+  assert.ok(bankRows.slice(1).every(r => r.length === 12 && /^NL[a-e]$/.test(r[11])));
+
+  const parsedSampleQs = TableFileHelper.parseQuestionsFromRows(bankRows, 10, 'Tin học');
+  assert.ok(parsedSampleQs.length >= 4);
+  assert.ok(parsedSampleQs.every(q => q.learning_outcome && q.competency));
 
   const ppctRows = TableFileHelper.getSamplePpctRows(10, 'Tin học');
   assert.ok(ppctRows.length >= 3);
@@ -112,11 +118,16 @@ test('TableFileHelper: THCS samples exclude YN (True/False) and match grade requ
   [6, 7, 8, 9].forEach(g => {
     const rows = TableFileHelper.getSampleBankRows(g, 'Tin học');
     assert.equal(rows[0][4], 'Phương án A'); // Không có '/ Ý a'
+    assert.equal(rows[0][11], 'Năng lực');
+    assert.ok(rows.slice(1).every(r => r.length === 12 && /^NL[a-e]$/.test(r[11])));
     const types = rows.slice(1).map(r => r[2]);
     assert.ok(types.includes('MC'));
     assert.ok(types.includes('ES'));
     assert.ok(!types.includes('YN'), `Khối ${g} THCS không được có dạng Đúng/Sai (YN)`);
     assert.ok(!types.includes('SHORT'), `Khối ${g} THCS không được có dạng Trả lời ngắn (SHORT)`);
+
+    const parsed = TableFileHelper.parseQuestionsFromRows(rows, g, 'Tin học');
+    assert.ok(parsed.every(q => q.learning_outcome && q.competency));
   });
 
   const matrixRows9 = TableFileHelper.getSampleMatrixRows(9, 'Tin học');

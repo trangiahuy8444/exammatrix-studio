@@ -767,6 +767,8 @@ ${subjectCompetencyGuideText(s)}`;
     const baseMc = {
       id: `K${g}-GV-sample1`, grade: g, subject_name: subj, lesson_code: 'B1',
       ppct_section: 'core', type: 'MC', level: 'Biết', response_mode: 'Trắc nghiệm',
+      learning_outcome: 'Nhận biết được các thiết bị vào - ra cơ bản của hệ thống máy tính.',
+      competency: 'NLa',
       question: 'Thiết bị nào sau đây là thiết bị vào của máy tính?',
       options: ['Màn hình', 'Chuột máy tính', 'Máy in', 'Loa'],
       correct: 1,
@@ -781,6 +783,8 @@ ${subjectCompetencyGuideText(s)}`;
     const baseEs = {
       id: `K${g}-GV-sample-es`, grade: g, subject_name: subj, lesson_code: 'B2',
       ppct_section: 'core', type: 'ES', level: 'Vận dụng', response_mode: 'Tự luận',
+      learning_outcome: 'Thực hiện được các quy tắc bảo vệ dữ liệu và an toàn thông tin cá nhân trong môi trường số.',
+      competency: 'NLb',
       question: 'Nêu hai biện pháp bảo vệ an toàn tài khoản số cá nhân khi tham gia môi trường mạng và giải thích vì sao cần thực hiện.',
       max_score: 1,
       rubric: [
@@ -796,6 +800,8 @@ ${subjectCompetencyGuideText(s)}`;
     const thptYn = {
       id: `K${g}-GV-sample2`, grade: g, subject_name: subj, lesson_code: 'B1',
       ppct_section: 'core', type: 'YN', level: 'Hiểu', response_mode: 'Trắc nghiệm',
+      learning_outcome: 'Sử dụng được các dịch vụ mạng thông dụng để học tập và giao tiếp số an toàn.',
+      competency: 'NLb',
       question: 'Khi sử dụng thư điện tử (Email) trong học tập và công việc:',
       statements: [
         { label: 'a', text: 'Có thể đính kèm tệp văn bản và hình ảnh phục vụ học tập.', correct: true },
@@ -808,6 +814,8 @@ ${subjectCompetencyGuideText(s)}`;
     const thptShort = {
       id: `K${g}-GV-sample3`, grade: g, subject_name: subj, lesson_code: 'B2',
       ppct_section: 'core', type: 'SHORT', level: 'Vận dụng', response_mode: 'Trắc nghiệm',
+      learning_outcome: 'Hiểu và vận dụng đúng các chuẩn năng lực số GDPT 2018 môn Tin học.',
+      competency: 'NLd',
       question: 'Theo chương trình GDPT 2018 môn Tin học, viết tắt của thành phần năng lực "Ứng dụng công nghệ thông tin và truyền thông trong học và tự học" là gì?',
       short_answer: 'NLd',
       review_status: 'draft'
@@ -824,11 +832,15 @@ D. Loa
 *Đáp án:* B
 *Mức độ:* Biết
 *Bài học:* B1
+*Yêu cầu cần đạt:* Nhận biết được các thiết bị vào - ra cơ bản của hệ thống máy tính.
+*Năng lực:* NLa
 *Lời giải:* Chuột máy tính là thiết bị đưa dữ liệu đầu vào cho hệ thống.`;
     const commonEs = `### Câu ${g >= 10 ? 4 : 2}:
 Nêu hai biện pháp bảo vệ an toàn thông tin cá nhân trên môi trường mạng và giải thích ngắn gọn tác dụng của từng biện pháp.
 *Mức độ:* Vận dụng
-*Bài học:* B2`;
+*Bài học:* B2
+*Yêu cầu cần đạt:* Thực hiện được các quy tắc bảo vệ dữ liệu và an toàn thông tin cá nhân trong môi trường số.
+*Năng lực:* NLb`;
     if (g < 10) return `${commonMc}\n\n${commonEs}`;
     return `${commonMc}
 
@@ -840,6 +852,8 @@ c) [Đúng] Tiêu đề thư nên viết ngắn gọn, rõ ràng, phản ánh đ
 d) [Sai] Mọi tệp đính kèm trong thư nhận từ người lạ đều an toàn tuyệt đối.
 *Mức độ:* Hiểu
 *Bài học:* B1
+*Yêu cầu cần đạt:* Sử dụng được các dịch vụ mạng thông dụng để học tập và giao tiếp số an toàn.
+*Năng lực:* NLb
 *Lời giải:* Thư điện tử cho phép gửi đồng thời nhiều người; tệp lạ có thể chứa mã độc.
 
 ### Câu 3:
@@ -847,6 +861,8 @@ Theo chương trình GDPT 2018 môn Tin học, viết tắt của thành phần 
 *Đáp án:* NLd
 *Mức độ:* Vận dụng
 *Bài học:* B2
+*Yêu cầu cần đạt:* Hiểu và vận dụng đúng các chuẩn năng lực số GDPT 2018 môn Tin học.
+*Năng lực:* NLd
 
 ${commonEs}`;
   }
@@ -1095,13 +1111,15 @@ ${isThpt
 
 ${cv7991QuestionRulesBlock(g, subj, 'BANK')}
 
-Yêu cầu định dạng Markdown từng câu:
+Yêu cầu định dạng Markdown từng câu (kèm đầy đủ YCCĐ và Năng lực GDPT 2018: NLa, NLb, NLc, NLd, NLe):
 1. Đánh số câu: ### Câu 1:, ### Câu 2:...
 2. Câu trắc nghiệm nhiều lựa chọn (MC):
    - Đặt 4 phương án A., B., C., D. trên 4 dòng riêng (độ dài và cấu trúc đồng nhất, không dùng "Tất cả đều đúng" / "Không có phương án nào đúng")
    - *Đáp án:* [A/B/C/D]
    - *Mức độ:* [Biết/Hiểu/Vận dụng]
    - *Bài học:* [${isThpt ? 'B1/B2... hoặc CD1/CD2... nếu là KTTX chuyên đề' : 'B1/B2/B3...'}]
+   - *Yêu cầu cần đạt:* [Gắn đúng YCCĐ theo PPCT của bài học]
+   - *Năng lực:* [Gắn đúng 1 mã: NLa/NLb/NLc/NLd/NLe]
    - *Lời giải:* [Giải thích rõ vì sao phương án đúng là đúng và vì sao các phương án nhiễu sai]${isThpt ? `
 3. Câu trắc nghiệm Đúng/Sai (YN - 4 ý a–d):
    - Mỗi câu gồm đoạn dẫn ngữ liệu chung (>= 25 kí tự) + 4 mệnh đề đơn độc lập tăng dần nhận thức (không để cả 4 ý cùng Đúng hoặc cùng Sai):
@@ -1109,14 +1127,14 @@ Yêu cầu định dạng Markdown từng câu:
      b) [Sai] Nội dung ý b (mức Biết/Hiểu)
      c) [Đúng] Nội dung ý c (mức Hiểu)
      d) [Sai] Nội dung ý d (mức Vận dụng)
-   - Ghi rõ *Mức độ:* và *Bài học:*
+   - Ghi rõ *Mức độ:*, *Bài học:*, *Yêu cầu cần đạt:* và *Năng lực:* (NLa/NLb/NLc/NLd/NLe)
 4. Câu trắc nghiệm Trả lời ngắn (SHORT):
    - Câu dẫn nêu rõ đơn vị tính và quy ước làm tròn; đáp án gọn duy nhất không kèm đơn vị (tối đa 4 kí tự nếu là số theo QĐ 764)
    - *Đáp án:* [Đáp án ngắn gọn]
-   - Ghi rõ *Mức độ:* và *Bài học:*
+   - Ghi rõ *Mức độ:*, *Bài học:*, *Yêu cầu cần đạt:* và *Năng lực:* (NLa/NLb/NLc/NLd/NLe)
 5. Câu Tự luận (ES):` : `
 3. Câu Tự luận (ES):`}
-   - Ghi đề bài rõ tình huống, yêu cầu thực hiện và tiêu chí đánh giá; không viết dòng *Đáp án:* để hệ thống nhận diện câu Tự luận (ES), ghi *Mức độ:* và *Bài học:*.
+   - Ghi đề bài rõ tình huống, yêu cầu thực hiện và tiêu chí đánh giá; không viết dòng *Đáp án:* để hệ thống nhận diện câu Tự luận (ES), ghi rõ *Mức độ:*, *Bài học:*, *Yêu cầu cần đạt:* và *Năng lực:*.
 Chỉ xuất trực tiếp nội dung Markdown, không kèm lời bình bên ngoài.`;
     copyTextWithFallback(prompt, 'Đã chép Prompt AI soạn câu hỏi (chuẩn CV 7991/6569) vào bộ nhớ tạm!');
   }
@@ -1156,7 +1174,7 @@ Ràng buộc pháp lý (TT 22/2021 Điều 7.1 & CV 7991/BGDĐT-GDTrH):
 
 ${cv7991QuestionRulesBlock(g, subj, 'REVISION')}
 
-Yêu cầu định dạng:
+Yêu cầu định dạng (kèm đầy đủ YCCĐ và Năng lực Tin học GDPT 2018 NLa-NLe):
 # ĐỀ CƯƠNG ÔN TẬP KIỂM TRA MÔN ${subj.toLocaleUpperCase('vi')} KHỐI ${g}
 Môn: ${subj} - Khối: ${g} - Năm học: 2026-2027
 
@@ -1169,6 +1187,8 @@ D. [Phương án D]
 *Đáp án:* [A/B/C/D]
 *Mức độ:* [Biết/Hiểu/Vận dụng]
 *Bài học:* [B1/B2...]
+*Yêu cầu cần đạt:* [Gắn YCCĐ tương ứng của bài học]
+*Năng lực:* [NLa/NLb/NLc/NLd/NLe]
 *Lời giải:* [Giải thích ngắn]
 ${isThpt ? `
 ### Câu 2:
@@ -1179,18 +1199,24 @@ c) [Đúng] [Mệnh đề c]
 d) [Sai] [Mệnh đề d]
 *Mức độ:* [Biết/Hiểu/Vận dụng]
 *Bài học:* [B1/B2...]
+*Yêu cầu cần đạt:* [Gắn YCCĐ tương ứng]
+*Năng lực:* [NLa/NLb/NLc/NLd/NLe]
 
 ### Câu 3:
 [Câu hỏi Trả lời ngắn ghi rõ đơn vị và quy ước làm tròn]
 *Đáp án:* [Đáp án ngắn không kèm đơn vị, <= 4 kí tự nếu là số]
 *Mức độ:* [Hiểu/Vận dụng]
 *Bài học:* [B1/B2...]
+*Yêu cầu cần đạt:* [Gắn YCCĐ tương ứng]
+*Năng lực:* [NLa/NLb/NLc/NLd/NLe]
 
 ### Câu 4:` : `
 ### Câu 2:`}
 [Câu hỏi Tự luận nêu rõ tình huống, yêu cầu và tiêu chí đánh giá — không đặt dòng *Đáp án:*]
 *Mức độ:* [Vận dụng]
 *Bài học:* [B1/B2...]
+*Yêu cầu cần đạt:* [Gắn YCCĐ tương ứng]
+*Năng lực:* [NLa/NLb/NLc/NLd/NLe]
 
 Chỉ xuất trực tiếp nội dung Markdown, không kèm bình luận.`;
     copyTextWithFallback(prompt, 'Đã chép Prompt AI tạo Đề cương (chuẩn CV 7991/6569) vào bộ nhớ tạm!');
@@ -1248,7 +1274,7 @@ ${scopeRule}
 
 ${cv7991QuestionRulesBlock(g, subj, examType)}
 
-Yêu cầu định dạng:
+Yêu cầu định dạng (kèm đầy đủ YCCĐ và Năng lực Tin học GDPT 2018 NLa-NLe):
 # ĐỀ KIỂM TRA ${label.toLocaleUpperCase('vi')} - MÃ ĐỀ 101
 Môn: ${subj} - Khối: ${g} - Thời gian: ${dur} phút - Năm học: 2026-2027
 
@@ -1261,6 +1287,8 @@ D. [Phương án D]
 *Đáp án:* [A/B/C/D]
 *Mức độ:* [Biết/Hiểu/Vận dụng]
 *Bài học:* [B1/B2...]
+*Yêu cầu cần đạt:* [Gắn YCCĐ tương ứng của bài học]
+*Năng lực:* [NLa/NLb/NLc/NLd/NLe]
 *Lời giải:* [Giải thích ngắn]
 ${isThpt ? `
 ### Câu 2:
@@ -1271,18 +1299,24 @@ c) [Đúng] [Mệnh đề c]
 d) [Sai] [Mệnh đề d]
 *Mức độ:* [Biết/Hiểu/Vận dụng]
 *Bài học:* [B1/B2...]
+*Yêu cầu cần đạt:* [Gắn YCCĐ tương ứng]
+*Năng lực:* [NLa/NLb/NLc/NLd/NLe]
 
 ### Câu 3:
 [Nội dung câu Trả lời ngắn ghi rõ đơn vị tính và làm tròn]
 *Đáp án:* [Đáp án ngắn không kèm đơn vị, <= 4 kí tự nếu là số]
 *Mức độ:* [Hiểu/Vận dụng]
 *Bài học:* [B1/B2...]
+*Yêu cầu cần đạt:* [Gắn YCCĐ tương ứng]
+*Năng lực:* [NLa/NLb/NLc/NLd/NLe]
 
 ### Câu 4:` : `
 ### Câu 2:`}
 [Nội dung câu Tự luận nêu rõ yêu cầu và tiêu chí — không đặt dòng *Đáp án:*]
 *Mức độ:* [Vận dụng]
 *Bài học:* [B1/B2...]
+*Yêu cầu cần đạt:* [Gắn YCCĐ tương ứng]
+*Năng lực:* [NLa/NLb/NLc/NLd/NLe]
 
 Chỉ xuất trực tiếp nội dung Markdown, không kèm bình luận.`;
     copyTextWithFallback(prompt, 'Đã chép Prompt AI tạo Đề thi (chuẩn CV 7991/6569) vào bộ nhớ tạm!');
@@ -1707,7 +1741,7 @@ Chỉ xuất trực tiếp nội dung Markdown, không kèm bình luận.`;
           notify('Không có câu hỏi phù hợp với bộ lọc đã chọn; đã xuất file mẫu.');
           return;
         }
-        const headers = ['Ma_cau', 'Dang_cau', 'Khoi', 'Ma_bai', 'Ten_bai', 'Muc_do', 'Noi_dung_cau_hoi', 'Dap_an', 'Y_dung_sai', 'Loi_giai', 'Yeu_cau_can_dat', 'Thang_diem'];
+        const headers = ['Ma_cau', 'Dang_cau', 'Khoi', 'Ma_bai', 'Ten_bai', 'Muc_do', 'Noi_dung_cau_hoi', 'Dap_an', 'Y_dung_sai', 'Loi_giai', 'Yeu_cau_can_dat', 'Nang_luc', 'Thang_diem'];
         const rows = [headers];
         for (const q of qList) {
           let ansStr = '';
@@ -1731,6 +1765,7 @@ Chỉ xuất trực tiếp nội dung Markdown, không kèm bình luận.`;
             ynStr,
             q.explanation || '',
             q.learning_outcome || '',
+            q.competency || '',
             q.points ?? (q.type === 'MC' ? 0.25 : q.type === 'YN' ? 1.0 : q.type === 'SHORT' ? 0.5 : 1.0)
           ]);
         }

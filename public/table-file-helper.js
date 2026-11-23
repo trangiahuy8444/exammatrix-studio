@@ -713,7 +713,7 @@
       const header = [
         'Mã bài', 'Mức độ', 'Dạng câu', 'Nội dung câu hỏi',
         'Phương án A', 'Phương án B', 'Phương án C', 'Phương án D',
-        'Đáp án đúng', 'Hướng dẫn giải / Tiêu chí chấm', 'Yêu cầu cần đạt'
+        'Đáp án đúng', 'Hướng dẫn giải / Tiêu chí chấm', 'Yêu cầu cần đạt', 'Năng lực'
       ];
 
       if (g === 6) {
@@ -725,7 +725,8 @@
             'Bàn phím (Keyboard)', 'Màn hình (Monitor)', 'Máy in (Printer)', 'Loa (Speaker)',
             'A',
             'Bàn phím là thiết bị vào dùng để nhập kí tự và dữ liệu vào máy tính. Màn hình, máy in và loa là các thiết bị ra.',
-            'Nhận biết được các thiết bị vào - ra cơ bản của hệ thống máy tính.'
+            'Nhận biết được các thiết bị vào - ra cơ bản của hệ thống máy tính.',
+            'NLa'
           ],
           [
             'B1', 'Hiểu', 'MC',
@@ -733,7 +734,8 @@
             'Byte (B)', 'Bit (b)', 'Kilobyte (KB)', 'Megabyte (MB)',
             'B',
             'Bit (viết tắt của binary digit) là đơn vị cơ bản và nhỏ nhất để đo dung lượng thông tin.',
-            'Hiểu được các đơn vị đo dung lượng thông tin cơ bản.'
+            'Hiểu được các đơn vị đo dung lượng thông tin cơ bản.',
+            'NLa'
           ],
           [
             'B2', 'Vận dụng', 'MC',
@@ -744,7 +746,8 @@
             'Tắt tính năng tường lửa bảo vệ của hệ điều hành khi lướt mạng',
             'B',
             'Cài đặt chương trình diệt virus giúp tự động phát hiện, ngăn chặn và loại bỏ mã độc xâm nhập.',
-            'Vận dụng được các biện pháp an toàn cơ bản để bảo vệ máy tính và dữ liệu.'
+            'Vận dụng được các biện pháp an toàn cơ bản để bảo vệ máy tính và dữ liệu.',
+            'NLb'
           ],
           [
             'B3', 'Vận dụng cao', 'ES',
@@ -752,7 +755,8 @@
             '', '', '', '',
             '',
             '1. Giải thích được sự cần thiết: phòng ngừa rủi ro hư hỏng ổ đĩa, nhiễm virus mã hóa hoặc vô tình xóa nhầm tệp (0.5 điểm).\n2. Đề xuất đúng 02 cách: sao chép lưu trữ sang thiết bị nhớ ngoài (ổ USB) hoặc đồng bộ lên dịch vụ lưu trữ đám mây của nhà trường/cá nhân (0.5 điểm).',
-            'Đề xuất và thực hiện được các giải pháp sao lưu, bảo vệ dữ liệu cá nhân an toàn.'
+            'Đề xuất và thực hiện được các giải pháp sao lưu, bảo vệ dữ liệu cá nhân an toàn.',
+            'NLb'
           ]
         ];
       }
@@ -766,7 +770,8 @@
             'Bàn phím cơ', 'Màn hình cảm ứng (Touchscreen)', 'Chuột không dây', 'Máy quét ảnh (Scanner)',
             'B',
             'Màn hình cảm ứng vừa nhận thao tác chạm ngón tay (vào) vừa hiển thị hình ảnh kết quả (ra).',
-            'Nhận biết và phân loại được các thiết bị vào - ra thông dụng.'
+            'Nhận biết và phân loại được các thiết bị vào - ra thông dụng.',
+            'NLa'
           ],
           [
             'B1', 'Hiểu', 'MC',
@@ -777,7 +782,8 @@
             'Đăng tải các nội dung chưa được kiểm chứng để thu hút tương tác',
             'B',
             'Mạng xã hội là kênh giao lưu, hợp tác và chia sẻ tài liệu học tập hiệu quả nếu được sử dụng đúng cách.',
-            'Hiểu được vai trò, lợi ích và trách nhiệm khi tham gia mạng xã hội.'
+            'Hiểu được vai trò, lợi ích và trách nhiệm khi tham gia mạng xã hội.',
+            'NLe'
           ],
           [
             'B2', 'Vận dụng', 'MC',
@@ -788,7 +794,8 @@
             'Cung cấp mã xác thực OTP ngân hàng của gia đình theo hướng dẫn',
             'C',
             'Đường liên kết lạ có thể chứa mã độc đánh cắp tài khoản hoặc lừa đảo tài chính; không nhấp và chặn tài khoản là cách an toàn nhất.',
-            'Thực hiện được các quy tắc bảo đảm an toàn khi giao tiếp trên không gian mạng.'
+            'Thực hiện được các quy tắc bảo đảm an toàn khi giao tiếp trên không gian mạng.',
+            'NLb'
           ],
           [
             'B3', 'Vận dụng cao', 'ES',
@@ -796,7 +803,8 @@
             '', '', '', '',
             '',
             '- Nêu được chuẩn mực giao tiếp văn minh: tôn trọng ý kiến người khác, không dùng từ ngữ xúc phạm hay lan truyền thông tin sai sự thật (0.5 điểm).\n- Nêu được 02 biện pháp bảo vệ quyền riêng tư: không công khai địa chỉ nhà/số điện thoại/lịch trình, đặt mật khẩu mạnh và không đăng ảnh riêng tư của người khác khi chưa xin phép (0.5 điểm).',
-            'Hình thành ý thức, kỹ năng giao tiếp văn hóa và bảo vệ đời tư trong môi trường số.'
+            'Hình thành ý thức, kỹ năng giao tiếp văn hóa và bảo vệ đời tư trong môi trường số.',
+            'NLb'
           ]
         ];
       }
@@ -810,7 +818,8 @@
             '3 thế hệ', '4 thế hệ', '5 thế hệ', '6 thế hệ',
             'C',
             'Máy tính điện tử đã trải qua 5 thế hệ chính: thế hệ đèn điện tử chân không, bóng bán dẫn, mạch tích hợp (IC), mạch tích hợp quy mô rất lớn (VLSI) và máy tính thông minh tích hợp AI.',
-            'Nêu được các mốc phát triển chính của máy tính điện tử qua 5 thế hệ.'
+            'Nêu được các mốc phát triển chính của máy tính điện tử qua 5 thế hệ.',
+            'NLa'
           ],
           [
             'B2', 'Hiểu', 'MC',
@@ -818,7 +827,8 @@
             '=AVERAGE(B2:B8)', '=SUM(B2:B8)', '=COUNT(B2:B8)', '=TOTAL(B2:B8)',
             'A',
             'Hàm AVERAGE thực hiện tính trung bình cộng của các ô chứa giá trị số trong phạm vi chỉ định.',
-            'Sử dụng được các hàm tính toán cơ bản trong phần mềm bảng tính.'
+            'Sử dụng được các hàm tính toán cơ bản trong phần mềm bảng tính.',
+            'NLc'
           ],
           [
             'B2', 'Vận dụng', 'MC',
@@ -826,7 +836,8 @@
             '=$B$2*$C$2', '=B3*C3', '=B2*C3', '=C2*D2',
             'B',
             'Do sử dụng địa chỉ tương đối, chỉ số hàng của các ô tham chiếu B2 và C2 sẽ tự động tăng tương ứng thêm 1 thành B3 và C3.',
-            'Hiểu và vận dụng thành thạo cơ chế sao chép công thức với địa chỉ tương đối.'
+            'Hiểu và vận dụng thành thạo cơ chế sao chép công thức với địa chỉ tương đối.',
+            'NLc'
           ],
           [
             'B3', 'Vận dụng cao', 'ES',
@@ -834,7 +845,8 @@
             '', '', '', '',
             '',
             '1. Nêu 02 nguyên tắc trình bày: tiêu đề cột rõ ràng, định dạng kiểu dữ liệu đúng (số thập phân, căn lề), kẻ đường viền và phân biệt màu sắc hợp lí (0.5 điểm).\n2. Nêu đúng các hàm tương ứng: hàm =MAX(...) để tìm điểm cao nhất, hàm =MIN(...) để tìm điểm thấp nhất và hàm =AVERAGE(...) để tính điểm trung bình (0.5 điểm).',
-            'Vận dụng bảng tính điện tử để giải quyết bài toán quản lí dữ liệu học tập thực tế.'
+            'Vận dụng bảng tính điện tử để giải quyết bài toán quản lí dữ liệu học tập thực tế.',
+            'NLc'
           ]
         ];
       }
@@ -848,7 +860,8 @@
           'Bộ định tuyến (Router)', 'Bộ chuyển mạch (Switch)', 'Bộ lặp tín hiệu (Repeater)', 'Điểm truy cập không dây (Access Point)',
           'A',
           'Bộ định tuyến (Router) là thiết bị kết nối mạng nội bộ (LAN) với mạng Internet bên ngoài và định tuyến lưu lượng dữ liệu.',
-          'Nhận biết được chức năng và vai trò của các thiết bị mạng thông dụng.'
+          'Nhận biết được chức năng và vai trò của các thiết bị mạng thông dụng.',
+          'NLa'
         ],
         [
           'B1', 'Hiểu', 'MC',
@@ -859,7 +872,8 @@
           'Trích dẫn rõ nguồn gốc và tác giả khi sử dụng một đoạn tài liệu trên mạng',
           'B',
           'Hành vi giải mã, bẻ khóa và phát tán phần mềm lậu là vi phạm pháp luật về bản quyền và sở hữu trí tuệ.',
-          'Hiểu và chấp hành nghiêm túc quy định pháp luật về bản quyền trong môi trường số.'
+          'Hiểu và chấp hành nghiêm túc quy định pháp luật về bản quyền trong môi trường số.',
+          'NLb'
         ],
         [
           'B2', 'Vận dụng', 'MC',
@@ -867,7 +881,8 @@
           'Quyền Người xem (Viewer)', 'Quyền Người nhận xét (Commenter)', 'Quyền Người chỉnh sửa (Editor)', 'Quyền Chủ sở hữu (Owner)',
           'B',
           'Quyền "Người nhận xét" cho phép xem và thêm bình luận/góp ý bên lề tài liệu mà không làm thay đổi trực tiếp nội dung văn bản gốc.',
-          'Vận dụng được kỹ năng phân quyền chia sẻ tài nguyên an toàn trên nền tảng đám mây.'
+          'Vận dụng được kỹ năng phân quyền chia sẻ tài nguyên an toàn trên nền tảng đám mây.',
+          'NLe'
         ],
         [
           'B3', 'Vận dụng cao', 'ES',
@@ -875,7 +890,8 @@
           '', '', '', '',
           '',
           '1. Phân tích 02 nguy cơ: vi phạm quyền sở hữu trí tuệ của tác giả gốc, bị xử lí kỷ luật học vụ vì gian lận và đánh mất năng lực tư duy sáng tạo của bản thân (0.5 điểm).\n2. Đề xuất 02 hành động: luôn ghi rõ nguồn tham khảo (tên tác giả, liên kết, ngày truy cập) và tự diễn đạt lại ý tưởng bằng cách viết của chính mình (paraphrasing) kèm chú thích nguồn (0.5 điểm).',
-          'Vận dụng và cam kết thực hành tính liêm chính học thuật, đạo đức trong kỉ nguyên số.'
+          'Vận dụng và cam kết thực hành tính liêm chính học thuật, đạo đức trong kỉ nguyên số.',
+          'NLb'
         ]
       ];
     }
@@ -885,7 +901,7 @@
       [
         'Mã bài', 'Mức độ', 'Dạng câu', 'Nội dung câu hỏi',
         'Phương án A / Ý a', 'Phương án B / Ý b', 'Phương án C / Ý c', 'Phương án D / Ý d',
-        'Đáp án đúng', 'Hướng dẫn giải / Tiêu chí chấm', 'Yêu cầu cần đạt'
+        'Đáp án đúng', 'Hướng dẫn giải / Tiêu chí chấm', 'Yêu cầu cần đạt', 'Năng lực'
       ],
       [
         'B1', 'Biết', 'MC',
@@ -893,7 +909,8 @@
         'Bàn phím (Keyboard)', 'Màn hình (Monitor)', 'Máy in (Printer)', 'Loa (Speaker)',
         'A',
         'Bàn phím là thiết bị vào dùng để nhập văn bản và lệnh. Màn hình, máy in và loa là các thiết bị ra.',
-        'Nhận biết được các thiết bị vào - ra cơ bản của hệ thống máy tính.'
+        'Nhận biết được các thiết bị vào - ra cơ bản của hệ thống máy tính.',
+        'NLa'
       ],
       [
         'B1', 'Hiểu', 'MC',
@@ -904,7 +921,8 @@
         'Không cần phải đặt mật khẩu hay thiết lập bảo mật cho tài khoản',
         'B',
         'Dịch vụ đám mây cho phép người dùng đồng bộ hóa, truy cập và cộng tác làm việc từ xa dễ dàng.',
-        'Hiểu được vai trò và lợi ích thực tiễn của công nghệ lưu trữ đám mây.'
+        'Hiểu được vai trò và lợi ích thực tiễn của công nghệ lưu trữ đám mây.',
+        'NLa'
       ],
       [
         'B2', 'Vận dụng', 'YN',
@@ -915,7 +933,8 @@
         'Chia sẻ tệp với quyền "Bất kỳ ai có đường liên kết đều có thể chỉnh sửa" là an toàn tuyệt đối',
         'Đ, S, Đ, S',
         'Ý a Đúng (Drive cho phép cấp quyền Người xem/Nhận xét/Chỉnh sửa); Ý b Sai (khi xóa thư mục gốc thì liên kết chia sẻ bị vô hiệu); Ý c Đúng (chủ sở hữu có toàn quyền quản trị); Ý d Sai (chia sẻ công khai không kiểm soát tiềm ẩn nguy cơ bị xóa hoặc phá hoại dữ liệu).',
-        'Vận dụng được các kỹ năng chia sẻ tài nguyên và thiết lập phân quyền an toàn trên đám mây.'
+        'Vận dụng được các kỹ năng chia sẻ tài nguyên và thiết lập phân quyền an toàn trên đám mây.',
+        'NLe'
       ],
       [
         'B2', 'Hiểu', 'SHORT',
@@ -923,7 +942,8 @@
         '', '', '', '',
         'Số ô có giá trị lớn hơn hoặc bằng 5',
         'Hàm COUNTIF thực hiện đếm số ô trong phạm vi A1:A20 có giá trị thỏa mãn tiêu chí lớn hơn hoặc bằng 5.',
-        'Sử dụng được các hàm tính toán và đếm có điều kiện cơ bản trong bảng tính.'
+        'Sử dụng được các hàm tính toán và đếm có điều kiện cơ bản trong bảng tính.',
+        'NLc'
       ],
       [
         'B3', 'Vận dụng cao', 'ES',
@@ -931,7 +951,8 @@
         '', '', '', '',
         '',
         '1. Không lưu thông tin đăng nhập trên trình duyệt và luôn đăng xuất khỏi mọi tài khoản sau khi hoàn thành công việc (0.5 điểm); 2. Sử dụng chế độ duyệt web ẩn danh, không cắm thiết bị lưu trữ USB không rõ nguồn gốc và xóa lịch sử duyệt web trước khi rời máy (0.5 điểm).',
-        'Đề xuất được các giải pháp an toàn thông tin cá nhân và dữ liệu trong môi trường số.'
+        'Đề xuất được các giải pháp an toàn thông tin cá nhân và dữ liệu trong môi trường số.',
+        'NLb'
       ]
     ];
   }

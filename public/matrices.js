@@ -1127,7 +1127,29 @@
     ui.container.querySelectorAll('button:not([data-action])').forEach(b=>b.disabled=false);
   }
   async function refresh(){const d=await ui.ctx.request('/api/matrices');ui.records=d.matrices||[];}
-  async function mount(container,context){ui.container=container;ui.ctx=context;await run(async()=>{await refresh();render();});}
+  async function mount(container,context){
+    ui.container=container;
+    ui.ctx=context;
+    if(context&&Object.prototype.hasOwnProperty.call(context,'activeGrade')){
+      const ag=context.activeGrade;
+      const nextFilter=(ag==='all'||ag===''||ag==null)?'':String(ag);
+      ui.filter.grade=nextFilter;
+      if(nextFilter&&Number(nextFilter)){
+        const ng=Number(nextFilter);
+        ui.createGrade=ng;
+        if(!ui.dirty){
+          if(ui.editing&&Number(ui.editing.grade)!==ng){ui.editing=null;ui.report=null;ui.shortfall=null;}
+          if(ui.previewState&&Number(ui.previewState.matrix?.grade)!==ng)ui.previewState=null;
+          if(ui.comparison&&Number(ui.comparison.matrix?.grade)!==ng)ui.comparison=null;
+          if(ui.generation&&Number(ui.generation.matrix?.grade)!==ng)ui.generation=null;
+          if(ui.importing&&Number(ui.importing.grade)!==ng)ui.importing={grade:ng};
+        }
+      }else if(Array.isArray(context.activeGrades)&&context.activeGrades.length&&!context.activeGrades.includes(Number(ui.createGrade))){
+        ui.createGrade=Number(context.activeGrades[0]);
+      }
+    }
+    await run(async()=>{await refresh();render();});
+  }
   function recordBadges(m){
     const issues=m.reconciliation?.issues||[];
     const notes=m.source?.comparison_notes||[];
@@ -1138,7 +1160,15 @@
       (notes.length?`<span class="badge content_checked">${notes.length} ghi chú đối chiếu</span>`:'')+
       `<small>Phiên bản ${m.version} · ${m.slots?.length||0} câu (${parts.length} ý) · ${m.total_points??10} điểm</small>`;
   }
-  const grades=()=>root.BankCore?.contextGrades?.(ui.ctx?.context||{})||[6,7,8,9,10,11,12];
+  const grades=()=>{
+    const base=root.BankCore?.contextGrades?.(ui.ctx?.context||{})||[6,7,8,9,10,11,12];
+    const active=ui.ctx?.activeGrades;
+    if(!Array.isArray(active)||!active.length)return base;
+    const set=new Set(active.map(Number).filter(g=>base.includes(g)));
+    [ui.createGrade,ui.filter?.grade,ui.editing?.grade].forEach(v=>{const n=Number(v);if(n&&base.includes(n))set.add(n);});
+    const out=[...set].sort((a,b)=>a-b);
+    return out.length?out:base;
+  };
   const generic=()=>ui.ctx?.context?.school_profile===false;
   const subject=m=>m?.subject_name||ui.ctx?.context?.subject_name||'Tin học';
   const competencies=()=>{
@@ -1566,6 +1596,7 @@
     }
     if(el.id==='mx-create-grade'){
       switchGradeContext(el.value,'create');
+      if(typeof ui.ctx?.onGradeChange==='function'&&Number(el.value))ui.ctx.onGradeChange(Number(el.value));
       return;
     }
     if(el.id==='mx-import-grade'){
@@ -1582,8 +1613,10 @@
       if(el.dataset.filter==='grade'){
         if(el.value){
           switchGradeContext(el.value,'filter');
+          if(typeof ui.ctx?.onGradeChange==='function'&&Number(el.value))ui.ctx.onGradeChange(Number(el.value));
           return;
         }
+        if(typeof ui.ctx?.onGradeChange==='function')ui.ctx.onGradeChange('all');
       }
       render();
     }

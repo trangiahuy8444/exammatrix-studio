@@ -172,11 +172,14 @@ nav a[aria-current=page] {
 }
 
 .topbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 25 !important;
   height: 62px !important;
   padding: 0 28px !important;
   background: #ffffff !important;
   border-bottom: 1px solid #e2e8f0 !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
@@ -352,6 +355,129 @@ nav a[aria-current=page] {
   background: #fee2e2 !important;
 }
 
+/* Sidebar Grade Workspace Switcher + Topbar Grade & Cloud Sync Pills */
+.sidebar-grade-box {
+  margin: 18px 0 4px;
+  padding: 10px 10px 11px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+}
+.sidebar-grade-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.sidebar-grade-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #91aac1;
+  text-transform: uppercase;
+}
+.sidebar-grade-cfg-btn {
+  min-height: 24px !important;
+  height: 24px;
+  width: 26px;
+  padding: 0 !important;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #dbeafe;
+  font-size: 12px;
+  line-height: 1;
+}
+.sidebar-grade-cfg-btn:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: #7ab6e2 !important;
+  color: #ffffff;
+}
+.sidebar-grade-pills {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.grade-pill-btn {
+  min-height: 32px !important;
+  padding: 5px 8px !important;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(15, 30, 47, 0.55);
+  color: #cfdeeb;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.grade-pill-btn:hover {
+  background: #203e5b !important;
+  border-color: #7ab6e2 !important;
+  color: #ffffff;
+}
+.grade-pill-btn.active {
+  background: #0267b1 !important;
+  border-color: #38bdf8 !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(2, 103, 177, 0.45);
+}
+.grade-pill-short {
+  display: none;
+}
+.sidebar .nav-caption {
+  margin-top: 22px;
+}
+.topbar-grade-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  color: #0267b1;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.cloud-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.cloud-pill-synced {
+  background: #ecfdf5;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+.cloud-pill-syncing {
+  background: #eff6ff;
+  color: #0267b1;
+  border: 1px solid #93c5fd;
+}
+.cloud-pill-partial {
+  background: #fefce8;
+  color: #854d0e;
+  border: 1px solid #fde047;
+}
+.cloud-pill-error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+.cloud-pill-offline {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
 /* Refined alerts & cards */
 #notice {
   padding: 12px 18px !important;
@@ -459,8 +585,32 @@ nav a[aria-current=page] {
   body.sidebar-collapsed .brand-text,
   body.sidebar-collapsed .nav-caption,
   body.sidebar-collapsed .sidebar-foot,
-  body.sidebar-collapsed .nav-label {
+  body.sidebar-collapsed .nav-label,
+  body.sidebar-collapsed .sidebar-grade-head,
+  body.sidebar-collapsed .grade-pill-full {
     display: none !important;
+  }
+  body.sidebar-collapsed .sidebar-grade-box {
+    padding: 6px 2px;
+    background: transparent;
+    border: none;
+    margin: 12px 0 4px;
+    width: 100%;
+  }
+  body.sidebar-collapsed .sidebar-grade-pills {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 5px;
+  }
+  body.sidebar-collapsed .grade-pill-btn {
+    width: 44px;
+    height: 34px;
+    min-height: 34px !important;
+    padding: 0 !important;
+    font-size: 11px;
+  }
+  body.sidebar-collapsed .grade-pill-short {
+    display: inline !important;
   }
   body.sidebar-collapsed nav {
     width: 100%;
@@ -553,6 +703,15 @@ nav a[aria-current=page] {
   }
   .sidebar .nav-label {
     display: inline !important;
+  }
+  .sidebar .sidebar-grade-head {
+    display: flex !important;
+  }
+  .sidebar .grade-pill-full {
+    display: inline !important;
+  }
+  .sidebar .grade-pill-short {
+    display: none !important;
   }
 }
 

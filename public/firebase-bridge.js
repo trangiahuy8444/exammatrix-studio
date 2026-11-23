@@ -96,15 +96,90 @@
     } catch (e) {}
   }
 
-  // Bộ nhớ đệm dữ liệu cá nhân của giáo viên đang đăng nhập
+  // Trạng thái Cloud-First v2 (Firebase Auth + Firestore v2 + Google Drive v2)
+  const RUNTIME_DRIVE_TOKEN_KEY = 'exammatrix_runtime_drive_token_v2';
+  let lastSyncedSlicesV2 = null;
+  let currentMutationSnapshot = null;
+  let activeMutationMeta = null;
+  const cloudFolderCacheV2 = new Map();
+
+  function useUnifiedCloudV2() {
+    return Boolean(isStaticHost && isConfigured && typeof window !== 'undefined' && window.CloudStorageV2);
+  }
+
+  function saveRuntimeDriveToken(uid, accessToken, expiresAt) {
+    const cleanToken = String(accessToken || '').trim();
+    const exp = Number(expiresAt || 0);
+    if (window.FirebaseState) {
+      window.FirebaseState.driveAccessToken = cleanToken;
+      window.FirebaseState.driveTokenExpiresAt = cleanToken ? exp : 0;
+    }
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        if (uid && cleanToken && exp > Date.now() + 5000) {
+          sessionStorage.setItem(RUNTIME_DRIVE_TOKEN_KEY, JSON.stringify({ uid, accessToken: cleanToken, expiresAt: exp }));
+        } else {
+          sessionStorage.removeItem(RUNTIME_DRIVE_TOKEN_KEY);
+        }
+      }
+    } catch (e) {}
+  }
+
+  function loadRuntimeDriveToken(uid) {
+    if (!uid) return null;
+    if (window.FirebaseState?.driveAccessToken && Number(window.FirebaseState.driveTokenExpiresAt || 0) > Date.now() + 5000) {
+      return {
+        uid,
+        accessToken: window.FirebaseState.driveAccessToken,
+        expiresAt: Number(window.FirebaseState.driveTokenExpiresAt)
+      };
+    }
+    try {
+      if (typeof sessionStorage === 'undefined') return null;
+      const raw = sessionStorage.getItem(RUNTIME_DRIVE_TOKEN_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.uid === uid && parsed.accessToken && Number(parsed.expiresAt || 0) > Date.now() + 5000) {
+        if (window.FirebaseState) {
+          window.FirebaseState.driveAccessToken = parsed.accessToken;
+          window.FirebaseState.driveTokenExpiresAt = Number(parsed.expiresAt);
+        }
+        return parsed;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function setCloudSyncPill(state = 'offline', text = '') {
+    const pill = typeof document !== 'undefined' ? document.getElementById('cloud-sync-pill') : null;
+    if (!pill) return;
+    pill.hidden = false;
+    pill.className = `cloud-sync-pill cloud-pill-${state}`;
+    pill.textContent = text || ({
+      synced: '☁ Đã lưu Cloud',
+      syncing: '⏳ Đang lưu Cloud…',
+      partial: '☁ Firebase ✓ · Drive cần gia hạn',
+      error: '⚠️ Lỗi đồng bộ Cloud',
+      offline: 'Chưa kết nối Cloud'
+    }[state] || '');
+  }
+
+  // Bộ nhớ đệm dữ liệu cá nhân (chỉ dùng cho chế độ tương thích ngoại tuyến khi chưa cấu hình Cloud v2)
   const localCacheKey = 'exammatrix_teacher_cache_';
   let currentWorkspaceData = {
-    bank: { questions: [], ppct: { lessons: [] } },
+    bank: { questions: [], ppct: { lessons: [], cleared_grades: [] }, competency_catalogs: [] },
     exams: [],
     revisions: [],
     matrices: [],
     assessment_plans: [],
-    kttx: []
+    kttx: [],
+    profile: {
+      schema_version: 2,
+      school_year: '2026-2027',
+      active_grades: [8, 9, 10],
+      active_grade: 8,
+      active_subject: 'Tin học'
+    }
   };
 
   function getStorageData(uid) {
@@ -288,8 +363,19 @@
   }
 
   function initLocalWorkspace() {
+    if (useUnifiedCloudV2()) {
+      // Kiến trúc Cloud-First v2: dữ liệu học vụ lấy từ Firebase & Google Drive, không nạp từ localStorage lúc khởi động.
+      currentWorkspaceData.bank = { questions: [], ppct: { lessons: [], cleared_grades: [] }, competency_catalogs: [] };
+      currentWorkspaceData.exams = [];
+      currentWorkspaceData.revisions = [];
+      currentWorkspaceData.matrices = [];
+      currentWorkspaceData.assessment_plans = [];
+      currentWorkspaceData.kttx = [];
+      lastSyncedSlicesV2 = null;
+      return;
+    }
     try {
-      // Ưu tiên nạp dữ liệu ngoại tuyến; nếu ngoại tuyến rỗng mà trên trình duyệt có lưu cache của tài khoản trước đó thì tự động cứu hộ để không bị mất dữ liệu.
+      // Chế độ ngoại tuyến / kiểm thử: nạp cache cục bộ
       let cached = getStorageData('offline');
       if (!cached || calculateDataScore(cached) === 0) {
         const rescued = findBestAvailableCache();
@@ -613,15 +699,34 @@
           context: window.BankStaticEngine?.subjectContext(subj) || { subject_name: subj },
           bank: {
             questions: questions,
-            ppct: { lessons: finalLessons, cleared_grades: cleared }
+            ppct: { lessons: finalLessons, cleared_grades: cleared },
+            competency_catalogs: Array.isArray(currentWorkspaceData.bank?.competency_catalogs) ? currentWorkspaceData.bank.competency_catalogs : []
           },
           review_checklist: window.BankStaticWorkflow?.checklist || [],
           can_view_answers: true,
           exams: (currentWorkspaceData.exams || []).map(exam => ({...exam, verification: window.BankStaticEngine?.verifyExam(currentWorkspaceData, exam) || {passed:false, summary:'Chưa nạp bộ kiểm định.'}})),
           revisions: currentWorkspaceData.revisions || [],
           matrices: currentWorkspaceData.matrices || [],
+          assessment_plans: Array.isArray(currentWorkspaceData.assessment_plans) ? currentWorkspaceData.assessment_plans : [],
+          profile: currentWorkspaceData.profile || null,
           templates: []
         };
+      }
+
+      if (path === '/api/profile/save') {
+        const incoming = body && typeof body === 'object' ? (body.profile || body) : {};
+        const v2 = window.CloudStorageV2;
+        const prev = currentWorkspaceData.profile || {};
+        const merged = v2
+          ? v2.normalizeProfile({ ...prev, ...incoming, updated_at: new Date().toISOString() })
+          : { ...prev, ...incoming, updated_at: new Date().toISOString() };
+        currentWorkspaceData.profile = merged;
+        await syncToFirestore(uid, currentWorkspaceData, { path, allowShrink: false });
+        if ((window.FirebaseState.user?.uid || 'offline') !== uid) {
+          throw new Error('Tài khoản đã thay đổi trong khi lưu tùy chọn hồ sơ.');
+        }
+        if (window.store) window.store.profile = JSON.parse(JSON.stringify(merged));
+        return { profile: JSON.parse(JSON.stringify(merged)) };
       }
 
       // Tuyến Phân phối chương trình (PPCT)
@@ -1250,6 +1355,11 @@
       if (!isStaticHost) throw new Error('Trang này sử dụng máy chủ Python; không xử lý dữ liệu qua cầu nối Pages.');
       const before = JSON.parse(JSON.stringify(currentWorkspaceData));
       const uid = window.FirebaseState.user?.uid || 'offline';
+      currentMutationSnapshot = before;
+      activeMutationMeta = {
+        path,
+        allowShrink: Boolean(window.CloudStorageV2?.isShrinkAllowedAction?.(path, body))
+      };
       try { return JSON.parse(JSON.stringify(await directHandle(path, body))); }
       catch (error) {
         if ((window.FirebaseState.user?.uid || 'offline') === uid) {
@@ -1257,6 +1367,9 @@
           window.FirebaseState.currentData = currentWorkspaceData;
         }
         throw error;
+      } finally {
+        currentMutationSnapshot = null;
+        activeMutationMeta = null;
       }
     };
     const request = pendingRequest.then(run, run);
@@ -1270,7 +1383,7 @@
     const runSync = async () => {
       if (!isStaticHost) throw new Error('Trang này sử dụng máy chủ Python; không xử lý dữ liệu qua cầu nối Pages.');
       const uid = window.FirebaseState.user?.uid || 'offline';
-      await syncToFirestore(uid, currentWorkspaceData);
+      await syncToFirestore(uid, currentWorkspaceData, { path: 'syncCurrentData', allowShrink: false });
       return {
         ok: !currentWorkspaceData._sync?.pending,
         pending: Boolean(currentWorkspaceData._sync?.pending)
@@ -1306,12 +1419,15 @@
           : (Array.isArray(currentWorkspaceData.assessment_plans) ? currentWorkspaceData.assessment_plans : []),
         kttx: Array.isArray(nextData.kttx)
           ? nextData.kttx
-          : (Array.isArray(currentWorkspaceData.kttx) ? currentWorkspaceData.kttx : [])
+          : (Array.isArray(currentWorkspaceData.kttx) ? currentWorkspaceData.kttx : []),
+        ...(nextData.profile && typeof nextData.profile === 'object' ? { profile: nextData.profile } : (currentWorkspaceData.profile ? { profile: currentWorkspaceData.profile } : {}))
       }));
       try {
+        currentMutationSnapshot = before;
+        activeMutationMeta = { path: 'replaceWorkspaceData', allowShrink: true };
         currentWorkspaceData = normalized;
         window.FirebaseState.currentData = currentWorkspaceData;
-        await syncToFirestore(uid, currentWorkspaceData);
+        await syncToFirestore(uid, currentWorkspaceData, activeMutationMeta);
         if ((window.FirebaseState.user?.uid || 'offline') !== uid) {
           throw new Error('Tài khoản đã thay đổi trong khi khôi phục dữ liệu.');
         }
@@ -1326,6 +1442,9 @@
           window.FirebaseState.currentData = currentWorkspaceData;
         }
         throw error;
+      } finally {
+        currentMutationSnapshot = null;
+        activeMutationMeta = null;
       }
     };
     const request = pendingRequest.then(runReplace, runReplace);
@@ -1411,7 +1530,18 @@
   function updateDriveSyncButton() {
     const syncBtn = document.getElementById('gdrive-sync-btn');
     if (!syncBtn) return;
-    const isDrive = window.FirebaseState.provider === 'google-drive' && Boolean(window.FirebaseState.user);
+    const provider = window.FirebaseState.provider;
+    const user = window.FirebaseState.user;
+    if (provider === 'firebase-cloud-v2' && Boolean(user) && !user.isAnonymous) {
+      syncBtn.hidden = false;
+      const hasDriveTok = Boolean(loadRuntimeDriveToken(user.uid));
+      syncBtn.textContent = hasDriveTok ? '☁ Đồng bộ Drive' : '🔗 Kết nối Drive';
+      syncBtn.title = hasDriveTok
+        ? 'Đồng bộ cây thư mục theo từng Khối lên Google Drive riêng'
+        : 'Cấp hoặc gia hạn quyền Google Drive để đồng bộ thư mục phân khối';
+      return;
+    }
+    const isDrive = provider === 'google-drive' && Boolean(user);
     syncBtn.hidden = !isDrive;
     if (!isDrive) return;
     const session = window.FirebaseState.driveSession;
@@ -1512,8 +1642,238 @@
     }
   }
 
+  // ===========================================================================
+  // CLOUD-FIRST V2 ENGINE: Firebase Firestore (Chính) + Google Drive (Phân khối)
+  // ===========================================================================
+  async function syncToCloudV2(uid, beforeData, afterData, mutationMeta = {}) {
+    const v2 = window.CloudStorageV2;
+    const db = window.FirebaseState?.db;
+    const helpers = window.FirebaseState?._firestoreHelpers;
+    const user = window.FirebaseState?.user;
+    if (!v2 || !user || user.isAnonymous || !db || !helpers) {
+      throw new Error('Vui lòng đăng nhập tài khoản Google để lưu dữ liệu lên Đám mây.');
+    }
+    const targetUid = user.uid || uid;
+    const beforeSlices = lastSyncedSlicesV2 || v2.splitWorkspaceIntoSlices(beforeData || {});
+    const afterSlices = v2.splitWorkspaceIntoSlices(afterData || {});
+
+    const wipeCheck = v2.checkAntiWipe(beforeSlices, afterSlices, mutationMeta || {});
+    if (!wipeCheck.ok) {
+      setCloudSyncPill('error', '⛔ Đã chặn ghi đè rỗng');
+      throw new Error(wipeCheck.message);
+    }
+
+    setCloudSyncPill('syncing', '⏳ Đang lưu Cloud…');
+    try {
+      await v2.firestoreWriteDiffV2(targetUid, db, helpers, beforeSlices, afterSlices, {
+        ownerEmail: user.email || ''
+      });
+    } catch (err) {
+      setCloudSyncPill('error', '⚠️ Chưa lưu được Cloud');
+      throw new Error('Chưa lưu được lên Firebase Cloud (' + (err?.message || 'lỗi kết nối') + '). Vui lòng kiểm tra mạng và thử lại.');
+    }
+
+    lastSyncedSlicesV2 = afterSlices;
+    afterData._sync = {
+      pending: false,
+      provider: 'firebase-cloud-v2',
+      synced_at: new Date().toISOString()
+    };
+
+    const driveTok = loadRuntimeDriveToken(targetUid);
+    if (driveTok && window.GoogleDriveStorage) {
+      const driveCfg = getGoogleDriveSettings();
+      v2.driveWriteDiffV2(driveTok.accessToken, window.GoogleDriveStorage, beforeSlices, afterSlices, {
+        folderName: driveCfg.folderName,
+        ownerEmail: user.email || '',
+        folderCache: cloudFolderCacheV2
+      }).then(() => {
+        if (window.FirebaseState.user?.uid === targetUid) {
+          setCloudSyncPill('synced', '☁ Firebase ✓ · Drive ✓');
+          updateDriveSyncButton();
+        }
+      }).catch((drvErr) => {
+        if (window.FirebaseState.user?.uid !== targetUid) return;
+        if (drvErr && (drvErr.code === 'DRIVE_AUTH_EXPIRED' || drvErr.status === 401)) {
+          saveRuntimeDriveToken(targetUid, '', 0);
+          setCloudSyncPill('partial', '☁ Firebase ✓ · Drive cần gia hạn');
+        } else {
+          setCloudSyncPill('partial', '☁ Firebase ✓ · Drive chờ đồng bộ');
+        }
+        updateDriveSyncButton();
+      });
+    } else {
+      setCloudSyncPill('synced', '☁ Firebase ✓');
+    }
+    updateDriveSyncButton();
+  }
+
+  async function loadFromCloudV2(user, opts = {}) {
+    const v2 = window.CloudStorageV2;
+    const db = opts.db || window.FirebaseState?.db;
+    const helpers = opts.helpers || window.FirebaseState?._firestoreHelpers;
+    if (!v2 || !user || user.isAnonymous || !db || !helpers) return null;
+
+    const status = document.getElementById('static-sync-status');
+    const driveCfg = getGoogleDriveSettings();
+    const installV2 = (data, slices) => {
+      const clean = JSON.parse(JSON.stringify({
+        bank: {
+          questions: Array.isArray(data?.bank?.questions) ? data.bank.questions : [],
+          ppct: data?.bank?.ppct && Array.isArray(data.bank.ppct.lessons)
+            ? data.bank.ppct
+            : { lessons: [], cleared_grades: [] },
+          competency_catalogs: Array.isArray(data?.bank?.competency_catalogs) ? data.bank.competency_catalogs : []
+        },
+        exams: Array.isArray(data?.exams) ? data.exams : [],
+        revisions: Array.isArray(data?.revisions) ? data.revisions : [],
+        matrices: Array.isArray(data?.matrices) ? data.matrices : [],
+        assessment_plans: Array.isArray(data?.assessment_plans) ? data.assessment_plans : [],
+        kttx: Array.isArray(data?.kttx) ? data.kttx : [],
+        profile: v2.normalizeProfile(data?.profile || {}),
+        _sync: { pending: false, provider: 'firebase-cloud-v2', synced_at: new Date().toISOString() }
+      }));
+      currentWorkspaceData = clean;
+      window.FirebaseState.currentData = currentWorkspaceData;
+      lastSyncedSlicesV2 = slices || v2.splitWorkspaceIntoSlices(currentWorkspaceData);
+      applyWorkspaceToStore();
+    };
+
+    setCloudSyncPill('syncing', '⏳ Đang tải từ Cloud…');
+    try {
+      const fsV2 = await v2.firestoreReadWorkspaceV2(user.uid, db, helpers);
+      if (window.FirebaseState.user?.uid !== user.uid) return null;
+
+      if (fsV2.exists && fsV2.hasContent) {
+        installV2(fsV2.data, fsV2.slices);
+        const driveTok = opts.driveAccessToken || loadRuntimeDriveToken(user.uid)?.accessToken || '';
+        if (driveTok && window.GoogleDriveStorage) {
+          setCloudSyncPill('synced', '☁ Firebase ✓ · Drive ✓');
+          // Đảm bảo thư mục v2 trên Drive đã có manifest (tự bù nếu lần đầu dùng máy mới)
+          v2.driveReadWorkspaceV2(driveTok, window.GoogleDriveStorage, { folderName: driveCfg.folderName }).then(res => {
+            if (!res.exists) {
+              return v2.driveWriteFullV2(driveTok, window.GoogleDriveStorage, fsV2.data, {
+                folderName: driveCfg.folderName,
+                ownerEmail: user.email || '',
+                folderCache: cloudFolderCacheV2
+              });
+            }
+          }).catch(() => {});
+        } else {
+          setCloudSyncPill('synced', '☁ Firebase ✓');
+        }
+        if (status) { status.hidden = true; status.textContent = ''; }
+        updateDriveSyncButton();
+        return { source: 'firestore-v2', data: fsV2.data };
+      }
+
+      // Firestore v2 chưa có dữ liệu -> tự động kiểm tra nâng cấp từ Firestore v1 hoặc Google Drive v2/v1
+      let legacySource = null;
+      let legacyData = null;
+
+      // 1) Legacy Firestore /workspaces/{uid}
+      try {
+        const legacyRef = helpers.doc(db, 'workspaces', user.uid);
+        const legacySnap = await helpers.getDoc(legacyRef);
+        const legacyExists = Boolean(legacySnap && (typeof legacySnap.exists === 'function' ? legacySnap.exists() : legacySnap.exists));
+        if (legacyExists) {
+          const ld = typeof legacySnap.data === 'function' ? legacySnap.data() : legacySnap.data;
+          if (calculateDataScore(ld) > 0) {
+            legacySource = 'firestore-v1';
+            legacyData = ld;
+          }
+        }
+      } catch (e) {}
+
+      // 2) Google Drive v2 hoặc Google Drive v1 (tệp exammatrix-workspace.json cũ)
+      const driveTok = opts.driveAccessToken || loadRuntimeDriveToken(user.uid)?.accessToken || '';
+      if (!legacyData && driveTok && window.GoogleDriveStorage) {
+        try {
+          const dv2 = await v2.driveReadWorkspaceV2(driveTok, window.GoogleDriveStorage, { folderName: driveCfg.folderName });
+          if (dv2.exists && calculateDataScore(dv2.data) > 0) {
+            legacySource = 'drive-v2';
+            legacyData = dv2.data;
+          }
+        } catch (e) {}
+        if (!legacyData) {
+          try {
+            const dv1 = await window.GoogleDriveStorage.readWorkspace(driveTok, {
+              folderName: driveCfg.folderName,
+              fileName: driveCfg.fileName
+            });
+            if (dv1.exists && calculateDataScore(dv1.data) > 0) {
+              legacySource = 'drive-v1';
+              legacyData = dv1.data;
+            }
+          } catch (e) {}
+        }
+      }
+
+      if (window.FirebaseState.user?.uid !== user.uid) return null;
+
+      if (legacyData) {
+        const migrated = await v2.migrateV1ToV2({
+          uid: user.uid,
+          legacyData,
+          db,
+          firestoreHelpers: helpers,
+          driveAccessToken: driveTok,
+          driveStorage: window.GoogleDriveStorage,
+          folderName: driveCfg.folderName,
+          ownerEmail: user.email || ''
+        });
+        installV2(migrated.data, migrated.slices);
+        setCloudSyncPill('synced', driveTok ? '☁ Firebase ✓ · Drive ✓' : '☁ Firebase ✓');
+        if (status) { status.hidden = true; status.textContent = ''; }
+        showToast('Đã tự động nâng cấp dữ liệu sang cấu trúc mới theo từng Khối trên Đám mây!');
+        updateDriveSyncButton();
+        return { source: legacySource, data: migrated.data };
+      }
+
+      // Tài khoản mới hoàn toàn (hoặc đã có profile rỗng)
+      const initialData = fsV2.exists && fsV2.data ? fsV2.data : {
+        bank: { questions: [], ppct: { lessons: [], cleared_grades: [] }, competency_catalogs: [] },
+        exams: [],
+        revisions: [],
+        matrices: [],
+        assessment_plans: [],
+        kttx: [],
+        profile: v2.normalizeProfile({ active_grades: [8, 9, 10], active_grade: 8, active_subject: 'Tin học' })
+      };
+      if (!fsV2.exists) {
+        await v2.firestoreWriteFullV2(user.uid, db, helpers, initialData, { ownerEmail: user.email || '' });
+      }
+      installV2(initialData, v2.splitWorkspaceIntoSlices(initialData));
+      setCloudSyncPill('synced', driveTok ? '☁ Firebase ✓ · Drive ✓' : '☁ Firebase ✓');
+      if (status) {
+        status.hidden = false;
+        status.textContent = `Đã kết nối tài khoản ${user.email || ''} (Lưu trữ Đám mây theo từng Khối). Bấm "☁ Đồng bộ Drive" nếu cần nhập dữ liệu từ tệp Drive cũ.`;
+      }
+      updateDriveSyncButton();
+      return { source: 'empty-v2', data: initialData };
+    } catch (err) {
+      setCloudSyncPill('error', '⚠️ Lỗi tải Cloud');
+      if (status) {
+        status.hidden = false;
+        status.textContent = 'Chưa tải được dữ liệu từ Firebase Cloud: ' + (err?.message || 'lỗi kết nối');
+      }
+      return null;
+    }
+  }
+
+  window.FirebaseClient.loadFromCloudV2 = loadFromCloudV2;
+  window.FirebaseClient.syncToCloudV2 = syncToCloudV2;
+
   // Đồng bộ lên Google Drive riêng (hoặc Cloud Firestore nếu dùng Firebase)
-  async function syncToFirestore(uid, data) {
+  async function syncToFirestore(uid, data, mutationMeta) {
+    if (window.FirebaseState.provider === 'firebase-cloud-v2' || useUnifiedCloudV2()) {
+      return await syncToCloudV2(
+        uid,
+        currentMutationSnapshot || currentWorkspaceData,
+        data,
+        mutationMeta || activeMutationMeta || {}
+      );
+    }
     const driveSession = window.FirebaseState.driveSession;
     const isDriveMode = window.FirebaseState.provider === 'google-drive' || Boolean(driveSession?.accessToken);
     if (isDriveMode) {
@@ -1870,6 +2230,12 @@
     window.store.matrixRecords = snapshot.matrices;
     window.store.assessmentPlans = Array.isArray(snapshot.assessment_plans) ? snapshot.assessment_plans : [];
     window.store.kttxActivities = Array.isArray(snapshot.kttx) ? snapshot.kttx : [];
+    if (snapshot.profile && typeof snapshot.profile === 'object') {
+      window.store.profile = snapshot.profile;
+      if (typeof window.syncProfileFromWorkspace === 'function') {
+        window.syncProfileFromWorkspace(snapshot.profile);
+      }
+    }
     window.store.plans={};window.store.selected=new Set();
     window.store.activeExamViewId=null;window.store.activeRevisionViewId=null;
     if(typeof window.restoreExamDraft==='function')window.restoreExamDraft();
@@ -1980,18 +2346,321 @@
     return;
   }
 
-  // 1. Khởi tạo Google Drive riêng (nếu có nạp google-drive-storage.js)
-  if (window.GoogleDriveStorage) {
+  async function syncDriveV2Now() {
+    const v2 = window.CloudStorageV2;
+    const user = window.FirebaseState?.user;
+    const db = window.FirebaseState?.db;
+    const helpers = window.FirebaseState?._firestoreHelpers;
+    if (!v2 || !user || user.isAnonymous) {
+      showLoginModal(true);
+      return { ok: false };
+    }
+    if (!window.GoogleDriveStorage) {
+      throw new Error('Chưa nạp mô-đun Google Drive.');
+    }
+    const driveCfg = getGoogleDriveSettings();
+    let tokRec = loadRuntimeDriveToken(user.uid);
+    if (!tokRec || !tokRec.accessToken) {
+      if (!driveCfg.clientId) {
+        throw new Error('Chưa cấu hình Google OAuth Client ID cho Google Drive.');
+      }
+      const tokenInfo = await requestTokenWithConsentFallback(driveCfg, {
+        prompt: '',
+        loginHint: user.email || ''
+      });
+      saveRuntimeDriveToken(user.uid, tokenInfo.accessToken, tokenInfo.expiresAt);
+      tokRec = loadRuntimeDriveToken(user.uid);
+    }
+    if (!tokRec || !tokRec.accessToken) {
+      throw new Error('Chưa lấy được quyền truy cập Google Drive.');
+    }
+
+    const accessToken = tokRec.accessToken;
+    setCloudSyncPill('syncing', '⏳ Đang đồng bộ Drive…');
+    try {
+      let dv2 = null;
+      try {
+        dv2 = await v2.driveReadWorkspaceV2(accessToken, window.GoogleDriveStorage, { folderName: driveCfg.folderName });
+      } catch (e) {
+        if (e && (e.code === 'DRIVE_AUTH_EXPIRED' || e.status === 401)) {
+          saveRuntimeDriveToken(user.uid, '', 0);
+          const refreshedInfo = await requestTokenWithConsentFallback(driveCfg, { prompt: 'consent', loginHint: user.email || '' });
+          saveRuntimeDriveToken(user.uid, refreshedInfo.accessToken, refreshedInfo.expiresAt);
+          dv2 = await v2.driveReadWorkspaceV2(refreshedInfo.accessToken, window.GoogleDriveStorage, { folderName: driveCfg.folderName });
+        }
+      }
+      const activeTok = loadRuntimeDriveToken(user.uid)?.accessToken || accessToken;
+      let dv1 = null;
+      if (!dv2?.exists || calculateDataScore(dv2.data) === 0) {
+        try {
+          dv1 = await window.GoogleDriveStorage.readWorkspace(activeTok, {
+            folderName: driveCfg.folderName,
+            fileName: driveCfg.fileName
+          });
+        } catch (e) {}
+      }
+
+      const currentScore = calculateDataScore(currentWorkspaceData);
+      const driveV2Score = dv2?.exists ? calculateDataScore(dv2.data) : 0;
+      const driveV1Score = dv1?.exists ? calculateDataScore(dv1.data) : 0;
+
+      if (currentScore === 0 && (driveV2Score > 0 || driveV1Score > 0)) {
+        const sourceData = driveV2Score >= driveV1Score ? dv2.data : dv1.data;
+        const migrated = await v2.migrateV1ToV2({
+          uid: user.uid,
+          legacyData: sourceData,
+          db,
+          firestoreHelpers: helpers,
+          driveAccessToken: activeTok,
+          driveStorage: window.GoogleDriveStorage,
+          folderName: driveCfg.folderName,
+          ownerEmail: user.email || ''
+        });
+        currentWorkspaceData = JSON.parse(JSON.stringify(migrated.data));
+        window.FirebaseState.currentData = currentWorkspaceData;
+        lastSyncedSlicesV2 = migrated.slices;
+        applyWorkspaceToStore();
+        setCloudSyncPill('synced', '☁ Firebase ✓ · Drive ✓');
+        showToast(`Đã tải & đồng bộ ${currentWorkspaceData.bank?.questions?.length || 0} câu hỏi từ Google Drive!`);
+      } else {
+        // Đẩy toàn bộ cấu trúc phân tách theo từng Khối lên Google Drive
+        if (dv1?.exists && calculateDataScore(dv1.data) > 0 && !dv2?.exists) {
+          const rootId = await window.GoogleDriveStorage.findOrCreateFolder(activeTok, driveCfg.folderName);
+          const ts = new Date().toISOString().replace(/[:.]/g, '-');
+          await window.GoogleDriveStorage.backupJsonToBackupsFolder(activeTok, rootId, `legacy_v1_${ts}.json`, {
+            migrated_at: new Date().toISOString(),
+            owner_email: user.email || '',
+            legacy_data: dv1.data
+          }).catch(() => {});
+        }
+        await v2.driveWriteFullV2(activeTok, window.GoogleDriveStorage, currentWorkspaceData, {
+          folderName: driveCfg.folderName,
+          ownerEmail: user.email || '',
+          folderCache: cloudFolderCacheV2
+        });
+        setCloudSyncPill('synced', '☁ Firebase ✓ · Drive ✓');
+        showToast(`Đã đồng bộ cấu trúc thư mục theo từng Khối (${currentWorkspaceData.bank?.questions?.length || 0} câu hỏi) lên Google Drive!`);
+      }
+      updateDriveSyncButton();
+      return { ok: true };
+    } catch (err) {
+      if (err && (err.code === 'DRIVE_AUTH_EXPIRED' || err.status === 401)) {
+        saveRuntimeDriveToken(user.uid, '', 0);
+        setCloudSyncPill('partial', '☁ Firebase ✓ · Drive cần gia hạn');
+      } else {
+        setCloudSyncPill('partial', '☁ Firebase ✓ · Drive lỗi đồng bộ');
+      }
+      updateDriveSyncButton();
+      throw err;
+    }
+  }
+  window.FirebaseClient.syncDriveV2Now = syncDriveV2Now;
+
+  function createUnifiedCloudLoginModal(auth, helpers) {
+    if (typeof document === 'undefined' || !document.body) return;
+    const existing = document.getElementById('firebase-login-modal');
+    if (existing && existing.dataset.mode === 'cloud-v2') return;
+    if (existing) existing.remove();
+
+    const modal = document.createElement('dialog');
+    modal.id = 'firebase-login-modal';
+    modal.dataset.mode = 'cloud-v2';
+    modal.style.cssText = 'border:1px solid #c5d8ea;border-radius:12px;padding:24px;max-width:450px;width:92%;box-shadow:0 12px 32px rgba(0,0,0,0.18);z-index:9999;';
+    modal.innerHTML = `
+      <form id="fb-login-form" method="dialog" style="display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:42px;height:42px;border-radius:10px;background:#e7f5ff;display:flex;align-items:center;justify-content:center;font-size:22px;">
+            ☁️
+          </div>
+          <div>
+            <h3 style="margin:0;font-size:16px;font-weight:700;color:#102d4a;">ĐĂNG NHẬP ĐÁM MÂY (FIREBASE + DRIVE)</h3>
+            <p style="margin:2px 0 0;font-size:12px;color:#4a5568;">Giữ đăng nhập bền vững &amp; tự động lưu độc lập từng Khối lớp.</p>
+          </div>
+        </div>
+
+        <div style="background:#f8fafc;border:1px solid #dce5ee;border-radius:8px;padding:10px 12px;font-size:12px;color:#334155;line-height:1.5;">
+          Dữ liệu được lưu an toàn theo cây thư mục <strong>Năm học → Môn → Khối</strong> trên Firebase Firestore và Google Drive (<code>ExamMatrix Studio/</code>) của riêng Thầy/Cô.
+        </div>
+
+        <div id="fb-auth-error" style="color:#c92a2a;background:#fff5f5;padding:10px 14px;border-radius:8px;font-size:12px;display:none;line-height:1.45;border:1px solid #ffc9c9;"></div>
+
+        <button type="button" id="fb-btn-google" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 16px;background:#ffffff;border:1px solid #0267b1;border-radius:8px;font-size:13.5px;font-weight:600;color:#0f172a;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.347 2.825.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
+          <span>Đăng nhập bằng Google (Firebase + Drive)</span>
+        </button>
+
+        <details style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:12px;color:#475569;">
+          <summary style="cursor:pointer;font-weight:600;color:#1e293b;">Hoặc đăng nhập bằng Email &amp; Mật khẩu giáo viên</summary>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+            <input type="email" id="fb-email" placeholder="thayco@truong.edu.vn" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #c5d8ea;border-radius:6px;font-size:12.5px;">
+            <input type="password" id="fb-password" placeholder="Mật khẩu (tối thiểu 6 ký tự)" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #c5d8ea;border-radius:6px;font-size:12.5px;">
+            <div style="display:flex;gap:8px;">
+              <button type="submit" id="fb-btn-login-submit" class="button primary" style="flex:1;padding:7px;font-weight:600;font-size:12.5px;">Đăng nhập Email</button>
+              <button type="button" id="fb-btn-register-submit" class="button" style="flex:1;padding:7px;font-weight:600;font-size:12.5px;">Tạo tài khoản</button>
+            </div>
+          </div>
+        </details>
+
+        <div style="text-align:center;margin-top:2px;">
+          <button type="button" id="fb-btn-close-modal" class="button quiet" style="font-size:12px;color:#64748b;text-decoration:underline;cursor:pointer;">Đóng</button>
+        </div>
+      </form>
+    `;
+    document.body.appendChild(modal);
+
+    const errBox = modal.querySelector('#fb-auth-error');
+    const googleBtn = modal.querySelector('#fb-btn-google');
+    const form = modal.querySelector('#fb-login-form');
+    const emailInput = modal.querySelector('#fb-email');
+    const passInput = modal.querySelector('#fb-password');
+
+    const mapAuthErr = (err) => {
+      const code = err?.code || '';
+      if (code.includes('unauthorized-domain')) {
+        return `Tên miền "${window.location.hostname}" chưa có trong Authorized domains của Firebase Auth.`;
+      }
+      if (code.includes('popup-blocked')) {
+        return 'Trình duyệt đang chặn cửa sổ bật lên (popup). Hãy cho phép popup rồi thử lại.';
+      }
+      if (code.includes('operation-not-allowed')) {
+        return 'Phương thức đăng nhập này chưa được bật trong Firebase Console.';
+      }
+      return err?.message || 'Không đăng nhập được.';
+    };
+
+    if (googleBtn) {
+      googleBtn.onclick = async () => {
+        errBox.style.display = 'none';
+        googleBtn.disabled = true;
+        try {
+          const provider = new helpers.GoogleAuthProvider();
+          provider.addScope('https://www.googleapis.com/auth/drive.file');
+          provider.setCustomParameters({ prompt: 'select_account' });
+          const result = await helpers.signInWithPopup(auth, provider);
+          const cred = helpers.GoogleAuthProvider.credentialFromResult
+            ? helpers.GoogleAuthProvider.credentialFromResult(result)
+            : null;
+          if (cred?.accessToken && result?.user?.uid) {
+            saveRuntimeDriveToken(result.user.uid, cred.accessToken, Date.now() + 55 * 60 * 1000);
+          }
+          modal.close();
+          showToast(`Đăng nhập thành công (${result.user?.email || 'Google'})!`);
+        } catch (err) {
+          if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') return;
+          errBox.textContent = mapAuthErr(err);
+          errBox.style.display = 'block';
+        } finally {
+          googleBtn.disabled = false;
+        }
+      };
+    }
+
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        errBox.style.display = 'none';
+        if (!emailInput?.value || !passInput?.value) {
+          errBox.textContent = 'Nhập đầy đủ email và mật khẩu.';
+          errBox.style.display = 'block';
+          return;
+        }
+        try {
+          await helpers.signInWithEmailAndPassword(auth, emailInput.value.trim(), passInput.value);
+          modal.close();
+          showToast('Đăng nhập Email thành công!');
+        } catch (err) {
+          errBox.textContent = mapAuthErr(err);
+          errBox.style.display = 'block';
+        }
+      };
+    }
+
+    const regBtn = modal.querySelector('#fb-btn-register-submit');
+    if (regBtn) {
+      regBtn.onclick = async () => {
+        errBox.style.display = 'none';
+        if (!emailInput?.value || !passInput?.value) {
+          errBox.textContent = 'Nhập đủ email và mật khẩu (tối thiểu 6 ký tự).';
+          errBox.style.display = 'block';
+          return;
+        }
+        try {
+          await helpers.createUserWithEmailAndPassword(auth, emailInput.value.trim(), passInput.value);
+          modal.close();
+          showToast('Tạo tài khoản giáo viên thành công!');
+        } catch (err) {
+          errBox.textContent = mapAuthErr(err);
+          errBox.style.display = 'block';
+        }
+      };
+    }
+
+    const closeBtn = modal.querySelector('#fb-btn-close-modal');
+    if (closeBtn) closeBtn.onclick = () => modal.close();
+  }
+
+  function setupUnifiedCloudAuthUI(auth, db, helpers) {
+    const authBox = ensureAuthBox();
+    if (authBox) {
+      authBox.className = 'auth-pill-container';
+      authBox.innerHTML = `
+        <span id="cloud-sync-pill" class="cloud-sync-pill cloud-pill-offline" hidden>Chưa kết nối</span>
+        <span id="fb-user-badge" class="auth-pill-badge"><span class="auth-offline-dot"></span><span class="auth-status-text">Chưa đăng nhập</span></span>
+        <button id="gdrive-sync-btn" class="topbar-btn auth-login-btn" type="button" hidden title="Đồng bộ cây thư mục theo từng Khối lên Google Drive riêng">☁ Đồng bộ Drive</button>
+        <button id="fb-auth-btn" class="topbar-btn topbar-btn-primary auth-login-btn" type="button">Đăng nhập Google</button>
+      `;
+
+      const syncBtn = authBox.querySelector('#gdrive-sync-btn');
+      if (syncBtn) {
+        syncBtn.onclick = async () => {
+          syncBtn.disabled = true;
+          try {
+            await syncDriveV2Now();
+          } catch (err) {
+            if (err && err.code === 'POPUP_CLOSED') return;
+            showToast(err?.message || 'Chưa đồng bộ được với Google Drive.', 'error');
+          } finally {
+            syncBtn.disabled = false;
+            updateDriveSyncButton();
+          }
+        };
+      }
+
+      const authBtn = authBox.querySelector('#fb-auth-btn');
+      if (authBtn) {
+        authBtn.onclick = async () => {
+          const curUser = window.FirebaseState.user;
+          if (curUser && !curUser.isAnonymous) {
+            if (confirm('Thầy/Cô có muốn đăng xuất khỏi tài khoản Google hiện tại? Dữ liệu đã được lưu an toàn trên Đám mây.')) {
+              await helpers.signOut(auth);
+              saveRuntimeDriveToken(null, '', 0);
+              lastSyncedSlicesV2 = null;
+              cloudFolderCacheV2.clear();
+              showToast('Đã đăng xuất.');
+            }
+          } else {
+            showLoginModal(true);
+          }
+        };
+      }
+    }
+    createUnifiedCloudLoginModal(auth, helpers);
+  }
+
+  const unifiedModeEnabled = useUnifiedCloudV2();
+
+  // 1. Chỉ dùng Google Drive Token v1 cũ khi CHƯA bật Firebase Cloud v2 (vd. test harness hoặc chưa cấu hình Firebase)
+  if (!unifiedModeEnabled && window.GoogleDriveStorage) {
     initGoogleDriveMode();
   }
 
-  // 2. Khởi tạo song song Firebase SDK (App, Analytics & Firestore)
+  // 2. Khởi tạo Firebase SDK (App, Analytics & Firestore)
   if (isConfigured) {
     const firebaseVersion = '10.13.0';
     import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-app.js`).then(async ({ initializeApp }) => {
       const { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } =
         await import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-auth.js`);
-      const { getFirestore, doc, getDoc, setDoc } =
+      const { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc, writeBatch } =
         await import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-firestore.js`);
 
       const app = initializeApp(config);
@@ -2006,20 +2675,79 @@
       const auth = getAuth(app);
       const db = getFirestore(app);
 
-      // Đảm bảo phiên Firebase Auth luôn hợp lệ cho các truy vấn Firestore
-      if (!auth.currentUser) {
-        signInAnonymously(auth).catch(() => {});
-      }
-
       window.FirebaseState.app = app;
       window.FirebaseState.analytics = analytics;
       window.FirebaseState.auth = auth;
       window.FirebaseState.db = db;
-      window.FirebaseState._firestoreHelpers = { doc, getDoc, setDoc };
+      window.FirebaseState._firestoreHelpers = { doc, getDoc, setDoc, collection, getDocs, deleteDoc, writeBatch };
 
-      console.info('[Firebase] Đã khởi tạo song song Firebase App, Analytics & Firestore.');
+      if (unifiedModeEnabled) {
+        const v2AuthHelpers = {
+          signInWithEmailAndPassword,
+          createUserWithEmailAndPassword,
+          signInWithPopup,
+          GoogleAuthProvider,
+          signOut,
+          doc,
+          getDoc,
+          setDoc,
+          collection,
+          getDocs,
+          deleteDoc,
+          writeBatch
+        };
+        setupUnifiedCloudAuthUI(auth, db, v2AuthHelpers);
+        console.info('[Cloud v2] Đã kích hoạt chế độ lưu trữ Đám mây (Firebase Auth + Firestore v2 + Google Drive phân khối).');
 
-      // Nếu không có Google Drive Storage, mới dùng Firebase Auth UI làm kênh đăng nhập chính
+        let hadCloudUser = false;
+        onAuthStateChanged(auth, async (user) => {
+          if (user && user.isAnonymous) {
+            // Bỏ qua phiên ẩn danh cũ nếu còn sót lại để yêu cầu đăng nhập Google chính thức
+            await signOut(auth).catch(() => {});
+            user = null;
+          }
+          if (user) {
+            hadCloudUser = true;
+            window.FirebaseState.provider = 'firebase-cloud-v2';
+            window.FirebaseState.user = user;
+            updateUserUI(user);
+            showOfflineBanner(false);
+            const driveTok = loadRuntimeDriveToken(user.uid)?.accessToken || '';
+            await loadFromCloudV2(user, { db, helpers: v2AuthHelpers, driveAccessToken: driveTok });
+          } else {
+            window.FirebaseState.provider = 'firebase-cloud-v2';
+            window.FirebaseState.user = null;
+            saveRuntimeDriveToken(null, '', 0);
+            lastSyncedSlicesV2 = null;
+            if (hadCloudUser || calculateDataScore(currentWorkspaceData) > 0) {
+              hadCloudUser = false;
+              currentWorkspaceData = {
+                bank: { questions: [], ppct: { lessons: [], cleared_grades: [] }, competency_catalogs: [] },
+                exams: [],
+                revisions: [],
+                matrices: [],
+                assessment_plans: [],
+                kttx: [],
+                profile: currentWorkspaceData.profile || window.CloudStorageV2.normalizeProfile({})
+              };
+              window.FirebaseState.currentData = currentWorkspaceData;
+              applyWorkspaceToStore();
+            }
+            const status = document.getElementById('static-sync-status');
+            if (status) { status.hidden = true; status.textContent = ''; }
+            setCloudSyncPill('offline', 'Chưa đăng nhập');
+            updateUserUI(null);
+            showOfflineBanner(true);
+          }
+        });
+        return;
+      }
+
+      // Chế độ legacy nếu thiếu CloudStorageV2 hoặc GoogleDriveStorage
+      if (!auth.currentUser) {
+        signInAnonymously(auth).catch(() => {});
+      }
+
       if (!window.GoogleDriveStorage) {
         setupAuthUI(auth, db, {
           signInWithEmailAndPassword,
@@ -2042,7 +2770,6 @@
             console.info('[Firebase] Đã đăng nhập tài khoản giáo viên.');
             await loadFromFirestore(user, db, { doc, getDoc, setDoc });
           } else {
-            // Chưa đăng nhập (hoặc vừa đăng xuất): dùng ngoại tuyến, không tự bật hộp đăng nhập.
             if (hadUser) { hadUser = false; resetToOfflineWorkspace(); }
             showOfflineBanner(true);
           }
@@ -2050,7 +2777,7 @@
       }
     }).catch(err => {
       console.warn('[Firebase Bridge] Lỗi tải SDK:', err);
-      if (!window.GoogleDriveStorage) showOfflineBanner(true);
+      if (unifiedModeEnabled || !window.GoogleDriveStorage) showOfflineBanner(true);
     });
   } else if (!window.GoogleDriveStorage) {
     showOfflineBanner(true);
@@ -2522,7 +3249,7 @@
       updateDriveSyncButton();
       return;
     }
-    if (user) {
+    if (user && !user.isAnonymous) {
       const name = user.displayName || (user.email ? user.email.split('@')[0] : 'Giáo viên');
       const initial = name.charAt(0).toUpperCase();
       badge.innerHTML = `<span class="auth-avatar">${escapeHtml(initial)}</span><strong class="auth-name" title="${escapeHtml(user.email || '')}">${escapeHtml(name)}</strong>`;
@@ -2530,8 +3257,8 @@
       btn.className = 'topbar-btn auth-logout-btn';
       showLoginModal(false);
     } else {
-      badge.innerHTML = `<span class="auth-offline-dot"></span><span class="auth-status-text">Ngoại tuyến</span>`;
-      btn.textContent = window.FirebaseState.provider === 'google-drive' || window.GoogleDriveStorage ? 'Đăng nhập Google' : 'Đăng nhập';
+      badge.innerHTML = `<span class="auth-offline-dot"></span><span class="auth-status-text">${useUnifiedCloudV2() ? 'Chưa đăng nhập' : 'Ngoại tuyến'}</span>`;
+      btn.textContent = (window.FirebaseState.provider === 'google-drive' || window.GoogleDriveStorage || useUnifiedCloudV2()) ? 'Đăng nhập Google' : 'Đăng nhập';
       btn.className = 'topbar-btn topbar-btn-primary auth-login-btn';
     }
     updateDriveSyncButton();

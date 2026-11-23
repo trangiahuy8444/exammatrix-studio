@@ -10,35 +10,43 @@
   <meta property="og:description" content="Hệ thống quản lý Ma trận, Bảng đặc tả, Đề cương và Đề thi chuẩn Thông tư Bộ GD&ĐT">
   <meta property="og:type" content="website">
   <title>ExamMatrix Studio · Khảo thí & Đánh giá</title>
-  <link rel="stylesheet" href="./styles.css?v=20261122k">
+  <link rel="stylesheet" href="./styles.css?v=20261123s">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-  <script src="./core.js?v=20261123m" defer></script>
-  <script src="./exam-comparison.js?v=20261123m" defer></script>
-  <script src="./competency-catalog.js?v=20261123m" defer></script>
-  <script src="./competency-catalog-ui.js?v=20261123m" defer></script>
-  <script src="./static-exam-engine.js?v=20261123m" defer></script>
-  <script src="./static-exam-workflow.js?v=20261123m" defer></script>
-  <script src="./static-exam-export.js?v=20261123m" defer></script>
-  <script src="./static-api.js?v=20261123m" defer></script>
-  <script src="./static-download.js?v=20261123m" defer></script>
-  <link rel="stylesheet" href="./matrices.css?v=20261123m">
-  <script src="./assessment-plan-model.js?v=20261123n" defer></script>
-  <script src="./table-file-helper.js?v=20261123m" defer></script>
-  <script src="./matrices.js?v=20261123p" defer></script>
-  <script src="./curricula.js?v=20261123p" defer></script>
-  <script src="./firebase-config.js?v=20261123p" defer></script>
-  <script src="./google-drive-config.js?v=20261123p" defer></script>
-  <script src="./google-drive-storage.js?v=20261123p" defer></script>
-  <script src="./firebase-bridge.js?v=20261123r" defer></script>
+  <script src="./core.js?v=20261123s" defer></script>
+  <script src="./exam-comparison.js?v=20261123s" defer></script>
+  <script src="./competency-catalog.js?v=20261123s" defer></script>
+  <script src="./competency-catalog-ui.js?v=20261123s" defer></script>
+  <script src="./static-exam-engine.js?v=20261123s" defer></script>
+  <script src="./static-exam-workflow.js?v=20261123s" defer></script>
+  <script src="./static-exam-export.js?v=20261123s" defer></script>
+  <script src="./static-api.js?v=20261123s" defer></script>
+  <script src="./static-download.js?v=20261123s" defer></script>
+  <link rel="stylesheet" href="./matrices.css?v=20261123s">
+  <script src="./assessment-plan-model.js?v=20261123s" defer></script>
+  <script src="./table-file-helper.js?v=20261123s" defer></script>
+  <script src="./matrices.js?v=20261123s" defer></script>
+  <script src="./curricula.js?v=20261123s" defer></script>
+  <script src="./firebase-config.js?v=20261123s" defer></script>
+  <script src="./google-drive-config.js?v=20261123s" defer></script>
+  <script src="./google-drive-storage.js?v=20261123s" defer></script>
+  <script src="./cloud-storage-v2.js?v=20261123s" defer></script>
+  <script src="./firebase-bridge.js?v=20261123s" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" defer></script>
-  <script src="./app.js?v=20261123r" defer></script>
+  <script src="./app.js?v=20261123s" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Đến nội dung chính</a>
 <aside class="sidebar" id="main-sidebar">
   <a class="brand" href="#overview" title="ExamMatrix Studio"><span class="brand-mark">EM</span><span class="brand-text">EXAMMATRIX<small id="sidebar-subject-caption">Khảo thí Á Châu · 2026–2027</small></span></a>
+  <div class="sidebar-grade-box" id="sidebar-grade-box">
+    <div class="sidebar-grade-head">
+      <span class="sidebar-grade-title">KHÔNG GIAN KHỐI LỚP</span>
+      <button type="button" id="btn-config-active-grades" class="sidebar-grade-cfg-btn" title="Tùy chỉnh các khối đang giảng dạy (6–12)" aria-label="Tùy chỉnh các khối đang giảng dạy">⚙️</button>
+    </div>
+    <div class="sidebar-grade-pills" id="sidebar-grade-pills" role="tablist" aria-label="Chọn khối lớp làm việc"></div>
+  </div>
   <p class="nav-caption">KHÔNG GIAN CHUYÊN MÔN</p>
   <nav aria-label="Điều hướng chính">
     <a href="#overview" data-tab="overview" title="Tổng quan"><span class="nav-icon">📊</span><span class="nav-label">Tổng quan</span></a>
@@ -51,7 +59,7 @@
     <a href="#exams" data-tab="exams" title="Tạo đề kiểm tra"><span class="nav-icon">📑</span><span class="nav-label">Tạo đề kiểm tra</span></a>
     <a href="#kttx" data-tab="kttx" title="Kiểm tra thường xuyên"><span class="nav-icon">🎯</span><span class="nav-label">Kiểm tra thường xuyên</span></a>
   </nav>
-  <div class="sidebar-foot"><span class="local-dot"></span> Làm việc an toàn<p>Lưu trữ cục bộ & đồng bộ Cloud riêng tư theo chuẩn bảo mật học vụ.</p></div>
+  <div class="sidebar-foot"><span class="local-dot"></span> Lưu trữ Đám mây<p>Đồng bộ Firebase &amp; Google Drive phân tách độc lập theo từng Khối lớp.</p></div>
 </aside>
 <div id="sidebar-backdrop" class="sidebar-backdrop" aria-hidden="true"></div>
 <div class="workspace">
@@ -79,6 +87,7 @@
       <span class="page-crumb">Khảo thí & Đánh giá</span>
       <span class="page-sep">/</span>
       <span id="current-tab-label" class="page-current">Tổng quan</span>
+      <span id="current-grade-badge" class="topbar-grade-pill" title="Khối lớp đang làm việc">Khối 8</span>
     </div>
   </div>
   <div class="topbar-right">
@@ -114,8 +123,8 @@
 <main id="main" tabindex="-1">
   <div id="offline-banner" hidden role="status" style="background:#eef6fd;border:1px solid #c6daed;border-radius:8px;color:#24364a;padding:12px 18px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px">
     <div style="min-width:240px;flex:1">
-      <strong style="font-size:14px">Đang dùng chế độ ngoại tuyến</strong>
-      <p style="margin:2px 0 0;font-size:12px">Dữ liệu chỉ lưu trên trình duyệt này (localStorage). Xóa dữ liệu trình duyệt hoặc đổi máy sẽ mất dữ liệu, nên hãy tải bản sao lưu thường xuyên. Đăng nhập Google để lưu trực tiếp vào Google Drive riêng của bạn.</p>
+      <strong style="font-size:14px">Chưa đăng nhập Đám mây</strong>
+      <p style="margin:2px 0 0;font-size:12px">Đăng nhập Google để tự động lưu và đồng bộ dữ liệu phân tách độc lập theo từng Khối lớp lên Firebase &amp; Google Drive (không lưu ngân hàng vào bộ nhớ tạm trình duyệt).</p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button type="button" id="btn-offline-login" class="button primary" style="padding:5px 12px;font-size:12px;font-weight:600">Đăng nhập</button>
@@ -707,6 +716,24 @@ def kiem_tra_so_nguyen_to(n):
     <span style="font-size:12px;color:var(--muted,#666)">Tài liệu đầy đủ: <code>docs/HUONG_DAN_SU_DUNG.md</code></span>
     <button type="button" class="primary" data-close="help-dialog" style="padding:7px 18px">Đã hiểu</button>
   </div>
+</dialog>
+
+<dialog id="grade-config-dialog" aria-labelledby="grade-config-title" style="max-width:460px;width:94vw;border-radius:12px;padding:22px;border:1px solid #dce5ee;box-shadow:0 16px 48px rgba(16,45,74,0.18)">
+  <div class="dialog-heading">
+    <div>
+      <p class="eyebrow">CẤU HÌNH KHÔNG GIAN LÀM VIỆC</p>
+      <h2 id="grade-config-title" style="margin:0;font-size:18px;color:#102d4a">Chọn các Khối đang giảng dạy</h2>
+    </div>
+    <button type="button" data-close="grade-config-dialog" class="quiet" aria-label="Đóng">Đóng</button>
+  </div>
+  <p class="small muted" style="margin:8px 0 14px">Chỉ hiển thị những Khối lớp bạn phụ trách trong thanh chọn nhanh bên trái để thao tác gọn gàng. Tùy chọn này được lưu đồng bộ vào hồ sơ Đám mây của bạn.</p>
+  <form id="grade-config-form">
+    <div id="grade-config-checkboxes" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px"></div>
+    <div class="dialog-bottom">
+      <button type="button" class="quiet" data-close="grade-config-dialog">Hủy</button>
+      <button type="submit" class="primary">Lưu danh sách Khối</button>
+    </div>
+  </form>
 </dialog>
 
 <noscript><p class="empty">Cần bật JavaScript để mở ngân hàng câu hỏi.</p></noscript>

@@ -77,23 +77,29 @@
     }
 
     const ppct = normalized.bank.ppct;
-    return {
-      data: {
-        bank: {
-          questions: normalized.bank.questions,
-          ppct: {
-            ...ppct,
-            lessons: ppct.lessons,
-            cleared_grades: Array.isArray(ppct.cleared_grades) ? ppct.cleared_grades : []
-          },
-          competency_catalogs: Array.isArray(normalized.bank.competency_catalogs)
-            ? normalized.bank.competency_catalogs
-            : []
+    const resultData = {
+      bank: {
+        questions: normalized.bank.questions,
+        ppct: {
+          ...ppct,
+          lessons: ppct.lessons,
+          cleared_grades: Array.isArray(ppct.cleared_grades) ? ppct.cleared_grades : []
         },
-        exams: normalized.exams,
-        revisions: normalized.revisions,
-        matrices: normalized.matrices
+        competency_catalogs: Array.isArray(normalized.bank.competency_catalogs)
+          ? normalized.bank.competency_catalogs
+          : []
       },
+      exams: normalized.exams,
+      revisions: normalized.revisions,
+      matrices: normalized.matrices,
+      assessment_plans: Array.isArray(normalized.assessment_plans) ? normalized.assessment_plans : [],
+      kttx: Array.isArray(normalized.kttx) ? normalized.kttx : []
+    };
+    if (normalized.profile && typeof normalized.profile === 'object' && !Array.isArray(normalized.profile)) {
+      resultData.profile = normalized.profile;
+    }
+    return {
+      data: resultData,
       ownerEmail: typeof raw.owner_email === 'string' ? raw.owner_email : '',
       updatedAt: typeof raw.updated_at === 'string' ? raw.updated_at : null
     };
@@ -103,24 +109,30 @@
     const src = workspaceData && typeof workspaceData === 'object' ? workspaceData : {};
     const bank = src.bank && typeof src.bank === 'object' ? src.bank : {};
     const ppct = bank.ppct && typeof bank.ppct === 'object' ? bank.ppct : {};
+    const outData = {
+      bank: {
+        questions: Array.isArray(bank.questions) ? bank.questions : [],
+        ppct: {
+          lessons: Array.isArray(ppct.lessons) ? ppct.lessons : [],
+          cleared_grades: Array.isArray(ppct.cleared_grades) ? ppct.cleared_grades : []
+        },
+        competency_catalogs: Array.isArray(bank.competency_catalogs) ? bank.competency_catalogs : []
+      },
+      exams: Array.isArray(src.exams) ? src.exams : [],
+      revisions: Array.isArray(src.revisions) ? src.revisions : [],
+      matrices: Array.isArray(src.matrices) ? src.matrices : [],
+      assessment_plans: Array.isArray(src.assessment_plans) ? src.assessment_plans : [],
+      kttx: Array.isArray(src.kttx) ? src.kttx : []
+    };
+    if (src.profile && typeof src.profile === 'object' && !Array.isArray(src.profile)) {
+      outData.profile = src.profile;
+    }
     return {
       format: WORKSPACE_FORMAT,
       version: WORKSPACE_VERSION,
       owner_email: ownerEmail || '',
       updated_at: new Date().toISOString(),
-      data: {
-        bank: {
-          questions: Array.isArray(bank.questions) ? bank.questions : [],
-          ppct: {
-            lessons: Array.isArray(ppct.lessons) ? ppct.lessons : [],
-            cleared_grades: Array.isArray(ppct.cleared_grades) ? ppct.cleared_grades : []
-          },
-          competency_catalogs: Array.isArray(bank.competency_catalogs) ? bank.competency_catalogs : []
-        },
-        exams: Array.isArray(src.exams) ? src.exams : [],
-        revisions: Array.isArray(src.revisions) ? src.revisions : [],
-        matrices: Array.isArray(src.matrices) ? src.matrices : []
-      }
+      data: outData
     };
   }
 
@@ -368,6 +380,186 @@
     };
   }
 
+  // =========================================================================
+  // MODULAR V2 DRIVE HELPERS: Cây thư mục phân tách theo Năm học / Môn / Khối
+  // =========================================================================
+  async function findOrCreateSubfolder(accessToken, parentId, folderName, { fetchImpl } = {}) {
+    if (!parentId) {
+      return await findOrCreateFolder(accessToken, folderName, { fetchImpl });
+    }
+    const q = `mimeType='application/vnd.google-apps.folder' and '${escapeDriveQuery(parentId)}' in parents and name='${escapeDriveQuery(folderName)}' and trashed=false`;
+    const listUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&spaces=drive&fields=${encodeURIComponent('files(id,name,modifiedTime)')}&orderBy=${encodeURIComponent('modifiedTime desc')}&pageSize=10`;
+    const listed = await driveFetch(listUrl, { accessToken, fetchImpl });
+    if (Array.isArray(listed.files) && listed.files.length > 0 && listed.files[0].id) {
+      return listed.files[0].id;
+    }
+    const created = await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+      accessToken,
+      fetchImpl,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+      body: JSON.stringify({
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [parentId]
+      })
+    });
+    if (!created || !created.id) {
+      throw new Error(`Không tạo được thư mục "${folderName}" trên Google Drive.`);
+    }
+    return created.id;
+  }
+
+  async function ensureFolderPath(accessToken, segments = [], { fetchImpl, folderCache } = {}) {
+    const cleanSegments = (Array.isArray(segments) ? segments : []).map(s => String(s || '').trim()).filter(Boolean);
+    if (!cleanSegments.length) {
+      throw new Error('Thiếu đường dẫn thư mục Google Drive.');
+    }
+    let parentId = null;
+    let builtPath = '';
+    for (let i = 0; i < cleanSegments.length; i++) {
+      const seg = cleanSegments[i];
+      builtPath = builtPath ? `${builtPath}/${seg}` : seg;
+      if (folderCache && typeof folderCache.get === 'function' && folderCache.get(builtPath)) {
+        parentId = folderCache.get(builtPath);
+        continue;
+      }
+      parentId = i === 0
+        ? await findOrCreateFolder(accessToken, seg, { fetchImpl })
+        : await findOrCreateSubfolder(accessToken, parentId, seg, { fetchImpl });
+      if (folderCache && typeof folderCache.set === 'function' && parentId) {
+        folderCache.set(builtPath, parentId);
+      }
+    }
+    return parentId;
+  }
+
+  async function readJsonFileInFolder(accessToken, folderId, fileName, { fetchImpl } = {}) {
+    if (!folderId || !fileName) {
+      return { exists: false, fileId: null, modifiedTime: null, data: null };
+    }
+    const file = await findWorkspaceFile(accessToken, folderId, fileName, { fetchImpl });
+    if (!file || !file.id) {
+      return { exists: false, fileId: null, modifiedTime: null, data: null };
+    }
+    const rawText = await driveFetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}?alt=media`,
+      { accessToken, fetchImpl, expectJson: false }
+    );
+    let data = null;
+    try {
+      data = rawText ? JSON.parse(rawText) : null;
+    } catch (e) {
+      throw new Error(`Tệp "${fileName}" trên Google Drive bị hỏng hoặc không phải JSON hợp lệ.`);
+    }
+    return {
+      exists: true,
+      fileId: file.id,
+      modifiedTime: file.modifiedTime || null,
+      data
+    };
+  }
+
+  async function writeJsonFileInFolder(accessToken, folderId, fileName, jsonObj, { fileId, fetchImpl } = {}) {
+    if (!folderId || !fileName) {
+      throw new Error('Thiếu folderId hoặc tên tệp khi ghi lên Google Drive.');
+    }
+    const jsonText = JSON.stringify(jsonObj);
+    let targetFileId = fileId || null;
+    if (!targetFileId) {
+      const existing = await findWorkspaceFile(accessToken, folderId, fileName, { fetchImpl });
+      if (existing && existing.id) targetFileId = existing.id;
+    }
+    if (targetFileId) {
+      try {
+        const updated = await driveFetch(
+          `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(targetFileId)}?uploadType=media&fields=id,name,modifiedTime`,
+          {
+            accessToken,
+            fetchImpl,
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+            body: jsonText
+          }
+        );
+        return {
+          folderId,
+          fileId: updated.id || targetFileId,
+          modifiedTime: updated.modifiedTime || null
+        };
+      } catch (err) {
+        if (err && (err.status === 404 || err.code === 'DRIVE_NOT_FOUND')) {
+          targetFileId = null;
+        } else {
+          throw err;
+        }
+      }
+    }
+    const boundary = `exammatrix_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
+    const body = buildMultipartBody(
+      { name: fileName, parents: [folderId], mimeType: 'application/json' },
+      jsonText,
+      boundary
+    );
+    const created = await driveFetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime',
+      {
+        accessToken,
+        fetchImpl,
+        method: 'POST',
+        headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+        body
+      }
+    );
+    if (!created || !created.id) {
+      throw new Error(`Không tạo được tệp "${fileName}" trên Google Drive.`);
+    }
+    return {
+      folderId,
+      fileId: created.id,
+      modifiedTime: created.modifiedTime || null
+    };
+  }
+
+  async function listFolderChildren(accessToken, folderId, { fetchImpl } = {}) {
+    if (!folderId) return [];
+    const q = `'${escapeDriveQuery(folderId)}' in parents and trashed=false`;
+    const listUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&spaces=drive&fields=${encodeURIComponent('files(id,name,mimeType,modifiedTime)')}&orderBy=${encodeURIComponent('modifiedTime desc')}&pageSize=200`;
+    const listed = await driveFetch(listUrl, { accessToken, fetchImpl });
+    return Array.isArray(listed.files) ? listed.files : [];
+  }
+
+  async function backupJsonToBackupsFolder(accessToken, rootFolderId, backupFileName, jsonObj, { fetchImpl, maxKeep = 10 } = {}) {
+    if (!rootFolderId || !backupFileName) {
+      throw new Error('Thiếu rootFolderId hoặc tên tệp sao lưu.');
+    }
+    const backupsId = await findOrCreateSubfolder(accessToken, rootFolderId, '_backups', { fetchImpl });
+    const written = await writeJsonFileInFolder(accessToken, backupsId, backupFileName, jsonObj, { fetchImpl });
+    if (Number.isInteger(maxKeep) && maxKeep > 0) {
+      try {
+        const children = await listFolderChildren(accessToken, backupsId, { fetchImpl });
+        const jsonFiles = children
+          .filter(c => c && c.id && c.mimeType !== 'application/vnd.google-apps.folder')
+          .sort((a, b) => String(b.modifiedTime || '').localeCompare(String(a.modifiedTime || '')));
+        if (jsonFiles.length > maxKeep) {
+          for (const stale of jsonFiles.slice(maxKeep)) {
+            await driveFetch(
+              `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(stale.id)}`,
+              {
+                accessToken,
+                fetchImpl,
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+                body: JSON.stringify({ trashed: true })
+              }
+            ).catch(() => {});
+          }
+        }
+      } catch (e) {}
+    }
+    return { ...written, backupsFolderId: backupsId };
+  }
+
   function loadGisScript() {
     const g = typeof globalThis !== 'undefined' ? globalThis : null;
     if (g && g.google && g.google.accounts && g.google.accounts.oauth2) {
@@ -518,7 +710,13 @@
     makeDriveError,
     getUserProfile,
     findOrCreateFolder,
+    findOrCreateSubfolder,
+    ensureFolderPath,
     findWorkspaceFile,
+    listFolderChildren,
+    readJsonFileInFolder,
+    writeJsonFileInFolder,
+    backupJsonToBackupsFolder,
     readWorkspace,
     writeWorkspace,
     loadGisScript,

@@ -493,3 +493,59 @@ Khối: 9
     console.log('PASS matrix UI: tạo đề từ ma trận 2D và trích xuất Bảng 2 Đặc tả từ đề thi thành công (đã tự động gộp câu chung YCCĐ)');
   }
 }
+
+(async () => {
+  const container = {
+    innerHTML: '',
+    querySelector: () => null,
+    querySelectorAll: () => []
+  };
+  const calls = [];
+  await ui.mount(container, {
+    request: async () => ({
+      matrices: [
+        { id: 'M8', grade: 8, title: 'MT 8', status: 'draft', school_year: '2026-2027', profile: 'THCS', version: 1, slots: [] },
+        { id: 'M9', grade: 9, title: 'MT 9', status: 'draft', school_year: '2026-2027', profile: 'THCS', version: 1, slots: [] }
+      ]
+    }),
+    notify: () => {},
+    context: { subject_name: 'Tin học' },
+    ppct: { lessons: [] },
+    revisions: [],
+    exams: [],
+    activeGrade: 9,
+    activeGrades: [8, 9, 10],
+    onGradeChange: g => calls.push(g)
+  });
+
+  assert.equal(calls.length, 0, 'mount() must NOT invoke onGradeChange');
+  assert.ok(container.innerHTML.includes('Khối 8'));
+  assert.ok(container.innerHTML.includes('Khối 9'));
+  assert.ok(container.innerHTML.includes('Khối 10'));
+  assert.ok(!container.innerHTML.includes('Khối 6'));
+  assert.ok(!container.innerHTML.includes('Khối 7'));
+  assert.ok(!container.innerHTML.includes('Khối 11'));
+  assert.ok(!container.innerHTML.includes('Khối 12'));
+  assert.ok(container.innerHTML.includes('MT 9'));
+  assert.ok(!container.innerHTML.includes('MT 8'), 'Initial activeGrade 9 must filter out M8');
+
+  await container.onchange({
+    target: { id: 'mx-filter-grade', value: '10', dataset: { filter: 'grade' }, matches: () => false, closest: () => null }
+  });
+  assert.equal(calls[calls.length - 1], 10);
+
+  await container.onchange({
+    target: { id: 'mx-filter-grade', value: '', dataset: { filter: 'grade' }, matches: () => false, closest: () => null }
+  });
+  assert.equal(calls[calls.length - 1], 'all');
+  assert.ok(container.innerHTML.includes('MT 8') && container.innerHTML.includes('MT 9'), 'Filter "Tất cả khối" must show both M8 and M9');
+
+  await container.onchange({
+    target: { id: 'mx-create-grade', value: '8', dataset: {}, matches: () => false, closest: () => null }
+  });
+  assert.equal(calls[calls.length - 1], 8);
+  console.log('PASS matrix UI: đồng bộ không gian Khối lớp toàn cục 2 chiều thành công');
+})().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

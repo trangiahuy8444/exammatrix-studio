@@ -10,31 +10,31 @@
   <meta property="og:description" content="Hệ thống quản lý Ma trận, Bảng đặc tả, Đề cương và Đề thi chuẩn Thông tư Bộ GD&ĐT">
   <meta property="og:type" content="website">
   <title>ExamMatrix Studio · Khảo thí & Đánh giá</title>
-  <link rel="stylesheet" href="./styles.css?v=20261123v">
+  <link rel="stylesheet" href="./styles.css?v=20261123w">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-  <script src="./core.js?v=20261123v" defer></script>
-  <script src="./exam-comparison.js?v=20261123v" defer></script>
-  <script src="./competency-catalog.js?v=20261123v" defer></script>
-  <script src="./competency-catalog-ui.js?v=20261123v" defer></script>
-  <script src="./static-exam-engine.js?v=20261123v" defer></script>
-  <script src="./static-exam-workflow.js?v=20261123v" defer></script>
-  <script src="./static-exam-export.js?v=20261123v" defer></script>
-  <script src="./static-api.js?v=20261123v" defer></script>
-  <script src="./static-download.js?v=20261123v" defer></script>
-  <link rel="stylesheet" href="./matrices.css?v=20261123v">
-  <script src="./assessment-plan-model.js?v=20261123v" defer></script>
-  <script src="./table-file-helper.js?v=20261123v" defer></script>
-  <script src="./matrices.js?v=20261123v" defer></script>
-  <script src="./curricula.js?v=20261123v" defer></script>
-  <script src="./firebase-config.js?v=20261123v" defer></script>
-  <script src="./google-drive-config.js?v=20261123v" defer></script>
-  <script src="./google-drive-storage.js?v=20261123v" defer></script>
-  <script src="./cloud-storage-v2.js?v=20261123v" defer></script>
-  <script src="./firebase-bridge.js?v=20261123v" defer></script>
+  <script src="./core.js?v=20261123w" defer></script>
+  <script src="./exam-comparison.js?v=20261123w" defer></script>
+  <script src="./competency-catalog.js?v=20261123w" defer></script>
+  <script src="./competency-catalog-ui.js?v=20261123w" defer></script>
+  <script src="./static-exam-engine.js?v=20261123w" defer></script>
+  <script src="./static-exam-workflow.js?v=20261123w" defer></script>
+  <script src="./static-exam-export.js?v=20261123w" defer></script>
+  <script src="./static-api.js?v=20261123w" defer></script>
+  <script src="./static-download.js?v=20261123w" defer></script>
+  <link rel="stylesheet" href="./matrices.css?v=20261123w">
+  <script src="./assessment-plan-model.js?v=20261123w" defer></script>
+  <script src="./table-file-helper.js?v=20261123w" defer></script>
+  <script src="./matrices.js?v=20261123w" defer></script>
+  <script src="./curricula.js?v=20261123w" defer></script>
+  <script src="./firebase-config.js?v=20261123w" defer></script>
+  <script src="./google-drive-config.js?v=20261123w" defer></script>
+  <script src="./google-drive-storage.js?v=20261123w" defer></script>
+  <script src="./cloud-storage-v2.js?v=20261123w" defer></script>
+  <script src="./firebase-bridge.js?v=20261123w" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" defer></script>
-  <script src="./app.js?v=20261123v" defer></script>
+  <script src="./app.js?v=20261123w" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Đến nội dung chính</a>
@@ -61,7 +61,7 @@
     <a href="#exams" data-tab="exams" title="Tạo đề kiểm tra"><span class="nav-icon">📑</span><span class="nav-label">Tạo đề kiểm tra</span></a>
     <a href="#kttx" data-tab="kttx" title="Kiểm tra thường xuyên"><span class="nav-icon">🎯</span><span class="nav-label">Kiểm tra thường xuyên</span></a>
   </nav>
-  <div class="sidebar-foot"><span class="local-dot"></span> Lưu trữ Đám mây<p>Đồng bộ Firebase &amp; Google Drive phân tách độc lập theo từng Khối lớp.</p></div>
+  <div class="sidebar-foot"><span class="local-dot"></span> Lưu trữ trực tuyến<p>Tự động đồng bộ và sao lưu độc lập theo từng Khối lớp trên Google Drive.</p></div>
 </aside>
 <div id="sidebar-backdrop" class="sidebar-backdrop" aria-hidden="true"></div>
 <div class="workspace">
@@ -125,8 +125,8 @@
 <main id="main" tabindex="-1">
   <div id="offline-banner" hidden role="status" style="background:#eef6fd;border:1px solid #c6daed;border-radius:8px;color:#24364a;padding:12px 18px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px">
     <div style="min-width:240px;flex:1">
-      <strong style="font-size:14px">Chưa đăng nhập Đám mây</strong>
-      <p style="margin:2px 0 0;font-size:12px">Đăng nhập Google để tự động lưu và đồng bộ dữ liệu phân tách độc lập theo từng Khối lớp lên Firebase &amp; Google Drive (không lưu ngân hàng vào bộ nhớ tạm trình duyệt).</p>
+      <strong style="font-size:14px">Chưa đăng nhập tài khoản Google</strong>
+      <p style="margin:2px 0 0;font-size:12px">Đăng nhập tài khoản Google để tự động lưu và đồng bộ dữ liệu theo từng Khối lớp (không lưu vào bộ nhớ tạm trình duyệt).</p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button type="button" id="btn-offline-login" class="button primary" style="padding:5px 12px;font-size:12px;font-weight:600">Đăng nhập</button>

@@ -156,11 +156,11 @@
     pill.hidden = false;
     pill.className = `cloud-sync-pill cloud-pill-${state}`;
     pill.textContent = text || ({
-      synced: '☁ Đã lưu Cloud',
-      syncing: '⏳ Đang lưu Cloud…',
-      partial: '☁ Firebase ✓ · Drive cần gia hạn',
-      error: '⚠️ Lỗi đồng bộ Cloud',
-      offline: 'Chưa kết nối Cloud'
+      synced: '☁ Đã lưu trực tuyến',
+      syncing: '⏳ Đang lưu dữ liệu…',
+      partial: '☁ Đã lưu · Cần kết nối lại Drive',
+      error: '⚠️ Chưa lưu được',
+      offline: 'Chưa đăng nhập'
     }[state] || '');
   }
 
@@ -1663,14 +1663,14 @@
       throw new Error(wipeCheck.message);
     }
 
-    setCloudSyncPill('syncing', '⏳ Đang lưu Cloud…');
+    setCloudSyncPill('syncing', '⏳ Đang lưu dữ liệu…');
     try {
       await v2.firestoreWriteDiffV2(targetUid, db, helpers, beforeSlices, afterSlices, {
         ownerEmail: user.email || ''
       });
     } catch (err) {
-      setCloudSyncPill('error', '⚠️ Chưa lưu được Cloud');
-      throw new Error('Chưa lưu được lên Firebase Cloud (' + (err?.message || 'lỗi kết nối') + '). Vui lòng kiểm tra mạng và thử lại.');
+      setCloudSyncPill('error', '⚠️ Chưa lưu được');
+      throw new Error('Chưa lưu được dữ liệu trực tuyến (' + (err?.message || 'lỗi kết nối') + '). Vui lòng kiểm tra mạng và thử lại.');
     }
 
     lastSyncedSlicesV2 = afterSlices;
@@ -1689,21 +1689,21 @@
         folderCache: cloudFolderCacheV2
       }).then(() => {
         if (window.FirebaseState.user?.uid === targetUid) {
-          setCloudSyncPill('synced', '☁ Firebase ✓ · Drive ✓');
+          setCloudSyncPill('synced', '☁ Đã lưu · Drive ✓');
           updateDriveSyncButton();
         }
       }).catch((drvErr) => {
         if (window.FirebaseState.user?.uid !== targetUid) return;
         if (drvErr && (drvErr.code === 'DRIVE_AUTH_EXPIRED' || drvErr.status === 401)) {
           saveRuntimeDriveToken(targetUid, '', 0);
-          setCloudSyncPill('partial', '☁ Firebase ✓ · Drive cần gia hạn');
+          setCloudSyncPill('partial', '☁ Đã lưu · Cần kết nối lại Drive');
         } else {
-          setCloudSyncPill('partial', '☁ Firebase ✓ · Drive chờ đồng bộ');
+          setCloudSyncPill('partial', '☁ Đã lưu · Chờ đồng bộ Drive');
         }
         updateDriveSyncButton();
       });
     } else {
-      setCloudSyncPill('synced', '☁ Firebase ✓');
+      setCloudSyncPill('synced', '☁ Đã lưu trực tuyến');
     }
     updateDriveSyncButton();
   }
@@ -1739,7 +1739,7 @@
       applyWorkspaceToStore();
     };
 
-    setCloudSyncPill('syncing', '⏳ Đang tải từ Cloud…');
+    setCloudSyncPill('syncing', '⏳ Đang tải dữ liệu…');
     try {
       const fsV2 = await v2.firestoreReadWorkspaceV2(user.uid, db, helpers);
       if (window.FirebaseState.user?.uid !== user.uid) return null;
@@ -1748,7 +1748,7 @@
         installV2(fsV2.data, fsV2.slices);
         const driveTok = opts.driveAccessToken || loadRuntimeDriveToken(user.uid)?.accessToken || '';
         if (driveTok && window.GoogleDriveStorage) {
-          setCloudSyncPill('synced', '☁ Firebase ✓ · Drive ✓');
+          setCloudSyncPill('synced', '☁ Đã lưu · Drive ✓');
           // Đảm bảo thư mục v2 trên Drive đã có manifest (tự bù nếu lần đầu dùng máy mới)
           v2.driveReadWorkspaceV2(driveTok, window.GoogleDriveStorage, { folderName: driveCfg.folderName }).then(res => {
             if (!res.exists) {
@@ -1760,7 +1760,7 @@
             }
           }).catch(() => {});
         } else {
-          setCloudSyncPill('synced', '☁ Firebase ✓');
+          setCloudSyncPill('synced', '☁ Đã lưu trực tuyến');
         }
         if (status) { status.hidden = true; status.textContent = ''; }
         updateDriveSyncButton();
@@ -1823,9 +1823,9 @@
           ownerEmail: user.email || ''
         });
         installV2(migrated.data, migrated.slices);
-        setCloudSyncPill('synced', driveTok ? '☁ Firebase ✓ · Drive ✓' : '☁ Firebase ✓');
+        setCloudSyncPill('synced', driveTok ? '☁ Đã lưu · Drive ✓' : '☁ Đã lưu trực tuyến');
         if (status) { status.hidden = true; status.textContent = ''; }
-        showToast('Đã tự động nâng cấp dữ liệu sang cấu trúc mới theo từng Khối trên Đám mây!');
+        showToast('Đã tự động sắp xếp dữ liệu theo từng Khối trên hệ thống trực tuyến!');
         updateDriveSyncButton();
         return { source: legacySource, data: migrated.data };
       }
@@ -1844,18 +1844,18 @@
         await v2.firestoreWriteFullV2(user.uid, db, helpers, initialData, { ownerEmail: user.email || '' });
       }
       installV2(initialData, v2.splitWorkspaceIntoSlices(initialData));
-      setCloudSyncPill('synced', driveTok ? '☁ Firebase ✓ · Drive ✓' : '☁ Firebase ✓');
+      setCloudSyncPill('synced', driveTok ? '☁ Đã lưu · Drive ✓' : '☁ Đã lưu trực tuyến');
       if (status) {
         status.hidden = false;
-        status.textContent = `Đã kết nối tài khoản ${user.email || ''} (Lưu trữ Đám mây theo từng Khối). Bấm "☁ Đồng bộ Drive" nếu cần nhập dữ liệu từ tệp Drive cũ.`;
+        status.textContent = `Đã kết nối tài khoản ${user.email || ''} (lưu trữ trực tuyến theo từng Khối). Bấm "☁ Đồng bộ Drive" nếu cần nhập dữ liệu từ tệp Google Drive cũ.`;
       }
       updateDriveSyncButton();
       return { source: 'empty-v2', data: initialData };
     } catch (err) {
-      setCloudSyncPill('error', '⚠️ Lỗi tải Cloud');
+      setCloudSyncPill('error', '⚠️ Lỗi tải dữ liệu');
       if (status) {
         status.hidden = false;
-        status.textContent = 'Chưa tải được dữ liệu từ Firebase Cloud: ' + (err?.message || 'lỗi kết nối');
+        status.textContent = 'Chưa tải được dữ liệu trực tuyến: ' + (err?.message || 'lỗi kết nối');
       }
       return null;
     }
@@ -2420,7 +2420,7 @@
         window.FirebaseState.currentData = currentWorkspaceData;
         lastSyncedSlicesV2 = migrated.slices;
         applyWorkspaceToStore();
-        setCloudSyncPill('synced', '☁ Firebase ✓ · Drive ✓');
+        setCloudSyncPill('synced', '☁ Đã lưu · Drive ✓');
         showToast(`Đã tải & đồng bộ ${currentWorkspaceData.bank?.questions?.length || 0} câu hỏi từ Google Drive!`);
       } else {
         // Đẩy toàn bộ cấu trúc phân tách theo từng Khối lên Google Drive
@@ -2438,7 +2438,7 @@
           ownerEmail: user.email || '',
           folderCache: cloudFolderCacheV2
         });
-        setCloudSyncPill('synced', '☁ Firebase ✓ · Drive ✓');
+        setCloudSyncPill('synced', '☁ Đã lưu · Drive ✓');
         showToast(`Đã đồng bộ cấu trúc thư mục theo từng Khối (${currentWorkspaceData.bank?.questions?.length || 0} câu hỏi) lên Google Drive!`);
       }
       updateDriveSyncButton();
@@ -2446,9 +2446,9 @@
     } catch (err) {
       if (err && (err.code === 'DRIVE_AUTH_EXPIRED' || err.status === 401)) {
         saveRuntimeDriveToken(user.uid, '', 0);
-        setCloudSyncPill('partial', '☁ Firebase ✓ · Drive cần gia hạn');
+        setCloudSyncPill('partial', '☁ Đã lưu · Cần kết nối lại Drive');
       } else {
-        setCloudSyncPill('partial', '☁ Firebase ✓ · Drive lỗi đồng bộ');
+        setCloudSyncPill('partial', '☁ Đã lưu · Lỗi đồng bộ Drive');
       }
       updateDriveSyncButton();
       throw err;
@@ -2473,20 +2473,20 @@
             ☁️
           </div>
           <div>
-            <h3 style="margin:0;font-size:16px;font-weight:700;color:#102d4a;">ĐĂNG NHẬP ĐÁM MÂY (FIREBASE + DRIVE)</h3>
-            <p style="margin:2px 0 0;font-size:12px;color:#4a5568;">Giữ đăng nhập bền vững &amp; tự động lưu độc lập từng Khối lớp.</p>
+            <h3 style="margin:0;font-size:16px;font-weight:700;color:#102d4a;">ĐĂNG NHẬP TÀI KHOẢN GIÁO VIÊN</h3>
+            <p style="margin:2px 0 0;font-size:12px;color:#4a5568;">Giữ đăng nhập ổn định &amp; tự động lưu độc lập từng Khối lớp.</p>
           </div>
         </div>
 
         <div style="background:#f8fafc;border:1px solid #dce5ee;border-radius:8px;padding:10px 12px;font-size:12px;color:#334155;line-height:1.5;">
-          Dữ liệu được lưu an toàn theo cây thư mục <strong>Năm học → Môn → Khối</strong> trên Firebase Firestore và Google Drive (<code>ExamMatrix Studio/</code>) của riêng Thầy/Cô.
+          Dữ liệu được lưu an toàn theo cây thư mục <strong>Năm học → Môn → Khối</strong> trên hệ thống trực tuyến và Google Drive (<code>ExamMatrix Studio/</code>) của riêng Thầy/Cô.
         </div>
 
         <div id="fb-auth-error" style="color:#c92a2a;background:#fff5f5;padding:10px 14px;border-radius:8px;font-size:12px;display:none;line-height:1.45;border:1px solid #ffc9c9;"></div>
 
         <button type="button" id="fb-btn-google" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 16px;background:#ffffff;border:1px solid #0267b1;border-radius:8px;font-size:13.5px;font-weight:600;color:#0f172a;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
           <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.347 2.825.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
-          <span>Đăng nhập bằng Google (Firebase + Drive)</span>
+          <span>Đăng nhập bằng tài khoản Google</span>
         </button>
 
         <details style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:12px;color:#475569;">
@@ -2517,13 +2517,13 @@
     const mapAuthErr = (err) => {
       const code = err?.code || '';
       if (code.includes('unauthorized-domain')) {
-        return `Tên miền "${window.location.hostname}" chưa có trong Authorized domains của Firebase Auth.`;
+        return `Tên miền "${window.location.hostname}" chưa được cấp quyền đăng nhập trong cấu hình hệ thống.`;
       }
       if (code.includes('popup-blocked')) {
-        return 'Trình duyệt đang chặn cửa sổ bật lên (popup). Hãy cho phép popup rồi thử lại.';
+        return 'Trình duyệt đang chặn cửa sổ bật lên. Hãy cho phép cửa sổ bật lên rồi thử lại.';
       }
       if (code.includes('operation-not-allowed')) {
-        return 'Phương thức đăng nhập này chưa được bật trong Firebase Console.';
+        return 'Phương thức đăng nhập này chưa được kích hoạt trong cấu hình hệ thống.';
       }
       return err?.message || 'Không đăng nhập được.';
     };
@@ -3324,19 +3324,19 @@
     function friendlyAuthError(err) {
       const code = err.code || '';
       if (code.includes('operation-not-allowed')) {
-        return 'Chưa bật phương thức này trong Firebase Console. Thầy vui lòng vào Firebase Console > Authentication > Sign-in method và Bật (Enable) Email/Password hoặc Google.';
+        return 'Phương thức đăng nhập này chưa được kích hoạt. Vui lòng liên hệ quản trị viên để bật đăng nhập bằng Google hoặc Email.';
       }
       if (code.includes('unauthorized-domain')) {
-        return 'Tên miền "' + window.location.hostname + '" chưa được phép đăng nhập. Quản trị viên cần vào Firebase Console > Authentication > Settings > Authorized domains và thêm tên miền này. Trong lúc chờ, Thầy/Cô vẫn dùng được chế độ ngoại tuyến.';
+        return 'Tên miền "' + window.location.hostname + '" chưa được cấp quyền đăng nhập. Vui lòng liên hệ quản trị viên.';
       }
       if (code.includes('network-request-failed')) {
-        return 'Không kết nối được mạng. Thầy/Cô vẫn dùng được chế độ ngoại tuyến; dữ liệu lưu ngay trên trình duyệt này.';
+        return 'Không kết nối được mạng. Vui lòng kiểm tra đường truyền Internet rồi thử lại.';
       }
       if (code.includes('too-many-requests')) {
         return 'Thử đăng nhập quá nhiều lần. Vui lòng đợi vài phút rồi thử lại.';
       }
       if (code.includes('invalid-api-key') || code.includes('api-key-not-valid')) {
-        return 'Khóa cấu hình Firebase không hợp lệ. Vui lòng liên hệ quản trị viên.';
+        return 'Cấu hình kết nối hệ thống không hợp lệ. Vui lòng liên hệ quản trị viên.';
       }
       if (code.includes('popup-closed-by-user')) {
         return 'Cửa sổ đăng nhập Google đã đóng.';

@@ -122,6 +122,30 @@
     }
   }
 
+  function findBestAvailableCache() {
+    let best = null;
+    let maxQuestions = 0;
+    try {
+      if (typeof localStorage === 'undefined') return null;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(localCacheKey)) {
+          const raw = localStorage.getItem(k);
+          if (!raw) continue;
+          try {
+            const val = JSON.parse(raw);
+            const qCount = val?.bank?.questions?.length || 0;
+            if (qCount > maxQuestions) {
+              maxQuestions = qCount;
+              best = val;
+            }
+          } catch (e) {}
+        }
+      }
+    } catch (e) {}
+    return best;
+  }
+
   const IDB_NAME = 'exammatrix_drive_cache_v1';
   const IDB_STORE = 'workspaces';
 
@@ -220,9 +244,14 @@
 
   function initLocalWorkspace() {
     try {
-      // Chỉ nạp dữ liệu ngoại tuyến. Dữ liệu của từng tài khoản được nạp riêng khi đăng nhập,
-      // để người dùng chưa đăng nhập không nhìn thấy dữ liệu của tài khoản khác trên cùng máy.
-      const cached = getStorageData('offline');
+      // Ưu tiên nạp dữ liệu ngoại tuyến; nếu ngoại tuyến rỗng mà trên trình duyệt có lưu cache câu hỏi của tài khoản trước đó thì tự động cứu hộ để không bị mất dữ liệu.
+      let cached = getStorageData('offline');
+      if (!cached || !cached.bank?.questions?.length) {
+        const rescued = findBestAvailableCache();
+        if (rescued && rescued.bank?.questions?.length) {
+          cached = rescued;
+        }
+      }
       if (cached) {
         if (cached.bank?.questions) currentWorkspaceData.bank.questions = cached.bank.questions;
         if (cached.bank?.ppct) currentWorkspaceData.bank.ppct = cached.bank.ppct;
@@ -1601,21 +1630,32 @@
     saveDriveSession(session);
 
     if (result.exists && valid(result.data)) {
-      install({
-        bank: result.data.bank,
-        exams: result.data.exams,
-        revisions: result.data.revisions,
-        matrices: result.data.matrices,
-        kttx: Array.isArray(result.data.kttx) ? result.data.kttx : [],
-        _sync: { pending: false, provider: 'google-drive', synced_at: result.updatedAt || new Date().toISOString() }
-      });
-      await trySaveLocalCache(user.uid, currentWorkspaceData);
+      const remoteQuestions = result.data.bank?.questions || [];
+      const localQuestions = currentWorkspaceData.bank?.questions || [];
+      if (remoteQuestions.length === 0 && localQuestions.length > 0) {
+        console.info('[Firebase Bridge] Giữ lại các câu hỏi trên máy vì tệp Drive từ xa đang trống.');
+        currentWorkspaceData._sync = { pending: true, provider: 'google-drive' };
+        await trySaveLocalCache(user.uid, currentWorkspaceData);
+      } else {
+        install({
+          bank: result.data.bank,
+          exams: result.data.exams,
+          revisions: result.data.revisions,
+          matrices: result.data.matrices,
+          kttx: Array.isArray(result.data.kttx) ? result.data.kttx : [],
+          _sync: { pending: false, provider: 'google-drive', synced_at: result.updatedAt || new Date().toISOString() }
+        });
+        await trySaveLocalCache(user.uid, currentWorkspaceData);
+      }
       if (status) {
         status.hidden = false;
         status.textContent = `Đã tải dữ liệu từ Google Drive riêng của bạn (${driveCfg.folderName}/${driveCfg.fileName}).`;
       }
     } else {
-      currentWorkspaceData._sync = { pending: false, provider: 'google-drive' };
+      currentWorkspaceData._sync = {
+        pending: Boolean(currentWorkspaceData.bank?.questions?.length > 0),
+        provider: 'google-drive'
+      };
       await trySaveLocalCache(user.uid, currentWorkspaceData);
       if (status) {
         status.hidden = false;

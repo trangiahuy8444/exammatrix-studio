@@ -1687,7 +1687,7 @@ window.SUBJECT_CURRICULA = {
         "Trình bày được công việc đặc thù và sản phẩm chính của người làm tin học trong ít nhất ba nhóm nghề.",
         "Nêu và giải thích được ý kiến cá nhân (thích hay không thích, ... ) về một nhóm nghề nào đó.",
         "Nhận biết được đặc trưng cơ bản của nhóm nghề thuộc hướng Tin học ứng dụng và nhóm nghề thuộc hướng Khoa học máy tính.",
-        "Tìm hiểu được (thông qua Internet và những kênh thông tin khác) công việc ở một số doanh nghiệp, công ti có sử dụng nhân lực thuộc cácnhóm ngành đã được giới thiệu.",
+        "Tìm hiểu được (thông qua Internet và những kênh thông tin khác) công việc ở một số doanh nghiệp, công ti có sử dụng nhân lực thuộc các nhóm ngành đã được giới thiệu.",
         "Giải thích được cả nam và nữ đều có thể thích hợp với các ngành nghề trong lĩnh vực tin học."
       ]
     }

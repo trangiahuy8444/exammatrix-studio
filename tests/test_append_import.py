@@ -60,6 +60,15 @@ class AppendImportTests(unittest.TestCase):
         with self.assertRaises(ServiceError):
             self.svc.append_questions([mc(q['question'])])
 
+    def test_append_fuzzy_outcome_normalization(self):
+        res = self.svc.append_questions([
+            mc('Câu với dấu chấm và chữ thường?', code='B8a'),
+            dict(mc('Câu chứa cụm từ chính?', code='B8a'), learning_outcome='Học sinh nhận biết dữ liệu trong bài học')
+        ])
+        qs = res['bank']['questions']
+        self.assertEqual(qs[-2]['learning_outcome'], 'Xử lí dữ liệu.')
+        self.assertEqual(qs[-1]['learning_outcome'], 'Nhận biết dữ liệu.')
+
 
 if __name__ == '__main__':
     unittest.main()

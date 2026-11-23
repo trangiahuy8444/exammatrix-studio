@@ -29,3 +29,18 @@ test('Pages: một câu sai thì không ghi câu nào và báo số thứ tự',
  }
  await assert.rejects(api.handle('/api/bank/import',{mode:'append',bank:{questions:[mc('Câu cũ?')]}},data(),env),/Không có câu mới/);
 });
+
+test('Pages: YCCĐ lệch dấu, viết tắt cụm từ hoặc gõ dính chữ được tự động chuẩn hoá khớp PPCT', async()=>{
+ const r = await api.handle('/api/bank/import', {
+  mode: 'append',
+  bank: {
+   questions: [
+    mc('Câu hỏi với YCCĐ viết hoa thường và chấm câu khác?', { learning_outcome: 'nhận biết dữ liệu.' }),
+    mc('Câu hỏi với YCCĐ chứa cụm từ chính xác?', { learning_outcome: 'Học sinh thực hiện xử lí dữ liệu số liệu' })
+   ]
+  }
+ }, data(), env);
+ const qs = r.data.bank.questions;
+ assert.equal(qs[1].learning_outcome, 'Nhận biết dữ liệu');
+ assert.equal(qs[2].learning_outcome, 'Xử lí dữ liệu');
+});

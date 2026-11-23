@@ -289,6 +289,38 @@ class BankService:
             raise ServiceError(f'{label} không được để trống.')
         return value.strip()
 
+    @staticmethod
+    def _match_outcome(target, outcomes):
+        if not target or not outcomes:
+            return None
+        if target in outcomes:
+            return target
+        import re, unicodedata
+        def clean(s):
+            norm = unicodedata.normalize('NFC', str(s or '').casefold())
+            return re.sub(r'[\W_]+', ' ', norm, flags=re.UNICODE).strip()
+        clean_target = clean(target)
+        if not clean_target:
+            return None
+        for o in outcomes:
+            if clean(o) == clean_target:
+                return o
+        if len(clean_target) >= 15:
+            for o in outcomes:
+                co = clean(o)
+                if co in clean_target or clean_target in co:
+                    return o
+        target_tokens = set(w for w in clean_target.split() if len(w) > 2)
+        best, best_score = None, 0
+        for o in outcomes:
+            o_tokens = set(w for w in clean(o).split() if len(w) > 2)
+            common = len(target_tokens & o_tokens)
+            score = common / max(1, len(target_tokens))
+            if score > best_score and common >= 2 and score >= 0.35:
+                best_score = score
+                best = o
+        return best
+
     def _validate_question(self, raw):
         if not isinstance(raw, dict):
             raise ServiceError('Câu hỏi phải là một đối tượng JSON.')
@@ -316,7 +348,10 @@ class BankService:
         if not lesson:
             raise ServiceError('Bài học không thuộc PPCT của khối.', {'lesson_code': q.get('lesson_code')})
         if lesson.get('outcomes') and q.get('learning_outcome') and q.get('learning_outcome') not in lesson.get('outcomes', []):
-            if q.get('review_status') != 'draft':
+            matched = self._match_outcome(q.get('learning_outcome'), lesson.get('outcomes', []))
+            if matched:
+                q['learning_outcome'] = matched
+            elif q.get('review_status') != 'draft':
                 raise ServiceError('Yêu cầu cần đạt phải thuộc bài học trong PPCT.')
         if q.get('level') not in ALLOWED_LEVELS:
             raise ServiceError('Mức độ câu hỏi không hợp lệ.')
@@ -655,8 +690,13 @@ class BankService:
                     lesson = self.lessons.get((subj, grade, code)) or self.lessons.get((grade, code))
                     if not lesson:
                         raise ServiceError(f'Bài {code or "(trống)"} không có trong PPCT khối {grade}. Kiểm tra mã bài hoặc khối đang chọn.')
-                    if q.get('learning_outcome') and q['learning_outcome'] not in (lesson.get('outcomes') or []):
-                        raise ServiceError(f'Yêu cầu cần đạt không khớp với PPCT của bài {code}, khối {grade}.')
+                    outcomes = lesson.get('outcomes') or []
+                    if outcomes and q.get('learning_outcome'):
+                        matched = self._match_outcome(q.get('learning_outcome'), outcomes)
+                        if matched:
+                            q['learning_outcome'] = matched
+                        else:
+                            raise ServiceError(f'Yêu cầu cần đạt không khớp với PPCT của bài {code}, khối {grade}.')
                     q['review_status'] = 'draft'
                     q['origin'] = q.get('origin') or 'teacher'
                     if not q.get('id') or q['id'] in existing_ids or q['id'] in seen:

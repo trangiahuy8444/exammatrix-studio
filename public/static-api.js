@@ -146,6 +146,32 @@
    if(!Array.isArray(incoming)||!incoming.length)fail('Tệp nhập chưa có câu hỏi hợp lệ.');
    const norm=x=>String(x==null?'':x).normalize('NFC').toLowerCase().trim().replace(/\s+/gu,' ');
    const subj=l=>l.subject_name||'Tin học';
+   const cleanText=s=>String(s||'').normalize('NFC').toLowerCase().replace(/[\s\p{P}]+/gu,' ').trim();
+   const matchOutcome=(target,outcomes)=>{
+    if(!target||!Array.isArray(outcomes)||!outcomes.length)return null;
+    if(outcomes.includes(target))return target;
+    const cleanTarget=cleanText(target);
+    if(!cleanTarget)return null;
+    const exactClean=outcomes.find(o=>cleanText(o)===cleanTarget);
+    if(exactClean)return exactClean;
+    if(cleanTarget.length>=15){
+     const subClean=outcomes.find(o=>{
+      const co=cleanText(o);
+      return co.includes(cleanTarget)||cleanTarget.includes(co);
+     });
+     if(subClean)return subClean;
+    }
+    const targetTokens=new Set(cleanTarget.split(' ').filter(w=>w.length>2));
+    let best=null,bestScore=0;
+    for(const o of outcomes){
+     const oTokens=new Set(cleanText(o).split(' ').filter(w=>w.length>2));
+     let common=0;
+     for(const t of targetTokens){if(oTokens.has(t))common++;}
+     const score=common/Math.max(1,targetTokens.size);
+     if(score>bestScore&&common>=2&&score>=0.35){bestScore=score;best=o;}
+    }
+    return best;
+   };
    const existingText=new Set(bank.map(q=>Number(q.grade)+'|'+norm(q.question)));
    const existingIds=new Set(bank.map(q=>q.id));
    const added=[],skipped=[],errors=[],seen=new Set();
@@ -160,7 +186,12 @@
       const lesson=lessons.find(l=>l.lesson_code===code)||lessons.find(l=>String(l.lesson_code).toLowerCase()===code.toLowerCase());
       if(!lesson)fail(`Bài ${code||'(trống)'} không có trong PPCT khối ${q.grade}. Kiểm tra mã bài hoặc khối đang chọn.`);
       q.lesson_code=lesson.lesson_code;
-      if(q.learning_outcome&&!(lesson.outcomes||[]).includes(q.learning_outcome))fail(`Yêu cầu cần đạt không khớp với PPCT của bài ${lesson.lesson_code}, khối ${q.grade}.`);
+      const outcomes=lesson.outcomes||[];
+      if(outcomes.length&&q.learning_outcome){
+       const matched=matchOutcome(q.learning_outcome,outcomes);
+       if(matched)q.learning_outcome=matched;
+       else fail(`Yêu cầu cần đạt không khớp với PPCT của bài ${lesson.lesson_code}, khối ${q.grade}.`);
+      }
      }
      const problems=workflow.technicalProblems?workflow.technicalProblems({...q,learning_outcome:q.learning_outcome||'-'}):[];
      if(problems.length)fail(problems.join(' '));

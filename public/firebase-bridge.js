@@ -1887,32 +1887,7 @@
     const loginBtn = document.getElementById('btn-offline-login');
     const backupBtn = document.getElementById('btn-offline-backup');
     const restoreBtn = document.getElementById('btn-offline-restore');
-    const rescueBtn = document.getElementById('btn-offline-rescue');
     const fileInput = document.getElementById('offline-restore-file');
-    if (rescueBtn) {
-      rescueBtn.onclick = async () => {
-        try {
-          rescueBtn.disabled = true;
-          rescueBtn.textContent = '⏳ Đang quét...';
-          const res = await window.FirebaseClient.rescueBestCache();
-          if (res.found && res.data) {
-            const msg = `Tìm thấy bản dữ liệu trong bộ nhớ đệm: ${res.questionsCount} câu hỏi, ${res.ppctCount} bài PPCT, ${res.examsCount} đề thi, ${res.matricesCount} ma trận.\n\nKhôi phục dữ liệu này vào không gian làm việc hiện tại?`;
-            if (confirm(msg)) {
-              await window.FirebaseClient.applyRescuedCache(res.data);
-              showToast(`Đã khôi phục thành công ${res.questionsCount} câu hỏi và ${res.ppctCount} bài PPCT!`);
-              if (typeof window.render === 'function') window.render();
-            }
-          } else {
-            showToast('Không tìm thấy bản dữ liệu cũ nào trong bộ nhớ đệm trình duyệt này.', 'error');
-          }
-        } catch (e) {
-          showToast('Lỗi khi quét cứu hộ: ' + (e.message || e), 'error');
-        } finally {
-          rescueBtn.disabled = false;
-          rescueBtn.textContent = '🆘 Cứu hộ bộ nhớ đệm';
-        }
-      };
-    }
     if (loginBtn) {
       loginBtn.onclick = () => {
         if (document.getElementById('firebase-login-modal')) showLoginModal(true);

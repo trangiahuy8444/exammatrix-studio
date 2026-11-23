@@ -638,9 +638,7 @@ function renderOverview(){
    ? `${active.filter(q=>q.type==='MC').length} trắc nghiệm · ${active.filter(q=>q.type==='ES').length} tự luận`
    : `${archivedCount} câu đang lưu trữ — Bấm nút bên dưới để khôi phục`;
 
- const rescueContainerHtml = '<div id="overview-rescue-container"></div>';
-
- $('#overview').innerHTML=rescueContainerHtml+(!qs.length?`<div class="card"><h2>Bắt đầu ngân hàng môn ${esc(s)} của bạn</h2><p>1. Thiết lập phân phối chương trình môn ${esc(s)}. 2. Soạn câu hỏi. 3. Chuẩn bị đề cương, lập ma trận và tạo đề.</p><a class="button primary" href="#ppct">Quản lý PPCT ${esc(s)}</a> <a class="button" href="#bank">Soạn câu hỏi mới</a></div>`:'')+
+ $('#overview').innerHTML=(!qs.length?`<div class="card"><h2>Bắt đầu ngân hàng môn ${esc(s)} của bạn</h2><p>1. Thiết lập phân phối chương trình môn ${esc(s)}. 2. Soạn câu hỏi. 3. Chuẩn bị đề cương, lập ma trận và tạo đề.</p><a class="button primary" href="#ppct">Quản lý PPCT ${esc(s)}</a> <a class="button" href="#bank">Soạn câu hỏi mới</a></div>`:'')+
  title(`Không gian chuyên môn · ${s}`,'Mỗi câu hỏi, một căn cứ rõ ràng',`Quản lí nội dung môn ${s} theo chương trình GDPT 2018. Chuẩn bị đề cương và tạo đề có kiểm tra ma trận.`,`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><label for="overview-grade-select" class="small muted" style="font-weight:600">Khối lớp:</label><select id="overview-grade-select" style="min-height:38px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff">${opt('all','Tất cả khối (6 - 12)',ovGrade==='all')}${gradeOptions(ovGrade)}</select><a class="button primary" href="#bank">Mở ngân hàng ${esc(s)}</a></div>`)+
  bannerHtml+
  `<div class="stats"><div class="stat"><strong>${displayQCount}</strong><span>${qCountLabel}</span><small>${qCountDetail}</small></div><div class="stat"><strong>${ready.length || (active.length === 0 ? archivedCount : 0)}</strong><span>Câu đủ điều kiện tạo đề</span><small>Mẫu đã duyệt hoặc tự kiểm tra</small></div><div class="stat"><strong>${revs.length}</strong><span>Phiên bản đề cương</span><small>Môn ${esc(s)}</small></div><div class="stat"><strong>${exms.length}</strong><span>Đề kiểm tra đã lưu</span><small>Môn ${esc(s)}</small></div></div>`+
@@ -687,51 +685,6 @@ function renderOverview(){
    btnGoArchived.onclick = () => {
      store.filters.status = 'archived';
    };
- }
-
- // Tự động kiểm tra cứu hộ dữ liệu nếu màn hình đang trống (0 câu hỏi)
- if (qs.length === 0 && typeof window.FirebaseClient?.rescueBestCache === 'function') {
-   window.FirebaseClient.rescueBestCache().then(res => {
-     const container = $('#overview-rescue-container');
-     if (container && res && res.found && (res.questionsCount > 0 || res.ppctCount > 0)) {
-       container.innerHTML = `
-         <div class="card" style="background:#fffbeb;border:2px solid #f59e0b;border-radius:12px;padding:16px 20px;margin-bottom:18px;box-shadow:0 4px 14px rgba(245,158,11,0.18)">
-           <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap">
-             <div style="font-size:36px">🆘</div>
-             <div style="flex:1;min-width:280px">
-               <h3 style="margin:0 0 6px;color:#92400e;font-size:16px;font-weight:700">
-                 Phát hiện bản dữ liệu an toàn trên trình duyệt của Thầy/Cô!
-               </h3>
-               <p style="margin:0 0 10px;font-size:13px;color:#78350f;line-height:1.5">
-                 Hệ thống tìm thấy bộ nhớ đệm gồm <strong>${res.questionsCount} câu hỏi</strong>, <strong>${res.ppctCount} bài PPCT</strong>, <strong>${res.examsCount} đề thi</strong> từ phiên làm việc trước. Thầy/Cô chỉ cần bấm nút bên dưới để khôi phục lại 100% dữ liệu ngay lập tức mà không cần nạp lại từ đầu!
-               </p>
-               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-                 <button type="button" class="button primary" id="btn-rescue-data-now" style="background:#0267B1;border-color:#0267B1;color:#fff;font-weight:700;padding:8px 20px;font-size:13.5px">
-                   🔄 Khôi phục ngay toàn bộ dữ liệu này
-                 </button>
-               </div>
-             </div>
-           </div>
-         </div>
-       `;
-       const rescueBtn = $('#btn-rescue-data-now');
-       if (rescueBtn) {
-         rescueBtn.onclick = async () => {
-           rescueBtn.disabled = true;
-           rescueBtn.textContent = '⏳ Đang khôi phục...';
-           try {
-             await window.FirebaseClient.applyRescuedCache(res.data);
-             notify(`🎉 Đã khôi phục thành công ${res.questionsCount} câu hỏi và ${res.ppctCount} bài PPCT!`);
-             render();
-           } catch (err) {
-             notify('Lỗi khôi phục: ' + (err.message || err), true);
-             rescueBtn.disabled = false;
-             rescueBtn.textContent = '🔄 Khôi phục ngay toàn bộ dữ liệu này';
-           }
-         };
-       }
-     }
-   }).catch(() => {});
  }
 }
   function nlsCodeForGrade(g) {

@@ -106,6 +106,36 @@ async function main(){
  assert.equal(importedAi.response.matrix.slots.find(s=>s.kind==='ES').number,1);
  const lockedAi=await api.handle('/api/matrices/lock',{id:importedAi.response.matrix.id,expected_revision:importedAi.response.matrix.revision,confirmation:{confirmed_by:'GV',confirmed_at:'2026-11-22',external_agreement:true}},importedAi.data,env);
  assert.equal(lockedAi.response.matrix.status,'locked');
+
+ // Hồi quy: /api/exams/from-matrix phải tự điền grade/exam_type/subject_name từ matrix_id nếu máy khách bỏ qua, nhưng vẫn chặn nếu truyền sai khối
+ const fmData=fixture();
+ fmData.matrices[0].status='locked';
+ const fmRes=await api.handle('/api/exams/from-matrix',{
+  matrix_id:'M1',
+  title:'Đề từ Ma trận 2D thiếu grade',
+  campus:'Cao Thắng',
+  exam_code:'101',
+  seed:'2026',
+  placements:[
+   {slot_id:'S1',question_id:'Q1',reviewed_part_ids:['P1']},
+   {slot_id:'S2',question_id:'Q2',reviewed_part_ids:['P2']}
+  ]
+ },fmData,env);
+ assert.equal(fmRes.response.exam.grade,9);
+ assert.equal(fmRes.response.exam.exam_type,'GK1');
+ assert.equal(fmRes.response.exam.subject_name,'Tin học');
+ assert.equal(fmRes.response.exam.total_points,10);
+ await assert.rejects(api.handle('/api/exams/from-matrix',{
+  matrix_id:'M1',
+  grade:8,
+  title:'Đề sai khối',
+  campus:'Cao Thắng',
+  exam_code:'101',
+  placements:[
+   {slot_id:'S1',question_id:'Q1',reviewed_part_ids:['P1']},
+   {slot_id:'S2',question_id:'Q2',reviewed_part_ids:['P2']}
+  ]
+ },fmData,env));
  console.log('PASS static API: ma trận → đề cương → sinh thật → khóa → phát hành; lỗi nguyên tử, bất biến snapshot và không tự duyệt câu');
 }
 if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1;});

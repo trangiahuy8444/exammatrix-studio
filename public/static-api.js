@@ -285,7 +285,19 @@
    put(data.revisions,revision);return result({revision,revisions:data.revisions},true);
   }
   if(path==='/api/exams/generate'||path==='/api/exams/from-matrix'){
-   const exam=clone(engine.generateExam(data,{...p,subject_name:subject}));exam.created_at=now();exam.verification=verification(exam);put(data.exams,exam);return result({exam,exams:data.exams},true);
+   const genPayload={...p,subject_name:p.subject_name||subject};
+   if(genPayload.matrix_id){
+    const targetMatrix=data.matrices.find(m=>m.id===genPayload.matrix_id);
+    if(targetMatrix){
+     if(genPayload.grade===undefined||genPayload.grade===null||genPayload.grade==='')genPayload.grade=Number(targetMatrix.grade);
+     if(!genPayload.exam_type)genPayload.exam_type=targetMatrix.exam_type;
+     if(genPayload.duration===undefined||genPayload.duration===null||genPayload.duration==='')genPayload.duration=Number(targetMatrix.duration||45);
+     if(!p.subject_name&&targetMatrix.subject_name)genPayload.subject_name=targetMatrix.subject_name;
+    }
+   }
+   if(genPayload.grade!==undefined&&genPayload.grade!==null&&genPayload.grade!=='')genPayload.grade=Number(genPayload.grade);
+   if(genPayload.duration!==undefined&&genPayload.duration!==null&&genPayload.duration!=='')genPayload.duration=Number(genPayload.duration);
+   const exam=clone(engine.generateExam(data,genPayload));exam.created_at=now();exam.verification=verification(exam);put(data.exams,exam);return result({exam,exams:data.exams},true);
   }
   if(path==='/api/exams/generate-set'){
    const count=Number(p.exam_count);if(!Number.isInteger(count)||count<1||count>6)fail('Số đề trong bộ phải từ 1 đến 6.');

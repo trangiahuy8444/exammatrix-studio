@@ -545,6 +545,148 @@ Khối: 9
   });
   assert.equal(calls[calls.length - 1], 8);
   console.log('PASS matrix UI: đồng bộ không gian Khối lớp toàn cục 2 chiều thành công');
+
+  // Kiểm tra luồng "Tự động chọn câu & Tạo đề ngay" (scarce overlapping matching + gửi đủ grade/exam_type/subject_name/duration + reviewed_part_ids)
+  {
+    const els = new Map();
+    let reviewCheckboxes = [];
+    const makeEl = (props = {}) => ({
+      value: '',
+      checked: false,
+      innerHTML: '',
+      textContent: '',
+      dataset: {},
+      disabled: false,
+      matches: () => false,
+      closest: () => null,
+      ...props
+    });
+    const syncWorkElements = (html) => {
+      reviewCheckboxes = [];
+      for (const m of String(html || '').matchAll(/<(input|select)\b([^>]*)>/g)) {
+        const attrs = m[2];
+        const id = attrs.match(/\bid="([^"]*)"/)?.[1] || '';
+        const val = attrs.match(/\bvalue="([^"]*)"/)?.[1] || '';
+        const choice = attrs.match(/\bdata-choice="([^"]*)"/)?.[1] || '';
+        const reviewSlot = attrs.match(/\bdata-review-slot="([^"]*)"/)?.[1] || '';
+        const isChk = /\btype="checkbox"/.test(attrs);
+        const dataset = {};
+        if (choice) dataset.choice = choice;
+        if (reviewSlot) dataset.reviewSlot = reviewSlot;
+        const el = makeEl({ id, value: val, dataset, type: isChk ? 'checkbox' : undefined });
+        if (id) els.set('#' + id, el);
+        if (reviewSlot) reviewCheckboxes.push(el);
+      }
+      for (const m of String(html || '').matchAll(/<(div|span)\b[^>]*\bid="(mx-choice-detail-[^"]+|mx-coverage|mx-created-exam)"[^>]*>/g)) {
+        const id = m[2];
+        if (!els.has('#' + id)) els.set('#' + id, makeEl({ id }));
+      }
+    };
+    const workEl = makeEl({ id: 'mx-work' });
+    Object.defineProperty(workEl, 'innerHTML', {
+      get() { return this._html || ''; },
+      set(v) { this._html = v; syncWorkElements(v); }
+    });
+    els.set('#mx-work', workEl);
+
+    const genContainer = {
+      _html: '',
+      get innerHTML() { return this._html; },
+      set innerHTML(v) { this._html = v; },
+      querySelector(sel) { return els.get(sel) || null; },
+      querySelectorAll(sel) {
+        if (sel === '[data-review-slot]') return reviewCheckboxes;
+        return [];
+      }
+    };
+
+    const requests = [];
+    const scarceMatrix = {
+      id: 'MX-SCARCE',
+      title: 'Ma trận GK1 Khối 9',
+      grade: 9,
+      subject_name: 'Tin học',
+      exam_type: 'GK1',
+      duration: 45,
+      status: 'locked',
+      profile: 'THCS',
+      school_year: '2026-2027',
+      version: 1,
+      revision: 1,
+      slots: [
+        { id: 'S1', number: 1, kind: 'MC', parts: [{ id: 'P1', requirement_id: 'R1', points: 5 }] },
+        { id: 'S2', number: 2, kind: 'MC', parts: [{ id: 'P2', requirement_id: 'R1', points: 5 }] }
+      ],
+      requirements: [{ id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'Nhận biết CPU' }]
+    };
+    const q1 = { id: 'Q1', question: 'Câu 1 chung?', options: ['A', 'B', 'C', 'D'], correct: 0, learning_outcome: 'Nhận biết CPU' };
+    const q2 = { id: 'Q2', question: 'Câu 2 dự phòng?', options: ['A', 'B', 'C', 'D'], correct: 1, learning_outcome: 'Nhận biết CPU' };
+
+    await ui.mount(genContainer, {
+      request: async (path, body) => {
+        requests.push({ path, body });
+        if (path === '/api/matrices') return { matrices: [scarceMatrix] };
+        if (path === '/api/matrices/MX-SCARCE') return { matrix: scarceMatrix, validation: { valid: true, errors: [] } };
+        if (path === '/api/matrices/MX-SCARCE/candidates') {
+          return {
+            matrix: scarceMatrix,
+            slots: [
+              { slot: scarceMatrix.slots[0], requirements: [scarceMatrix.requirements[0]], candidates: [q1, q2] },
+              { slot: scarceMatrix.slots[1], requirements: [scarceMatrix.requirements[0]], candidates: [q1] }
+            ]
+          };
+        }
+        if (path === '/api/exams/from-matrix') {
+          return {
+            exam: {
+              id: 'EX-AUTO-1',
+              grade: body.grade,
+              campus: body.campus,
+              exam_code: body.exam_code,
+              question_count: body.placements.length,
+              revision_match_count: 0,
+              matrix_version: 1
+            }
+          };
+        }
+        return {};
+      },
+      notify: () => {},
+      context: { subject_name: 'Tin học' },
+      ppct: { lessons: [] },
+      revisions: [],
+      exams: [],
+      activeGrade: 9,
+      activeGrades: [8, 9, 10]
+    });
+
+    const mkBtn = (action, extra = {}) => ({
+      dataset: { action, ...extra },
+      matches: () => false,
+      closest: (s) => (s === '[data-action]' ? { dataset: { action, ...extra } } : null)
+    });
+    const mkOpenBtn = (id) => ({
+      dataset: { open: id },
+      matches: () => false,
+      closest: (s) => (s === '[data-open]' ? { dataset: { open: id } } : null)
+    });
+
+    await genContainer.onclick({ preventDefault: () => {}, target: mkOpenBtn('MX-SCARCE') });
+    await genContainer.onclick({ preventDefault: () => {}, target: mkBtn('use') });
+    await genContainer.onclick({ preventDefault: () => {}, target: mkBtn('quick-generate-exam') });
+
+    const genCall = requests.find(r => r.path === '/api/exams/from-matrix');
+    assert.ok(genCall, 'Phải gọi /api/exams/from-matrix khi bấm Tự động chọn câu & Tạo đề ngay');
+    assert.equal(genCall.body.grade, 9);
+    assert.equal(genCall.body.exam_type, 'GK1');
+    assert.equal(genCall.body.subject_name, 'Tin học');
+    assert.equal(genCall.body.duration, 45);
+    assert.deepEqual(genCall.body.placements, [
+      { slot_id: 'S1', question_id: 'Q2', reviewed_part_ids: ['P1'] },
+      { slot_id: 'S2', question_id: 'Q1', reviewed_part_ids: ['P2'] }
+    ], 'Backtracking phải chọn Q2 cho S1 và Q1 cho S2 kèm đủ reviewed_part_ids');
+    console.log('PASS matrix UI: tự động chọn câu không trùng (backtracking) và tạo đề ngay gửi đủ tham số');
+  }
 })().catch(err => {
   console.error(err);
   process.exit(1);

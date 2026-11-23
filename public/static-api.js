@@ -41,7 +41,7 @@
    if(typeof payload.title!=='string'||!payload.title.trim())fail('Nhập tên đề cương.');
    const grade=Number(payload.grade??existing?.grade),ids=payload.question_ids??payload.questions?.map(q=>q.id);
    if(!Number.isInteger(grade)||!Array.isArray(ids)||!ids.length||new Set(ids).size!==ids.length)fail('Chọn câu hỏi cùng khối, không trùng mã để lập đề cương.');
-   const contentFields=['grade','type','lesson_code','level','learning_outcome','question','options','correct','option_explanations','statements','short_answer','rubric','max_score','equivalent_answer_policy'];
+   const contentFields=['grade','type','lesson_code','level','learning_outcome','question','options','correct','option_explanations','statements','short_answer','rubric','max_score','equivalent_answer_policy','competency'];
    const questions=ids.map(key=>{const q=own(find(bank,key));if(q.grade!==grade||q.review_status==='archived')fail('Câu hỏi khác khối hoặc đã lưu trữ.');
     const incoming=payload.questions?.find(x=>x.id===key);
     if(incoming&&contentFields.some(k=>JSON.stringify(incoming[k]??null)!==JSON.stringify(q[k]??null)))fail('Nội dung câu trong đề cương khác ngân hàng. Hãy sửa và duyệt lại câu trong ngân hàng trước khi lập phiên bản đề cương mới.');

@@ -19,13 +19,14 @@
       if(f.lesson && q.lesson_code!==f.lesson)return false;
       if(f.type && q.type!==f.type)return false;
       if(f.level && q.level!==f.level)return false;
+      if(f.competency && q.competency!==f.competency)return false;
       if(f.section){
         const qSec=q.ppct_section||(/^(?:CD|CĐ)\d/i.test(q.lesson_code||'')?'elective_topic':'core');
         if(qSec!==f.section)return false;
       }
       if(f.status==='active' && q.review_status==='archived')return false;
       if(f.status && !['active','all'].includes(f.status) && q.review_status!==f.status)return false;
-      return !needle || normalize([q.id,q.question,q.lesson_name,q.learning_outcome,...(q.options||[])].join(' ')).includes(needle);
+      return !needle || normalize([q.id,q.question,q.lesson_name,q.learning_outcome,q.competency||'',...(q.options||[])].join(' ')).includes(needle);
     });
   }
   function blueprintSummary(rows){return {count:rows.reduce((n,r)=>n+Number(r.count||0),0),points:Math.round(rows.reduce((n,r)=>n+Number(r.count||0)*Number(r.points_per_question||0),0)*10000)/10000};}

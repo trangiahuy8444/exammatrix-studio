@@ -6,7 +6,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
   const ADMIN = new Set(['status','lifecycle','approved_hash','approved_by','approved_at','locked_at','published_at','usage','updated_at','created_at','verification','needs_verification','previous_exam_id','reuse_check','revision_check']);
-  const REVIEW_FIELDS = ['grade','subject_name','type','lesson_code','level','learning_outcome','question','options','correct','option_explanations','statements','short_answer','rubric','max_score','equivalent_answer_policy','response_mode'];
+  const REVIEW_FIELDS = ['grade','subject_name','type','lesson_code','level','learning_outcome','question','options','correct','option_explanations','statements','short_answer','rubric','max_score','equivalent_answer_policy','response_mode','competency'];
   const checklist = Object.freeze([
     {key:'accurate',label:'Nội dung chính xác về kiến thức'},
     {key:'outcome',label:'Bám đúng yêu cầu cần đạt đã gắn'},

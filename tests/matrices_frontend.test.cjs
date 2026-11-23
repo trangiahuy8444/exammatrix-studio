@@ -414,4 +414,51 @@ Khối: 9
   const view = ui.buildMatrixView(testMatrix);
   assert.deepEqual(view.requirements[0].refs, ['Câu 1', 'Câu 2'], 'Danh sách câu hỏi gộp phải hiển thị đầy đủ Câu 1, Câu 2');
   console.log('PASS matrix UI: gom mục tiêu câu hỏi chung YCCĐ thành công');
+
+  // Kiểm tra tính năng Tạo đề thi từ Ma trận 2D và Làm Bảng 2 Đặc tả từ đề thi
+  {
+    const m = {
+      grade: 8,
+      profile: 'THCS',
+      lessons: [{ lesson_code: 'B1', title: 'Bài 1', topic: 'Chủ đề A' }],
+      requirements: [{ id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'YCCĐ gốc' }],
+      slots: [{ id: 'S1', number: 1, kind: 'MC', parts: [{ id: 'P1', requirement_id: 'R1', points: 0.25 }] }]
+    };
+    const gridHtml = ui.matrixGridHtml(m, false, false);
+    assert.ok(gridHtml.includes('data-action="create-exam-from-matrix"'), 'Phải có nút Tạo đề thi ngay từ Ma trận 2D');
+
+    // Đề thi thực tế được sinh ra
+    const mockExam = {
+      id: 'EXAM-001',
+      title: 'Đề kiểm tra GK1 Khối 8',
+      exam_code: '101',
+      grade: 8,
+      questions: [
+        { slot_number: 1, lesson_code: 'B1', level: 'Biết', learning_outcome: 'Nhận biết được CPU và RAM.', competency: 'NLa', type: 'MC', points: 0.25 },
+        { slot_number: 2, lesson_code: 'B1', level: 'Hiểu', learning_outcome: 'Giải thích được nguyên lí Von Neumann.', competency: 'NLb', type: 'MC', points: 0.25 },
+        { slot_number: 3, lesson_code: 'B2', level: 'Vận dụng', learning_outcome: 'Thực hành tạo bảng tính Excel.', competency: 'NLc', type: 'ES', points: 1.0 }
+      ]
+    };
+
+    const synced = ui.syncSpecFromExam(m, mockExam);
+    assert.equal(synced, true);
+    assert.equal(m.requirements.length, 3, 'Phải sinh đúng 3 mục tiêu đặc tả tương ứng 3 câu trong đề');
+    assert.equal(m.requirements[0].custom_refs, 'Câu 1');
+    assert.equal(m.requirements[0].text, 'Nhận biết được CPU và RAM.');
+    assert.equal(m.requirements[0].competency, 'NLa');
+    assert.equal(m.requirements[1].custom_refs, 'Câu 2');
+    assert.equal(m.requirements[1].competency, 'NLb');
+    assert.equal(m.requirements[2].custom_refs, 'Câu 3');
+    assert.equal(m.requirements[2].competency, 'NLc');
+    assert.equal(m.requirements[2].lesson_code, 'B2');
+    assert.ok(m.lessons.some(l => l.lesson_code === 'B2'), 'Phải tự động bổ sung Bài 2 vào danh sách bài học của ma trận');
+    assert.equal(m.slots.length, 3);
+    assert.equal(m.slots[2].kind, 'ES');
+    assert.equal(m.slots[2].parts[0].points, 1.0);
+
+    const specHtml = ui.specGridHtml(m, false, false);
+    assert.ok(specHtml.includes('Nhận biết được CPU và RAM.'));
+    assert.ok(specHtml.includes('Giải thích được nguyên lí Von Neumann.'));
+    console.log('PASS matrix UI: tạo đề từ ma trận 2D và trích xuất Bảng 2 Đặc tả từ đề thi thành công');
+  }
 }

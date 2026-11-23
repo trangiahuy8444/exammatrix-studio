@@ -432,6 +432,7 @@
         else if (/dap\s*an|dap\s*an\s*dung|key|answer/i.test(c)) { colMap.correct = idx; matches++; }
         else if (/huong\s*dan|loi\s*giai|giai\s*thich|tieu\s*chi|rubric|explanation/i.test(c)) { colMap.explanation = idx; matches++; }
         else if (/yeu\s*cau\s*can\s*dat|yccd|muc\s*tieu|outcome/i.test(c)) { colMap.outcome = idx; matches++; }
+        else if (/nang\s*luc|thanh\s*phan\s*nang\s*luc|^nl\b|^nls\b|competenc/i.test(c)) { colMap.competency = idx; matches++; }
       });
       if (matches >= 3) {
         headerIndex = i;
@@ -470,6 +471,12 @@
       const correctRaw = getVal(colMap.correct);
       const explanation = getVal(colMap.explanation);
       const outcome = getVal(colMap.outcome);
+      const compRaw = getVal(colMap.competency);
+      let competency = '';
+      if (compRaw) {
+        const mComp = compRaw.match(/\b(NL[a-e]|NL[A-E])\b/i);
+        competency = mComp ? ('NL' + mComp[1].slice(2).toLowerCase()) : compRaw.trim();
+      }
 
       // Chuẩn hóa mức độ nhận thức
       let level = 'Biết';
@@ -534,6 +541,7 @@
         type: qType,
         question: qText,
         learning_outcome: outcome || '',
+        competency: competency || '',
         review_status: 'draft',
         created_at: new Date().toISOString()
       };

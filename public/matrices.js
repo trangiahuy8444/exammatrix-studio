@@ -408,6 +408,7 @@
         </div>
         <div style="margin-top:16px;padding-top:14px;border-top:1px dashed #c2dbf1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
           <div class="actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button type="button" class="button" data-action="create-exam-from-matrix" style="background:#0267B1;color:#fff;border-color:#0267B1;font-weight:700" title="Dựa vào ma trận 2D này để chọn câu hỏi từ ngân hàng và tạo đề thi ngay">🚀 Tạo đề thi ngay từ Ma trận 2D này</button>
             ${(locked || m.matrix_locked)
               ? `<span style="display:inline-flex;align-items:center;gap:6px;background:#e6f4ea;color:#137333;padding:6px 14px;border-radius:8px;font-weight:700;border:1px solid #a8dab5;font-size:13px">🔒 Đã chốt Bảng ma trận 2D</span>
                  <button type="button" class="quiet" data-action="unlock-matrix" style="font-size:12px;padding:5px 10px;border:1px solid #cbd5e1;border-radius:6px">🔓 Mở khóa sửa ma trận</button>`
@@ -619,6 +620,76 @@
         });
       }
     });
+  }
+
+  function syncSpecFromExam(m, exam) {
+    if (!m || !exam || !Array.isArray(exam.questions) || !exam.questions.length) {
+      return false;
+    }
+    if (!Array.isArray(m.lessons)) m.lessons = [];
+    const existingLessons = new Map(m.lessons.map(l => [l.lesson_code, l]));
+    const ppctLessons = lessons(m.grade);
+    exam.questions.forEach(q => {
+      const lCode = q.lesson_code || 'B1';
+      if (!existingLessons.has(lCode)) {
+        const pl = ppctLessons.find(l => l.lesson_code === lCode);
+        const newL = {
+          lesson_code: lCode,
+          title: pl?.lesson_name_source || pl?.title || q.lesson_name || ('Bài ' + lCode),
+          topic: pl?.topic_source || pl?.topic || q.topic || 'Chủ đề'
+        };
+        m.lessons.push(newL);
+        existingLessons.set(lCode, newL);
+      }
+    });
+
+    const newReqs = [];
+    const newSlots = [];
+
+    exam.questions.forEach((q, idx) => {
+      const qNum = q.slot_number || (idx + 1);
+      const rId = 'R-EXAM-Q' + qNum;
+      const qLevel = q.level || 'Biết';
+      const qComp = q.competency || 'NLa';
+      const qText = q.learning_outcome || (q.question ? (q.question.length > 150 ? q.question.slice(0, 147) + '...' : q.question) : ('Mục tiêu đánh giá câu ' + qNum));
+
+      newReqs.push({
+        id: rId,
+        lesson_code: q.lesson_code || 'B1',
+        level: qLevel,
+        text: qText,
+        competency: qComp,
+        custom_refs: 'Câu ' + qNum,
+        ppct_outcome_index: 0
+      });
+
+      const sId = 'S' + qNum;
+      const kind = q.type || 'MC';
+      let pts = Number(q.points);
+      if (!Number.isFinite(pts) || pts <= 0) {
+        pts = kind === 'MC' ? 0.25 : kind === 'YN' ? 1.0 : kind === 'SHORT' ? 0.5 : 1.0;
+      }
+
+      newSlots.push({
+        id: sId,
+        number: qNum,
+        kind: kind,
+        parts: [
+          {
+            id: sId + '-P1',
+            requirement_id: rId,
+            points: pts,
+            label: ''
+          }
+        ]
+      });
+    });
+
+    m.requirements = newReqs;
+    m.slots = newSlots;
+    m.custom_level_refs = {};
+    m.spec_locked = false;
+    return true;
   }
 
   function specGridHtml(m, locked, received) {
@@ -835,14 +906,27 @@
     const tnkqPct = ((tnkqPts / tTotPts) * 100).toFixed(0);
     const tlPct = ((tlPts / tTotPts) * 100).toFixed(0);
 
+    const matchingExams = (ui.ctx?.exams || []).filter(ex => Number(ex.grade) === Number(m.grade));
+
     return datalistHtml + `
-      <div class="card" style="border:1px solid #c2dbf1;background:#fff;margin-bottom:20px;padding:20px">
+      <div id="mx-spec-table-container" class="card" style="border:1px solid #c2dbf1;background:#fff;margin-bottom:20px;padding:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px">
           <div>
             <h3 style="margin:0 0 4px;color:var(--navy);font-size:17px">📋 Bảng 2: Bảng đặc tả đề kiểm tra trực quan (Đặc tả Yêu cầu cần đạt theo mục tiêu từng câu hỏi)</h3>
             <p style="margin:0;font-size:13px;color:var(--muted)">Đặc tả mục tiêu kiểm tra, đánh giá cụ thể của từng câu hỏi (Câu 1, Câu 2...) theo 4 mức độ nhận thức. Mỗi dòng đặc tả gắn trực tiếp với câu hỏi tương ứng trong đề chứ không ghi chung mục tiêu của cả bài học.</p>
           </div>
-          <div class="actions">
+          <div class="actions" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            ${matchingExams.length ? `
+              <div style="display:inline-flex;align-items:center;gap:6px;background:#f8fafc;padding:3px 8px;border-radius:6px;border:1px solid #cbd5e1">
+                <label for="mx-sync-exam-select" style="font-size:12px;font-weight:700;color:#0267B1">📥 Làm Bảng 2 từ Đề:</label>
+                <select id="mx-sync-exam-select" style="font-size:12px;padding:3px 8px;border-radius:4px;border:1px solid #94a3b8;max-width:240px">
+                  ${matchingExams.map((ex, i) => `<option value="${E(ex.id)}"${i === 0 ? ' selected' : ''}>${E(ex.title || ex.exam_code || ex.id)} (${(ex.questions||[]).length} câu)</option>`).join('')}
+                </select>
+                <button type="button" class="button" data-action="sync-spec-from-selected-exam" style="background:#0267B1;color:#fff;border-color:#0267B1;font-size:12px;padding:3px 10px;font-weight:700" title="Trích xuất toàn bộ mục tiêu câu hỏi, YCCĐ và Năng lực từ đề thi đã chọn vào Bảng 2 Đặc tả">
+                  ⚡ Trích xuất mục tiêu
+                </button>
+              </div>
+            ` : ''}
             ${!(locked || received) ? `<button type="button" class="primary" data-action="split-all-question-reqs" style="background:#0f766e;border-color:#0f766e;font-weight:700" title="Tách riêng mỗi câu hỏi (Câu 1, Câu 2...) thành một dòng mục tiêu đánh giá độc lập để đặc tả theo mục tiêu từng câu hỏi">🎯 Tách mục tiêu theo từng câu hỏi</button>` : ''}
             ${!(locked || received) ? `<button type="button" class="button" data-action="merge-all-question-reqs" style="background:#f0f9ff;border-color:#0267B1;color:#0267B1;font-weight:700" title="Gom các câu có cùng yêu cầu cần đạt / mức độ nhận thức vào 1 mục tiêu chung">🔗 Gom câu cùng YCCĐ (Toàn bảng)</button>` : ''}
             ${!(locked || received) ? `<button type="button" class="primary" data-action="auto-fill-all-ppct-reqs" style="background:#0267B1;font-weight:700" title="Tự động lấy câu chữ YCCĐ từ Phân phối chương trình điền gợi ý vào các dòng">📥 Tự điền toàn bộ YCCĐ từ PPCT</button>` : ''}
@@ -3172,6 +3256,59 @@
         await openPreview(ui.editing.id, 'all', 'web');
       }else if(action==='use'){
         const data=await ui.ctx.request('/api/matrices/'+encodeURIComponent(ui.editing.id)+'/candidates');ui.generation=data;ui.editing=null;ui.dirty=false;render();
+      }else if(action==='create-exam-from-matrix'){
+        if(!ui.editing)return;
+        if(normalizeSlotNumbers(ui.editing))ui.dirty=true;
+        if(!ui.editing.id||ui.dirty)await save(false);
+        if(ui.editing.status!=='locked'){
+          const confirmation={
+            confirmed_by:qs('#mx-confirm-name')?.value||ui.editing.owner_name||'Trần Gia Huy',
+            confirmed_at:qs('#mx-confirm-date')?.value||new Date().toLocaleDateString('sv-SE'),
+            basis:qs('#mx-confirm-basis')?.value||'Khóa để tạo đề thi từ Ma trận 2D',
+            external_agreement:true
+          };
+          try{
+            const lockRes=await ui.ctx.request('/api/matrices/lock',{id:ui.editing.id,expected_revision:ui.editing.revision,confirmation});
+            ui.editing=lockRes.matrix;
+          }catch(_){}
+        }
+        try{
+          ui.editingMatrixBackup=ui.editing;
+          const data=await ui.ctx.request('/api/matrices/'+encodeURIComponent(ui.editing.id)+'/candidates');
+          ui.generation=data;ui.editing=null;ui.dirty=false;render();
+          message('Đã nạp khung đề thi từ Ma trận 2D! Thầy/Cô có thể bấm "⚡ Tự động chọn câu & Tạo đề ngay" hoặc chọn câu từng vị trí.');
+        }catch(err){
+          message('Chưa thể nạp câu hỏi cho ma trận này: '+err.message,true);
+        }
+      }else if(action==='quick-generate-exam'){
+        suggest();
+        await generate();
+      }else if(action==='apply-exam-to-spec'){
+        const examId=b.dataset.examId;
+        const ex=(ui.ctx?.exams||[]).find(x=>x.id===examId)||ui.lastCreatedExam;
+        const targetMatrix=ui.editingMatrixBackup||(ui.generation&&ui.generation.matrix)||ui.editing;
+        if(ex&&targetMatrix){
+          syncSpecFromExam(targetMatrix,ex);
+          ui.editing=targetMatrix;ui.generation=null;ui.dirty=true;render();
+          message(`Đã trích xuất Bảng 2 Đặc tả thành công từ ${ex.questions.length} câu hỏi của đề "${ex.title||ex.exam_code||ex.id}". Thầy/Cô có thể xem và chỉnh sửa ở Bảng 2 phía dưới.`);
+          setTimeout(()=>{
+            const el=document.getElementById('mx-spec-table-container');
+            if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+          },100);
+        }
+      }else if(action==='sync-spec-from-selected-exam'){
+        const sel=qs('#mx-sync-exam-select');
+        const examId=sel?sel.value:'';
+        const ex=(ui.ctx?.exams||[]).find(x=>x.id===examId)||(ui.ctx?.exams||[]).find(x=>Number(x.grade)===Number(ui.editing.grade));
+        if(!ex){
+          message('Chưa có đề thi nào được chọn hoặc chưa có đề thi đã lưu cho khối này. Thầy/Cô có thể bấm "🚀 Tạo đề thi ngay từ Ma trận 2D này" ở Bảng 1 trước.',true);
+          return;
+        }
+        if(ui.editing.spec_locked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
+        syncSpecFromExam(ui.editing,ex);
+        ui.dirty=true;
+        render();
+        message(`Đã trích xuất Bảng 2 Đặc tả thành công từ ${ex.questions.length} câu hỏi của đề "${ex.title||ex.exam_code||ex.id}".`);
       }else if(action==='suggest'){suggest();}
       else if(action==='generate'){await generate();}
     });
@@ -3853,19 +3990,29 @@ Quy ước:
       renderImport();
     });
   }
-  function renderGeneration(){const g=ui.generation,m=g.matrix;const revisions=(ui.ctx.revisions||[]).filter(r=>r.grade===m.grade);qs('#mx-work').innerHTML=`<section class="card"><p class="eyebrow">ĐỀ RIÊNG THEO MA TRẬN ĐÃ KHÓA</p><h2>${E(m.title)} · V${m.version}</h2><p>Phân bố và điểm giữ theo ma trận chung. Chọn câu và xác nhận chỉ báo cho từng vị trí.</p><div class="form-grid"><div class="field span2"><label for="mx-exam-title">Tên đề riêng</label><input id="mx-exam-title" value="${E(periods[m.exam_type]+' · '+subject(m)+' '+m.grade)}"></div><div class="field"><label for="mx-exam-campus">Cơ sở ra đề</label><input id="mx-exam-campus" value="${generic()?'':'Cao Thắng'}"></div><div class="field"><label for="mx-exam-code">Mã đề</label><input id="mx-exam-code" value="101"></div><div class="field"><label for="mx-exam-seed">Mã xáo trộn phương án</label><input id="mx-exam-seed" value="2026"></div><div class="field full"><label for="mx-exam-revision">Phiên bản đề cương</label><select id="mx-exam-revision">${opt('','Chọn đề cương đã lưu',true)}${revisions.map(r=>opt(r.id,r.title,false)).join('')}</select></div></div><div class="actions"><button data-action="suggest">Gợi ý chọn câu không trùng</button><span id="mx-coverage"></span></div>
+  function renderGeneration(){const g=ui.generation,m=g.matrix;const revisions=(ui.ctx.revisions||[]).filter(r=>r.grade===m.grade);qs('#mx-work').innerHTML=`<section class="card"><p class="eyebrow">ĐỀ RIÊNG THEO MA TRẬN ĐÃ KHÓA</p><h2>${E(m.title)} · V${m.version}</h2><p>Phân bố và điểm giữ theo ma trận chung. Chọn câu và xác nhận chỉ báo cho từng vị trí.</p><div class="form-grid"><div class="field span2"><label for="mx-exam-title">Tên đề riêng</label><input id="mx-exam-title" value="${E(periods[m.exam_type]+' · '+subject(m)+' '+m.grade)}"></div><div class="field"><label for="mx-exam-campus">Cơ sở ra đề</label><input id="mx-exam-campus" value="${generic()?'':'Cao Thắng'}"></div><div class="field"><label for="mx-exam-code">Mã đề</label><input id="mx-exam-code" value="101"></div><div class="field"><label for="mx-exam-seed">Mã xáo trộn phương án</label><input id="mx-exam-seed" value="2026"></div><div class="field full"><label for="mx-exam-revision">Phiên bản đề cương</label><select id="mx-exam-revision">${opt('','Chọn đề cương đã lưu',true)}${revisions.map(r=>opt(r.id,r.title,false)).join('')}</select></div></div><div class="actions"><button data-action="suggest">Gợi ý chọn câu không trùng</button><button type="button" class="primary" data-action="quick-generate-exam" style="background:#0267B1;font-weight:700">⚡ Tự động chọn câu &amp; Tạo đề ngay</button><span id="mx-coverage"></span></div>
     ${g.slots.map(entry=>{const s=entry.slot;return `<article class="mx-exam-slot"><h3>${E(NAMEShort(s.kind))} ${s.number} · ${s.parts.reduce((n,p)=>n+Number(p.points),0)} điểm</h3><div class="field"><label for="mx-choice-${E(s.id)}">Câu cho vị trí ${E(s.id)}</label><select id="mx-choice-${E(s.id)}" data-choice="${E(s.id)}">${opt('','Chọn câu phù hợp',true)}${entry.candidates.map(q=>opt(q.id,(q.recently_used?.length?'⚠ Vừa dùng · ':'')+q.id+' · '+q.question.slice(0,180),false)).join('')}</select></div><div id="mx-choice-detail-${E(s.id)}" class="mx-choice-detail"></div>${entry.requirements.map((r,i)=>`<label class="mx-checkbox"><input type="checkbox" data-review-slot="${E(s.id)}" value="${E(s.parts[i].id)}">Đã đối chiếu ${E(s.parts[i].label||'câu này')}: ${E(r.text)}</label>`).join('')}${!entry.candidates.length?'<p class="mx-bad">Chưa có câu khớp bài, dạng, mức độ và YCCĐ nguồn. Cần bổ sung ngân hàng; không bù sang ô khác.</p>':''}</article>`;}).join('')}
     <button class="primary" data-action="generate">Tạo và lưu đề riêng</button><div id="mx-created-exam"></div></section>`;const values=g.formValues||{};ui.container.querySelectorAll('[id^=mx-exam-],[data-choice],[data-review-slot]').forEach(el=>{const key=el.dataset.reviewSlot?'review:'+el.dataset.reviewSlot+':'+el.value:el.id;if(Object.prototype.hasOwnProperty.call(values,key)){if(el.type==='checkbox')el.checked=values[key];else el.value=values[key];}});g.slots.forEach(e=>showChoice(e.slot.id));coverage();}
   function showChoice(id){const entry=ui.generation.slots.find(e=>e.slot.id===id);const q=entry.candidates.find(q=>q.id===qs('#mx-choice-'+id).value);qs('#mx-choice-detail-'+id).innerHTML=q?`<p class="question-text">${E(q.question)}</p>${q.options?'<ol type="A">'+q.options.map((o,i)=>`<li>${E(o)}${i===q.correct?' <strong>— đáp án đúng</strong>':''}</li>`).join('')+'</ol>':q.rubric?'<ul>'+q.rubric.map(c=>`<li>${E(c.criterion)}</li>`).join('')+'</ul>':''}<p class="small muted">YCCĐ nguồn: ${E(q.learning_outcome)}</p>${q.recently_used?.length?`<p class="mx-bad">⚠ Câu đã có trong đề đã phát hành gần đây: ${q.recently_used.map(u=>`${E(u.title||u.exam_id)} (${E(String(u.published_at||'').slice(0,10))})`).join('; ')}. Chỉ là cảnh báo; nên cân nhắc chọn câu khác.</p>`:''}`:'';}
   function coverage(){if(!ui.generation||!qs('#mx-coverage'))return;const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));let count=0,matched=0;for(const e of ui.generation.slots){const q=e.candidates.find(q=>q.id===qs('#mx-choice-'+e.slot.id).value);if(q){count++;if(hashes.has(q.content_hash))matched++;}}qs('#mx-coverage').textContent=`Đã chọn ${count}/${ui.generation.slots.length} câu · Khớp nội dung đề cương ${matched} câu. Máy chủ sẽ kiểm tra lại khi tạo đề.`;}
   function suggest(){const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));const used=new Set();for(const e of ui.generation.slots){const pool=e.candidates.slice().sort((a,b)=>Number(hashes.has(b.content_hash))-Number(hashes.has(a.content_hash)));const q=pool.find(q=>!used.has(q.id));qs('#mx-choice-'+e.slot.id).value=q?.id||'';if(q)used.add(q.id);ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===e.slot.id)c.checked=false;});showChoice(e.slot.id);}captureGeneration();coverage();message('Đã gợi ý câu. Thầy cần xem nội dung và đánh dấu đối chiếu từng chỉ báo trước khi lưu đề.');}
-  async function generate(){const g=ui.generation;const placements=g.slots.map(e=>({slot_id:e.slot.id,question_id:qs('#mx-choice-'+e.slot.id).value,reviewed_part_ids:[...ui.container.querySelectorAll('[data-review-slot]')].filter(x=>x.dataset.reviewSlot===e.slot.id&&x.checked).map(x=>x.value)}));const result=await ui.ctx.request('/api/exams/from-matrix',{matrix_id:g.matrix.id,revision_id:qs('#mx-exam-revision').value,title:qs('#mx-exam-title').value,campus:qs('#mx-exam-campus').value,exam_code:qs('#mx-exam-code').value,seed:qs('#mx-exam-seed').value,placements});const e=result.exam,base='/api/exams/'+encodeURIComponent(e.id)+'/export';qs('#mx-created-exam').innerHTML=`<div class="callout"><h3>Đã lưu đề ${E(e.exam_code)} · ${E(e.campus)}</h3><p>${e.question_count} câu · 10 điểm · Khớp đề cương ${e.revision_match_count}/${e.question_count} câu · Ma trận V${e.matrix_version}</p><div class="actions"><button type="button" class="primary" data-view-exam="${E(e.id)}" data-mode="student">Xem đề học sinh</button><button type="button" data-view-exam="${E(e.id)}" data-mode="answers">Xem đáp án & HDC</button><a class="button" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button" href="${base}?format=docx&answers=1">Word đáp án</a></div></div>`;ui.ctx.onExamCreated?.(e);message('Đã tạo đề riêng và lưu phiên bản ma trận dùng chung cùng đề.');}
+  async function generate(){const g=ui.generation;const placements=g.slots.map(e=>({slot_id:e.slot.id,question_id:qs('#mx-choice-'+e.slot.id).value,reviewed_part_ids:[...ui.container.querySelectorAll('[data-review-slot]')].filter(x=>x.dataset.reviewSlot===e.slot.id&&x.checked).map(x=>x.value)}));const result=await ui.ctx.request('/api/exams/from-matrix',{matrix_id:g.matrix.id,revision_id:qs('#mx-exam-revision').value,title:qs('#mx-exam-title').value,campus:qs('#mx-exam-campus').value,exam_code:qs('#mx-exam-code').value,seed:qs('#mx-exam-seed').value,placements});const e=result.exam,base='/api/exams/'+encodeURIComponent(e.id)+'/export';ui.lastCreatedExam=e;if(Array.isArray(ui.ctx?.exams)&&!ui.ctx.exams.some(x=>x.id===e.id))ui.ctx.exams.push(e);qs('#mx-created-exam').innerHTML=`<div class="callout" style="background:#f0fdf4;border:1px solid #86efac;padding:16px;margin-top:14px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span style="font-size:24px">🎉</span><div><h3 style="margin:0;color:#15803d">Đã lưu đề ${E(e.exam_code)} · Khối ${e.grade} · ${E(e.campus)}</h3><p style="margin:2px 0 0;font-size:13px;color:#166534">${e.question_count} câu · 10 điểm · Khớp đề cương ${e.revision_match_count}/${e.question_count} câu · Ma trận V${e.matrix_version}</p></div></div><div style="background:#fff;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin:12px 0"><strong style="color:#0267B1;font-size:13px">⚡ BƯỚC TIẾP THEO: LÀM BẢNG 2 ĐẶC TẢ TỪ ĐỀ THI NÀY</strong><p style="margin:4px 0 10px;font-size:12.5px;color:#334155">Hệ thống sẽ lấy chính xác ${e.question_count} câu hỏi thực tế trong đề thi vừa tạo (gồm Số câu, Mức độ, Yêu cầu cần đạt YCCĐ và Năng lực NLa/b/c/d/e) để tự động điền chuẩn xác vào <strong>Bảng 2: Bảng đặc tả đề kiểm tra trực quan</strong>.</p><button type="button" class="primary" data-action="apply-exam-to-spec" data-exam-id="${E(e.id)}" style="background:#0267B1;border-color:#0267B1;font-weight:700;font-size:13px;padding:8px 16px">📥 Làm ngay Bảng 2 Đặc tả từ đề thi này</button></div><div class="actions"><button type="button" class="primary" data-view-exam="${E(e.id)}" data-mode="student">Xem đề học sinh</button><button type="button" data-view-exam="${E(e.id)}" data-mode="answers">Xem đáp án & HDC</button><a class="button" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button" href="${base}?format=docx&answers=1">Word đáp án</a></div></div>`;ui.ctx.onExamCreated?.(e);message('Đã tạo đề riêng thành công! Thầy/Cô có thể bấm "Làm ngay Bảng 2 Đặc tả từ đề thi này" để đồng bộ.');}
   function openEditorWithDraft(draft){
     ui.editing=draft;
     ui.dirty=true;
     ui.report=null;
     ui.shortfall=null;
     render();
+  }
+  function openEditorWithExamSpec(exam){
+    if(!exam||!Array.isArray(exam.questions))return;
+    const g=Number(exam.grade)||8;
+    const draft=newDraft(g,false);
+    draft.title=`Ma trận & Đặc tả theo đề ${exam.title||exam.exam_code||exam.id}`;
+    draft.exam_type=exam.exam_type||'GK1';
+    draft.duration=exam.duration||45;
+    syncSpecFromExam(draft,exam);
+    openEditorWithDraft(draft);
   }
   function createFromPlan(plan){
     const g=Number(plan.grade)||8;
@@ -3881,6 +4028,6 @@ Quy ước:
     }
     openEditorWithDraft(draft);
   }
-  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,STANDARD_PRESETS,newDraft,openEditorWithDraft,createFromPlan,getAssessmentPlansForMatrix,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,mergeQuestionRequirements,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
+  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,STANDARD_PRESETS,newDraft,openEditorWithDraft,openEditorWithExamSpec,createFromPlan,getAssessmentPlansForMatrix,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,mergeQuestionRequirements,syncSpecFromExam,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

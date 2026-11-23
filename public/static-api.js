@@ -206,6 +206,13 @@
       put(bank, q);
     });
    }
+   else if(p.action==='grade'||p.action==='move_grade'){
+    const newGrade = Number(p.status || p.grade) || 9;
+    qs.forEach(q=>{
+      q.grade = newGrade;
+      put(bank, q);
+    });
+   }
    else{
     const action=p.action==='status'?{pending_review:'submit',archived:'archive',restore:'restore'}[p.status]||p.action:p.action;
     if(!action||action==='approve')fail('Muốn duyệt câu phải mở phiếu kiểm định và xác nhận đủ từng mục.');

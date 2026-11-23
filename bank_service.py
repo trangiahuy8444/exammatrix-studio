@@ -592,6 +592,17 @@ class BankService:
                             q['archived_at'] = now()
                         else:
                             q.pop('archived_at', None)
+            elif action in ('grade', 'move_grade'):
+                try:
+                    new_grade = int(status)
+                except (ValueError, TypeError):
+                    raise ServiceError('Khối lớp không hợp lệ.')
+                if new_grade < 1 or new_grade > 12:
+                    raise ServiceError('Khối lớp phải từ 1 đến 12.')
+                for q in bank['questions']:
+                    if q.get('id') in target_ids:
+                        q['grade'] = new_grade
+                        q['updated_at'] = now()
             else:
                 raise ServiceError('Thao tác hàng loạt không hợp lệ.')
             self._atomic_save(self.bank_path, bank)

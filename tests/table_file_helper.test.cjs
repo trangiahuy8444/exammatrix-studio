@@ -251,3 +251,30 @@ test('TableFileHelper: classifyQuestionsForImport phân loại chính xác câu 
   assert.equal(res.validNewQuestions[0].question, 'Câu hỏi hoàn toàn mới 1?');
   assert.equal(res.validNewQuestions[1].question, 'Câu hỏi trùng lặp nội bộ trong file?');
 });
+
+test('TableFileHelper: detectGradeFromFilename & parseQuestionsFromRows with Grade column', () => {
+  // Test detectGradeFromFilename
+  assert.equal(TableFileHelper.detectGradeFromFilename('Mau_Cau_hoi_Excel_Tin_hoc_8.xlsx'), 8);
+  assert.equal(TableFileHelper.detectGradeFromFilename('Mau_Cau_hoi_Excel_Tin_hoc_9_2026.xlsx'), 9);
+  assert.equal(TableFileHelper.detectGradeFromFilename('Ngan_hang_K8.csv'), 8);
+  assert.equal(TableFileHelper.detectGradeFromFilename('De_cuong_Lop_9.xlsx'), 9);
+  assert.equal(TableFileHelper.detectGradeFromFilename('Tin_hoc_10_chuyen_de.csv'), 10);
+  assert.equal(TableFileHelper.detectGradeFromFilename('Tin_11.xlsx'), 11);
+  assert.equal(TableFileHelper.detectGradeFromFilename('Tin_12_de_kiem_tra.csv'), 12);
+  assert.equal(TableFileHelper.detectGradeFromFilename('ngan_hang_tong_hop.xlsx'), null);
+
+  // Test parseQuestionsFromRows with Grade column overriding defaultGrade
+  const rowsWithGradeCol = [
+    ['Khối', 'Mã bài', 'Mức độ', 'Dạng câu', 'Nội dung câu hỏi', 'Phương án A', 'Phương án B', 'Phương án C', 'Phương án D', 'Đáp án đúng', 'Hướng dẫn giải / Tiêu chí chấm', 'Yêu cầu cần đạt'],
+    [8, 'B1', 'Biết', 'Trắc nghiệm 4 lựa chọn (MC)', 'Câu hỏi khối 8?', 'A', 'B', 'C', 'D', 'A', 'Giải thích', 'YCCĐ 1'],
+    ['Khối 9', 'B2', 'Hiểu', 'Trắc nghiệm 4 lựa chọn (MC)', 'Câu hỏi khối 9?', 'A', 'B', 'C', 'D', 'B', 'Giải thích', 'YCCĐ 2']
+  ];
+
+  // Pass defaultGrade = 7, but rows have Grade 8 and Grade 9
+  const parsed = TableFileHelper.parseQuestionsFromRows(rowsWithGradeCol, 7, 'Tin học');
+  assert.equal(parsed.length, 2);
+  assert.equal(parsed[0].grade, 8);
+  assert.equal(parsed[0]._hasExplicitRowGrade, true);
+  assert.equal(parsed[1].grade, 9);
+  assert.equal(parsed[1]._hasExplicitRowGrade, true);
+});

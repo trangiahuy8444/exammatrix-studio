@@ -408,6 +408,7 @@
 
     let headerIndex = -1;
     let colMap = {
+      grade: -1,
       lesson: -1, level: -1, type: -1, question: -1,
       optA: -1, optB: -1, optC: -1, optD: -1,
       correct: -1, explanation: -1, outcome: -1
@@ -419,7 +420,8 @@
       let matches = 0;
       row.forEach((cell, idx) => {
         const c = stripAccents(lower(cell));
-        if (/ma\s*bai|bai\s*hoc|bai|lesson/i.test(c)) { colMap.lesson = idx; matches++; }
+        if (/^khoi\b|^khoi\s*lop|^lop\b|^grade\b/i.test(c)) { colMap.grade = idx; matches++; }
+        else if (/ma\s*bai|bai\s*hoc|bai|lesson/i.test(c)) { colMap.lesson = idx; matches++; }
         else if (/muc\s*do|muc|level/i.test(c)) { colMap.level = idx; matches++; }
         else if (/dang\s*cau|dang|loai|type/i.test(c)) { colMap.type = idx; matches++; }
         else if (/cau\s*hoi|de\s*bai|ngu\s*lieu|noi\s*dung|question/i.test(c)) { colMap.question = idx; matches++; }
@@ -510,10 +512,22 @@
         }
       }
 
+      let questionGrade = Number(defaultGrade) || 9;
+      let hasExplicitRowGrade = false;
+      if (colMap.grade >= 0) {
+        const rawG = getVal(colMap.grade);
+        const parsedG = Number(String(rawG).replace(/\D+/g, ''));
+        if (parsedG >= 6 && parsedG <= 12) {
+          questionGrade = parsedG;
+          hasExplicitRowGrade = true;
+        }
+      }
+
       const id = `Q-IMPORT-${now}-${rIdx + 1}`;
       const baseQ = {
         id,
-        grade: Number(defaultGrade) || 9,
+        grade: questionGrade,
+        _hasExplicitRowGrade: hasExplicitRowGrade,
         subject_name: defaultSubject,
         lesson_code: lessonCode,
         level,
@@ -1312,6 +1326,18 @@ ${formatInstruction}`;
     };
   }
 
+  function detectGradeFromFilename(filename) {
+    if (!filename || typeof filename !== 'string') return null;
+    const clean = stripAccents(filename).toLowerCase();
+    // Patterns like: 'khoi 8', 'khoi_8', 'k8', 'lop 8', 'grade 8', 'tin 8', 'tin_hoc_8', 'tin8', etc.
+    const m = clean.match(/(?:khoi|k|lop|grade|tin(?:[_\s\-]*hoc)?)[_\s\-]*([6-9]|1[0-2])(?:[_\s\-\.]|$)/i);
+    if (m) {
+      const num = Number(m[1]);
+      if (num >= 6 && num <= 12) return num;
+    }
+    return null;
+  }
+
   // =========================================================================
   // EXPORT PUBLIC API
   // =========================================================================
@@ -1331,6 +1357,7 @@ ${formatInstruction}`;
     stripAccents,
     norm,
     normalizeQuestionText,
-    classifyQuestionsForImport
+    classifyQuestionsForImport,
+    detectGradeFromFilename
   };
 });

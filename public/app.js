@@ -1757,7 +1757,7 @@ function renderBank(){
    <button type="button" class="button primary" id="bank-open-ai-prompt-dialog" style="background:#0267b1;border-color:#0267b1;padding:6px 14px;font-size:12px;font-weight:700">🤖 Hướng dẫn &amp; Chép Prompt AI theo bài (3 phần)</button>
  </div>`+
  `<div class="card"><div class="filters"><div class="field"><label for="filter-grade">Khối lớp</label><select id="filter-grade">${opt('','Tất cả khối',!f.grade)}${gradeOptions(f.grade)}</select></div><div class="field"><label for="filter-lesson">Bài học</label><select id="filter-lesson">${lessonFilterOptions()}</select></div><div class="field"><label for="filter-type">Dạng câu</label><select id="filter-type">${opt('','Tất cả dạng',!f.type)}${Object.entries(typeNames).map(([k,v])=>opt(k,v,f.type===k)).join('')}</select></div><div class="field"><label for="filter-level">Mức độ</label><select id="filter-level">${opt('','Tất cả mức độ',!f.level)}${C.levelOptions(f.level)}</select></div><div class="field"><label for="filter-section">Mạch PPCT</label><select id="filter-section">${opt('','Tất cả mạch',!f.section)}${opt('core','Nội dung cốt lõi (Mục II.1)',f.section==='core')}${opt('elective_topic','Chuyên đề học tập (Mục II.2)',f.section==='elective_topic')}</select></div><div class="field"><label for="filter-status">Trạng thái</label><select id="filter-status">${opt('active','Đang sử dụng',f.status==='active')}${Object.entries(statusNames).map(([k,v])=>opt(k,v,k===f.status)).join('')}${opt('all','Tất cả trạng thái',f.status==='all')}</select></div><div class="field search"><label for="filter-search">Tìm trong câu hỏi, mã câu, phương án hoặc YCCĐ</label><input id="filter-search" type="search" placeholder="Tìm nội dung, mã câu hoặc yêu cầu cần đạt…" value="${esc(f.search)}"></div></div></div>`+
- `<div class="bank-layout"><div><div id="bank-toolbar"></div><div id="bank-list" class="question-list"></div><div id="bank-pagination"></div></div><aside class="bank-aside card"><h2>Câu đã chọn</h2><div id="selection-summary"></div><div class="callout">Lựa chọn được giữ khi đổi bộ lọc. Khi lưu đề cương, ứng dụng chỉ lấy câu thuộc khối đã chọn.</div><div class="actions" style="margin-bottom:10px"><a class="button primary" href="#revisions">Tạo đề cương từ lựa chọn</a><button class="quiet" id="clear-selection">Bỏ chọn tất cả</button></div><div class="bulk-box"><label for="bulk-status-select">Thao tác hàng loạt với câu đã chọn</label><div class="actions" style="margin-top:6px"><select id="bulk-status-select" style="flex:1;min-width:140px">${Object.entries(statusNames).filter(([k])=>['pending_review','archived'].includes(k)).map(([k,v])=>opt(k,`Đổi thành: ${v}`)).join('')}</select><button type="button" id="bulk-apply-status">Áp dụng</button><button type="button" class="danger" id="bulk-delete-selected">Xóa câu đã chọn</button></div></div><hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><p class="small muted">Bấm nội dung câu để xem đáp án, giải thích, thang điểm và yêu cầu cần đạt. Dùng các nút bên phải mỗi câu để Sửa, Nhân bản, Lưu trữ/Khôi phục hoặc Xóa.</p></aside></div>`;
+ `<div class="bank-layout"><div><div id="bank-toolbar"></div><div id="bank-list" class="question-list"></div><div id="bank-pagination"></div></div><aside class="bank-aside card"><h2>Câu đã chọn</h2><div id="selection-summary"></div><div class="callout">Lựa chọn được giữ khi đổi bộ lọc. Khi lưu đề cương, ứng dụng chỉ lấy câu thuộc khối đã chọn.</div><div class="actions" style="margin-bottom:10px"><a class="button primary" href="#revisions">Tạo đề cương từ lựa chọn</a><button class="quiet" id="clear-selection">Bỏ chọn tất cả</button></div><div class="bulk-box"><label for="bulk-status-select">Thao tác hàng loạt với câu đã chọn</label><div class="actions" style="margin-top:6px"><select id="bulk-status-select" style="flex:1;min-width:140px">${Object.entries(statusNames).filter(([k])=>['pending_review','archived'].includes(k)).map(([k,v])=>opt(k,`Đổi thành: ${v}`)).join('')}</select><button type="button" id="bulk-apply-status">Áp dụng</button><button type="button" class="danger" id="bulk-delete-selected">Xóa câu đã chọn</button></div><div style="display:flex;gap:6px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);flex-wrap:wrap"><select id="bulk-grade-select" style="flex:1;min-width:130px;padding:5px 8px;font-size:12px;border-radius:4px;border:1px solid #cbd5e1">${[6,7,8,9,10,11,12].map(gr=>`<option value="${gr}">Chuyển sang Khối ${gr}</option>`).join('')}</select><button type="button" id="bulk-apply-grade" style="background:#0267B1;color:#fff;border-color:#0267B1;font-weight:700;font-size:12px;padding:5px 12px">Chuyển Khối</button></div><div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)"><button type="button" id="bank-auto-split-grades" style="background:#f0f9ff;border:1px solid #0267b1;color:#0267b1;padding:6px 12px;border-radius:4px;font-size:12px;font-weight:700;width:100%;cursor:pointer;text-align:center">⚡ Tự động quét &amp; phân tách câu hỏi Khối 8 / Khối 9</button></div></div><hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><p class="small muted">Bấm nội dung câu để xem đáp án, giải thích, thang điểm và yêu cầu cần đạt. Dùng các nút bên phải mỗi câu để Sửa, Nhân bản, Lưu trữ/Khôi phục hoặc Xóa.</p></aside></div>`;
  $('#add-question').onclick=()=>openEditor();$('#import-bank').onclick=()=>$('#import-file').click();$('#import-file').onchange=importBank;
  const btnBankCustomExp = $('#bank-custom-export-btn');
  if (btnBankCustomExp) btnBankCustomExp.onclick = () => openCustomBankExportDialog();
@@ -1774,6 +1774,10 @@ function renderBank(){
  $('#filter-search').oninput=ev=>{store.filters.search=ev.target.value;store.page=1;renderBankList();};$('#clear-selection').onclick=()=>{store.selected.clear();renderBankList();};
  $('#bulk-apply-status').onclick=()=>bulkUpdateSelected('status',$('#bulk-status-select').value);
  $('#bulk-delete-selected').onclick=()=>bulkUpdateSelected('delete');
+ const btnBulkGrade = $('#bulk-apply-grade');
+ if (btnBulkGrade) btnBulkGrade.onclick = () => bulkUpdateSelected('grade', Number($('#bulk-grade-select').value) || 9);
+ const btnAutoSplit = $('#bank-auto-split-grades');
+ if (btnAutoSplit) btnAutoSplit.onclick = autoSplitK8K9Questions;
  renderBankList();
 }
 function lessonFilterOptions(){const f=store.filters;const unique=new Map(instructionalLessons(f.grade,undefined,{includeElective:true}).map(l=>[l.lesson_code,l]));return opt('','Tất cả bài',!f.lesson)+[...unique.values()].map(l=>opt(l.lesson_code,lessonOptionLabel(l),f.lesson===l.lesson_code)).join('');}
@@ -2266,16 +2270,59 @@ async function bulkUpdateSelected(action,status='pending_review'){
  const ids=[...store.selected];
  if(!ids.length){notify('Hãy đánh dấu chọn ít nhất một câu hỏi trước.',true);return;}
  if(action==='status'&&status==='approved'){notify('Hãy mở màn hình Duyệt câu hỏi và xác nhận đầy đủ phiếu kiểm định; không đổi trực tiếp sang Đã duyệt.',true);return;}
- if(!confirm(action==='delete'?`Xóa vĩnh viễn ${ids.length} câu hỏi?`:`Chuyển trạng thái ${ids.length} câu hỏi?`))return;
+ let confirmMsg = `Chuyển trạng thái ${ids.length} câu hỏi?`;
+ if (action === 'delete') confirmMsg = `Xóa vĩnh viễn ${ids.length} câu hỏi?`;
+ else if (action === 'grade') confirmMsg = `Chuyển ${ids.length} câu hỏi đã chọn sang Khối ${status}?`;
+ if(!confirm(confirmMsg))return;
  await mutate('/api/questions/bulk',{ids,action,status},()=>{store.selected.clear();render();notify('Đã cập nhật các câu hỏi đã chọn.');});
 }
+
+async function autoSplitK8K9Questions() {
+  const allQs = questions();
+  // Lọc các câu hỏi hiện đang ở Khối 8 và không ở trạng thái lưu trữ
+  const k8Qs = allQs.filter(q => Number(q.grade) === 8 && q.review_status !== 'archived');
+  if (!k8Qs.length) {
+    notify('Không có câu hỏi Khối 8 nào đang hoạt động để rà soát.');
+    return;
+  }
+
+  // Danh mục từ khóa / đặc trưng nội dung môn Tin học Khối 9 (GDPT 2018)
+  const k9Keywords = [
+    'router', 'switch', 'access point', 'modem', 'cap mang', 'cáp mạng', 'thiet bi mang', 'mang khong day', 'mang co day',
+    'so do tu duy', 'mindmap', 'phan mem mo phong', 'mo phong', 'simulation', 'phet', 'solar system',
+    'countif', 'sumif', 'ham if', 'hàm if', 'xac thuc du lieu', 'data validation', 'tai chinh gia dinh',
+    'dich vu internet', 'the gioi ki thuat so', 'van de phap ly', 'chat luong thong tin'
+  ];
+
+  const strip = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+  const candidatesForK9 = k8Qs.filter(q => {
+    const text = strip(`${q.question || ''} ${(q.options || []).join(' ')} ${q.learning_outcome || ''} ${q.lesson_name || ''} ${q.explanation || ''}`);
+    return k9Keywords.some(kw => text.includes(kw));
+  });
+
+  if (!candidatesForK9.length) {
+    notify(`Đã rà soát ${k8Qs.length} câu hỏi Khối 8: Toàn bộ nội dung đều thuộc chuẩn Khối 8, không phát hiện câu Tin 9 bị lẫn vào.`);
+    return;
+  }
+
+  const ok = confirm(`Hệ thống phân tích và phát hiện ${candidatesForK9.length} / ${k8Qs.length} câu hỏi có nội dung đặc trưng Tin học Khối 9 (thiết bị mạng, mô phỏng, hàm IF/COUNTIF/SUMIF, v.v...) nhưng đang bị gán Khối 8.\n\nThầy/Cô có muốn tự động chuyển ${candidatesForK9.length} câu này sang Khối 9 không?`);
+  if (!ok) return;
+
+  const idsToMove = candidatesForK9.map(q => q.id);
+  await mutate('/api/questions/bulk', { ids: idsToMove, action: 'grade', status: 9 }, () => {
+    render();
+    notify(`Đã chuyển thành công ${idsToMove.length} câu hỏi về đúng Khối 9.`);
+  });
+}
+
 function importReportText(result,fileName){
   const r=result&&result.import_report;
   if(!r)return `Đã nạp câu hỏi từ ${fileName}. Câu mới ở trạng thái Nháp, cần kiểm định trước khi ra đề.`;
   return `Đã thêm ${r.added} câu mới từ ${fileName}`+(r.skipped?`; bỏ qua ${r.skipped} câu đã có trong ngân hàng`:'')+'. Câu mới ở trạng thái Nháp, cần kiểm định trước khi ra đề.';
 }
 
-function openImportDedupDialog({ filename, questions, grade, subjectName }) {
+function openImportDedupDialog({ filename, questions, grade, subjectName, detectedGrade }) {
   const dlg = $('#import-dedup-dialog');
   if (!dlg) return;
   const container = $('#import-dedup-content');
@@ -2285,61 +2332,72 @@ function openImportDedupDialog({ filename, questions, grade, subjectName }) {
     titleEl.textContent = `🔍 Xem trước & Kiểm soát trùng lặp: ${filename}`;
   }
 
-  const effectiveGrade = Number(grade) || Number(store.filters?.grade) || Number(store.ppctGrade) || 9;
+  let currentTargetGrade = Number(grade) || Number(store.filters?.grade) || Number(store.ppctGrade) || 9;
   const effectiveSubject = subjectName || store.selectedSubject || store.ppctSubject || subject() || 'Tin học';
-
-  // Phân loại câu hỏi dựa trên TableFileHelper hoặc fallback nội bộ
-  let classified;
   const currentBankQs = store.bank?.questions || [];
-  if (typeof TableFileHelper !== 'undefined' && typeof TableFileHelper.classifyQuestionsForImport === 'function') {
-    classified = TableFileHelper.classifyQuestionsForImport(questions, currentBankQs, effectiveGrade);
-  } else {
-    const norm = x => String(x == null ? '' : x).normalize('NFC').toLowerCase().trim().replace(/\s+/gu, ' ');
-    const existingMap = new Map();
-    for (const q of currentBankQs) {
-      if (!q) continue;
-      const g = Number(q.grade) || effectiveGrade;
-      const key = `${g}|${norm(q.question)}`;
-      if (!existingMap.has(key)) existingMap.set(key, q);
-    }
-    const seenInBatch = new Map();
-    const items = (questions || []).map((rawQ, idx) => {
-      const q = { ...rawQ };
-      q.grade = Number(q.grade) || effectiveGrade;
-      q.type = q.type || 'MC';
-      const key = `${q.grade}|${norm(q.question)}`;
-      if (existingMap.has(key)) {
-        const matched = existingMap.get(key);
-        return { status: 'bank_dup', matchedId: matched.id || '', matchedLesson: matched.lesson_code || '', matchedOutcome: matched.learning_outcome || '', question: q, index: idx };
-      } else if (seenInBatch.has(key)) {
-        return { status: 'internal_dup', firstIndex: seenInBatch.get(key), question: q, index: idx };
-      } else {
-        seenInBatch.set(key, idx);
-        return { status: 'new', question: q, index: idx };
-      }
-    });
-    classified = {
-      items,
-      counts: {
-        total: items.length,
-        new: items.filter(x => x.status === 'new').length,
-        bank_dup: items.filter(x => x.status === 'bank_dup').length,
-        internal_dup: items.filter(x => x.status === 'internal_dup').length
-      },
-      validNewQuestions: items.filter(x => x.status === 'new').map(x => x.question),
-      nonInternalDupQuestions: items.filter(x => x.status !== 'internal_dup').map(x => x.question)
-    };
-  }
-
-  const { items: itemsInfo, counts } = classified;
-  const totalCount = counts.total;
-  const newCount = counts.new;
-  const bankDupCount = counts.bank_dup;
-  const internalDupCount = counts.internal_dup;
 
   let currentTab = 'all';
+  let classified;
+
+  function runClassification(targetGrade) {
+    currentTargetGrade = targetGrade;
+    // Cập nhật khối cho các câu hỏi không có cột khối riêng từ từng dòng Excel
+    questions.forEach(q => {
+      if (!q._hasExplicitRowGrade) {
+        q.grade = currentTargetGrade;
+      }
+    });
+
+    if (typeof TableFileHelper !== 'undefined' && typeof TableFileHelper.classifyQuestionsForImport === 'function') {
+      classified = TableFileHelper.classifyQuestionsForImport(questions, currentBankQs, currentTargetGrade);
+    } else {
+      const norm = x => String(x == null ? '' : x).normalize('NFC').toLowerCase().trim().replace(/\s+/gu, ' ');
+      const existingMap = new Map();
+      for (const q of currentBankQs) {
+        if (!q) continue;
+        const g = Number(q.grade) || currentTargetGrade;
+        const key = `${g}|${norm(q.question)}`;
+        if (!existingMap.has(key)) existingMap.set(key, q);
+      }
+      const seenInBatch = new Map();
+      const items = (questions || []).map((rawQ, idx) => {
+        const q = { ...rawQ };
+        q.grade = Number(q.grade) || currentTargetGrade;
+        q.type = q.type || 'MC';
+        const key = `${q.grade}|${norm(q.question)}`;
+        if (existingMap.has(key)) {
+          const matched = existingMap.get(key);
+          return { status: 'bank_dup', matchedId: matched.id || '', matchedLesson: matched.lesson_code || '', matchedOutcome: matched.learning_outcome || '', question: q, index: idx };
+        } else if (seenInBatch.has(key)) {
+          return { status: 'internal_dup', firstIndex: seenInBatch.get(key), question: q, index: idx };
+        } else {
+          seenInBatch.set(key, idx);
+          return { status: 'new', question: q, index: idx };
+        }
+      });
+      classified = {
+        items,
+        counts: {
+          total: items.length,
+          new: items.filter(x => x.status === 'new').length,
+          bank_dup: items.filter(x => x.status === 'bank_dup').length,
+          internal_dup: items.filter(x => x.status === 'internal_dup').length
+        },
+        validNewQuestions: items.filter(x => x.status === 'new').map(x => x.question),
+        nonInternalDupQuestions: items.filter(x => x.status !== 'internal_dup').map(x => x.question)
+      };
+    }
+  }
+
+  runClassification(currentTargetGrade);
 
   function renderDialogView() {
+    const { items: itemsInfo, counts } = classified;
+    const totalCount = counts.total;
+    const newCount = counts.new;
+    const bankDupCount = counts.bank_dup;
+    const internalDupCount = counts.internal_dup;
+
     const filteredItems = itemsInfo.filter(item => {
       if (currentTab === 'new') return item.status === 'new';
       if (currentTab === 'bank_dup') return item.status === 'bank_dup';
@@ -2349,6 +2407,20 @@ function openImportDedupDialog({ filename, questions, grade, subjectName }) {
 
     container.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:12px;font-size:13px">
+        <!-- Hộp chọn Khối lớp áp dụng & thông báo nhận diện -->
+        <div style="display:flex;align-items:center;justify-content:space-between;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 16px;flex-wrap:wrap;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <label for="import-dedup-grade-select" style="font-weight:700;color:#0267B1;font-size:13px">🎯 Khối lớp áp dụng cho tệp này:</label>
+            <select id="import-dedup-grade-select" style="font-weight:700;color:#0267B1;padding:5px 12px;border-radius:6px;border:1px solid #0267B1;background:#fff;font-size:13px;cursor:pointer">
+              ${[6, 7, 8, 9, 10, 11, 12].map(gr => `<option value="${gr}" ${gr === currentTargetGrade ? 'selected' : ''}>Khối ${gr}</option>`).join('')}
+            </select>
+          </div>
+          <div style="font-size:12px;color:#0369a1">
+            ${detectedGrade ? `✨ Đã tự động nhận diện <strong>Khối ${detectedGrade}</strong> từ tên tệp` : `(Đang lấy theo bộ lọc: Khối ${currentTargetGrade})`}
+            — <em>Thầy/Cô có thể đổi khối trên nếu cần</em>
+          </div>
+        </div>
+
         <!-- Thống kê 4 khối KPI -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:10px">
           <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:10px 14px">
@@ -2463,6 +2535,7 @@ function openImportDedupDialog({ filename, questions, grade, subjectName }) {
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
                   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                     <span style="font-weight:700;color:#0267B1">#${idx + 1}</span>
+                    <span style="background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:3px;padding:1px 6px;font-size:11px;font-weight:700">Khối ${q.grade}</span>
                     ${statusBadge}
                     <span style="background:#e0f2fe;color:#0369a1;border-radius:3px;padding:1px 6px;font-size:11px;font-weight:600">${esc(typeLabel)}</span>
                     <span style="background:#f1f5f9;color:#475569;border-radius:3px;padding:1px 6px;font-size:11px">${esc(levelLabel)}</span>
@@ -2507,6 +2580,15 @@ function openImportDedupDialog({ filename, questions, grade, subjectName }) {
         </div>
       </div>
     `;
+
+    // Gắn sự kiện chọn khối lớp
+    const gradeSelect = $('#import-dedup-grade-select');
+    if (gradeSelect) {
+      gradeSelect.onchange = (e) => {
+        runClassification(Number(e.target.value));
+        renderDialogView();
+      };
+    }
 
     // Gắn sự kiện tab
     const tabAll = $('#import-tab-all');
@@ -2562,8 +2644,16 @@ async function importBank(event){
   if(!file)return;
   const ext=file.name.toLowerCase().split('.').pop();
   try{
-    const g=Number(store.filters.grade)||Number(store.ppctGrade)||9;
-    const s=store.selectedSubject||store.ppctSubject||subject()||'Tin học';
+    let detectedGrade = null;
+    if (typeof TableFileHelper !== 'undefined' && typeof TableFileHelper.detectGradeFromFilename === 'function') {
+      detectedGrade = TableFileHelper.detectGradeFromFilename(file.name);
+    } else {
+      const clean = file.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const m = clean.match(/(?:khoi|k|lop|grade|tin(?:[_\s\-]*hoc)?)[_\s\-]*([6-9]|1[0-2])(?:[_\s\-\.]|$)/i);
+      if (m) detectedGrade = Number(m[1]);
+    }
+    const g = detectedGrade || Number(store.filters?.grade) || Number(store.ppctGrade) || 9;
+    const s = store.selectedSubject || store.ppctSubject || subject() || 'Tin học';
 
     if(typeof TableFileHelper !== 'undefined') {
       const res = await TableFileHelper.readTableFile(file);
@@ -2573,7 +2663,7 @@ async function importBank(event){
           notify('Không tìm thấy câu hỏi hợp lệ trong bảng tính. Hãy bấm "📊 Tải mẫu câu hỏi (Excel)" để xem mẫu 11 cột chuẩn.', true);
           return;
         }
-        openImportDedupDialog({ filename: file.name, questions: parsed, grade: g, subjectName: s });
+        openImportDedupDialog({ filename: file.name, questions: parsed, grade: g, subjectName: s, detectedGrade });
         return;
       } else if(res.type === 'json') {
         let bank = res.data;
@@ -2582,7 +2672,7 @@ async function importBank(event){
         
         // Nếu file JSON chứa danh sách câu hỏi: mở hộp thoại đối chiếu trùng lặp
         if (bank && Array.isArray(bank.questions) && (!bank.revisions || !bank.revisions.length) && (!bank.exams || !bank.exams.length) && (!bank.matrices || !bank.matrices.length)) {
-          openImportDedupDialog({ filename: file.name, questions: bank.questions, grade: g, subjectName: s });
+          openImportDedupDialog({ filename: file.name, questions: bank.questions, grade: g, subjectName: s, detectedGrade });
           return;
         }
 
@@ -2599,7 +2689,7 @@ async function importBank(event){
           notify('Không tìm thấy câu hỏi hợp lệ trong tệp Markdown. Bấm "📝 Tải mẫu câu hỏi (Markdown)" để xem định dạng chuẩn.', true);
           return;
         }
-        openImportDedupDialog({ filename: file.name, questions: parsed, grade: g, subjectName: s });
+        openImportDedupDialog({ filename: file.name, questions: parsed, grade: g, subjectName: s, detectedGrade });
         return;
       }
     }
@@ -2612,14 +2702,14 @@ async function importBank(event){
         notify('Không tìm thấy câu hỏi hợp lệ trong tệp Markdown. Bấm "📝 Tải mẫu câu hỏi (Markdown)" để xem định dạng chuẩn.',true);
         return;
       }
-      openImportDedupDialog({ filename: file.name, questions: parsed, grade: g, subjectName: s });
+      openImportDedupDialog({ filename: file.name, questions: parsed, grade: g, subjectName: s, detectedGrade });
     }else{
       const text=await file.text();
       let bank=JSON.parse(text);
       if(Array.isArray(bank))bank={questions:bank};
       else if(bank.bank)bank=bank.bank;
       if (bank && Array.isArray(bank.questions) && (!bank.revisions || !bank.revisions.length) && (!bank.exams || !bank.exams.length) && (!bank.matrices || !bank.matrices.length)) {
-        openImportDedupDialog({ filename: file.name, questions: bank.questions, grade: g, subjectName: s });
+        openImportDedupDialog({ filename: file.name, questions: bank.questions, grade: g, subjectName: s, detectedGrade });
         return;
       }
       if(!confirm('Khôi phục ngân hàng từ tệp JSON này? Toàn bộ câu hỏi hiện có sẽ được THAY bằng câu trong tệp. Ứng dụng kiểm tra dữ liệu và sao lưu trước khi ghi; PPCT gốc được giữ nguyên.'))return;

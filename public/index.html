@@ -341,6 +341,66 @@
   </div>
 </dialog>
 
+<!-- Modal Tùy biến Xuất Hồ sơ Khảo thí & Đề thi bằng Hộp tích chọn (Checkboxes) -->
+<dialog id="custom-export-dialog" style="max-width:880px;width:95vw;border-radius:14px;padding:22px;border:1px solid #dce5ee;box-shadow:0 16px 48px rgba(16,45,74,0.18)">
+  <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:1px solid #e2e8f0;padding-bottom:10px">
+    <div>
+      <span class="badge" style="background:#0267B1;color:#fff;font-weight:700">TÙY BIẾN XUẤT HỒ SƠ KHẢO THÍ</span>
+      <h2 id="custom-export-title" style="margin:4px 0 2px;color:var(--navy,#1e3a8a);font-size:1.3rem">⚙️ Tùy biến xuất Đề thi, Đáp án &amp; Hồ sơ</h2>
+      <p class="muted small" style="margin:0">Tích chọn các thành phần, số lượng mã đề và định dạng trang in phù hợp với yêu cầu thực tế của Thầy/Cô.</p>
+    </div>
+    <button type="button" data-close="custom-export-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer;color:#64748b">✕</button>
+  </div>
+  <div id="custom-export-content">
+    <!-- Nội dung render động từ app.js -->
+  </div>
+</dialog>
+
+<!-- Modal Tùy biến Xuất Đề cương Ôn tập -->
+<dialog id="custom-rev-export-dialog" style="max-width:820px;width:95vw;border-radius:14px;padding:22px;border:1px solid #dce5ee;box-shadow:0 16px 48px rgba(16,45,74,0.18)">
+  <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:1px solid #e2e8f0;padding-bottom:10px">
+    <div>
+      <span class="badge" style="background:#0267B1;color:#fff;font-weight:700">TÙY BIẾN ĐỀ CƯƠNG ÔN TẬP</span>
+      <h2 id="custom-rev-export-title" style="margin:4px 0 2px;color:var(--navy,#1e3a8a);font-size:1.3rem">⚙️ Tùy biến xuất Đề cương ôn tập</h2>
+      <p class="muted small" style="margin:0">Tích chọn cấu trúc hiển thị, giới hạn kiến thức Bảng A và đối tượng xuất (Học sinh vs Giáo viên).</p>
+    </div>
+    <button type="button" data-close="custom-rev-export-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer;color:#64748b">✕</button>
+  </div>
+  <div id="custom-rev-export-content">
+    <!-- Nội dung render động từ app.js -->
+  </div>
+</dialog>
+
+<!-- Modal Tùy biến Xuất Ma trận & Bản đặc tả -->
+<dialog id="custom-matrix-export-dialog" style="max-width:820px;width:95vw;border-radius:14px;padding:22px;border:1px solid #dce5ee;box-shadow:0 16px 48px rgba(16,45,74,0.18)">
+  <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:1px solid #e2e8f0;padding-bottom:10px">
+    <div>
+      <span class="badge" style="background:#0267B1;color:#fff;font-weight:700">TÙY BIẾN MA TRẬN &amp; ĐẶC TẢ</span>
+      <h2 id="custom-matrix-export-title" style="margin:4px 0 2px;color:var(--navy,#1e3a8a);font-size:1.3rem">⚙️ Tùy biến xuất Ma trận &amp; Bản đặc tả</h2>
+      <p class="muted small" style="margin:0">Tích chọn xuất gộp hoặc tách riêng 2 bảng, khổ giấy ngang/dọc, và ẩn/hiện cột năng lực số.</p>
+    </div>
+    <button type="button" data-close="custom-matrix-export-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer;color:#64748b">✕</button>
+  </div>
+  <div id="custom-matrix-export-content">
+    <!-- Nội dung render động từ matrices.js -->
+  </div>
+</dialog>
+
+<!-- Modal Tùy biến Xuất Ngân hàng câu hỏi -->
+<dialog id="custom-bank-export-dialog" style="max-width:820px;width:95vw;border-radius:14px;padding:22px;border:1px solid #dce5ee;box-shadow:0 16px 48px rgba(16,45,74,0.18)">
+  <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:1px solid #e2e8f0;padding-bottom:10px">
+    <div>
+      <span class="badge" style="background:#0267B1;color:#fff;font-weight:700">TÙY BIẾN XUẤT NGÂN HÀNG CÂU HỎI</span>
+      <h2 id="custom-bank-export-title" style="margin:4px 0 2px;color:var(--navy,#1e3a8a);font-size:1.3rem">⚙️ Tùy biến xuất Ngân hàng câu hỏi</h2>
+      <p class="muted small" style="margin:0">Tích chọn các trường dữ liệu, dạng câu hỏi và trạng thái kiểm duyệt cần xuất ra Excel / JSON / Markdown.</p>
+    </div>
+    <button type="button" data-close="custom-bank-export-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer;color:#64748b">✕</button>
+  </div>
+  <div id="custom-bank-export-content">
+    <!-- Nội dung render động từ app.js -->
+  </div>
+</dialog>
+
 <!-- Backup & Restore Dialog -->
 <dialog id="backup-dialog" style="max-width:550px;width:90vw;border-radius:12px;padding:24px;border:1px solid var(--line,#ccc);box-shadow:0 12px 36px rgba(0,0,0,0.2)">
   <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--line,#eee);padding-bottom:12px">

@@ -1134,6 +1134,7 @@
     if(!m.id||ui.dirty){el.innerHTML='<p class="muted">Lưu thay đổi để xuất đúng nội dung đang soạn.</p>';return;}
     el.innerHTML=`<div class="actions">
       <button type="button" class="button primary" data-export="doc-all">Word trọn bộ (.doc)</button>
+      <button type="button" class="button" data-export="custom-matrix" style="background:#0267B1;color:#fff;border-color:#0267B1;font-weight:700">⚙️ Tùy biến xuất hồ sơ</button>
       <button type="button" class="button" data-export="doc-matrix">Word ma trận</button>
       <button type="button" class="button" data-export="doc-spec">Word đặc tả</button>
       <button type="button" class="button" data-export="pdf">PDF / In</button>
@@ -1146,7 +1147,8 @@
       btn.onclick=(ev)=>{
         ev.preventDefault();
         const type=btn.dataset.export;
-        if(type==='doc-all')downloadMatrixWord(m,'all');
+        if(type==='custom-matrix')openCustomMatrixExportDialog(m);
+        else if(type==='doc-all')downloadMatrixWord(m,'all');
         else if(type==='doc-matrix')downloadMatrixWord(m,'matrix');
         else if(type==='doc-spec')downloadMatrixWord(m,'specification');
         else if(type==='doc-comp')downloadMatrixWord(m,'competencies');
@@ -2280,6 +2282,127 @@
     setTimeout(() => win.print(), 300);
   }
 
+  function openCustomMatrixExportDialog(m) {
+    if (!m) return;
+    const dlg = document.getElementById('custom-matrix-export-dialog');
+    const container = document.getElementById('custom-matrix-export-content');
+    if (!dlg || !container) return;
+
+    const titleEl = document.getElementById('custom-matrix-export-title');
+    if (titleEl) {
+      titleEl.innerHTML = `⚙️ Tùy biến xuất Ma trận &amp; Đặc tả: <span style="color:#0267B1">${E(m.title)}</span> (Khối ${m.grade} · ${m.exam_type || 'GK1'})`;
+    }
+
+    container.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:14px;font-size:13px">
+        <div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <strong style="color:#0267B1;font-size:14px">${E(m.title || 'Ma trận đề kiểm tra')}</strong>
+            <div style="font-size:12px;color:#64748b;margin-top:2px">
+              Khối ${E(m.grade)} · ${E(profileLabel(m.profile))} · Kỳ kiểm tra: <strong>${E(periods[m.exam_type] || m.exam_type || 'GK1')}</strong> · Phiên bản: <strong>V${E(m.version || 1)}</strong>
+            </div>
+          </div>
+          <span class="badge ${m.status === 'locked' ? 'approved' : 'draft'}">
+            ${m.status === 'locked' ? 'Đã chốt (Khóa)' : 'Bản nháp đang soạn'}
+          </span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+            <h4 style="margin:0 0 10px;color:#0267B1;font-size:13px;border-bottom:1px solid #f1f5f9;padding-bottom:6px">
+              1. Thành phần bảng dữ liệu xuất (Tích chọn):
+            </h4>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="cmx-sec-matrix" checked>
+                <span><strong>Bảng 1: Khung Ma trận 2D</strong> (Khổ A4 ngang, không tràn viền 15 cột)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="cmx-sec-spec" checked>
+                <span><strong>Bảng 2: Bản đặc tả chi tiết</strong> (Khổ A4 dọc, chi tiết YCCĐ &amp; số câu)</span>
+              </label>
+              ${m.profile === 'THPT' ? `
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="cmx-sec-comp">
+                <span><strong>Bảng 3: Bảng chỉ báo &amp; Năng lực Tin học</strong> (Khung NLa-NLe)</span>
+              </label>` : ''}
+            </div>
+          </div>
+
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+            <h4 style="margin:0 0 10px;color:#0267B1;font-size:13px;border-bottom:1px solid #f1f5f9;padding-bottom:6px">
+              2. Phương thức ghép tệp &amp; Khổ giấy in:
+            </h4>
+            <div style="margin-bottom:10px">
+              <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px">Ghép file xuất:</label>
+              <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                  <input type="radio" name="cmx_bundle_mode" value="single" checked>
+                  <strong>01 tệp Word duy nhất</strong> (Đã tích hợp định dạng trang in)
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                  <input type="radio" name="cmx_bundle_mode" value="separate">
+                  <strong>Tách riêng từng tệp</strong> (1 file Ma trận ngang + 1 file Đặc tả dọc)
+                </label>
+              </div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="cmx-opt-school-header" checked>
+              <span>Tiêu ngữ Trường Quốc tế Á Châu &amp; Năm học 2026-2027</span>
+            </label>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;padding-top:14px;margin-top:6px;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;gap:8px">
+            <button type="button" class="button primary" id="btn-cmx-export-word" style="background:#0267B1;border-color:#0267B1;color:#fff;font-weight:700">
+              📥 Xuất tệp Word (.doc / .docx)
+            </button>
+            <button type="button" class="button" id="btn-cmx-export-json" style="font-weight:600">
+              📦 Gói dữ liệu JSON (.json)
+            </button>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="button" id="btn-cmx-print" style="font-weight:600">
+              🖨️ Mở trang in / PDF
+            </button>
+            <button type="button" class="button quiet" data-close="custom-matrix-export-dialog">Đóng</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const exportBtn = document.getElementById('btn-cmx-export-word');
+    if (exportBtn) {
+      exportBtn.onclick = () => {
+        const secMatrix = document.getElementById('cmx-sec-matrix')?.checked;
+        const secSpec = document.getElementById('cmx-sec-spec')?.checked;
+        const secComp = document.getElementById('cmx-sec-comp')?.checked;
+        const isSep = document.querySelector('input[name="cmx_bundle_mode"]:checked')?.value === 'separate';
+
+        if (isSep) {
+          if (secMatrix) downloadMatrixWord(m, 'matrix');
+          if (secSpec) setTimeout(() => downloadMatrixWord(m, 'specification'), 500);
+          if (secComp) setTimeout(() => downloadMatrixWord(m, 'competencies'), 1000);
+        } else {
+          let section = 'all';
+          if (secMatrix && !secSpec && !secComp) section = 'matrix';
+          else if (!secMatrix && secSpec && !secComp) section = 'specification';
+          else if (!secMatrix && !secSpec && secComp) section = 'competencies';
+          downloadMatrixWord(m, section);
+        }
+      };
+    }
+
+    const jsonBtn = document.getElementById('btn-cmx-export-json');
+    if (jsonBtn) jsonBtn.onclick = () => downloadMatrixJson(m);
+
+    const printBtn = document.getElementById('btn-cmx-print');
+    if (printBtn) printBtn.onclick = () => printMatrixDoc(m);
+
+    dlg.showModal();
+  }
+
   function downloadMatrixLatex(m) {
     if (!m) return;
     const v = buildMatrixView(m);
@@ -2345,7 +2468,7 @@
     const zoomPct=PREVIEW_ZOOMS.includes(ui.previewZoom)?ui.previewZoom:100;preview.dataset.zoom=String(zoomPct);
     preview.innerHTML=`<div class="mx-panel-head"><div><p class="eyebrow">XEM TOÀN BỘ MA TRẬN & BẢNG ĐẶC TẢ</p><h2>${E(m.title)} · Khối ${m.grade} (${E(profileLabel(m.profile))})</h2></div><div class="actions"><button type="button" data-action="compare-id" data-id="${E(st.id)}">Đối chiếu bản gốc (2 cột)</button>${ui.editing?.id!==st.id?`<button type="button" data-open="${E(st.id)}">Mở biên tập</button>`:''}<button type="button" class="quiet" data-action="close-preview">Đóng khung xem</button></div></div>`+
     `<div class="mx-panel-toolbar"><div class="actions"><button type="button" class="${st.section==='all'?'primary':''}" data-action="preview-sec" data-sec="all">Toàn bộ bảng</button><button type="button" class="${st.section==='matrix'?'primary':''}" data-action="preview-sec" data-sec="matrix">Bảng ma trận</button><button type="button" class="${st.section==='specification'?'primary':''}" data-action="preview-sec" data-sec="specification">Bảng đặc tả</button>${m.profile==='THPT'?`<button type="button" class="${st.section==='competencies'?'primary':''}" data-action="preview-sec" data-sec="competencies">Bảng năng lực</button>`:''}</div>`+
-    `<div class="actions">${hasRaw?`<button type="button" class="${st.mode==='web'?'primary':''}" data-action="preview-mode" data-mode="web">Bản chuẩn hóa Web (đánh số câu)</button><button type="button" class="${st.mode==='raw'?'primary':''}" data-action="preview-mode" data-mode="raw">Bảng nguyên trạng từ Word</button>`:''}<button type="button" class="button primary" data-action="download-preview-word">📄 Tải Word (.doc)</button></div></div>`+
+    `<div class="actions">${hasRaw?`<button type="button" class="${st.mode==='web'?'primary':''}" data-action="preview-mode" data-mode="web">Bản chuẩn hóa Web (đánh số câu)</button><button type="button" class="${st.mode==='raw'?'primary':''}" data-action="preview-mode" data-mode="raw">Bảng nguyên trạng từ Word</button>`:''}<button type="button" class="button" data-action="custom-matrix-export" style="background:#0267B1;color:#fff;border-color:#0267B1;font-weight:700">⚙️ Tùy biến xuất hồ sơ</button><button type="button" class="button primary" data-action="download-preview-word">📄 Tải Word (.doc)</button></div></div>`+
     (fmt?fmt.toolbarHtml(fmtKey,false):'')+
     (issues.length?`<div class="mx-errors"><strong>Cảnh báo nguồn cần xác minh (${issues.length} mục):</strong><ul>${issues.map(x=>`<li>${E(x.message)}</li>`).join('')}</ul></div>`:'')+
     `<div class="mx-zoom"><span>Cỡ hiển thị:</span><button type="button" class="quiet" data-action="preview-zoom" data-dir="-1" title="Thu nhỏ khung xem" aria-label="Thu nhỏ khung xem">A−</button><strong class="mx-zoom-val" aria-live="polite">${zoomPct}%</strong><button type="button" class="quiet" data-action="preview-zoom" data-dir="1" title="Phóng to khung xem" aria-label="Phóng to khung xem">A+</button><button type="button" class="quiet" data-action="preview-zoom" data-dir="0" title="Về 100%">Đặt lại</button><small>Chỉ đổi cỡ xem trên màn hình. Tệp Word/PDF vẫn giữ chuẩn: Times New Roman, lề trên/dưới 1,0 cm, khổ ngang.</small></div>`+
@@ -2353,6 +2476,8 @@
     enhanceSheetTables(preview);
     const dlBtn=preview.querySelector('[data-action="download-preview-word"]');
     if(dlBtn)dlBtn.onclick=()=>downloadMatrixWord(m,st.section);
+    const customMxBtn=preview.querySelector('[data-action="custom-matrix-export"]');
+    if(customMxBtn)customMxBtn.onclick=()=>openCustomMatrixExportDialog(m);
     if(fmt){
       fmt.attach(preview,'.mx-sheet-body',{
         storageKey:fmtKey,
@@ -3576,6 +3701,6 @@ Quy ước:
   function coverage(){if(!ui.generation||!qs('#mx-coverage'))return;const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));let count=0,matched=0;for(const e of ui.generation.slots){const q=e.candidates.find(q=>q.id===qs('#mx-choice-'+e.slot.id).value);if(q){count++;if(hashes.has(q.content_hash))matched++;}}qs('#mx-coverage').textContent=`Đã chọn ${count}/${ui.generation.slots.length} câu · Khớp nội dung đề cương ${matched} câu. Máy chủ sẽ kiểm tra lại khi tạo đề.`;}
   function suggest(){const rev=(ui.ctx.revisions||[]).find(r=>r.id===qs('#mx-exam-revision').value),hashes=new Set((rev?.questions||[]).map(q=>q.content_hash));const used=new Set();for(const e of ui.generation.slots){const pool=e.candidates.slice().sort((a,b)=>Number(hashes.has(b.content_hash))-Number(hashes.has(a.content_hash)));const q=pool.find(q=>!used.has(q.id));qs('#mx-choice-'+e.slot.id).value=q?.id||'';if(q)used.add(q.id);ui.container.querySelectorAll('[data-review-slot]').forEach(c=>{if(c.dataset.reviewSlot===e.slot.id)c.checked=false;});showChoice(e.slot.id);}captureGeneration();coverage();message('Đã gợi ý câu. Thầy cần xem nội dung và đánh dấu đối chiếu từng chỉ báo trước khi lưu đề.');}
   async function generate(){const g=ui.generation;const placements=g.slots.map(e=>({slot_id:e.slot.id,question_id:qs('#mx-choice-'+e.slot.id).value,reviewed_part_ids:[...ui.container.querySelectorAll('[data-review-slot]')].filter(x=>x.dataset.reviewSlot===e.slot.id&&x.checked).map(x=>x.value)}));const result=await ui.ctx.request('/api/exams/from-matrix',{matrix_id:g.matrix.id,revision_id:qs('#mx-exam-revision').value,title:qs('#mx-exam-title').value,campus:qs('#mx-exam-campus').value,exam_code:qs('#mx-exam-code').value,seed:qs('#mx-exam-seed').value,placements});const e=result.exam,base='/api/exams/'+encodeURIComponent(e.id)+'/export';qs('#mx-created-exam').innerHTML=`<div class="callout"><h3>Đã lưu đề ${E(e.exam_code)} · ${E(e.campus)}</h3><p>${e.question_count} câu · 10 điểm · Khớp đề cương ${e.revision_match_count}/${e.question_count} câu · Ma trận V${e.matrix_version}</p><div class="actions"><button type="button" class="primary" data-view-exam="${E(e.id)}" data-mode="student">Xem đề học sinh</button><button type="button" data-view-exam="${E(e.id)}" data-mode="answers">Xem đáp án & HDC</button><a class="button" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button" href="${base}?format=docx&answers=1">Word đáp án</a></div></div>`;ui.ctx.onExamCreated?.(e);message('Đã tạo đề riêng và lưu phiên bản ma trận dùng chung cùng đề.');}
-  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,STANDARD_PRESETS,newDraft,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
+  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,STANDARD_PRESETS,newDraft,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

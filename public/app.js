@@ -1175,10 +1175,511 @@ Chỉ xuất trực tiếp nội dung Markdown, không kèm bình luận.`;
     copyTextWithFallback(prompt, 'Đã chép Prompt AI tạo Đề thi (chuẩn CV 7991/6569) vào bộ nhớ tạm!');
   }
 
+  // =========================================================================
+  // HỘP THOẠI TÙY BIẾN XUẤT HỒ SƠ KHẢO THÍ & ĐỀ THI (HỘP TÍCH CHỌN)
+  // =========================================================================
+  function openCustomExportDialog(examId) {
+    const dlg = $('#custom-export-dialog');
+    if (!dlg) return;
+    const container = $('#custom-export-content');
+    if (!container) return;
+
+    const list = currentExams();
+    const record = list.find(e => e.id === examId) || store.exams.find(e => e.id === examId) || list[0];
+    if (!record) {
+      notify('Không tìm thấy thông tin đề kiểm tra.', true);
+      return;
+    }
+
+    const base = '/api/exams/' + encodeURIComponent(record.id) + '/export';
+    const hasVariants = Boolean(record.parent_exam_id || store.exams.some(x => x.parent_exam_id === record.id));
+    const isThpt = Number(record.grade) >= 10;
+
+    container.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:14px;font-size:13px">
+        <div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <strong style="color:#0267B1;font-size:14px">${esc(record.title || 'Đề kiểm tra')}</strong>
+            <div style="font-size:12px;color:#64748b;margin-top:2px">
+              Khối ${esc(record.grade)} · Môn: ${esc(record.subject_name || subject())} · Thời gian: ${esc(record.duration || 45)} phút · Mã đề gốc: <strong>${esc(record.exam_code || 'GỐC')}</strong> · Tổng điểm: <strong>${fmtPts(record.total_points ?? 10)} điểm</strong>
+            </div>
+          </div>
+          <span class="badge ${record.status === 'published' ? 'approved' : record.status === 'locked' ? '' : 'draft'}">
+            ${record.status === 'published' ? 'Đã phát hành' : record.status === 'locked' ? 'Đã khóa' : 'Bản nháp'}
+          </span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <!-- Cột trái: Thành phần hồ sơ cần xuất -->
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+            <h4 style="margin:0 0 10px;color:#0267B1;font-size:13px;border-bottom:1px solid #f1f5f9;padding-bottom:6px">
+              1. Thành phần hồ sơ cần xuất (Tích chọn):
+            </h4>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="cexp-chk-student" checked>
+                <span><strong>📄 Đề kiểm tra học sinh</strong> (Ẩn đáp án &amp; HDC)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="cexp-chk-answers" checked>
+                <span><strong>🔑 Bản Đáp án &amp; Hướng dẫn chấm</strong> (Dành riêng cho GV)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="cexp-chk-matrix" checked>
+                <span><strong>📊 Khung Ma trận 2D &amp; Bản đặc tả</strong> (Word không tràn viền)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="cexp-chk-mapping" ${hasVariants ? 'checked' : ''}>
+                <span><strong>🔀 Bảng đối chiếu hoán vị 4 mã đề</strong> (Mapping matrix)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="cexp-chk-omr">
+                <span><strong>📝 Phiếu trả lời trắc nghiệm</strong> (Tô tròn A B C D / Đúng Sai)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Cột phải: Cấu hình mã đề & Trình bày -->
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+            <h4 style="margin:0 0 10px;color:#0267B1;font-size:13px;border-bottom:1px solid #f1f5f9;padding-bottom:6px">
+              2. Cấu hình Mã đề &amp; Trình bày trang in:
+            </h4>
+            <div style="margin-bottom:10px">
+              <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px">Số lượng mã đề hoán vị:</label>
+              <div style="display:flex;gap:12px;font-size:12px">
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+                  <input type="radio" name="cexp_variants_count" value="1" checked> 1 mã gốc
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+                  <input type="radio" name="cexp_variants_count" value="2"> 2 mã (101, 102)
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+                  <input type="radio" name="cexp_variants_count" value="4"> 4 mã (101 - 104)
+                </label>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="cexp-chk-show-points" checked>
+                <span>Hiển thị điểm từng câu trên đề (VD: <em>[0,25 điểm]</em>)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="cexp-chk-pagebreak" checked>
+                <span>Ngắt trang sạch (Page-break) giữa Trắc nghiệm &amp; Tự luận</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="cexp-chk-rubric-detail" checked>
+                <span>Kèm Barem tiêu chí chấm Tự luận chi tiết (Rubric)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hàng thông tin nhận diện trường -->
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div>
+            <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px">Cơ sở Trường Quốc tế Á Châu</label>
+            <select id="cexp-select-campus" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;font-size:12px">
+              <option value="Cao Thắng">Cơ sở Cao Thắng (Q.3)</option>
+              <option value="Pasteur">Cơ sở Pasteur (Q.3)</option>
+              <option value="Cộng Hòa">Cơ sở Cộng Hòa (Tân Bình)</option>
+              <option value="Trần Nhật Duật">Cơ sở Trần Nhật Duật (Q.1)</option>
+              <option value="Thái Văn Lung">Cơ sở Thái Văn Lung (Q.1)</option>
+              <option value="Văn Thánh">Cơ sở Văn Thánh (Bình Thạnh)</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px">Năm học</label>
+            <input type="text" id="cexp-school-year" value="2026-2027" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;font-size:12px">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px">Định dạng lề trang in</label>
+            <select id="cexp-margin" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;font-size:12px">
+              <option value="standard">Chuẩn A4 không tràn viền (Trái 3cm, Phải 2cm)</option>
+              <option value="compact">A4 tiết kiệm giấy (Trái 2cm, Phải 1.5cm)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Nút hành động -->
+        <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;padding-top:14px;margin-top:6px;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;gap:8px">
+            <button type="button" class="button primary" id="cexp-btn-download-bundle" style="background:#0267B1;border-color:#0267B1;font-weight:700;padding:8px 18px">
+              📦 Tải trọn bộ Hồ sơ theo tùy chọn (.zip)
+            </button>
+            <button type="button" class="button" id="cexp-btn-download-student" style="font-weight:600">
+              📄 Word Đề thi (.docx)
+            </button>
+            <button type="button" class="button" id="cexp-btn-download-answers" style="font-weight:600">
+              🔑 Word Đáp án &amp; HDC (.docx)
+            </button>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="button" id="cexp-btn-print" style="font-weight:600">
+              🖨️ Mở trang in
+            </button>
+            <button type="button" class="button quiet" data-close="custom-export-dialog">Đóng</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const bundleBtn = $('#cexp-btn-download-bundle');
+    if (bundleBtn) {
+      bundleBtn.onclick = () => {
+        window.location.href = apiUrl(`/api/exams/${encodeURIComponent(record.id)}/bundle.zip?format=docx`);
+        notify('Đang tải trọn bộ hồ sơ đề thi theo tùy chọn của Thầy/Cô...');
+      };
+    }
+    const stuBtn = $('#cexp-btn-download-student');
+    if (stuBtn) {
+      stuBtn.onclick = () => {
+        window.location.href = apiUrl(`${base}?format=docx&answers=0`);
+      };
+    }
+    const ansBtn = $('#cexp-btn-download-answers');
+    if (ansBtn) {
+      ansBtn.onclick = () => {
+        window.location.href = apiUrl(`${base}?format=docx&answers=1`);
+      };
+    }
+    const printBtn = $('#cexp-btn-print');
+    if (printBtn) {
+      printBtn.onclick = () => {
+        const isAns = $('#cexp-chk-answers')?.checked;
+        window.open(apiUrl(`${base}?format=html&answers=${isAns ? 1 : 0}`), '_blank');
+      };
+    }
+
+    dlg.showModal();
+  }
+
+  // =========================================================================
+  // HỘP THOẠI TÙY BIẾN XUẤT ĐỀ CƯƠNG ÔN TẬP (HỘP TÍCH CHỌN)
+  // =========================================================================
+  function openCustomRevExportDialog(revId) {
+    const dlg = $('#custom-rev-export-dialog');
+    if (!dlg) return;
+    const container = $('#custom-rev-export-content');
+    if (!container) return;
+
+    const list = store.revisions || [];
+    const record = list.find(r => r.id === revId) || list[0];
+    if (!record) {
+      notify('Không tìm thấy thông tin đề cương ôn tập.', true);
+      return;
+    }
+
+    const base = '/api/revisions/' + encodeURIComponent(record.id) + '/export';
+
+    container.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:14px;font-size:13px">
+        <div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <strong style="color:#0267B1;font-size:14px">${esc(record.title || 'Đề cương ôn tập')}</strong>
+            <div style="font-size:12px;color:#64748b;margin-top:2px">
+              Khối ${esc(record.grade)} · ${countRecord(record)} câu hỏi ôn tập · Ngày tạo: ${esc(date(record.created_at))}
+            </div>
+          </div>
+          <span class="badge ${record.status === 'published' ? 'approved' : record.status === 'locked' ? '' : 'draft'}">
+            ${record.status === 'published' ? 'Đã phát hành' : record.status === 'locked' ? 'Đã khóa' : 'Đang soạn'}
+          </span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+            <h4 style="margin:0 0 10px;color:#0267B1;font-size:13px;border-bottom:1px solid #f1f5f9;padding-bottom:6px">
+              1. Cấu trúc nội dung đề cương:
+            </h4>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="crev-chk-table-a" checked>
+                <span><strong>Bảng A: Giới hạn kiến thức ôn tập</strong> (Tên bài, số tiết, YCCĐ)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="crev-chk-student-doc" checked>
+                <span><strong>Bản đề cương học sinh</strong> (Ẩn đáp án, chừa dòng kẻ ghi chú)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="crev-chk-teacher-doc" checked>
+                <span><strong>Bản giáo viên</strong> (In đậm đáp án, kèm lời giải &amp; rubric)</span>
+              </label>
+            </div>
+          </div>
+
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+            <h4 style="margin:0 0 10px;color:#0267B1;font-size:13px;border-bottom:1px solid #f1f5f9;padding-bottom:6px">
+              2. Sắp xếp &amp; Phân nhóm câu hỏi:
+            </h4>
+            <div style="margin-bottom:10px">
+              <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px">Quy cách gom nhóm câu hỏi:</label>
+              <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                  <input type="radio" name="crev_grouping" value="lesson" checked>
+                  <strong>Gom theo Bài học (PPCT)</strong> (Học sinh ôn tập cuốn chiếu từng bài)
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                  <input type="radio" name="crev_grouping" value="type">
+                  <strong>Gom theo Dạng câu</strong> (Trắc nghiệm NLC, Đúng/Sai, Tự luận)
+                </label>
+              </div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="crev-chk-school-header" checked>
+              <span>Tiêu đề nhận diện Trường Quốc tế Á Châu (Năm học 2026-2027)</span>
+            </label>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;padding-top:14px;margin-top:6px;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;gap:8px">
+            <button type="button" class="button primary" id="crev-btn-download-student" style="background:#0267B1;border-color:#0267B1;font-weight:700">
+              📄 Word Đề cương học sinh (.docx)
+            </button>
+            <button type="button" class="button" id="crev-btn-download-teacher" style="font-weight:600">
+              🔑 Word Đề cương giáo viên (.docx)
+            </button>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="button" id="crev-btn-print" style="font-weight:600">
+              🖨️ Mở trang in
+            </button>
+            <button type="button" class="button quiet" data-close="custom-rev-export-dialog">Đóng</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const stuBtn = $('#crev-btn-download-student');
+    if (stuBtn) stuBtn.onclick = () => { window.location.href = apiUrl(`${base}?format=docx&answers=0`); };
+    const teaBtn = $('#crev-btn-download-teacher');
+    if (teaBtn) teaBtn.onclick = () => { window.location.href = apiUrl(`${base}?format=docx&answers=1`); };
+    const printBtn = $('#crev-btn-print');
+    if (printBtn) printBtn.onclick = () => { window.open(apiUrl(`${base}?format=html`), '_blank'); };
+
+    dlg.showModal();
+  }
+
+  // =========================================================================
+  // HỘP THOẠI TÙY BIẾN XUẤT NGÂN HÀNG CÂU HỎI (HỘP TÍCH CHỌN)
+  // =========================================================================
+  function openCustomBankExportDialog() {
+    const dlg = $('#custom-bank-export-dialog');
+    if (!dlg) return;
+    const container = $('#custom-bank-export-content');
+    if (!container) return;
+
+    const curGrade = Number(store.filters.grade) || Number(store.ppctGrade) || 9;
+    const isThpt = curGrade >= 10;
+    const countTotal = (store.bank?.questions || []).length;
+    const countFiltered = filtered().length;
+    const countSelected = store.selected ? store.selected.size : 0;
+
+    container.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:14px;font-size:13px">
+        <div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <strong style="color:#0267B1;font-size:14px">Ngân hàng câu hỏi: Môn ${esc(subject())}</strong>
+            <div style="font-size:12px;color:#64748b;margin-top:2px">
+              Tổng số: <strong>${countTotal}</strong> câu · Đang lọc: <strong>${countFiltered}</strong> câu · Đang tích chọn: <strong>${countSelected}</strong> câu
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+            <h4 style="margin:0 0 10px;color:#0267B1;font-size:13px;border-bottom:1px solid #f1f5f9;padding-bottom:6px">
+              1. Phạm vi &amp; Trạng thái câu hỏi (Hộp chọn):
+            </h4>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              ${countSelected > 0 ? `
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#0267B1;font-weight:600">
+                <input type="radio" name="cbank_scope" value="selected" checked>
+                <span>Chỉ xuất các câu <strong>ĐÃ TÍCH CHỌN (${countSelected} câu)</strong></span>
+              </label>` : ''}
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="radio" name="cbank_scope" value="filtered" ${countSelected === 0 ? 'checked' : ''}>
+                <span>Chỉ xuất danh sách câu <strong>đang khớp bộ lọc (${countFiltered} câu)</strong></span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="radio" name="cbank_scope" value="all">
+                <span>Xuất <strong>toàn bộ ngân hàng câu hỏi (${countTotal} câu)</strong></span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:4px">
+                <input type="checkbox" id="cbank-chk-approved-only">
+                <span>Chỉ lấy câu <strong>đã kiểm duyệt (Approved)</strong></span>
+              </label>
+            </div>
+          </div>
+
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+            <h4 style="margin:0 0 10px;color:#0267B1;font-size:13px;border-bottom:1px solid #f1f5f9;padding-bottom:6px">
+              2. Các dạng câu cần xuất (Tích chọn):
+            </h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" id="cbank-type-mc" checked>
+                <span>Trắc nghiệm (MC)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:${isThpt ? 'pointer' : 'not-allowed'};opacity:${isThpt ? '1' : '0.55'}">
+                <input type="checkbox" id="cbank-type-yn" ${isThpt ? 'checked' : 'disabled'}>
+                <span>Đúng/Sai (YN)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:${isThpt ? 'pointer' : 'not-allowed'};opacity:${isThpt ? '1' : '0.55'}">
+                <input type="checkbox" id="cbank-type-short" ${isThpt ? 'checked' : 'disabled'}>
+                <span>Trả lời ngắn (SHORT)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="checkbox" id="cbank-type-es" checked>
+                <span>Tự luận (ES)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;padding-top:14px;margin-top:6px;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;gap:8px">
+            <button type="button" class="button primary" id="cbank-btn-export-excel" style="background:#15803d;border-color:#15803d;color:#fff;font-weight:700">
+              📊 Xuất Bảng tính Excel (.csv)
+            </button>
+            <button type="button" class="button" id="cbank-btn-export-json" style="font-weight:600">
+              📥 Xuất tệp JSON
+            </button>
+            <button type="button" class="button" id="cbank-btn-export-md" style="font-weight:600">
+              📝 Xuất Markdown (.md)
+            </button>
+          </div>
+          <button type="button" class="button quiet" data-close="custom-bank-export-dialog">Đóng</button>
+        </div>
+      </div>
+    `;
+
+    function getTargetQuestions() {
+      const scope = document.querySelector('input[name="cbank_scope"]:checked')?.value || 'filtered';
+      let pool = [];
+      if (scope === 'selected') {
+        pool = questions().filter(q => store.selected.has(q.id));
+      } else if (scope === 'filtered') {
+        pool = filtered();
+      } else {
+        pool = questions();
+      }
+
+      if ($('#cbank-chk-approved-only')?.checked) {
+        pool = pool.filter(q => q.review_status === 'approved');
+      }
+
+      const mc = $('#cbank-type-mc')?.checked;
+      const yn = $('#cbank-type-yn')?.checked;
+      const sh = $('#cbank-type-short')?.checked;
+      const es = $('#cbank-type-es')?.checked;
+
+      return pool.filter(q => {
+        if (q.type === 'MC' && !mc) return false;
+        if (q.type === 'YN' && !yn) return false;
+        if (q.type === 'SHORT' && !sh) return false;
+        if (q.type === 'ES' && !es) return false;
+        return true;
+      });
+    }
+
+    $('#cbank-btn-export-excel').onclick = () => {
+      const qList = getTargetQuestions();
+      const g = curGrade;
+      const subj = subject();
+      if (typeof TableFileHelper !== 'undefined') {
+        if (!qList.length) {
+          const sample = TableFileHelper.getSampleBankRows(g, subj);
+          TableFileHelper.downloadCsv(sample, `Mau_cau_hoi_${C.normalize(subj).replace(/\\s+/g, '_')}_K${g}.csv`);
+          notify('Không có câu hỏi phù hợp với bộ lọc đã chọn; đã xuất file mẫu.');
+          return;
+        }
+        const headers = ['Ma_cau', 'Dang_cau', 'Khoi', 'Ma_bai', 'Ten_bai', 'Muc_do', 'Noi_dung_cau_hoi', 'Dap_an', 'Y_dung_sai', 'Loi_giai', 'Yeu_cau_can_dat', 'Thang_diem'];
+        const rows = [headers];
+        for (const q of qList) {
+          let ansStr = '';
+          let ynStr = '';
+          if (q.type === 'MC') {
+            ansStr = String.fromCharCode(65 + (Number(q.correct) || 0));
+          } else if (q.type === 'YN' && Array.isArray(q.branches)) {
+            ynStr = q.branches.map(b => (b.correct ? 'Đ' : 'S')).join(';');
+          } else if (q.type === 'SHORT') {
+            ansStr = q.answer || '';
+          }
+          rows.push([
+            q.id || '',
+            q.type || 'MC',
+            q.grade || g,
+            q.lesson_code || '',
+            q.lesson_title || '',
+            q.level || 'Biết',
+            q.question || '',
+            ansStr,
+            ynStr,
+            q.explanation || '',
+            q.learning_outcome || '',
+            q.points ?? (q.type === 'MC' ? 0.25 : q.type === 'YN' ? 1.0 : q.type === 'SHORT' ? 0.5 : 1.0)
+          ]);
+        }
+        TableFileHelper.downloadCsv(rows, `Ngan_hang_cau_hoi_${C.normalize(subj).replace(/\\s+/g, '_')}_K${g}_${qList.length}cau.csv`);
+        notify(`Đã xuất ${qList.length} câu hỏi ra bảng tính Excel.`);
+      }
+    };
+
+    $('#cbank-btn-export-json').onclick = () => {
+      const qList = getTargetQuestions();
+      const g = curGrade;
+      const subj = subject();
+      const payload = {
+        subject: subj,
+        grade: g,
+        exported_at: new Date().toISOString(),
+        total_questions: qList.length,
+        questions: qList
+      };
+      triggerTextDownload(JSON.stringify(payload, null, 2), 'application/json;charset=utf-8', `Ngan_hang_cau_hoi_${C.normalize(subj).replace(/\\s+/g, '_')}_K${g}_${qList.length}cau.json`);
+      notify(`Đã xuất ${qList.length} câu hỏi ra tệp JSON.`);
+    };
+
+    $('#cbank-btn-export-md').onclick = () => {
+      const qList = getTargetQuestions();
+      const g = curGrade;
+      const subj = subject();
+      if (!qList.length) {
+        downloadBankMdSample(curGrade);
+        return;
+      }
+      let md = `# NGÂN HÀNG CÂU HỎI MÔN ${subj.toUpperCase()} - KHỐI ${g}\n\n`;
+      qList.forEach((q, idx) => {
+        md += `### Câu ${idx + 1} (${q.type}):\n${q.question}\n`;
+        if (q.type === 'MC' && Array.isArray(q.options)) {
+          q.options.forEach((opt, oIdx) => {
+            md += `${String.fromCharCode(65 + oIdx)}. ${opt}\n`;
+          });
+          md += `*Đáp án:* ${String.fromCharCode(65 + (Number(q.correct) || 0))}\n`;
+        } else if (q.type === 'YN' && Array.isArray(q.branches)) {
+          q.branches.forEach((b, bIdx) => {
+            md += `${String.fromCharCode(97 + bIdx)}) [${b.correct ? 'Đúng' : 'Sai'}] ${b.content}\n`;
+          });
+        } else if (q.type === 'SHORT') {
+          md += `*Đáp án:* ${q.answer || ''}\n`;
+        }
+        md += `*Mức độ:* ${q.level || 'Biết'}\n`;
+        md += `*Bài học:* ${q.lesson_code || ''}\n`;
+        if (q.explanation) md += `*Lời giải:* ${q.explanation}\n`;
+        md += `\n`;
+      });
+      triggerTextDownload(md, 'text/markdown;charset=utf-8', `Ngan_hang_cau_hoi_${C.normalize(subj).replace(/\\s+/g, '_')}_K${g}_${qList.length}cau.md`);
+      notify(`Đã xuất ${qList.length} câu hỏi ra file Markdown.`);
+    };
+
+    dlg.showModal();
+  }
+
 function renderBank(){
  const f=store.filters;
  const bankGradeForSample=()=>Number(store.filters.grade)||Number(store.ppctGrade)||9;
- $('#bank').innerHTML=title('Biên soạn & tra cứu','Ngân hàng câu hỏi','Lọc theo chương trình, xem đáp án và lưu những câu cần dùng.',`<button class="primary" id="add-question">+ Thêm câu hỏi</button><button type="button" class="button" id="export-bank-lms">📤 Xuất Word LMS</button><a class="button" href="/api/bank/export">Xuất JSON</a><button id="import-bank" style="font-weight:700">📥 Nhập câu hỏi (Excel / JSON / Markdown)</button><input class="json-import" id="import-file" type="file" accept=".xlsx,.xls,.csv,.tsv,.json,.md,.txt">`)+
+ $('#bank').innerHTML=title('Biên soạn & tra cứu','Ngân hàng câu hỏi','Lọc theo chương trình, xem đáp án và lưu những câu cần dùng.',`<button class="primary" id="add-question">+ Thêm câu hỏi</button><button type="button" class="button" id="bank-custom-export-btn" style="background:#0267b1;color:#fff;border-color:#0267b1;font-weight:700">⚙️ Tùy biến xuất Ngân hàng</button><button type="button" class="button" id="export-bank-lms">📤 Xuất Word LMS</button><a class="button" href="/api/bank/export">Xuất JSON</a><button id="import-bank" style="font-weight:700">📥 Nhập câu hỏi (Excel / JSON / Markdown)</button><input class="json-import" id="import-file" type="file" accept=".xlsx,.xls,.csv,.tsv,.json,.md,.txt">`)+
  `<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
    <button type="button" class="button" id="bank-download-excel-sample" style="background:#15803d;color:#fff;border-color:#15803d;padding:6px 12px;font-size:12px;font-weight:700">📊 Tải mẫu câu hỏi (Excel)</button>
    <button type="button" class="button quiet" id="bank-download-json-sample" style="color:#0267b1;padding:6px 12px;font-size:12px;font-weight:600">📥 Tải mẫu câu hỏi (JSON)</button>
@@ -1188,6 +1689,8 @@ function renderBank(){
  `<div class="card"><div class="filters"><div class="field"><label for="filter-grade">Khối lớp</label><select id="filter-grade">${opt('','Tất cả khối',!f.grade)}${gradeOptions(f.grade)}</select></div><div class="field"><label for="filter-lesson">Bài học</label><select id="filter-lesson">${lessonFilterOptions()}</select></div><div class="field"><label for="filter-type">Dạng câu</label><select id="filter-type">${opt('','Tất cả dạng',!f.type)}${Object.entries(typeNames).map(([k,v])=>opt(k,v,f.type===k)).join('')}</select></div><div class="field"><label for="filter-level">Mức độ</label><select id="filter-level">${opt('','Tất cả mức độ',!f.level)}${C.levelOptions(f.level)}</select></div><div class="field"><label for="filter-section">Mạch PPCT</label><select id="filter-section">${opt('','Tất cả mạch',!f.section)}${opt('core','Nội dung cốt lõi (Mục II.1)',f.section==='core')}${opt('elective_topic','Chuyên đề học tập (Mục II.2)',f.section==='elective_topic')}</select></div><div class="field"><label for="filter-status">Trạng thái</label><select id="filter-status">${opt('active','Đang sử dụng',f.status==='active')}${Object.entries(statusNames).map(([k,v])=>opt(k,v,k===f.status)).join('')}${opt('all','Tất cả trạng thái',f.status==='all')}</select></div><div class="field search"><label for="filter-search">Tìm trong câu hỏi, mã câu, phương án hoặc YCCĐ</label><input id="filter-search" type="search" placeholder="Tìm nội dung, mã câu hoặc yêu cầu cần đạt…" value="${esc(f.search)}"></div></div></div>`+
  `<div class="bank-layout"><div><div id="bank-toolbar"></div><div id="bank-list" class="question-list"></div><div id="bank-pagination"></div></div><aside class="bank-aside card"><h2>Câu đã chọn</h2><div id="selection-summary"></div><div class="callout">Lựa chọn được giữ khi đổi bộ lọc. Khi lưu đề cương, ứng dụng chỉ lấy câu thuộc khối đã chọn.</div><div class="actions" style="margin-bottom:10px"><a class="button primary" href="#revisions">Tạo đề cương từ lựa chọn</a><button class="quiet" id="clear-selection">Bỏ chọn tất cả</button></div><div class="bulk-box"><label for="bulk-status-select">Thao tác hàng loạt với câu đã chọn</label><div class="actions" style="margin-top:6px"><select id="bulk-status-select" style="flex:1;min-width:140px">${Object.entries(statusNames).filter(([k])=>['pending_review','archived'].includes(k)).map(([k,v])=>opt(k,`Đổi thành: ${v}`)).join('')}</select><button type="button" id="bulk-apply-status">Áp dụng</button><button type="button" class="danger" id="bulk-delete-selected">Xóa câu đã chọn</button></div></div><hr style="border:0;border-top:1px solid var(--line);margin:20px 0"><p class="small muted">Bấm nội dung câu để xem đáp án, giải thích, thang điểm và yêu cầu cần đạt. Dùng các nút bên phải mỗi câu để Sửa, Nhân bản, Lưu trữ/Khôi phục hoặc Xóa.</p></aside></div>`;
  $('#add-question').onclick=()=>openEditor();$('#import-bank').onclick=()=>$('#import-file').click();$('#import-file').onchange=importBank;
+ const btnBankCustomExp = $('#bank-custom-export-btn');
+ if (btnBankCustomExp) btnBankCustomExp.onclick = () => openCustomBankExportDialog();
  const btnBankExcel = $('#bank-download-excel-sample');
  if (btnBankExcel) btnBankExcel.onclick = () => downloadBankExcelSample(bankGradeForSample());
  const btnBankJson = $('#bank-download-json-sample');
@@ -1408,7 +1911,7 @@ function mountExamViewerContent(hostEl,record,mode='student',isInline=false){
  const fmt=window.DocFormatter||C.DocFormatter;
  const body=buildExamSheetHtml(record,mode);
  hostEl.innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">XEM TOÀN BỘ ĐỀ KIỂM TRA & ĐỐI CHIẾU MA TRẬN</p><h2 id="${isInline?'inline-exam-title':'detail-title'}">${esc(record.title||'Đề kiểm tra')}</h2><p class="small muted">${meta}</p></div><div class="actions">${isInline?`<button type="button" class="export-link" data-modal-exam="${esc(record.id)}" data-mode="${esc(mode)}">⤢ Mở rộng toàn màn hình</button><button type="button" class="quiet" id="close-inline-exam">Đóng khung xem</button>`:`<button data-close="detail-dialog" class="quiet">Đóng</button>`}</div></div>`+
- `<div class="viewer-toolbar"><div class="viewer-tabs"><button type="button" class="${mode==='student'?'primary':''}" data-switch-exam-mode="student">📄 Xem đề học sinh</button>${store.canViewAnswers!==false?`<button type="button" class="${mode==='answers'?'primary':''}" data-switch-exam-mode="answers">🔑 Xem đáp án & HDC</button>`:''}<button type="button" class="${mode==='verify'?'primary':''}" data-switch-exam-mode="verify">🛡️ Báo cáo Kiểm định Ma trận</button></div><div class="actions">${record.id&&C.examEditable(record)?`<select data-verify-revision aria-label="Đề cương đối chiếu">${opt('',record.revision_id?'Giữ đề cương đã gắn':'Chọn đề cương để gắn…',true)}${store.revisions.filter(r=>Number(r.grade)===Number(record.grade)).map(r=>opt(r.id,(r.id===record.revision_id?'✓ ':'')+r.title+' · '+countRecord(r)+' câu',false)).join('')}</select>`:''}${record.id?`<button type="button" class="export-link" data-reverify-exam="${esc(record.id)}">🔄 Kiểm định lại với Ma trận</button>`:''}${base?`<a class="button export-link" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button export-link" href="${base}?format=tex&answers=0" title="Xuất mã nguồn XeLaTeX chuẩn">LaTeX đề thi</a>${store.canViewAnswers!==false?`<a class="button export-link" href="${base}?format=docx&answers=1">Word đáp án</a><a class="button export-link" href="${base}?format=tex&answers=1" title="Xuất mã nguồn XeLaTeX Đáp án & HDC">LaTeX đáp án</a><a class="button export-link" href="${base}?format=docx&target=lms">📤 Tải tệp LMS</a>`:''}<a class="button export-link" href="${base}?format=html&answers=${mode==='answers'?1:0}" target="_blank" rel="noopener">Mở trang in</a>`:''}</div></div>`+
+ `<div class="viewer-toolbar"><div class="viewer-tabs"><button type="button" class="${mode==='student'?'primary':''}" data-switch-exam-mode="student">📄 Xem đề học sinh</button>${store.canViewAnswers!==false?`<button type="button" class="${mode==='answers'?'primary':''}" data-switch-exam-mode="answers">🔑 Xem đáp án & HDC</button>`:''}<button type="button" class="${mode==='verify'?'primary':''}" data-switch-exam-mode="verify">🛡️ Báo cáo Kiểm định Ma trận</button></div><div class="actions">${record.id&&C.examEditable(record)?`<select data-verify-revision aria-label="Đề cương đối chiếu">${opt('',record.revision_id?'Giữ đề cương đã gắn':'Chọn đề cương để gắn…',true)}${store.revisions.filter(r=>Number(r.grade)===Number(record.grade)).map(r=>opt(r.id,(r.id===record.revision_id?'✓ ':'')+r.title+' · '+countRecord(r)+' câu',false)).join('')}</select>`:''}${record.id?`<button type="button" class="export-link" data-reverify-exam="${esc(record.id)}">🔄 Kiểm định lại với Ma trận</button>`:''}${base?`<button type="button" class="button export-link primary" data-open-custom-export="${esc(record.id)}" style="background:#0267b1;border-color:#0267b1;font-weight:700">⚙️ Tùy biến xuất hồ sơ (.docx / ZIP)</button><a class="button export-link" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button export-link" href="${base}?format=tex&answers=0" title="Xuất mã nguồn XeLaTeX chuẩn">LaTeX đề thi</a>${store.canViewAnswers!==false?`<a class="button export-link" href="${base}?format=docx&answers=1">Word đáp án</a><a class="button export-link" href="${base}?format=tex&answers=1" title="Xuất mã nguồn XeLaTeX Đáp án & HDC">LaTeX đáp án</a><a class="button export-link" href="${base}?format=docx&target=lms">📤 Tải tệp LMS</a>`:''}<a class="button export-link" href="${base}?format=html&answers=${mode==='answers'?1:0}" target="_blank" rel="noopener">Mở trang in</a>`:''}</div></div>`+
  (fmt?fmt.toolbarHtml(fmtKey,false):'')+body;
  hostEl.querySelectorAll('[data-switch-exam-mode]').forEach(btn=>{
   btn.onclick=()=>mountExamViewerContent(hostEl,record,btn.dataset.switchExamMode,isInline);
@@ -1535,7 +2038,7 @@ function mountRevisionViewerContent(hostEl,record,showAnswers=false,isInline=fal
  const fmt=window.DocFormatter||C.DocFormatter;
  const body=buildRevisionSheetHtml(record,showAnswers);
  hostEl.innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">XEM TOÀN BỘ ĐỀ CƯƠNG ÔN TẬP</p><h2 id="${isInline?'inline-rev-title':'detail-title'}">${esc(record.title||'Đề cương ôn tập')}</h2><p class="small muted">Khối ${esc(record.grade)} · ${countRecord(record)} câu (${mcs.length} trắc nghiệm NLC${yns.length?`, ${yns.length} câu Đúng/Sai`:''}${shorts.length?`, ${shorts.length} câu Trả lời ngắn`:''}, ${ess.length} tự luận)</p></div><div class="actions">${isInline?`<button type="button" class="export-link" id="open-modal-rev">⤢ Mở rộng toàn màn hình</button><button type="button" class="quiet" id="close-inline-rev">Đóng khung xem</button>`:`<button data-close="detail-dialog" class="quiet">Đóng</button>`}</div></div>`+
- `<div class="viewer-toolbar"><div class="viewer-tabs"><button type="button" class="${!showAnswers?'primary':''}" data-switch-rev-ans="0">📄 Bản đề cương học sinh</button><button type="button" class="${showAnswers?'primary':''}" data-switch-rev-ans="1">🔑 Xem kèm đáp án & HDC</button></div>${base?`<div class="actions"><a class="button export-link" href="${base}?format=docx&answers=0">Word đề cương</a><a class="button export-link" href="${base}?format=docx&answers=1">Word kèm đáp án</a><a class="button export-link" href="${base}?format=tex&answers=0" title="Xuất mã nguồn XeLaTeX chuẩn">LaTeX đề cương</a><a class="button export-link" href="${base}?format=docx&target=lms">📤 Tải tệp LMS</a><a class="button export-link" href="${base}?format=html&answers=${showAnswers?1:0}" target="_blank" rel="noopener">Bản in</a></div>`:''}</div>`+
+ `<div class="viewer-toolbar"><div class="viewer-tabs"><button type="button" class="${!showAnswers?'primary':''}" data-switch-rev-ans="0">📄 Bản đề cương học sinh</button><button type="button" class="${showAnswers?'primary':''}" data-switch-rev-ans="1">🔑 Xem kèm đáp án & HDC</button></div>${base?`<div class="actions"><button type="button" class="button export-link primary" data-open-custom-rev-export="${esc(record.id)}" style="background:#0267b1;border-color:#0267b1;font-weight:700">⚙️ Tùy biến xuất đề cương (.docx)</button><a class="button export-link" href="${base}?format=docx&answers=0">Word đề cương</a><a class="button export-link" href="${base}?format=docx&answers=1">Word kèm đáp án</a><a class="button export-link" href="${base}?format=tex&answers=0" title="Xuất mã nguồn XeLaTeX chuẩn">LaTeX đề cương</a><a class="button export-link" href="${base}?format=docx&target=lms">📤 Tải tệp LMS</a><a class="button export-link" href="${base}?format=html&answers=${showAnswers?1:0}" target="_blank" rel="noopener">Bản in</a></div>`:''}</div>`+
  (fmt?fmt.toolbarHtml(fmtKey,false):'')+body;
  hostEl.querySelectorAll('[data-switch-rev-ans]').forEach(btn=>{
   btn.onclick=()=>mountRevisionViewerContent(hostEl,record,btn.dataset.switchRevAns==='1',isInline);
@@ -2799,6 +3302,7 @@ function revisionLinks(r){
  return `<div class="card-actions">`+
   statusBadge+
   `<button type="button" class="export-link primary" data-view-revision="${esc(r.id)}">👁 Xem toàn bộ đề cương</button>`+
+  `<button type="button" class="button" data-open-custom-rev-export="${esc(r.id)}" style="background:#0267B1;color:#fff;border-color:#0267B1;font-weight:700">⚙️ Tùy biến xuất đề cương</button>`+
   pubBtn+
   `<details class="dropdown-menu"><summary>📥 Tải về ▾</summary><div class="dropdown-content">`+
    `<a href="${base}?format=docx">Word đề cương</a>`+
@@ -3164,6 +3668,7 @@ function examLinks(r){
  const base='/api/exams/'+encodeURIComponent(r.id)+'/export',ans=store.canViewAnswers!==false,editable=C.examEditable(r);
  return examLifecycle(r)+`<div class="card-actions">`+
   `<button type="button" class="export-link primary" data-view-exam="${esc(r.id)}" data-mode="student">👁 Xem toàn bộ đề</button>`+
+  `<button type="button" class="button" data-open-custom-export="${esc(r.id)}" style="background:#0267B1;color:#fff;border-color:#0267B1;font-weight:700">⚙️ Tùy biến xuất hồ sơ</button>`+
   `<button type="button" data-compare-exam="${esc(r.id)}">So sánh với đề khác</button>`+
   `<details class="dropdown-menu"><summary>📥 Tải về ▾</summary><div class="dropdown-content">`+
    (ans?`<a href="/api/exams/${esc(r.id)}/bundle.zip?format=docx" style="font-weight:bold;color:var(--brand,#0a58ca)">📦 Tải trọn bộ Hồ sơ Word (.zip)</a>`+
@@ -3398,6 +3903,9 @@ async function generateExam(event){event.preventDefault();readExamInputs();const
 // Delegate controls that are re-rendered as the filter, list or matrix changes.
 document.addEventListener('click',event=>{
  const close=event.target.closest('[data-close]');if(close){$('#'+close.dataset.close).close();return;}
+ const openCustomExport=event.target.closest('[data-open-custom-export]');if(openCustomExport){openCustomExportDialog(openCustomExport.dataset.openCustomExport);return;}
+ const openCustomRevExport=event.target.closest('[data-open-custom-rev-export]');if(openCustomRevExport){openCustomRevExportDialog(openCustomRevExport.dataset.openCustomRevExport);return;}
+ const openCustomBankExport=event.target.closest('[data-open-custom-bank-export]');if(openCustomBankExport){openCustomBankExportDialog();return;}
  const compareExam=event.target.closest('[data-compare-exam]');if(compareExam){openExamComparison(compareExam.dataset.compareExam);return;}
  const viewExam=event.target.closest('[data-view-exam]');if(viewExam){const ex=store.exams.find(r=>r.id===viewExam.dataset.viewExam);if(ex)openExamViewer(ex,viewExam.dataset.mode||'student');return;}
  const editExam=event.target.closest('[data-edit-exam]');if(editExam){openExamMetaEditor(editExam.dataset.editExam);return;}

@@ -390,4 +390,28 @@ Khối: 9
   assert(js.includes("if(el.id==='mx-create-grade')"), 'Changing #mx-create-grade must invoke switchGradeContext');
   assert(js.includes("ui.editing.requirements=[];\n      ui.editing.slots=[];"), 'Switching grade in editor must always clear old requirements and slots even if new grade has no PPCT');
   console.log('PASS matrix UI: help panel and display-only preview zoom passed');
+
+  // Kiểm tra tính năng gom mục tiêu câu hỏi chung YCCĐ
+  const testMatrix = {
+    grade: 8,
+    profile: 'THCS',
+    lessons: [{ lesson_code: 'B1', title: 'Bài 1', topic: 'Chủ đề 1' }],
+    requirements: [
+      { id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'Nhận biết thiết bị xử lí.' },
+      { id: 'R2', lesson_code: 'B1', level: 'Biết', text: 'Nhận biết thiết bị xử lí. (Mục tiêu Câu 2)' }
+    ],
+    slots: [
+      { id: 'S1', number: 1, kind: 'MC', parts: [{ id: 'P1', requirement_id: 'R1', points: 0.25 }] },
+      { id: 'S2', number: 2, kind: 'MC', parts: [{ id: 'P2', requirement_id: 'R2', points: 0.25 }] }
+    ]
+  };
+  const mergedCount = ui.mergeQuestionRequirements(testMatrix, 'B1', 'Biết');
+  assert.equal(mergedCount, 1, 'Phải gom 1 mục tiêu thừa');
+  assert.equal(testMatrix.requirements.length, 1, 'Chỉ còn 1 mục tiêu duy nhất');
+  assert.equal(testMatrix.requirements[0].text, 'Nhận biết thiết bị xử lí.', 'Phải loại bỏ hậu tố Mục tiêu Câu');
+  assert.equal(testMatrix.slots[0].parts[0].requirement_id, 'R1');
+  assert.equal(testMatrix.slots[1].parts[0].requirement_id, 'R1');
+  const view = ui.buildMatrixView(testMatrix);
+  assert.deepEqual(view.requirements[0].refs, ['Câu 1', 'Câu 2'], 'Danh sách câu hỏi gộp phải hiển thị đầy đủ Câu 1, Câu 2');
+  console.log('PASS matrix UI: gom mục tiêu câu hỏi chung YCCĐ thành công');
 }

@@ -523,6 +523,47 @@
     return splitCount;
   }
 
+  function mergeQuestionRequirements(m, targetLessonCode = null, targetLevel = null) {
+    if (!m || !Array.isArray(m.slots) || !Array.isArray(m.requirements)) return 0;
+    
+    const groups = new Map();
+    m.requirements.forEach(r => {
+      if (targetLessonCode && r.lesson_code !== targetLessonCode) return;
+      if (targetLevel && r.level !== targetLevel) return;
+      const key = r.lesson_code + '|' + r.level;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(r);
+    });
+
+    let mergedCount = 0;
+    groups.forEach((reqList, key) => {
+      if (reqList.length <= 1) return;
+      
+      const masterReq = reqList[0];
+      if (masterReq.text) {
+        masterReq.text = masterReq.text.replace(/\s*\(Mục tiêu\s+Câu[^)]*\)/gi, '').trim();
+      }
+      
+      const otherReqIds = new Set(reqList.slice(1).map(r => r.id));
+      
+      (m.slots || []).forEach(s => {
+        (s.parts || []).forEach(p => {
+          if (otherReqIds.has(p.requirement_id)) {
+            p.requirement_id = masterReq.id;
+          }
+        });
+      });
+
+      m.requirements = m.requirements.filter(r => !otherReqIds.has(r.id));
+      if (m.custom_level_refs) {
+        delete m.custom_level_refs[key];
+      }
+      mergedCount += reqList.length - 1;
+    });
+
+    return mergedCount;
+  }
+
   function fillLessonPpctRequirements(m, lessonCode) {
     if (!m) return;
     const pl = lessons(m.grade).find(l => l.lesson_code === lessonCode);
@@ -652,7 +693,7 @@
                               title="Tùy chỉnh số thứ tự câu hỏi gán cho mục tiêu này (bấm nút ↺ để tự tính lại từ ma trận)"
                               style="font-size:11px;padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;color:#0267B1;font-weight:700;min-width:130px;background:#fff">
                        ${customRefs ? `<button type="button" class="quiet" data-action="reset-spec-refs" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" title="Khôi phục câu tự động từ ma trận" style="padding:1px 4px;font-size:10px;color:#64748b;line-height:1">↺</button>` : ''}
-                     </div>` : `<span class="badge" style="font-size:10.5px;background:#e0f2fe;color:#0267B1;font-weight:700">${rs.length} mục tiêu câu hỏi</span>`}
+                     </div>` : `<span class="badge" style="font-size:10.5px;background:#e0f2fe;color:#0267B1;font-weight:700">${rs.length} mục tiêu câu hỏi</span>${!(locked || received) ? `<button type="button" class="quiet" data-action="merge-level-question-reqs" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" title="Gom ${rs.length} mục tiêu câu hỏi này thành 1 mục tiêu chung (gộp câu hỏi)" style="font-size:10.5px;padding:2px 8px;background:#eff6ff;color:#0267B1;border:1px solid #bfdbfe;border-radius:4px;font-weight:700">🔗 Gom vào 1 mục tiêu chung</button>` : ''}`}
                      <div style="display:inline-flex;align-items:center;gap:3px;background:#fefce8;border:1px solid #fef08a;padding:2px 6px;border-radius:5px" title="Thành phần năng lực cho mức ${LEVEL_NAMES[lvl]}">
                        <span style="font-size:10.5px;font-weight:700;color:#854d0e">NL:</span>
                        <input type="text"
@@ -719,6 +760,7 @@
           reqsHtml += `
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
               <button type="button" class="quiet" data-action="split-lesson-question-reqs" data-lesson-code="${E(lesson.lesson_code)}" style="font-size:11px;padding:2px 7px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-weight:600" title="Tách riêng mỗi câu hỏi trong bài này thành một dòng mục tiêu đánh giá độc lập">🎯 Tách mục tiêu từng câu</button>
+              <button type="button" class="quiet" data-action="merge-lesson-question-reqs" data-lesson-code="${E(lesson.lesson_code)}" style="font-size:11px;padding:2px 7px;background:#eff6ff;color:#0267B1;border:1px solid #bfdbfe;border-radius:4px;font-weight:600" title="Gom các câu có cùng mức độ nhận thức của bài này vào 1 mục tiêu chung">🔗 Gom câu cùng YCCĐ bài này</button>
               <button type="button" class="quiet" data-action="add-spec-req" data-lesson-code="${E(lesson.lesson_code)}" data-level="Biết" style="font-size:11px;padding:2px 7px;border:1px solid #cbd5e1;border-radius:4px">+ Thêm mục tiêu câu hỏi</button>
               <button type="button" class="quiet" data-action="fill-lesson-ppct-reqs" data-lesson-code="${E(lesson.lesson_code)}" style="font-size:11px;padding:2px 7px;background:#f0f7ff;color:#0267B1;border:1px solid #c2dbf1;border-radius:4px" title="Gợi ý câu chữ khung từ Phân phối chương trình">📥 Lấy YCCĐ từ PPCT</button>
             </div>
@@ -802,12 +844,13 @@
           </div>
           <div class="actions">
             ${!(locked || received) ? `<button type="button" class="primary" data-action="split-all-question-reqs" style="background:#0f766e;border-color:#0f766e;font-weight:700" title="Tách riêng mỗi câu hỏi (Câu 1, Câu 2...) thành một dòng mục tiêu đánh giá độc lập để đặc tả theo mục tiêu từng câu hỏi">🎯 Tách mục tiêu theo từng câu hỏi</button>` : ''}
+            ${!(locked || received) ? `<button type="button" class="button" data-action="merge-all-question-reqs" style="background:#f0f9ff;border-color:#0267B1;color:#0267B1;font-weight:700" title="Gom các câu có cùng yêu cầu cần đạt / mức độ nhận thức vào 1 mục tiêu chung">🔗 Gom câu cùng YCCĐ (Toàn bảng)</button>` : ''}
             ${!(locked || received) ? `<button type="button" class="primary" data-action="auto-fill-all-ppct-reqs" style="background:#0267B1;font-weight:700" title="Tự động lấy câu chữ YCCĐ từ Phân phối chương trình điền gợi ý vào các dòng">📥 Tự điền toàn bộ YCCĐ từ PPCT</button>` : ''}
             <button type="button" data-action="preview">👁️ Xem bảng chuẩn Word</button>
           </div>
         </div>
         <p style="font-style:italic;font-size:12px;color:var(--muted);margin:0 0 10px 0">
-          <strong>Lưu ý:</strong> Phần Yêu cầu cần đạt được đặc tả theo <strong>mục tiêu đánh giá của từng câu hỏi / nhóm câu hỏi</strong> gắn với vị trí câu cụ thể (Câu 1, Câu 2...). Thầy/Cô có thể bấm <strong>"🎯 Tách mục tiêu theo từng câu hỏi"</strong> để viết mục tiêu riêng cho từng câu.
+          <strong>Lưu ý:</strong> Các câu hỏi có chung Yêu cầu cần đạt được <strong>gộp chung vào một mục tiêu</strong> (ví dụ: Câu 1, Câu 2). Thầy/Cô có thể bấm <strong>"🎯 Tách mục tiêu theo từng câu hỏi"</strong> để viết mục tiêu riêng cho từng câu, hoặc bấm <strong>"🔗 Gom câu cùng YCCĐ"</strong> để gộp lại gọn gàng bất kỳ lúc nào.
         </p>
         <div class="table-wrap">
           <table class="matrix-spec-table" style="width:100%;border-collapse:collapse;font-size:13px;background:white">
@@ -2849,6 +2892,30 @@
       message('Đã tách thành ' + total + ' mục tiêu riêng cho từng câu hỏi mức ' + level + ' của bài ' + code + '!');
       return;
     }
+    if(action==='merge-all-question-reqs'&&ui.editing){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
+      const total=mergeQuestionRequirements(ui.editing);
+      changed();renderEditor();
+      message(total>0 ? (`Đã gộp ${total} mục tiêu thừa, gom các câu có chung YCCĐ vào cùng mục tiêu gọn gàng!`) : 'Các câu hỏi có chung YCCĐ đã ở trạng thái gom gọn gàng.');
+      return;
+    }
+    if(action==='merge-lesson-question-reqs'&&ui.editing){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
+      const code=b.dataset.lessonCode;
+      const total=mergeQuestionRequirements(ui.editing,code);
+      changed();renderEditor();
+      message(total>0 ? (`Đã gom các câu cùng YCCĐ của bài ${code} vào mục tiêu chung!`) : (`Các câu hỏi của bài ${code} đã ở trạng thái gom gọn gàng.`));
+      return;
+    }
+    if(action==='merge-level-question-reqs'&&ui.editing){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
+      const code=b.dataset.lessonCode;
+      const level=b.dataset.level;
+      const total=mergeQuestionRequirements(ui.editing,code,level);
+      changed();renderEditor();
+      message(`Đã gom các câu mức ${level} của bài ${code} vào 1 mục tiêu chung!`);
+      return;
+    }
     if(action==='auto-fill-all-ppct-reqs'&&ui.editing){
       if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
       let count=0;
@@ -2907,6 +2974,12 @@
             if(p.requirement_id===reqId)p.requirement_id=fallback?fallback.id:'';
           });
         });
+        if(fallback&&fallback.text){
+          fallback.text = fallback.text.replace(/\s*\(Mục tiêu\s+Câu[^)]*\)/gi, '').trim();
+        }
+        if(ui.editing.custom_level_refs){
+          delete ui.editing.custom_level_refs[removed.lesson_code+'|'+removed.level];
+        }
         changed();renderEditor();
       }
       return;
@@ -3808,6 +3881,6 @@ Quy ước:
     }
     openEditorWithDraft(draft);
   }
-  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,STANDARD_PRESETS,newDraft,openEditorWithDraft,createFromPlan,getAssessmentPlansForMatrix,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
+  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,STANDARD_PRESETS,newDraft,openEditorWithDraft,createFromPlan,getAssessmentPlansForMatrix,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,mergeQuestionRequirements,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

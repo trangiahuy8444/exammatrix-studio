@@ -302,16 +302,43 @@ const lessons=(g,subj)=>{
   } else {
     list = (store.bank?.ppct?.lessons||[]).filter(l=>(!g||Number(l.grade)===Number(g))&&((l.subject_name===s)||(!l.subject_name&&s==='Tin học')));
   }
-  // Tự động kết nối PPCT chuẩn GDPT 2018 nếu ngân hàng chưa nạp PPCT riêng
+
+  // Kiểm tra xem khối này đã bị giáo viên chủ động xóa / tắt không
+  const clearedGrades = store.bank?.ppct?.cleared_grades || [];
+  const isCleared = (gradeNum) => clearedGrades.includes(Number(gradeNum)) || clearedGrades.includes(`${s}:${gradeNum}`);
+
+  if (g && isCleared(g)) {
+    return []; // Khối này đã được giáo viên xóa, không tự động fallback về curricula.js!
+  }
+
+  // Tự động kết nối PPCT chuẩn GDPT 2018 nếu ngân hàng chưa nạp PPCT riêng và giáo viên chưa xóa khối này
   if (!list.length && typeof window !== 'undefined' && window.SUBJECT_CURRICULA) {
     const defaultData = window.SUBJECT_CURRICULA[s] || window.SUBJECT_CURRICULA['Tin học'] || {};
-    const rawLessons = g ? (defaultData[g] || defaultData[String(g)] || []) : Object.values(defaultData).flat();
-    list = rawLessons.map(l => ({
-      ...l,
-      grade: Number(l.grade || g),
-      subject_name: s,
-      occurrences: safeLessonOccurrences(l.occurrences)
-    }));
+    if (g) {
+      if (!isCleared(g)) {
+        const rawLessons = defaultData[g] || defaultData[String(g)] || [];
+        list = rawLessons.map(l => ({
+          ...l,
+          grade: Number(l.grade || g),
+          subject_name: s,
+          occurrences: safeLessonOccurrences(l.occurrences)
+        }));
+      }
+    } else {
+      const allGrades = Object.keys(defaultData);
+      const rawLessons = [];
+      for (const gr of allGrades) {
+        if (!isCleared(gr)) {
+          rawLessons.push(...(defaultData[gr] || []));
+        }
+      }
+      list = rawLessons.map(l => ({
+        ...l,
+        grade: Number(l.grade),
+        subject_name: s,
+        occurrences: safeLessonOccurrences(l.occurrences)
+      }));
+    }
   }
   return list.map(l => ({ ...l, section: normalizePpctSection(l), occurrences: safeLessonOccurrences(l.occurrences) }));
 };
@@ -2827,9 +2854,15 @@ function renderPPCT(){
    </div>
  </div>`;
 
+ const isGradeCleared = Boolean(
+   (store.bank?.ppct?.cleared_grades || []).includes(g) ||
+   (store.bank?.ppct?.cleared_grades || []).includes(`${s}:${g}`)
+ );
+
  $('#ppct').innerHTML=title(`Chương trình môn ${s}`,'Phân phối chương trình',`Kế hoạch dạy học (Phụ lục I — CV 5512/BGDĐT-GDTrH, TT 32/2018, TT 22/2021, TT 02/2025 &amp; CV 3456 về Năng lực số, QĐ 2422 &amp; CV 5588 về Giáo dục AI) môn ${s} Khối ${g}.`,
    `<div style="display:flex;gap:8px;flex-wrap:wrap">` +
    (ls.length ? `<button type="button" class="button danger quiet" id="btn-clear-grade-ppct">🗑️ Xóa PPCT Khối ${g}</button>` : '') +
+   (!ls.length && isGradeCleared ? `<button type="button" class="button quiet" id="btn-restore-default-ppct" style="color:#0267B1;border-color:#0267B1;font-weight:700">🔄 Khôi phục PPCT mẫu GDPT 2018</button>` : '') +
    `<button type="button" class="primary" id="add-ppct-lesson">+ Thêm bài học PPCT</button></div>`)+
  `${ppctImportCard(g)}
  <div class="card">
@@ -2865,13 +2898,29 @@ function renderPPCT(){
  if(addElectiveBtn)addElectiveBtn.onclick=()=>openPPCTEditor(g,'',s,'elective_topic');
  const clearGradeBtn=$('#btn-clear-grade-ppct');
  if(clearGradeBtn)clearGradeBtn.onclick=async()=>{
-   if(!confirm(`Bạn có chắc chắn muốn xóa toàn bộ ${ls.length} mục PPCT (cốt lõi và chuyên đề) môn ${s} Khối ${g} để tải lại tệp mới không?`))return;
+   if(!confirm(`Bạn có chắc chắn muốn xóa toàn bộ mục PPCT môn ${s} Khối ${g} (không dạy khối này)?\n\nDữ liệu PPCT Khối ${g} sẽ được làm trống hoàn toàn.`))return;
    if(store.bank?.ppct?.lessons){
      store.bank.ppct.lessons=store.bank.ppct.lessons.filter(l=>!(((l.subject_name||'Tin học')===s)&&Number(l.grade)===g));
    }
-   await request('/api/ppct/clear-grade',{grade:g,subject_name:s});
-   renderPPCT();
-   notify(`Đã xóa PPCT môn ${s} Khối ${g}. Bạn có thể tải tệp mới ở khung phía trên.`);
+   store.bank.ppct = store.bank.ppct || { lessons: [], cleared_grades: [] };
+   store.bank.ppct.cleared_grades = store.bank.ppct.cleared_grades || [];
+   if (!store.bank.ppct.cleared_grades.includes(g)) store.bank.ppct.cleared_grades.push(g);
+   if (!store.bank.ppct.cleared_grades.includes(`${s}:${g}`)) store.bank.ppct.cleared_grades.push(`${s}:${g}`);
+   await mutate('/api/ppct/clear-grade',{grade:g,subject_name:s},()=>{
+     render();
+     notify(`Đã xóa hoàn toàn PPCT môn ${s} Khối ${g}. Khối này hiện để trống.`);
+   });
+ };
+ const restoreDefaultBtn=$('#btn-restore-default-ppct');
+ if(restoreDefaultBtn)restoreDefaultBtn.onclick=async()=>{
+   if(!confirm(`Khôi phục lại phân phối chương trình mẫu GDPT 2018 cho môn ${s} Khối ${g}?`))return;
+   if(store.bank?.ppct?.cleared_grades){
+     store.bank.ppct.cleared_grades = store.bank.ppct.cleared_grades.filter(x => Number(x) !== g && x !== `${s}:${g}`);
+   }
+   await mutate('/api/ppct/restore-grade',{grade:g,subject_name:s},()=>{
+     render();
+     notify(`Đã khôi phục PPCT mẫu GDPT 2018 cho môn ${s} Khối ${g}.`);
+   });
  };
  bindPpctImport(g);
 }
@@ -3392,6 +3441,9 @@ function bindPpctImport(g){
      store.bank=result.bank;
      store.ppctImport=null;
      store.ppctGrade=Number(imp.payload.grade || imp.report.grades?.[0] || 9);
+     if (store.bank?.ppct?.cleared_grades) {
+       store.bank.ppct.cleared_grades = store.bank.ppct.cleared_grades.filter(x => Number(x) !== store.ppctGrade && x !== `${subject()}:${store.ppctGrade}`);
+     }
      renderPPCT();
      notify(`Đã nhập thành công PPCT Khối ${store.ppctGrade} (${imp.report.lessons.length} bài học)!`);
    }catch(err){

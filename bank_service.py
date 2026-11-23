@@ -819,6 +819,35 @@ class BankService:
             self._atomic_save(self.bank_path, bank)
             return copy.deepcopy(bank)
 
+    def clear_ppct_grade(self, grade, subject_name='Tin học'):
+        with self.lock:
+            grade = self._grade(grade)
+            subj = normalize_subject_name(subject_name)
+            bank = self._load_bank()
+            bank['ppct'] = bank.get('ppct') or {'lessons': []}
+            cleared = set(bank['ppct'].get('cleared_grades') or [])
+            cleared.add(grade)
+            bank['ppct']['cleared_grades'] = list(cleared)
+            bank['ppct']['lessons'] = [
+                l for l in bank['ppct'].get('lessons', [])
+                if not (normalize_subject_name(l.get('subject_name') or 'Tin học') == subj and l.get('grade') == grade)
+            ]
+            self.catalog = copy.deepcopy(bank['ppct'])
+            self._atomic_save(self.bank_path, bank)
+            return copy.deepcopy(bank)
+
+    def restore_ppct_grade(self, grade, subject_name='Tin học'):
+        with self.lock:
+            grade = self._grade(grade)
+            subj = normalize_subject_name(subject_name)
+            bank = self._load_bank()
+            bank['ppct'] = bank.get('ppct') or {'lessons': []}
+            cleared = [x for x in bank['ppct'].get('cleared_grades') or [] if x != grade]
+            bank['ppct']['cleared_grades'] = cleared
+            self.catalog = copy.deepcopy(bank['ppct'])
+            self._atomic_save(self.bank_path, bank)
+            return copy.deepcopy(bank)
+
     # Nhập PPCT từ Word (bảng KHDH Phụ lục 1) hoặc JSON: đối chiếu trước, chỉ ghi khi giáo viên xác nhận.
     def _read_ppct_payload(self, payload):
         import base64

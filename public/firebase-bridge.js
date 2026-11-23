@@ -1018,6 +1018,18 @@
         return { bank: currentWorkspaceData.bank };
       }
 
+      if (path === '/api/ppct/restore-grade') {
+        const grade = Number(body.grade || 0);
+        const targetSubject = body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học';
+        if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: [] };
+        currentWorkspaceData.bank.ppct.cleared_grades = (currentWorkspaceData.bank.ppct.cleared_grades || []).filter(
+          g => Number(g) !== grade && g !== `${targetSubject}:${grade}`
+        );
+        await syncToFirestore(uid, currentWorkspaceData);
+        if (window.store && window.store.bank) window.store.bank.ppct = JSON.parse(JSON.stringify(currentWorkspaceData.bank.ppct));
+        return { bank: currentWorkspaceData.bank };
+      }
+
       // Tuyến Kiểm tra thường xuyên (KTTX — TT 22/2021, Điều 6)
       if (path === '/api/kttx') {
         if (!Array.isArray(currentWorkspaceData.kttx)) currentWorkspaceData.kttx = [];

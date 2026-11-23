@@ -7,7 +7,7 @@
  function find(list,key){if(typeof key!=='string'||!key)fail('Thiếu mã hồ sơ.');const r=list.find(x=>x.id===key);if(!r)fail('Không tìm thấy hồ sơ trong không gian hiện tại.',404);return r;}
  function put(list,value){const i=list.findIndex(x=>x.id===value.id);if(i<0)list.push(value);else list[i]=value;return value;}
  function draft(record,prefix){const r=clone(record);for(const k of ['approved_hash','approved_by','approved_at','locked_at','published_at','published_by','locked_by','usage','lifecycle','verification','exam_set','parent_exam_id'])delete r[k];r.id=id(prefix);r.status='drafting';r.created_at=now();return r;}
- function canHandle(path){return /^\/api\/(exams|revisions|questions|matrices)(\/|$)/.test(path)||['/api/bank/import','/api/bank/save','/api/bank/save-question','/api/bank/delete-question'].includes(path);}
+ function canHandle(path){return /^\/api\/(exams|revisions|questions|matrices)(\/|$)/.test(path)||['/api/bank/import','/api/bank/save','/api/bank/save-question','/api/bank/delete-question','/api/ppct/clear-grade','/api/ppct/restore-grade'].includes(path);}
  async function handle(path,body,input,env={}){
   const data=clone(input),p=body||{},engine=env.engine||root.BankStaticEngine,workflow=env.workflow||root.BankStaticWorkflow;
   if(!engine||!workflow)fail('Bộ xử lý ra đề chưa nạp xong. Vui lòng tải lại trang.',503);
@@ -218,6 +218,21 @@
     if(!action||action==='approve')fail('Muốn duyệt câu phải mở phiếu kiểm định và xác nhận đủ từng mục.');
     qs.forEach(q=>put(bank,workflow.reviewQuestion(q,action,options)));
    }
+   return result({bank:data.bank},true);
+  }
+  if(path==='/api/ppct/clear-grade'){
+   const grade=Number(p.grade||0),targetSubject=p.subject_name||subject;
+   data.bank.ppct=data.bank.ppct||{lessons:[],cleared_grades:[]};
+   const cleared=new Set(data.bank.ppct.cleared_grades||[]);
+   cleared.add(grade);
+   data.bank.ppct.cleared_grades=[...cleared];
+   data.bank.ppct.lessons=(data.bank.ppct.lessons||[]).filter(l=>!(((l.subject_name||'Tin học')===targetSubject)&&Number(l.grade)===grade));
+   return result({bank:data.bank},true);
+  }
+  if(path==='/api/ppct/restore-grade'){
+   const grade=Number(p.grade||0),targetSubject=p.subject_name||subject;
+   data.bank.ppct=data.bank.ppct||{lessons:[],cleared_grades:[]};
+   data.bank.ppct.cleared_grades=(data.bank.ppct.cleared_grades||[]).filter(x=>Number(x)!==grade&&x!==`${targetSubject}:${grade}`);
    return result({bank:data.bank},true);
   }
   if(path==='/api/revisions/propose')return result(engine.proposeRevision(data,{...p,subject_name:subject}));

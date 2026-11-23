@@ -260,6 +260,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(service.apply_ppct_import(payload))
             if path == '/api/ppct/delete-lesson':
                 return self._json({'bank': service.delete_ppct_lesson(payload.get('grade'), payload.get('lesson_code'))})
+            if path == '/api/ppct/clear-grade':
+                return self._json({'bank': service.clear_ppct_grade(payload.get('grade'), payload.get('subject_name'))})
+            if path == '/api/ppct/restore-grade':
+                return self._json({'bank': service.restore_ppct_grade(payload.get('grade'), payload.get('subject_name'))})
             if path == '/api/bank/import':
                 if payload.get('mode') == 'append':
                     incoming = payload.get('bank')

@@ -123,21 +123,32 @@
     }
   }
 
+  function calculateDataScore(data) {
+    if (!data || typeof data !== 'object') return 0;
+    const qCount = Array.isArray(data.bank?.questions) ? data.bank.questions.length : 0;
+    const ppctCount = Array.isArray(data.bank?.ppct?.lessons) ? data.bank.ppct.lessons.length : 0;
+    const examCount = Array.isArray(data.exams) ? data.exams.length : 0;
+    const revCount = Array.isArray(data.revisions) ? data.revisions.length : 0;
+    const matCount = Array.isArray(data.matrices) ? data.matrices.length : 0;
+    return (qCount * 10) + (ppctCount * 5) + (matCount * 5) + (examCount * 5) + (revCount * 2);
+  }
+
   function findBestAvailableCache() {
     let best = null;
-    let maxQuestions = 0;
+    let maxScore = 0;
     try {
       if (typeof localStorage === 'undefined') return null;
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith(localCacheKey)) {
+        if (k && (k.startsWith(localCacheKey) || k === 'exammatrix_emergency_backup' || k === 'exammatrix_offline_backup')) {
           const raw = localStorage.getItem(k);
           if (!raw) continue;
           try {
-            const val = JSON.parse(raw);
-            const qCount = val?.bank?.questions?.length || 0;
-            if (qCount > maxQuestions) {
-              maxQuestions = qCount;
+            const rawVal = JSON.parse(raw);
+            const val = rawVal?.data || rawVal;
+            const score = calculateDataScore(val);
+            if (score > maxScore) {
+              maxScore = score;
               best = val;
             }
           } catch (e) {}
@@ -220,6 +231,30 @@
     });
   }
 
+  async function idbGetAll() {
+    const db = await openCacheDb();
+    if (!db) return [];
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = (val) => {
+        if (settled) return;
+        settled = true;
+        try { db.close(); } catch (e) {}
+        resolve(val || []);
+      };
+      try {
+        const tx = db.transaction(IDB_STORE, 'readonly');
+        const req = tx.objectStore(IDB_STORE).getAll();
+        req.onsuccess = () => done(req.result || []);
+        req.onerror = () => done([]);
+        tx.onabort = () => done([]);
+        tx.onerror = () => done([]);
+      } catch (e) {
+        done([]);
+      }
+    });
+  }
+
   async function trySaveLocalCache(uid, data) {
     let lsOk = false;
     try {
@@ -229,6 +264,15 @@
       lsOk = false;
     }
     const idbOk = await idbSet(uid, data);
+    // Lưu một bản sao lưu khẩn cấp nếu dữ liệu có giá trị
+    try {
+      if (calculateDataScore(data) > 0 && typeof localStorage !== 'undefined') {
+        localStorage.setItem('exammatrix_emergency_backup', JSON.stringify({
+          saved_at: new Date().toISOString(),
+          data: data
+        }));
+      }
+    } catch (e) {}
     return { lsOk, idbOk, saved: lsOk || idbOk };
   }
 
@@ -245,11 +289,11 @@
 
   function initLocalWorkspace() {
     try {
-      // Ưu tiên nạp dữ liệu ngoại tuyến; nếu ngoại tuyến rỗng mà trên trình duyệt có lưu cache câu hỏi của tài khoản trước đó thì tự động cứu hộ để không bị mất dữ liệu.
+      // Ưu tiên nạp dữ liệu ngoại tuyến; nếu ngoại tuyến rỗng mà trên trình duyệt có lưu cache của tài khoản trước đó thì tự động cứu hộ để không bị mất dữ liệu.
       let cached = getStorageData('offline');
-      if (!cached || !cached.bank?.questions?.length) {
+      if (!cached || calculateDataScore(cached) === 0) {
         const rescued = findBestAvailableCache();
-        if (rescued && rescued.bank?.questions?.length) {
+        if (rescued && calculateDataScore(rescued) > 0) {
           cached = rescued;
         }
       }
@@ -1289,6 +1333,81 @@
     return request;
   };
 
+  // Quét toàn bộ bộ nhớ đệm (localStorage và IndexedDB) để tìm bản dữ liệu tốt nhất cứu hộ
+  window.FirebaseClient.rescueBestCache = async function() {
+    let best = null;
+    let maxScore = 0;
+    let bestKey = '';
+
+    // 1. Quét localStorage
+    try {
+      if (typeof localStorage !== 'undefined') {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith(localCacheKey) || k === 'exammatrix_emergency_backup' || k === 'exammatrix_offline_backup')) {
+            const raw = localStorage.getItem(k);
+            if (!raw) continue;
+            try {
+              const rawVal = JSON.parse(raw);
+              const val = rawVal?.data || rawVal;
+              const score = calculateDataScore(val);
+              if (score > maxScore) {
+                maxScore = score;
+                best = val;
+                bestKey = k;
+              }
+            } catch (e) {}
+          }
+        }
+      }
+    } catch (e) {}
+
+    // 2. Quét IndexedDB
+    try {
+      const idbRecords = await idbGetAll();
+      for (const rec of idbRecords) {
+        const d = rec?.data;
+        const score = calculateDataScore(d);
+        if (score > maxScore) {
+          maxScore = score;
+          best = d;
+          bestKey = 'idb:' + (rec.uid || 'unknown');
+        }
+      }
+    } catch (e) {}
+
+    if (!best || maxScore === 0) return { found: false };
+    return {
+      found: true,
+      score: maxScore,
+      sourceKey: bestKey,
+      questionsCount: best.bank?.questions?.length || 0,
+      ppctCount: best.bank?.ppct?.lessons?.length || 0,
+      examsCount: best.exams?.length || 0,
+      matricesCount: best.matrices?.length || 0,
+      revisionsCount: best.revisions?.length || 0,
+      data: best
+    };
+  };
+
+  // Áp dụng bản cứu hộ vào workspace hiện tại
+  window.FirebaseClient.applyRescuedCache = async function(data) {
+    if (!data || typeof data !== 'object') return false;
+    currentWorkspaceData = JSON.parse(JSON.stringify({
+      ...data,
+      assessment_plans: Array.isArray(data.assessment_plans) ? data.assessment_plans : [],
+      kttx: Array.isArray(data.kttx) ? data.kttx : []
+    }));
+    delete currentWorkspaceData._sync;
+    window.FirebaseState.currentData = currentWorkspaceData;
+    const targetUid = window.FirebaseState.user?.uid || 'offline';
+    try { saveStorageData(targetUid, currentWorkspaceData); } catch (e) {}
+    try { saveStorageData('offline', currentWorkspaceData); } catch (e) {}
+    await trySaveLocalCache(targetUid, currentWorkspaceData);
+    applyWorkspaceToStore();
+    return true;
+  };
+
   function updateDriveSyncButton() {
     const syncBtn = document.getElementById('gdrive-sync-btn');
     if (!syncBtn) return;
@@ -1733,6 +1852,14 @@
   // Sửa tại chỗ để window.FirebaseState.currentData vẫn trỏ đúng đối tượng.
   function resetToOfflineWorkspace() {
     delete currentWorkspaceData._sync;
+    // Tuyệt đối không xóa dữ liệu nếu trong bộ nhớ RAM hiện tại đang có câu hỏi / PPCT / ma trận
+    const currentScore = calculateDataScore(currentWorkspaceData);
+    if (currentScore > 0) {
+      try { saveStorageData('offline', currentWorkspaceData); } catch (e) {}
+      idbSet('offline', currentWorkspaceData).catch(() => {});
+      applyWorkspaceToStore();
+      return;
+    }
     currentWorkspaceData.bank = { questions: [], ppct: { lessons: [] } };
     currentWorkspaceData.exams = [];
     currentWorkspaceData.revisions = [];
@@ -1760,7 +1887,32 @@
     const loginBtn = document.getElementById('btn-offline-login');
     const backupBtn = document.getElementById('btn-offline-backup');
     const restoreBtn = document.getElementById('btn-offline-restore');
+    const rescueBtn = document.getElementById('btn-offline-rescue');
     const fileInput = document.getElementById('offline-restore-file');
+    if (rescueBtn) {
+      rescueBtn.onclick = async () => {
+        try {
+          rescueBtn.disabled = true;
+          rescueBtn.textContent = '⏳ Đang quét...';
+          const res = await window.FirebaseClient.rescueBestCache();
+          if (res.found && res.data) {
+            const msg = `Tìm thấy bản dữ liệu trong bộ nhớ đệm: ${res.questionsCount} câu hỏi, ${res.ppctCount} bài PPCT, ${res.examsCount} đề thi, ${res.matricesCount} ma trận.\n\nKhôi phục dữ liệu này vào không gian làm việc hiện tại?`;
+            if (confirm(msg)) {
+              await window.FirebaseClient.applyRescuedCache(res.data);
+              showToast(`Đã khôi phục thành công ${res.questionsCount} câu hỏi và ${res.ppctCount} bài PPCT!`);
+              if (typeof window.render === 'function') window.render();
+            }
+          } else {
+            showToast('Không tìm thấy bản dữ liệu cũ nào trong bộ nhớ đệm trình duyệt này.', 'error');
+          }
+        } catch (e) {
+          showToast('Lỗi khi quét cứu hộ: ' + (e.message || e), 'error');
+        } finally {
+          rescueBtn.disabled = false;
+          rescueBtn.textContent = '🆘 Cứu hộ bộ nhớ đệm';
+        }
+      };
+    }
     if (loginBtn) {
       loginBtn.onclick = () => {
         if (document.getElementById('firebase-login-modal')) showLoginModal(true);

@@ -547,13 +547,20 @@
       
       const otherReqIds = new Set(reqList.slice(1).map(r => r.id));
       
+      const relatedSlotNums = [];
       (m.slots || []).forEach(s => {
         (s.parts || []).forEach(p => {
-          if (otherReqIds.has(p.requirement_id)) {
+          if (otherReqIds.has(p.requirement_id) || p.requirement_id === masterReq.id) {
             p.requirement_id = masterReq.id;
+            if (s.number && !relatedSlotNums.includes(s.number)) relatedSlotNums.push(s.number);
           }
         });
       });
+
+      if (relatedSlotNums.length) {
+        relatedSlotNums.sort((a, b) => a - b);
+        masterReq.custom_refs = relatedSlotNums.map(n => 'Câu ' + n).join(', ');
+      }
 
       m.requirements = m.requirements.filter(r => !otherReqIds.has(r.id));
       if (m.custom_level_refs) {
@@ -645,23 +652,44 @@
 
     const newReqs = [];
     const newSlots = [];
+    const reqGroupMap = new Map();
 
     exam.questions.forEach((q, idx) => {
       const qNum = q.slot_number || (idx + 1);
-      const rId = 'R-EXAM-Q' + qNum;
       const qLevel = q.level || 'Biết';
       const qComp = q.competency || 'NLa';
-      const qText = q.learning_outcome || (q.question ? (q.question.length > 150 ? q.question.slice(0, 147) + '...' : q.question) : ('Mục tiêu đánh giá câu ' + qNum));
+      const rawText = q.learning_outcome || (q.question ? (q.question.length > 150 ? q.question.slice(0, 147) + '...' : q.question) : ('Mục tiêu đánh giá câu ' + qNum));
+      const cleanText = String(rawText || '').replace(/\s*\(Mục tiêu\s+Câu[^)]*\)/gi, '').trim();
+      const lCode = q.lesson_code || 'B1';
 
-      newReqs.push({
-        id: rId,
-        lesson_code: q.lesson_code || 'B1',
-        level: qLevel,
-        text: qText,
-        competency: qComp,
-        custom_refs: 'Câu ' + qNum,
-        ppct_outcome_index: 0
-      });
+      // Nhóm theo Bài học + Mức độ + Nội dung YCCĐ (các câu chung YCCĐ được tự động gộp vào 1 mục tiêu chung)
+      const normTextKey = cleanText.normalize('NFC').toLowerCase().replace(/\s+/gu, ' ');
+      const groupKey = `${lCode}|${qLevel}|${normTextKey}`;
+
+      let targetReqId;
+      if (reqGroupMap.has(groupKey)) {
+        const existingReq = reqGroupMap.get(groupKey);
+        targetReqId = existingReq.id;
+        const currentRefs = existingReq._refNums || [];
+        if (!currentRefs.includes(qNum)) currentRefs.push(qNum);
+        currentRefs.sort((a, b) => a - b);
+        existingReq._refNums = currentRefs;
+        existingReq.custom_refs = currentRefs.map(n => 'Câu ' + n).join(', ');
+      } else {
+        targetReqId = 'R-EXAM-Q' + qNum;
+        const newReq = {
+          id: targetReqId,
+          lesson_code: lCode,
+          level: qLevel,
+          text: cleanText,
+          competency: qComp,
+          custom_refs: 'Câu ' + qNum,
+          _refNums: [qNum],
+          ppct_outcome_index: 0
+        };
+        reqGroupMap.set(groupKey, newReq);
+        newReqs.push(newReq);
+      }
 
       const sId = 'S' + qNum;
       const kind = q.type || 'MC';
@@ -677,7 +705,7 @@
         parts: [
           {
             id: sId + '-P1',
-            requirement_id: rId,
+            requirement_id: targetReqId,
             points: pts,
             label: ''
           }

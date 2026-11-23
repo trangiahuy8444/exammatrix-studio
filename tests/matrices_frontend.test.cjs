@@ -459,6 +459,37 @@ Khối: 9
     const specHtml = ui.specGridHtml(m, false, false);
     assert.ok(specHtml.includes('Nhận biết được CPU và RAM.'));
     assert.ok(specHtml.includes('Giải thích được nguyên lí Von Neumann.'));
-    console.log('PASS matrix UI: tạo đề từ ma trận 2D và trích xuất Bảng 2 Đặc tả từ đề thi thành công');
+
+    // Kiểm tra trường hợp Đề thi có các câu chung Yêu cầu cần đạt -> tự động GỘP vào 1 mục tiêu chung
+    const mockExamWithSharedOutcomes = {
+      id: 'EXAM-SHARED',
+      title: 'Đề kiểm tra có câu chung YCCĐ',
+      exam_code: '102',
+      grade: 8,
+      questions: [
+        { slot_number: 1, lesson_code: 'B1', level: 'Biết', learning_outcome: 'Nhận biết được sự có mặt của các thiết bị có gắn bộ xử lí thông tin.', competency: 'NLa', type: 'MC', points: 0.25 },
+        { slot_number: 2, lesson_code: 'B1', level: 'Biết', learning_outcome: 'Nhận biết được sự có mặt của các thiết bị có gắn bộ xử lí thông tin.', competency: 'NLa', type: 'MC', points: 0.25 },
+        { slot_number: 3, lesson_code: 'B1', level: 'Hiểu', learning_outcome: 'Nêu được ví dụ minh họa về thiết bị thông minh.', competency: 'NLa', type: 'MC', points: 0.25 }
+      ]
+    };
+    const mShared = {
+      grade: 8,
+      profile: 'THCS',
+      lessons: [{ lesson_code: 'B1', title: 'Bài 1', topic: 'Chủ đề A' }],
+      requirements: [],
+      slots: []
+    };
+    const syncedShared = ui.syncSpecFromExam(mShared, mockExamWithSharedOutcomes);
+    assert.equal(syncedShared, true);
+    // 2 câu Biết chung YCCĐ được gộp vào 1 mục tiêu, cộng 1 câu Hiểu -> tổng cộng 2 mục tiêu đặc tả
+    assert.equal(mShared.requirements.length, 2, 'Câu 1 và Câu 2 có chung YCCĐ phải được gộp thành 1 mục tiêu');
+    assert.equal(mShared.requirements[0].custom_refs, 'Câu 1, Câu 2', 'custom_refs phải hiển thị cả Câu 1, Câu 2');
+    assert.equal(mShared.requirements[0].text, 'Nhận biết được sự có mặt của các thiết bị có gắn bộ xử lí thông tin.');
+    // Cả 2 slot S1 và S2 đều liên kết đến cùng 1 requirement này
+    assert.equal(mShared.slots[0].parts[0].requirement_id, mShared.requirements[0].id);
+    assert.equal(mShared.slots[1].parts[0].requirement_id, mShared.requirements[0].id);
+    assert.equal(mShared.requirements[1].custom_refs, 'Câu 3');
+
+    console.log('PASS matrix UI: tạo đề từ ma trận 2D và trích xuất Bảng 2 Đặc tả từ đề thi thành công (đã tự động gộp câu chung YCCĐ)');
   }
 }

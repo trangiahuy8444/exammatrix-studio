@@ -608,6 +608,74 @@ class BankService:
             self._atomic_save(self.bank_path, checked)
             return copy.deepcopy(checked)
 
+    def append_questions(self, incoming):
+        """Thêm câu hỏi từ tệp (Excel/Markdown/AI) vào ngân hàng, giữ nguyên các câu đang có.
+
+        Khác import_bank (thay toàn bộ ngân hàng bằng dữ liệu nhập), hàm này:
+        - bỏ qua câu trùng nguyên văn (cùng khối) với câu đã có;
+        - chuẩn hóa mã bài theo PPCT không phân biệt hoa thường (B8A -> B8a);
+        - bắt buộc bài và YCCĐ thuộc PPCT của khối, kể cả với câu nháp;
+        - kiểm tra từng câu và báo theo số thứ tự; có lỗi thì không ghi câu nào.
+        Câu nhập luôn ở trạng thái Nháp và cần kiểm định trước khi ra đề.
+        """
+        with self.lock:
+            if not isinstance(incoming, list) or not incoming:
+                raise ServiceError('Tệp nhập chưa có câu hỏi hợp lệ.')
+            current = self._load_bank()
+            existing_ids = {q.get('id') for q in current['questions']}
+            existing_texts = {(q.get('grade'), normalized(q.get('question') or '')) for q in current['questions']}
+            by_lower = {}
+            for key, lesson in self.lessons.items():
+                if len(key) == 3:
+                    by_lower.setdefault((key[0], key[1], str(key[2]).casefold()), key[2])
+            added, skipped, errors, seen = [], [], [], set()
+            for pos, raw in enumerate(incoming, 1):
+                label = f'Câu {pos}'
+                if not isinstance(raw, dict):
+                    errors.append(dict(stt=pos, loi='Câu hỏi không đúng định dạng.')); continue
+                q = copy.deepcopy(raw)
+                preview = str(q.get('question') or '')[:80]
+                try:
+                    grade = self._grade(q.get('grade'))
+                    subj = normalize_subject_name(q.get('subject_name') or self.context.get('subject_name') or 'Tin học')
+                    code = str(q.get('lesson_code') or '').strip()
+                    code = by_lower.get((subj, grade, code.casefold()), code)
+                    q['lesson_code'] = code
+                    lesson = self.lessons.get((subj, grade, code)) or self.lessons.get((grade, code))
+                    if not lesson:
+                        raise ServiceError(f'Bài {code or "(trống)"} không có trong PPCT khối {grade}. Kiểm tra mã bài hoặc khối đang chọn.')
+                    if q.get('learning_outcome') and q['learning_outcome'] not in (lesson.get('outcomes') or []):
+                        raise ServiceError(f'Yêu cầu cần đạt không khớp với PPCT của bài {code}, khối {grade}.')
+                    q['review_status'] = 'draft'
+                    q['origin'] = q.get('origin') or 'teacher'
+                    if not q.get('id') or q['id'] in existing_ids or q['id'] in seen:
+                        q['id'] = f'K{grade}-GV-{uuid.uuid4().hex[:12]}'
+                    checked = self._validate_question(q)
+                except ServiceError as e:
+                    errors.append(dict(stt=pos, cau=preview, loi=str(e))); continue
+                fingerprint = (checked['grade'], normalized(checked['question']))
+                if fingerprint in existing_texts:
+                    skipped.append(dict(stt=pos, cau=preview)); continue
+                if fingerprint in seen:
+                    errors.append(dict(stt=pos, cau=preview, loi='Nội dung trùng với một câu khác trong cùng tệp.')); continue
+                seen.add(fingerprint); seen.add(checked['id'])
+                checked['created_at'] = checked.get('created_at') or now()
+                checked['updated_at'] = now()
+                added.append(checked)
+            if errors:
+                raise ServiceError(f'Có {len(errors)} câu chưa hợp lệ nên chưa ghi câu nào vào ngân hàng.',
+                                   {'so_cau_loi': len(errors), 'loi': errors[:30]})
+            if not added:
+                raise ServiceError(f'Không có câu mới: cả {len(skipped)} câu đều đã có trong ngân hàng.')
+            merged = copy.deepcopy(current)
+            merged['questions'] = current['questions'] + added
+            checked_bank = self._validate_bank(merged)
+            if 'competency_catalogs' in current:
+                checked_bank['competency_catalogs'] = copy.deepcopy(current['competency_catalogs'])
+            self._atomic_save(self.bank_path, checked_bank)
+            return dict(bank=copy.deepcopy(checked_bank),
+                        report=dict(added=len(added), skipped=len(skipped), skipped_items=skipped[:30]))
+
     def save_ppct_lesson(self, payload):
         from ppct_import import detect_orientation, normalize_section
         with self.lock:

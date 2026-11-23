@@ -2199,6 +2199,11 @@ async function bulkUpdateSelected(action,status='pending_review'){
  if(!confirm(action==='delete'?`Xóa vĩnh viễn ${ids.length} câu hỏi?`:`Chuyển trạng thái ${ids.length} câu hỏi?`))return;
  await mutate('/api/questions/bulk',{ids,action,status},()=>{store.selected.clear();render();notify('Đã cập nhật các câu hỏi đã chọn.');});
 }
+function importReportText(result,fileName){
+  const r=result&&result.import_report;
+  if(!r)return `Đã nạp câu hỏi từ ${fileName}. Câu mới ở trạng thái Nháp, cần kiểm định trước khi ra đề.`;
+  return `Đã thêm ${r.added} câu mới từ ${fileName}`+(r.skipped?`; bỏ qua ${r.skipped} câu đã có trong ngân hàng`:'')+'. Câu mới ở trạng thái Nháp, cần kiểm định trước khi ra đề.';
+}
 async function importBank(event){
   const file=event.target.files[0];
   if(!file)return;
@@ -2215,17 +2220,17 @@ async function importBank(event){
           notify('Không tìm thấy câu hỏi hợp lệ trong bảng tính. Hãy bấm "📊 Tải mẫu câu hỏi (Excel)" để xem mẫu 11 cột chuẩn.', true);
           return;
         }
-        if(!confirm(`Tìm thấy ${parsed.length} câu hỏi từ tệp bảng tính (${file.name}). Bạn có muốn nạp vào Ngân hàng câu hỏi?`)) return;
-        await mutate('/api/bank/import', { bank: { questions: parsed } }, () => {
+        if(!confirm(`Tìm thấy ${parsed.length} câu hỏi từ tệp bảng tính (${file.name}).\nCác câu sẽ được THÊM vào ngân hàng Khối ${g} (giữ nguyên câu đang có, bỏ qua câu trùng).\nNếu tệp không phải của Khối ${g}, hãy bấm Hủy và chọn đúng khối ở bộ lọc trước.`)) return;
+        await mutate('/api/bank/import', { bank: { questions: parsed }, mode: 'append' }, result => {
           render();
-          notify(`Đã nạp thành công ${parsed.length} câu hỏi từ tệp Excel (${file.name}). Câu mới ở trạng thái Nháp, cần kiểm định trước khi ra đề.`);
+          notify(importReportText(result, file.name));
         });
         return;
       } else if(res.type === 'json') {
         let bank = res.data;
         if(Array.isArray(bank)) bank = { questions: bank };
         else if(bank && bank.bank) bank = bank.bank;
-        if(!confirm('Nhập ngân hàng từ tệp JSON này? Ứng dụng sẽ kiểm tra dữ liệu và sao lưu trước khi ghi. PPCT gốc được giữ theo danh mục đang có.')) return;
+        if(!confirm('Khôi phục ngân hàng từ tệp JSON này? Toàn bộ câu hỏi hiện có sẽ được THAY bằng câu trong tệp. Ứng dụng kiểm tra dữ liệu và sao lưu trước khi ghi; PPCT gốc được giữ nguyên.')) return;
         await mutate('/api/bank/import', { bank }, () => {
           render();
           notify('Đã nhập ngân hàng từ JSON thành công và lưu bản sao trước thay đổi.');
@@ -2238,10 +2243,10 @@ async function importBank(event){
           notify('Không tìm thấy câu hỏi hợp lệ trong tệp Markdown. Bấm "📝 Tải mẫu câu hỏi (Markdown)" để xem định dạng chuẩn.', true);
           return;
         }
-        if(!confirm(`Tìm thấy ${parsed.length} câu hỏi từ tệp Markdown (${file.name}). Bạn có muốn nạp vào Ngân hàng câu hỏi?`)) return;
-        await mutate('/api/bank/import', { bank: { questions: parsed } }, () => {
+        if(!confirm(`Tìm thấy ${parsed.length} câu hỏi từ tệp Markdown (${file.name}).\nCác câu sẽ được THÊM vào ngân hàng Khối ${g} (giữ nguyên câu đang có, bỏ qua câu trùng).`)) return;
+        await mutate('/api/bank/import', { bank: { questions: parsed }, mode: 'append' }, result => {
           render();
-          notify(`Đã nhập ${parsed.length} câu hỏi từ Markdown. Câu mới ở trạng thái Nháp, cần kiểm định trước khi ra đề.`);
+          notify(importReportText(result, file.name));
         });
         return;
       }
@@ -2255,14 +2260,14 @@ async function importBank(event){
         notify('Không tìm thấy câu hỏi hợp lệ trong tệp Markdown. Bấm "📝 Tải mẫu câu hỏi (Markdown)" để xem định dạng chuẩn.',true);
         return;
       }
-      if(!confirm(`Tìm thấy ${parsed.length} câu hỏi từ tệp Markdown (${file.name}). Bạn có muốn nạp vào Ngân hàng câu hỏi?`))return;
-      await mutate('/api/bank/import',{bank:{questions:parsed}},()=>{render();notify(`Đã nhập ${parsed.length} câu hỏi. Câu mới ở trạng thái Nháp, cần kiểm định trước khi ra đề.`);});
+      if(!confirm(`Tìm thấy ${parsed.length} câu hỏi từ tệp Markdown (${file.name}).\nCác câu sẽ được THÊM vào ngân hàng Khối ${g} (giữ nguyên câu đang có, bỏ qua câu trùng).`))return;
+      await mutate('/api/bank/import',{bank:{questions:parsed},mode:'append'},result=>{render();notify(importReportText(result,file.name));});
     }else{
       const text=await file.text();
       let bank=JSON.parse(text);
       if(Array.isArray(bank))bank={questions:bank};
       else if(bank.bank)bank=bank.bank;
-      if(!confirm('Nhập ngân hàng từ tệp JSON này? Ứng dụng sẽ kiểm tra dữ liệu và sao lưu trước khi ghi. PPCT gốc được giữ theo danh mục đang có.'))return;
+      if(!confirm('Khôi phục ngân hàng từ tệp JSON này? Toàn bộ câu hỏi hiện có sẽ được THAY bằng câu trong tệp. Ứng dụng kiểm tra dữ liệu và sao lưu trước khi ghi; PPCT gốc được giữ nguyên.'))return;
       await mutate('/api/bank/import',{bank},()=>{render();notify('Đã nhập ngân hàng và lưu bản sao trước thay đổi.');});
     }
   }catch(e){
@@ -5074,7 +5079,7 @@ Hãy trả về duy nhất mảng JSON các câu hỏi (không thêm bất kỳ 
       importBtn.disabled = true;
       importBtn.textContent = '⏳ Đang nạp...';
       try {
-        await mutate('/api/bank/import', { bank: { questions: batch } });
+        await mutate('/api/bank/import', { bank: { questions: batch }, mode: 'append' });
         notify(`✅ Đã nạp thành công ${batch.length} câu hỏi vào Ngân hàng!`);
         dialog.close();
       } catch(err) {

@@ -191,3 +191,22 @@ test('TableFileHelper: buildAiPromptByLesson handles THCS vs THPT constraints pr
   assert.ok(promptThptYn.includes('4 lệnh hỏi / phát biểu a), b), c), d)'));
   assert.ok(promptThptYn.includes('Đ, S, Đ, S'));
 });
+
+test('TableFileHelper: giữ mã bài chữ thường và tách hướng chấm tự luận thành 4 tiêu chí', () => {
+  const rows = [
+    ['Mã bài', 'Mức độ', 'Dạng câu', 'Nội dung câu hỏi', 'Phương án A / Ý a', 'Phương án B / Ý b', 'Phương án C / Ý c', 'Phương án D / Ý d', 'Đáp án đúng', 'Hướng dẫn giải', 'Yêu cầu cần đạt'],
+    ['B8a', 'Vận dụng', 'ES', 'Đề tự luận 2 ý?\na) Ý một.\nb) Ý hai.', '', '', '', '', '',
+     'a) Viết đúng công thức (0,25 điểm); tính đúng kết quả (0,25 điểm).\nb) Nêu đúng cách (0,25 điểm); giải thích được (0,25 điểm).', 'Mục tiêu'],
+    ['B10a', 'Biết', 'MC', 'Câu MC?', 'A1', 'B1', 'C1', 'D1', 'C', 'Đáp án C.', 'Mục tiêu']
+  ];
+  const [es, mc] = TableFileHelper.parseQuestionsFromRows(rows, 8, 'Tin học');
+  assert.equal(es.lesson_code, 'B8a');
+  assert.equal(mc.lesson_code, 'B10a');
+  assert.equal(es.rubric.length, 4);
+  assert.deepEqual(es.rubric.map(x => x.points), [0.25, 0.25, 0.25, 0.25]);
+  assert.equal(es.rubric[1].criterion, 'a) tính đúng kết quả (0,25 điểm)');
+  assert.equal(es.rubric[2].criterion, 'b) Nêu đúng cách (0,25 điểm)');
+  assert.ok(es.equivalent_answer_policy);
+  assert.deepEqual(TableFileHelper.parseRubricText('Hướng chấm tự do'), []);
+  assert.deepEqual(TableFileHelper.parseRubricText('A (0,5 điểm). B (0,25 điểm).'), []);
+});

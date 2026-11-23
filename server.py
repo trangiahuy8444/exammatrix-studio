@@ -261,6 +261,11 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/ppct/delete-lesson':
                 return self._json({'bank': service.delete_ppct_lesson(payload.get('grade'), payload.get('lesson_code'))})
             if path == '/api/bank/import':
+                if payload.get('mode') == 'append':
+                    incoming = payload.get('bank')
+                    incoming = incoming.get('questions') if isinstance(incoming, dict) else incoming
+                    res = service.append_questions(incoming)
+                    return self._json({'bank': res['bank'], 'import_report': res['report']})
                 return self._json({'bank': service.import_bank(payload.get('bank'))})
             if path == '/api/revisions/save':
                 return self._json({'revision': service.save_revision(payload)})

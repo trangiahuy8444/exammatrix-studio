@@ -140,6 +140,44 @@
    const saved=workflow.saveQuestion(existing,{...q,subject_name:subject});if(!saved.id)saved.id=id('Q');
    put(bank,saved);return result({question:saved,bank:data.bank},true);
   }
+  if(path==='/api/bank/import'&&p.mode==='append'){
+   // Nhập thêm từ Excel/Markdown/AI: giữ câu cũ, bỏ qua câu trùng, đối chiếu PPCT; lỗi thì không ghi gì.
+   const incoming=Array.isArray(p.bank)?p.bank:p.bank?.questions||p.questions;
+   if(!Array.isArray(incoming)||!incoming.length)fail('Tệp nhập chưa có câu hỏi hợp lệ.');
+   const norm=x=>String(x==null?'':x).normalize('NFC').toLowerCase().trim().replace(/\s+/gu,' ');
+   const subj=l=>l.subject_name||'Tin học';
+   const existingText=new Set(bank.map(q=>Number(q.grade)+'|'+norm(q.question)));
+   const existingIds=new Set(bank.map(q=>q.id));
+   const added=[],skipped=[],errors=[],seen=new Set();
+   incoming.forEach((raw,i)=>{
+    const stt=i+1,cau=String(raw?.question||'').slice(0,80);
+    try{
+     if(!raw||typeof raw!=='object')fail('Câu hỏi không đúng định dạng.');
+     const q=clone(raw);q.grade=Number(q.grade);
+     const code=String(q.lesson_code||'').trim();
+     const lessons=(ppct.lessons||[]).filter(l=>Number(l.grade)===q.grade&&subj(l)===subject);
+     if(lessons.length){
+      const lesson=lessons.find(l=>l.lesson_code===code)||lessons.find(l=>String(l.lesson_code).toLowerCase()===code.toLowerCase());
+      if(!lesson)fail(`Bài ${code||'(trống)'} không có trong PPCT khối ${q.grade}. Kiểm tra mã bài hoặc khối đang chọn.`);
+      q.lesson_code=lesson.lesson_code;
+      if(q.learning_outcome&&!(lesson.outcomes||[]).includes(q.learning_outcome))fail(`Yêu cầu cần đạt không khớp với PPCT của bài ${lesson.lesson_code}, khối ${q.grade}.`);
+     }
+     const problems=workflow.technicalProblems?workflow.technicalProblems({...q,learning_outcome:q.learning_outcome||'-'}):[];
+     if(problems.length)fail(problems.join(' '));
+     const key=q.grade+'|'+norm(q.question);
+     if(existingText.has(key)){skipped.push({stt,cau});return;}
+     if(seen.has(key))fail('Nội dung trùng với một câu khác trong cùng tệp.');
+     seen.add(key);
+     if(!q.id||existingIds.has(q.id))delete q.id;
+     const saved=workflow.saveQuestion(null,{...q,subject_name:subject,review_status:'draft'});
+     if(!saved.id)saved.id=id('Q');existingIds.add(saved.id);added.push(saved);
+    }catch(e){errors.push({stt,cau,loi:e.message});}
+   });
+   if(errors.length)fail(`Có ${errors.length} câu chưa hợp lệ nên chưa ghi câu nào vào ngân hàng.`,400,{so_cau_loi:errors.length,loi:errors.slice(0,30)});
+   if(!added.length)fail(`Không có câu mới: cả ${skipped.length} câu đều đã có trong ngân hàng.`);
+   added.forEach(q=>bank.push(q));
+   return result({bank:data.bank,import_report:{added:added.length,skipped:skipped.length,skipped_items:skipped.slice(0,30)}},true);
+  }
   if(['/api/bank/import','/api/bank/save'].includes(path)){
    const incoming=p.questions||(Array.isArray(p.bank)?p.bank:p.bank?.questions);
    if(!Array.isArray(incoming)||!incoming.length)fail('Tệp nhập chưa có câu hỏi hợp lệ.');

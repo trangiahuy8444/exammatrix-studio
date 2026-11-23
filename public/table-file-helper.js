@@ -378,6 +378,31 @@
   // =========================================================================
   // 6. PHÂN TÍCH BẢNG DỮ LIỆU EXCEL / CSV THÀNH NGÂN HÀNG CÂU HỎI
   // =========================================================================
+  // Tách hướng chấm tự luận thành các tiêu chí theo mốc "(0,25 điểm)".
+  // Mỗi tiêu chí kết thúc bằng mốc điểm; ý a), b) ở đầu dòng được ghi lại cho các tiêu chí cùng dòng.
+  // Trả về [] nếu không tìm thấy mốc điểm hoặc tổng điểm khác 1.
+  function parseRubricText(text) {
+    const src = String(text || '').trim();
+    if (!src) return [];
+    const marker = /\((\d+(?:[.,]\d+)?)\s*điểm\)/gi;
+    const items = [];
+    src.split(/\r?\n/).forEach(line => {
+      const labelMatch = line.trim().match(/^([a-dA-D])\)\s*/);
+      const label = labelMatch ? labelMatch[1].toLowerCase() + ') ' : '';
+      let last = 0, m;
+      marker.lastIndex = 0;
+      while ((m = marker.exec(line)) !== null) {
+        let piece = line.slice(last, m.index + m[0].length).trim();
+        piece = piece.replace(/^[\s;,.–\-•+]+/, '').replace(/^([a-dA-D])\)\s*/, '').trim();
+        const points = Number(m[1].replace(',', '.'));
+        if (piece && points > 0) items.push({ criterion: label + piece, points });
+        last = m.index + m[0].length;
+      }
+    });
+    const total = items.reduce((a, b) => a + b.points, 0);
+    return items.length && Math.abs(total - 1) < 1e-9 ? items : [];
+  }
+
   function parseQuestionsFromRows(rows, defaultGrade = 9, defaultSubject = 'Tin học') {
     if (!Array.isArray(rows) || !rows.length) return [];
 
@@ -452,10 +477,11 @@
       else if (/hieu|thong\s*hieu|th/i.test(normLvl)) level = 'Hiểu';
       else if (/biet|nhan\s*biet|nb/i.test(normLvl)) level = 'Biết';
 
-      // Chuẩn hóa mã bài học
-      let lessonCode = lessonRaw.toUpperCase();
-      if (!/^([A-Z0-9_\-]+)$/.test(lessonCode)) {
-        const m = lessonCode.match(/\b(B\d+|CD\d+|BAI\s*\d+)\b/i);
+      // Chuẩn hóa mã bài học: giữ nguyên chữ hoa/thường (PPCT có mã như B8a, B10a);
+      // máy chủ đối chiếu với PPCT không phân biệt hoa thường.
+      let lessonCode = lessonRaw.trim();
+      if (!/^([A-Za-z0-9_\-]+)$/.test(lessonCode)) {
+        const m = lessonCode.match(/\b(B\d+[a-z]?|CD\d+|BAI\s*\d+[a-z]?)\b/i);
         if (m) lessonCode = m[1].replace(/\s+/g, '');
         else lessonCode = 'B1';
       }
@@ -545,9 +571,11 @@
         baseQ.explanation = explanation || '';
         questions.push(baseQ);
       } else if (qType === 'ES') {
-        baseQ.rubric = [
-          { criterion: explanation || 'Nêu và thực hiện đúng yêu cầu đề bài.', points: 1.0 }
-        ];
+        const parsedRubric = parseRubricText(explanation);
+        baseQ.rubric = parsedRubric.length
+          ? parsedRubric
+          : [{ criterion: explanation || 'Nêu và thực hiện đúng yêu cầu đề bài.', points: 1.0 }];
+        baseQ.equivalent_answer_policy = 'Chấp nhận cách diễn đạt hoặc cách làm khác nếu đúng bản chất và đủ ý.';
         baseQ.max_score = 1.0;
         questions.push(baseQ);
       }
@@ -1224,6 +1252,7 @@ ${formatInstruction}`;
     toCsv,
     downloadCsv,
     parseQuestionsFromRows,
+    parseRubricText,
     parsePpctFromRows,
     getSampleBankRows,
     getSamplePpctRows,

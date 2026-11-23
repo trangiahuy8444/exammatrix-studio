@@ -1,3 +1,12 @@
+## 23/11/2026 — Nhập câu hỏi từ Excel: thêm vào, không thay ngân hàng
+
+- Giáo viên chọn sửa đường nhập (Cách 1) để nạp ngân hàng Tin 8/9/10 cả năm. Lỗi tái hiện trên bản sao: nhập Excel thay toàn bộ ngân hàng (360 câu còn 20), mọi câu tự luận bị từ chối (hướng chấm gộp 1 tiêu chí), mã bài bị viết hoa (B8a → B8A, câu nháp gắn vào bài không có trong PPCT). Nạp câu AI cũng thay toàn bộ ngân hàng.
+- `BankService.append_questions` + `/api/bank/import` với `mode: 'append'`: giữ câu cũ, bỏ qua câu trùng nguyên văn cùng khối, chuẩn hóa mã bài theo PPCT không phân biệt hoa thường, bắt buộc bài và YCCĐ thuộc PPCT khối kể cả câu nháp, câu nhập luôn là Nháp; có lỗi thì báo theo số thứ tự câu và không ghi gì. Không có `mode` thì giữ hành vi cũ (khôi phục từ JSON).
+- `table-file-helper.js`: giữ chữ hoa/thường của mã bài; `parseRubricText` tách hướng chấm theo mốc "(0,25 điểm)", ghi kèm ý a)/b); thêm chính sách đáp án tương đương mặc định. `app.js`: Excel, Markdown, AI gửi `mode: 'append'`, hộp xác nhận nêu khối đích, thông báo số câu thêm/bỏ qua; hộp nhập JSON ghi rõ là thay toàn bộ.
+- Kiểm thử: thêm `tests/test_append_import.py` (4) và 1 ca Node. Engine 457 (3 lỗi `test_export_roundtrip` có sẵn ở commit gốc trên máy ảo, 1 bỏ qua); Django 112/112 trên bản sao (trong thư mục Drive, `test_hosting` lỗi vì thư mục cấm xóa tệp, không do mã); 17/17 bộ Node.
+- Bản Pages (`static-api.js`, giáo viên đang dùng): nhánh `mode: 'append'` cùng quy tắc (bỏ trùng, chuẩn hóa mã bài, đối chiếu PPCT nếu khối có PPCT, kiểm tra kỹ thuật, lỗi thì không ghi). Thêm `tests/static_append_import.test.cjs`. Lưu ý: bản sao Firestore là một tài liệu (giới hạn 1 MB) nên với ngân hàng lớn chỉ còn Google Drive là nơi lưu chính.
+- Chạy thử trên bản sao CSDL thật (không ghi CSDL thật): 360 → 1 251 câu sau khi nạp Tin 8 (432) và Tin 9 (459); nạp lại bị báo trùng; nạp tệp Khối 8 khi chọn Khối 9 bị chặn toàn bộ. Giáo viên đồng ý push lên main (ngan-hang-de-web và exammatrix-studio); bản Django cục bộ cần khởi động lại để dùng mã mới.
+
 ## 19/11/2026 — Nạp danh mục năng lực và chỉ báo theo môn
 
 - Thêm đọc XLSX/CSV/TSV và bảng dán Word/Excel, xem trước/kiểm lỗi, lưu theo môn với kiểm phiên bản. Có mẫu CSV minh họa, không tự tạo mã chuẩn.

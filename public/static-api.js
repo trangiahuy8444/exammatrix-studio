@@ -198,8 +198,16 @@
    if(!Array.isArray(p.ids)||!p.ids.length||new Set(p.ids).size!==p.ids.length)fail('Chọn danh sách mã câu khác nhau.');
    const qs=p.ids.map(key=>own(find(bank,key)));
    if(p.action==='delete')data.bank.questions=bank.filter(q=>!p.ids.includes(q.id));
+   else if(p.action==='restore_all'||p.action==='unarchive_all'){
+    qs.forEach(q=>{
+      q.review_status = p.status || 'approved';
+      delete q.archived_at;
+      delete q.status_before_archive;
+      put(bank, q);
+    });
+   }
    else{
-    const action=p.action==='status'?{pending_review:'submit',archived:'archive'}[p.status]:p.action;
+    const action=p.action==='status'?{pending_review:'submit',archived:'archive',restore:'restore'}[p.status]||p.action:p.action;
     if(!action||action==='approve')fail('Muốn duyệt câu phải mở phiếu kiểm định và xác nhận đủ từng mục.');
     qs.forEach(q=>put(bank,workflow.reviewQuestion(q,action,options)));
    }

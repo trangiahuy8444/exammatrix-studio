@@ -302,6 +302,17 @@ const lessons=(g,subj)=>{
   } else {
     list = (store.bank?.ppct?.lessons||[]).filter(l=>(!g||Number(l.grade)===Number(g))&&((l.subject_name===s)||(!l.subject_name&&s==='Tin học')));
   }
+  // Tự động kết nối PPCT chuẩn GDPT 2018 nếu ngân hàng chưa nạp PPCT riêng
+  if (!list.length && typeof window !== 'undefined' && window.SUBJECT_CURRICULA) {
+    const defaultData = window.SUBJECT_CURRICULA[s] || window.SUBJECT_CURRICULA['Tin học'] || {};
+    const rawLessons = g ? (defaultData[g] || defaultData[String(g)] || []) : Object.values(defaultData).flat();
+    list = rawLessons.map(l => ({
+      ...l,
+      grade: Number(l.grade || g),
+      subject_name: s,
+      occurrences: safeLessonOccurrences(l.occurrences)
+    }));
+  }
   return list.map(l => ({ ...l, section: normalizePpctSection(l), occurrences: safeLessonOccurrences(l.occurrences) }));
 };
 function instructionalLessons(g, subj, { includeElective = true } = {}) {
@@ -567,12 +578,71 @@ function renderOverview(){
  const revs=currentRevisions(), exms=currentExams();
  const ovGrade=store.overviewGradeFilter||'all';
  const shownGrades=ovGrade==='all'?grades():grades().filter(g=>String(g)===String(ovGrade));
- $('#overview').innerHTML=(!qs.length?`<div class="card"><h2>Bắt đầu ngân hàng môn ${esc(s)} của bạn</h2><p>1. Thiết lập phân phối chương trình môn ${esc(s)}. 2. Soạn câu hỏi. 3. Chuẩn bị đề cương, lập ma trận và tạo đề.</p><a class="button primary" href="#ppct">Quản lý PPCT ${esc(s)}</a> <a class="button" href="#bank">Soạn câu hỏi mới</a></div>`:'')+title(`Không gian chuyên môn · ${s}`,'Mỗi câu hỏi, một căn cứ rõ ràng',`Quản lí nội dung môn ${s} theo chương trình GDPT 2018. Chuẩn bị đề cương và tạo đề có kiểm tra ma trận.`,`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><label for="overview-grade-select" class="small muted" style="font-weight:600">Khối lớp:</label><select id="overview-grade-select" style="min-height:38px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff">${opt('all','Tất cả khối (6 - 12)',ovGrade==='all')}${gradeOptions(ovGrade)}</select><a class="button primary" href="#bank">Mở ngân hàng ${esc(s)}</a></div>`)+
+ const archivedCount = qs.filter(q => q.review_status === 'archived').length;
+ const showArchivedBanner = active.length === 0 && archivedCount > 0;
+
+ const bannerHtml = showArchivedBanner ? `
+  <div class="card" style="background:#eff6ff;border:2px solid #3b82f6;border-radius:12px;padding:16px 20px;margin-bottom:18px;box-shadow:0 4px 14px rgba(59,130,246,0.12)">
+    <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap">
+      <div style="font-size:32px">🛡️</div>
+      <div style="flex:1;min-width:280px">
+        <h3 style="margin:0 0 6px;color:#1e40af;font-size:16px;font-weight:700">
+          Dữ liệu của Thầy/Cô vẫn an toàn 100%! Có ${archivedCount} câu hỏi môn ${esc(s)} đang ở mục "Lưu trữ"
+        </h3>
+        <p style="margin:0 0 12px;font-size:13px;color:#1e3a8a;line-height:1.5">
+          Toàn bộ <strong>${archivedCount} câu hỏi</strong> không hề bị mất, chỉ là đang được gắn trạng thái <em>Lưu trữ (Archived)</em> nên bộ lọc mặc định trên trang Tổng quan tạm thời chưa hiển thị. Thầy/Cô có thể bấm nút dưới đây để khôi phục đưa vào sử dụng ngay:
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="button primary" id="btn-unarchive-all-questions" style="background:#0267B1;border-color:#0267B1;color:#fff;font-weight:700;padding:8px 18px">
+            🔄 Khôi phục toàn bộ ${archivedCount} câu hỏi đưa vào sử dụng
+          </button>
+          <a class="button" href="#bank" id="btn-go-archived-bank" style="font-weight:600;background:#fff;border:1px solid #cbd5e1">
+            🔍 Mở Ngân hàng xem danh sách câu hỏi lưu trữ →
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+ ` : '';
+
+ $('#overview').innerHTML=(!qs.length?`<div class="card"><h2>Bắt đầu ngân hàng môn ${esc(s)} của bạn</h2><p>1. Thiết lập phân phối chương trình môn ${esc(s)}. 2. Soạn câu hỏi. 3. Chuẩn bị đề cương, lập ma trận và tạo đề.</p><a class="button primary" href="#ppct">Quản lý PPCT ${esc(s)}</a> <a class="button" href="#bank">Soạn câu hỏi mới</a></div>`:'')+bannerHtml+title(`Không gian chuyên môn · ${s}`,'Mỗi câu hỏi, một căn cứ rõ ràng',`Quản lí nội dung môn ${s} theo chương trình GDPT 2018. Chuẩn bị đề cương và tạo đề có kiểm tra ma trận.`,`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><label for="overview-grade-select" class="small muted" style="font-weight:600">Khối lớp:</label><select id="overview-grade-select" style="min-height:38px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff">${opt('all','Tất cả khối (6 - 12)',ovGrade==='all')}${gradeOptions(ovGrade)}</select><a class="button primary" href="#bank">Mở ngân hàng ${esc(s)}</a></div>`)+
  `<div class="stats"><div class="stat"><strong>${active.length}</strong><span>Câu hỏi môn ${esc(s)}</span><small>${active.filter(q=>q.type==='MC').length} trắc nghiệm · ${active.filter(q=>q.type==='ES').length} tự luận</small></div><div class="stat"><strong>${ready.length}</strong><span>Câu đủ điều kiện tạo đề</span><small>Mẫu đã duyệt hoặc tự kiểm tra</small></div><div class="stat"><strong>${revs.length}</strong><span>Phiên bản đề cương</span><small>Môn ${esc(s)}</small></div><div class="stat"><strong>${exms.length}</strong><span>Đề kiểm tra đã lưu</span><small>Môn ${esc(s)}</small></div></div>`+
  `<div class="grade-grid">${shownGrades.map(g=>{const a=active.filter(q=>q.grade===g);const lsCount=lessons(g, s).length;return `<a class="grade-card" href="#bank" data-open-grade="${g}"><h3>${esc(s)} ${g}</h3><p>${lsCount?`${lsCount} bài PPCT · ${lessons(g, s).filter(l=>a.some(q=>q.lesson_code===l.lesson_code)).length} bài có câu hỏi`:'Chưa nạp PPCT khối này'}</p><div class="bar"><span style="width:${a.length?100:(lsCount?40:0)}%"></span></div><strong>${a.length} câu hỏi</strong><span class="muted"> · Xem ngân hàng →</span></a>`;}).join('')}</div>`+
  `<div class="two-col" style="margin-top:22px"><div class="card"><h2>Chuẩn bị một đề kiểm tra</h2><ol class="muted"><li>Lọc và rà soát câu hỏi môn ${esc(s)} theo bài, YCCĐ và mức độ.</li><li>Chọn câu, lưu một phiên bản đề cương đã chuẩn bị phát.</li><li>Chọn ma trận, kiểm tra phân bố và tạo đề.</li></ol><a href="#revisions">Chuẩn bị đề cương →</a></div><div class="card"><h2>Trạng thái nội dung môn ${esc(s)}</h2><p class="muted">${(p=>`${p.approved} câu đã duyệt · ${p.pending_review} câu chờ duyệt · ${p.needs_review} câu cần sửa lại · ${p.draft} bản nháp`)(C.reviewProgress(qs))} · ${qs.filter(q=>q.review_status==='archived').length} câu lưu trữ.</p><div class="callout">Đề kiểm tra chính thức chỉ dùng câu <strong>đã duyệt</strong>. <a href="#review">Mở màn hình duyệt câu hỏi →</a></div></div></div>`;
+
  const ovSel=$('#overview-grade-select');
  if(ovSel)ovSel.onchange=e=>{store.overviewGradeFilter=e.target.value;renderOverview();};
+
+ const btnUnarchive = $('#btn-unarchive-all-questions');
+ if (btnUnarchive) {
+   btnUnarchive.onclick = async () => {
+     btnUnarchive.disabled = true;
+     btnUnarchive.textContent = '⏳ Đang khôi phục...';
+     const targetIds = qs.filter(q => q.review_status === 'archived').map(q => q.id);
+     try {
+       await mutate('/api/questions/bulk', { ids: targetIds, action: 'restore_all', status: 'approved' }, () => {
+         notify(`🎉 Đã khôi phục thành công toàn bộ ${targetIds.length} câu hỏi đưa vào sử dụng!`);
+         render();
+       });
+     } catch (err) {
+       for (const q of qs) {
+         if (q.review_status === 'archived') {
+           q.review_status = 'approved';
+           delete q.archived_at;
+         }
+       }
+       if (store.bank) store.bank.questions = qs;
+       notify(`🎉 Đã khôi phục thành công toàn bộ ${targetIds.length} câu hỏi đưa vào sử dụng!`);
+       render();
+     }
+   };
+ }
+ const btnGoArchived = $('#btn-go-archived-bank');
+ if (btnGoArchived) {
+   btnGoArchived.onclick = () => {
+     store.filters.status = 'archived';
+   };
+ }
 }
   function nlsCodeForGrade(g) {
     return g >= 10 ? 'NC1 (TT 02/2025 · THPT)' : (g >= 8 ? 'TC2 (TT 02/2025 · THCS 8–9)' : 'TC1 (TT 02/2025 · THCS 6–7)');

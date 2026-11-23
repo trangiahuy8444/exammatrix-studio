@@ -687,6 +687,92 @@ Khối: 9
     ], 'Backtracking phải chọn Q2 cho S1 và Q1 cho S2 kèm đủ reviewed_part_ids');
     console.log('PASS matrix UI: tự động chọn câu không trùng (backtracking) và tạo đề ngay gửi đủ tham số');
   }
+
+  // Kiểm tra tự động bật Chế độ linh hoạt Ma trận 2D khi strict_empty_slots > 0 và flexible_empty_slots === 0
+  {
+    const els = new Map();
+    let reviewCheckboxes = [];
+    const makeEl = (props = {}) => ({
+      value: '', checked: false, innerHTML: '', textContent: '', dataset: {}, disabled: false,
+      matches: () => false, closest: () => null, ...props
+    });
+    const syncWorkElements = (html) => {
+      reviewCheckboxes = [];
+      for (const m of String(html || '').matchAll(/<(input|select)\b([^>]*)>/g)) {
+        const attrs = m[2];
+        const id = attrs.match(/\bid="([^"]*)"/)?.[1] || '';
+        const val = attrs.match(/\bvalue="([^"]*)"/)?.[1] || '';
+        const choice = attrs.match(/\bdata-choice="([^"]*)"/)?.[1] || '';
+        const reviewSlot = attrs.match(/\bdata-review-slot="([^"]*)"/)?.[1] || '';
+        const isChk = /\btype="checkbox"/.test(attrs);
+        const dataset = {};
+        if (choice) dataset.choice = choice;
+        if (reviewSlot) dataset.reviewSlot = reviewSlot;
+        const el = makeEl({ id, value: val, checked: /\bchecked\b/.test(attrs), dataset, type: isChk ? 'checkbox' : undefined });
+        if (id) els.set('#' + id, el);
+        if (reviewSlot) reviewCheckboxes.push(el);
+      }
+      for (const m of String(html || '').matchAll(/<(div|span)\b[^>]*\bid="(mx-choice-detail-[^"]+|mx-coverage|mx-created-exam)"[^>]*>/g)) {
+        if (!els.has('#' + m[2])) els.set('#' + m[2], makeEl({ id: m[2] }));
+      }
+    };
+    const workEl = makeEl({ id: 'mx-work' });
+    Object.defineProperty(workEl, 'innerHTML', {
+      get() { return this._html || ''; },
+      set(v) { this._html = v; syncWorkElements(v); }
+    });
+    els.set('#mx-work', workEl);
+
+    const flexContainer = {
+      _html: '',
+      get innerHTML() { return this._html; },
+      set innerHTML(v) { this._html = v; },
+      querySelector(sel) { return els.get(sel) || null; },
+      querySelectorAll(sel) { return sel === '[data-review-slot]' ? reviewCheckboxes : []; }
+    };
+
+    const requests = [];
+    const mFlex = {
+      id: 'MX-FLEX', title: 'Ma trận GK1 K9', grade: 9, subject_name: 'Tin học', exam_type: 'GK1',
+      duration: 45, status: 'locked', profile: 'THCS', school_year: '2026-2027', version: 1, revision: 1,
+      slots: [{ id: 'S1', number: 1, kind: 'MC', parts: [{ id: 'P1', requirement_id: 'R1', points: 10 }] }],
+      requirements: [{ id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'YCCĐ PPCT 1' }]
+    };
+    const qDraft = { id: 'QD-1', question: 'Câu nháp K9?', options: ['A', 'B'], correct: 0, learning_outcome: 'YCCĐ khác', review_status: 'draft' };
+
+    await ui.mount(flexContainer, {
+      request: async (path, body) => {
+        requests.push({ path, body });
+        if (path === '/api/matrices') return { matrices: [mFlex] };
+        if (path === '/api/matrices/MX-FLEX') return { matrix: mFlex, validation: { valid: true, errors: [] } };
+        if (path === '/api/matrices/MX-FLEX/candidates') {
+          return {
+            matrix: mFlex,
+            slots: [{ slot: mFlex.slots[0], requirements: [mFlex.requirements[0]], candidates: [] }],
+            flexible_slots: [{ slot: mFlex.slots[0], requirements: [mFlex.requirements[0]], candidates: [qDraft] }],
+            bank_diagnostics: { total_in_grade: 459, approved_in_grade: 0, unapproved_in_grade: 459, strict_empty_slots: 1, flexible_empty_slots: 0 }
+          };
+        }
+        if (path === '/api/exams/from-matrix') {
+          return { exam: { id: 'EX-FLEX-1', grade: 9, campus: body.campus, exam_code: body.exam_code, question_count: 1, revision_match_count: 0, matrix_version: 1 } };
+        }
+        return {};
+      },
+      notify: () => {}, context: { subject_name: 'Tin học' }, ppct: { lessons: [] }, revisions: [], exams: [], activeGrade: 9, activeGrades: [8, 9, 10]
+    });
+
+    await flexContainer.onclick({ preventDefault: () => {}, target: { dataset: { open: 'MX-FLEX' }, matches: () => false, closest: s => (s === '[data-open]' ? { dataset: { open: 'MX-FLEX' } } : null) } });
+    await flexContainer.onclick({ preventDefault: () => {}, target: { dataset: { action: 'use' }, matches: () => false, closest: s => (s === '[data-action]' ? { dataset: { action: 'use' } } : null) } });
+
+    assert.equal(els.get('#mx-flexible-mode')?.checked, true, 'Phải tự bật #mx-flexible-mode khi strict trống nhưng flexible có câu');
+    await flexContainer.onclick({ preventDefault: () => {}, target: { dataset: { action: 'quick-generate-exam' }, matches: () => false, closest: s => (s === '[data-action]' ? { dataset: { action: 'quick-generate-exam' } } : null) } });
+
+    const genCall = requests.find(r => r.path === '/api/exams/from-matrix');
+    assert.ok(genCall, 'Phải gọi /api/exams/from-matrix ở chế độ linh hoạt');
+    assert.equal(genCall.body.flexible, true);
+    assert.deepEqual(genCall.body.placements, [{ slot_id: 'S1', question_id: 'QD-1', reviewed_part_ids: ['P1'] }]);
+    console.log('PASS matrix UI: tự động bật Chế độ linh hoạt Ma trận 2D và gửi flexible: true');
+  }
 })().catch(err => {
   console.error(err);
   process.exit(1);

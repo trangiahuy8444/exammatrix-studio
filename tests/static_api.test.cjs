@@ -136,6 +136,52 @@ async function main(){
    {slot_id:'S2',question_id:'Q2',reviewed_part_ids:['P2']}
   ]
  },fmData,env));
+
+ // Hồi quy: Chế độ linh hoạt Ma trận 2D khi câu hỏi ở trạng thái Nháp và lệch YCCĐ / nhãn "Nhận biết"
+ const flexData=fixture();
+ flexData.matrices[0].status='locked';
+ flexData.bank.questions=flexData.bank.questions.map((q,i)=>({
+  ...q,
+  lesson_code:i===0?'b1':'B1',
+  level:'Nhận biết',
+  learning_outcome:'YCCĐ khác trong cùng Bài 1',
+  review_status:'draft'
+ }));
+ const candRes=await api.handle('/api/matrices/M1/candidates',undefined,flexData,env);
+ assert.equal(candRes.response.bank_diagnostics.total_in_grade,4);
+ assert.equal(candRes.response.bank_diagnostics.approved_in_grade,0);
+ assert.equal(candRes.response.bank_diagnostics.strict_empty_slots,2);
+ assert.equal(candRes.response.bank_diagnostics.flexible_empty_slots,0);
+ assert.equal(candRes.response.flexible_slots.length,2);
+ assert.ok(candRes.response.flexible_slots[0].candidates.length>=2);
+ await assert.rejects(api.handle('/api/exams/from-matrix',{
+  matrix_id:'M1',
+  title:'Chế độ chặt vẫn chặn',
+  campus:'Cao Thắng',
+  exam_code:'101',
+  placements:[
+   {slot_id:'S1',question_id:'Q1',reviewed_part_ids:['P1']},
+   {slot_id:'S2',question_id:'Q2',reviewed_part_ids:['P2']}
+  ]
+ },flexData,env));
+ const flexExamRes=await api.handle('/api/exams/from-matrix',{
+  matrix_id:'M1',
+  flexible:true,
+  title:'Đề nháp Khối 9 linh hoạt',
+  campus:'Cao Thắng',
+  exam_code:'101',
+  seed:'2026',
+  placements:[
+   {slot_id:'S1',question_id:'Q1',reviewed_part_ids:['P1']},
+   {slot_id:'S2',question_id:'Q2',reviewed_part_ids:['P2']}
+  ]
+ },flexData,env);
+ assert.equal(flexExamRes.response.exam.flexible_draft,true);
+ assert.equal(flexExamRes.response.exam.status,'drafting');
+ assert.equal(flexExamRes.response.exam.total_points,10);
+ assert.equal(flexExamRes.response.exam.questions.length,2);
+ assert.equal(flexExamRes.response.exam.questions[0].level,'Biết');
+
  console.log('PASS static API: ma trận → đề cương → sinh thật → khóa → phát hành; lỗi nguyên tử, bất biến snapshot và không tự duyệt câu');
 }
 if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1;});

@@ -118,6 +118,56 @@
    });
    return m;
   }
+  const normSubj=x=>String(x||'Tin học').normalize('NFC').trim().toLowerCase().replace(/\s+/g,' ');
+  const normLesson=c=>String(c||'').trim().toUpperCase().replace(/^BÀI\s*/i,'B').replace(/\s+/g,'');
+  const normLevel=lv=>({'nhận biết':'Biết','biết':'Biết','thông hiểu':'Hiểu','hiểu':'Hiểu','vận dụng':'Vận dụng','vận dụng thấp':'Vận dụng','vd':'Vận dụng','vận dụng cao':'Vận dụng cao','vdc':'Vận dụng cao'}[String(lv||'').trim().toLowerCase()]||String(lv||'').trim());
+  const normText=s=>String(s||'').normalize('NFC').trim().toLowerCase().replace(/\s+/g,' ');
+  const flexTechnical=q=>{
+   if(!q||typeof q!=='object'||q.review_status==='archived'||!String(q.id||'').trim()||!String(q.question||'').trim())return false;
+   const t=String(q.type||'').trim().toUpperCase();
+   if(t==='MC'){const corr=Number(q.correct);return Array.isArray(q.options)&&q.options.length>=2&&Number.isInteger(corr)&&corr>=0&&corr<q.options.length;}
+   if(t==='SHORT')return String(q.short_answer??'').trim().length>0||String(q.question||'').trim().length>0;
+   return t==='ES'||t==='YN';
+  };
+  const buildFlexibleSlots=(matrix,bankQuestions,ppctData)=>clone({
+   matrix,
+   slots:(matrix.slots||[]).map(slot=>{
+    const reqs=(slot.parts||[]).map(pt=>(matrix.requirements||[]).find(r=>r.id===pt.requirement_id)).filter(Boolean);
+    const mSubj=normSubj(matrix.subject_name||subject);
+    const matches=(bankQuestions||[]).filter(q=>{
+     if(!flexTechnical(q)||Number(q.grade)!==Number(matrix.grade)||normSubj(q.subject_name)!==mSubj)return false;
+     if(String(q.type||'').trim().toUpperCase()!==String(slot.kind||'').trim().toUpperCase())return false;
+     return (slot.parts||[]).every(pt=>{
+      const r=(matrix.requirements||[]).find(x=>x.id===pt.requirement_id);
+      return r&&normLesson(q.lesson_code)===normLesson(r.lesson_code)&&normLevel(q.level)===normLevel(r.level);
+     });
+    });
+    const expectedOutcomes=new Set();
+    reqs.forEach(r=>{
+     const les=(ppctData?.lessons||[]).find(l=>Number(l.grade)===Number(matrix.grade)&&normSubj(l.subject_name)===mSubj&&normLesson(l.lesson_code)===normLesson(r.lesson_code));
+     const out=les&&Array.isArray(les.outcomes)&&r.ppct_outcome_index!=null?les.outcomes[r.ppct_outcome_index]:'';
+     if(out)expectedOutcomes.add(normText(out));
+    });
+    const rankOf=q=>{
+     const app=q.review_status==='approved'?2:0;
+     const outOk=expectedOutcomes.has(normText(q.learning_outcome))?1:0;
+     return app+outOk;
+    };
+    const sorted=matches.slice().sort((a,b)=>rankOf(b)-rankOf(a));
+    const seenIds=new Set(),seenTexts=new Set(),candidates=[];
+    for(const q of sorted){
+     const qt=normText(q.question);
+     if(seenIds.has(q.id)||seenTexts.has(qt))continue;
+     seenIds.add(q.id);seenTexts.add(qt);
+     candidates.push({
+      ...clone(q),
+      content_hash:q.content_hash||engine.jsonDigest?.({question:q.question,options:q.options,correct:q.correct,rubric:q.rubric})||q.id,
+      recently_used:Array.isArray(q.recently_used)?clone(q.recently_used):[]
+     });
+    }
+    return {slot:clone(slot),requirements:clone(reqs),candidates};
+   })
+  }).slots;
   function checkedMatrix(key){return normalizeMatrixSlots(own(find(data.matrices,key)));}
   function revisionFor(exam){return exam.revision_id?own(find(data.revisions,exam.revision_id)):null;}
   function verification(exam){return engine.verifyExam(data,exam);}
@@ -286,8 +336,9 @@
   }
   if(path==='/api/exams/generate'||path==='/api/exams/from-matrix'){
    const genPayload={...p,subject_name:p.subject_name||subject};
+   let targetMatrix=null;
    if(genPayload.matrix_id){
-    const targetMatrix=data.matrices.find(m=>m.id===genPayload.matrix_id);
+    targetMatrix=data.matrices.find(m=>m.id===genPayload.matrix_id)||null;
     if(targetMatrix){
      if(genPayload.grade===undefined||genPayload.grade===null||genPayload.grade==='')genPayload.grade=Number(targetMatrix.grade);
      if(!genPayload.exam_type)genPayload.exam_type=targetMatrix.exam_type;
@@ -297,6 +348,80 @@
    }
    if(genPayload.grade!==undefined&&genPayload.grade!==null&&genPayload.grade!=='')genPayload.grade=Number(genPayload.grade);
    if(genPayload.duration!==undefined&&genPayload.duration!==null&&genPayload.duration!=='')genPayload.duration=Number(genPayload.duration);
+   if(path==='/api/exams/from-matrix'&&p.flexible===true&&targetMatrix){
+    if(typeof genPayload.title!=='string'||!genPayload.title.trim())fail('Cần nhập tên đề kiểm tra.');
+    if(targetMatrix.status!=='locked')fail('Chọn phiên bản ma trận đã khóa.');
+    if(Number(targetMatrix.grade)!==Number(genPayload.grade)||normSubj(targetMatrix.subject_name||subject)!==normSubj(genPayload.subject_name||subject)||targetMatrix.exam_type!==genPayload.exam_type){
+     fail('Ma trận không khớp khối, môn hoặc kì kiểm tra.');
+    }
+    const flexSlots=buildFlexibleSlots(targetMatrix,bank,ppct);
+    if(!Array.isArray(p.placements)||p.placements.length!==flexSlots.length||new Set(p.placements.map(x=>x&&x.slot_id)).size!==flexSlots.length){
+     fail('Phải chọn đủ đúng một câu cho mỗi vị trí, không trùng.');
+    }
+    const seenIds=new Set(),seenTexts=new Set(),selectedQuestions=[];
+    let totalPts=0;
+    for(const entry of flexSlots){
+     const s=entry.slot;
+     const pl=p.placements.find(x=>x&&x.slot_id===s.id);
+     if(!pl)fail('Vị trí chọn không khớp ma trận.');
+     const expectedParts=(s.parts||[]).map(pt=>pt.id);
+     if(!Array.isArray(pl.reviewed_part_ids)||pl.reviewed_part_ids.length!==expectedParts.length||new Set(pl.reviewed_part_ids).size!==expectedParts.length||expectedParts.some(pid=>!pl.reviewed_part_ids.includes(pid))){
+      fail('Cần xác nhận đối chiếu từng chỉ báo của vị trí.');
+     }
+     const cand=(entry.candidates||[]).find(q=>q.id===pl.question_id);
+     if(!cand)fail('Câu được chọn không khớp khối, môn, bài, dạng hoặc mức độ trong ma trận.');
+     const qt=normText(cand.question);
+     if(seenIds.has(cand.id)||(qt&&seenTexts.has(qt)))fail('Không được lặp câu trong một đề.');
+     seenIds.add(cand.id);if(qt)seenTexts.add(qt);
+     const slotPts=(s.parts||[]).reduce((sum,pt)=>sum+Number(pt.points||0),0);
+     totalPts+=slotPts;
+     const firstPart=s.parts&&s.parts[0];
+     const req=firstPart?(targetMatrix.requirements||[]).find(r=>r.id===firstPart.requirement_id):null;
+     const ppctLes=req?(ppct.lessons||[]).find(l=>Number(l.grade)===Number(targetMatrix.grade)&&normSubj(l.subject_name)===normSubj(targetMatrix.subject_name||subject)&&normLesson(l.lesson_code)===normLesson(req.lesson_code)):null;
+     const ppctOutcome=(ppctLes&&Array.isArray(ppctLes.outcomes)&&req.ppct_outcome_index!=null)?ppctLes.outcomes[req.ppct_outcome_index]:'';
+     selectedQuestions.push({
+      ...clone(cand),
+      points:slotPts,
+      slot_id:s.id,
+      slot_number:s.number,
+      reviewed_part_ids:clone(pl.reviewed_part_ids),
+      learning_outcome:(cand.learning_outcome&&String(cand.learning_outcome).trim())?cand.learning_outcome:(ppctOutcome||req?.text||''),
+      competency:cand.competency||req?.competency||'',
+      level:normLevel(cand.level)||req?.level||''
+     });
+    }
+    const rev=genPayload.revision_id?own(find(data.revisions,genPayload.revision_id)):null;
+    const revHashes=new Set((rev?.questions||[]).map(rq=>rq.content_hash).filter(Boolean));
+    const revMatched=rev?selectedQuestions.filter(q=>revHashes.has(q.content_hash)||rev.questions.some(rq=>rq.id===q.id||normText(rq.question)===normText(q.question))).length:null;
+    const exam={
+     id:id('EXAM'),
+     title:genPayload.title.trim(),
+     grade:Number(targetMatrix.grade),
+     subject_name:targetMatrix.subject_name||subject,
+     exam_type:targetMatrix.exam_type,
+     duration:Number(genPayload.duration||targetMatrix.duration||45),
+     campus:genPayload.campus||targetMatrix.campus||'',
+     exam_code:genPayload.exam_code||'101',
+     created_at:now(),
+     seed:genPayload.seed??'',
+     status:'drafting',
+     flexible_draft:true,
+     question_count:selectedQuestions.length,
+     total_points:Number(totalPts.toFixed(4)),
+     questions:selectedQuestions,
+     matrix_id:targetMatrix.id,
+     matrix_version:targetMatrix.version,
+     matrix_digest:targetMatrix.content_sha256||engine.matrixDigest?.(targetMatrix)||null,
+     matrix_snapshot:clone(targetMatrix),
+     ppct_snapshot:clone(ppct),
+     revision_id:rev?.id||null,
+     revision_match_count:revMatched,
+     scoring_policy:clone(targetMatrix.scoring_policy||{yn_table:{'0':'0','1':'0.1','2':'0.25','3':'0.5','4':'1'},rounding:targetMatrix.exam_type==='TX'?'half_up_integer':'half_up_1dp',blank_counts_as:'wrong'}),
+     allowed_kinds:clone(targetMatrix.allowed_kinds||[...new Set(selectedQuestions.map(q=>q.type))]),
+     validation_note:'Bản nháp tạo từ Ma trận 2D (Chế độ linh hoạt). Cần duyệt các câu hỏi Nháp/Chờ duyệt và gắn đề cương trước khi khóa/phát hành.'
+    };
+    exam.verification=verification(exam);put(data.exams,exam);return result({exam,exams:data.exams},true);
+   }
    const exam=clone(engine.generateExam(data,genPayload));exam.created_at=now();exam.verification=verification(exam);put(data.exams,exam);return result({exam,exams:data.exams},true);
   }
   if(path==='/api/exams/generate-set'){
@@ -425,7 +550,21 @@
   const match=/^\/api\/matrices\/([^/]+)(?:\/(candidates|shortfall|compare))?$/.exec(path);
   if(match){const matrix=checkedMatrix(decodeURIComponent(match[1]));
    if(match[2]==='shortfall')return result(engine.shortfall(matrix,bank,ppct));
-   if(match[2]==='candidates')return result(engine.candidates(matrix,bank,ppct));
+   if(match[2]==='candidates'){
+    const strictRes=engine.candidates(matrix,bank,ppct);
+    const flexible_slots=buildFlexibleSlots(matrix,bank,ppct);
+    const mSubj=normSubj(matrix.subject_name||subject);
+    const gradeQuestions=bank.filter(q=>q&&q.review_status!=='archived'&&Number(q.grade)===Number(matrix.grade)&&normSubj(q.subject_name)===mSubj);
+    const approvedInGrade=gradeQuestions.filter(q=>q.review_status==='approved').length;
+    const bank_diagnostics={
+     total_in_grade:gradeQuestions.length,
+     approved_in_grade:approvedInGrade,
+     unapproved_in_grade:gradeQuestions.length-approvedInGrade,
+     strict_empty_slots:(strictRes.slots||[]).filter(s=>!(s.candidates&&s.candidates.length)).length,
+     flexible_empty_slots:flexible_slots.filter(s=>!(s.candidates&&s.candidates.length)).length
+    };
+    return result({...strictRes,flexible_slots,bank_diagnostics});
+   }
    const validation=engine.validateMatrix(matrix,ppct);return result({matrix,validation,ppct_differences:validation.errors||[]});}
   if(path==='/api/assessment-plans'||path==='/api/assessment-plans/list'){
    const g=p.grade?Number(p.grade):null;

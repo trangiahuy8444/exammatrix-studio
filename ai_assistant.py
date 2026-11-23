@@ -171,6 +171,9 @@ def validate_and_sanitize_question(raw_q: Any, expected_type: Optional[str] = No
         "level": level,
         "learning_outcome": str(raw_q.get("learning_outcome", "")).strip(),
     }
+    comp_val = str(raw_q.get("competency", "")).strip()
+    if comp_val:
+        sanitized["competency"] = comp_val
 
     if q_type == "MC":
         options = raw_q.get("options")
@@ -270,7 +273,7 @@ Mức độ nhận thức: {level} (Biết / Hiểu / Vận dụng)
 Dạng câu hỏi: {question_type} (MC: trắc nghiệm 4 lựa chọn, YN: trắc nghiệm Đúng/Sai 4 ý, SHORT: trả lời ngắn, ES: tự luận)
 Số lượng câu cần sinh: {count}
 
-Yêu cầu định dạng JSON đầu ra là một danh sách (Array) các Object:
+Yêu cầu định dạng JSON đầu ra là một danh sách (Array) các Object (kèm đầy đủ YCCĐ và Năng lực thành phần NLa, NLb, NLc, NLd, NLe):
 Với dạng MC:
 {{
   "type": "MC",
@@ -279,7 +282,8 @@ Với dạng MC:
   "correct": 0,
   "option_explanations": ["Giải thích A", "Giải thích B", "Giải thích C", "Giải thích D"],
   "level": "{level}",
-  "learning_outcome": "{learning_outcome}"
+  "learning_outcome": "{learning_outcome}",
+  "competency": "NLa"
 }}
 Với dạng YN:
 {{
@@ -292,7 +296,8 @@ Với dạng YN:
     {{"label": "d", "text": "Ý d...", "correct": false}}
   ],
   "level": "{level}",
-  "learning_outcome": "{learning_outcome}"
+  "learning_outcome": "{learning_outcome}",
+  "competency": "NLa"
 }}
 """
     raw_res = call_gemini(prompt, scope=scope)

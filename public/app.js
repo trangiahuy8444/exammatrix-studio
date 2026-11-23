@@ -5249,10 +5249,20 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
 
       // Trích xuất Lời giải / Giải thích nếu có
       let extractedExplanation = '';
-      const mExp = trimmed.match(/(?:Lời giải|Giải thích|Explanation|Hướng dẫn giải)\s*[:=]?\s*[*_`]?\s*(.*?)(?=\n\s*(?:[*_`]*(?:Mức độ|Bài|YCCĐ)|$))/is);
+      const mExp = trimmed.match(/(?:Lời giải|Giải thích|Explanation|Hướng dẫn giải)\s*[:=]?\s*[*_`]?\s*(.*?)(?=\n\s*(?:[*_`]*(?:Mức độ|Bài|YCCĐ|Năng lực|NL)|$))/is);
       if (mExp) {
         extractedExplanation = mExp[1].trim();
       }
+
+      // Trích xuất YCCĐ nếu có
+      let extractedOutcome = '';
+      const mOutcome = trimmed.match(/(?:Yêu cầu cần đạt|YCCĐ|Mục tiêu|Outcome)\s*[:=]?\s*[*_`\[]?\s*(.*?)(?=\n|$)/i);
+      if (mOutcome) extractedOutcome = mOutcome[1].trim().replace(/[*_`\]]+$/, '');
+
+      // Trích xuất Năng lực nếu có (ví dụ: *Năng lực:* NLa, [NLb]...)
+      let extractedCompetency = '';
+      const mComp = trimmed.match(/(?:Thành phần năng lực|Năng lực|Competency|\bNL)\s*[:=]?\s*[*_`\[]?\s*(NL[a-e]|NL[A-E])/i);
+      if (mComp) extractedCompetency = 'NL' + mComp[1].slice(2).toLowerCase();
 
       const optMatches = [...trimmed.matchAll(/(?:^|\n)\s*(?:[-*]\s*)?([A-D])[\.\)]\s*(.*?)(?=(?:\n\s*(?:[-*]\s*)?[A-D][\.\)]|\n\s*(?:[-*]\s*)?[*_`]*(?:Đáp án|Đáp án đúng|Answer|Chọn|Lời giải|Giải thích|Mức độ|Bài)|\s*$))/gs)];
       // Hỗ trợ cả 2 dạng Đúng/Sai: "a) [Đúng] Nội dung" và "a) Nội dung [Đúng]"
@@ -5271,6 +5281,8 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
           lesson_code: extractedLesson || 'B1',
           type: 'YN',
           level: extractedLevel || 'Hiểu',
+          learning_outcome: extractedOutcome,
+          competency: extractedCompetency,
           question: qText || 'Cho các mệnh đề sau:',
           statements: ynMatches.map(m => {
             const isPrefix = Boolean(m[3]);
@@ -5315,6 +5327,8 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
           lesson_code: extractedLesson || 'B1',
           type: 'MC',
           level: extractedLevel || 'Biết',
+          learning_outcome: extractedOutcome,
+          competency: extractedCompetency,
           question: qText,
           options,
           correct,
@@ -5336,6 +5350,8 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
             lesson_code: extractedLesson || 'B1',
             type: 'SHORT',
             level: extractedLevel || 'Vận dụng',
+            learning_outcome: extractedOutcome,
+            competency: extractedCompetency,
             question: qText,
             short_answer: ansMatch[1].trim(),
             review_status: 'draft'
@@ -5353,6 +5369,8 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
               lesson_code: extractedLesson || 'B1',
               type: 'ES',
               level: extractedLevel || 'Vận dụng',
+              learning_outcome: extractedOutcome,
+              competency: extractedCompetency,
               question: qText,
               max_score: 1,
               review_status: 'draft'
@@ -5495,6 +5513,8 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
     "level": "Hiểu",
     "lesson_code": "B1",
     "ppct_section": "core",
+    "learning_outcome": "Gắn đúng Yêu cầu cần đạt...",
+    "competency": "NLb",
     "question": "Câu dẫn ngữ liệu chung của câu Đúng/Sai (>= 25 kí tự)...",
     "statements": [
       {"label": "a", "text": "Nội dung ý a (Biết)", "correct": true},
@@ -5508,11 +5528,17 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
     "level": "Vận dụng",
     "lesson_code": "B1",
     "ppct_section": "core",
+    "learning_outcome": "Gắn đúng Yêu cầu cần đạt...",
+    "competency": "NLc",
     "question": "Câu hỏi trả lời ngắn (ghi rõ đơn vị tính và quy ước làm tròn trong câu dẫn)...",
     "short_answer": "42"
   }` : '';
       const promptContent = `Hãy biên soạn hoặc chuyển đổi toàn bộ câu hỏi trong đề thi / tài liệu sau thành định dạng JSON chuẩn cho hệ thống ExamMatrix Studio môn ${curSubj} Khối ${curGrade}:
 ${scopeRule}
+
+QUY CHUẨN GÁN NHÃN BẮT BUỘC (GDPT 2018 MÔN TIN HỌC):
+- "learning_outcome": Gắn Yêu cầu cần đạt tương ứng theo PPCT của bài học.
+- "competency": Gắn đúng 01 mã thành phần năng lực Tin học GDPT 2018: "NLa" (Sử dụng CNTT), "NLb" (Ứng xử số/Bản quyền/An toàn), "NLc" (Giải quyết vấn đề/Lập trình/Dữ liệu), "NLd" (Ứng dụng/Tự học), hoặc "NLe" (Hợp tác trong MT số).
 
 ${cv7991QuestionRulesBlock(curGrade, curSubj, 'IMPORT')}
 
@@ -5522,6 +5548,8 @@ ${cv7991QuestionRulesBlock(curGrade, curSubj, 'IMPORT')}
     "level": "Biết",
     "lesson_code": "B1",
     "ppct_section": "core",
+    "learning_outcome": "Yêu cầu cần đạt của bài học...",
+    "competency": "NLa",
     "question": "Nội dung câu hỏi (chấp nhận công thức LaTeX $...$ nếu có)",
     "options": ["Phương án A", "Phương án B", "Phương án C", "Phương án D"],
     "correct": 0,
@@ -5532,6 +5560,8 @@ ${cv7991QuestionRulesBlock(curGrade, curSubj, 'IMPORT')}
     "level": "Vận dụng",
     "lesson_code": "B2",
     "ppct_section": "core",
+    "learning_outcome": "Yêu cầu cần đạt của bài học...",
+    "competency": "NLc",
     "question": "Nội dung câu tự luận (nêu rõ tình huống, yêu cầu thực hiện và tiêu chí cần đạt)...",
     "rubric": [
       {"criterion": "Tiêu chí 1", "points": 0.25},
@@ -5669,6 +5699,7 @@ Dưới đây là đề thi / yêu cầu cần chuyển đổi:
             <span>Câu ${idx + 1}</span>
             <span class="badge" style="background:#eaf3fb;color:#0267b1;font-size:11px;padding:3px 8px">${esc(friendlyTypes[q.type || 'MC'] || q.type)}</span>
             <span class="badge" style="background:#f1f5f9;color:#475569;font-size:11px;padding:3px 8px">${esc(friendlyLevels[q.level || 'Biết'] || q.level)}</span>
+            ${q.competency ? `<span class="badge" style="background:#fef3c7;color:#92400e;font-size:11px;padding:3px 8px;font-weight:700">${esc(q.competency.toUpperCase())}</span>` : ''}
           </label>
           <button type="button" class="quiet" data-toggle-edit="${cid}" style="font-size:12.5px;cursor:pointer;color:#0267b1;font-weight:600">✏️ Xem chi tiết & Sửa</button>
         </div>
@@ -5744,11 +5775,22 @@ Dưới đây là đề thi / yêu cầu cần chuyển đổi:
             <input type="text" id="${cid}-edit-short" value="${esc(C.shortAnswerOf(q))}" style="width:100%;padding:5px;box-sizing:border-box;margin-bottom:8px">
           ` : ''}
 
-          <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:8px;margin-top:8px">
             <div>
               <label style="display:block;font-size:12px;font-weight:600;margin-bottom:2px">Mức độ:</label>
               <select id="${cid}-edit-lvl" style="width:100%;padding:4px">
                 ${C.levelOptions(q.level)}
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;margin-bottom:2px">Năng lực (NL):</label>
+              <select id="${cid}-edit-competency" style="width:100%;padding:4px">
+                <option value="">-- Chọn NL --</option>
+                <option value="NLa" ${(q.competency || '').toLowerCase() === 'nla' ? 'selected' : ''}>NLa (Sử dụng CNTT)</option>
+                <option value="NLb" ${(q.competency || '').toLowerCase() === 'nlb' ? 'selected' : ''}>NLb (Ứng xử số/Bản quyền)</option>
+                <option value="NLc" ${(q.competency || '').toLowerCase() === 'nlc' ? 'selected' : ''}>NLc (Giải quyết vấn đề)</option>
+                <option value="NLd" ${(q.competency || '').toLowerCase() === 'nld' ? 'selected' : ''}>NLd (Ứng dụng/Tự học)</option>
+                <option value="NLe" ${(q.competency || '').toLowerCase() === 'nle' ? 'selected' : ''}>NLe (Hợp tác trong MT số)</option>
               </select>
             </div>
             <div>
@@ -5778,11 +5820,14 @@ Dưới đây là đề thi / yêu cầu cần chuyển đổi:
     const qType = origQ.type || 'MC';
     const lvl = $(`#${cid}-edit-lvl`) ? $(`#${cid}-edit-lvl`).value : (origQ.level || 'Biết');
     const yccd = ($(`#${cid}-edit-yccd`) ? $(`#${cid}-edit-yccd`).value : (origQ.learning_outcome || '')).trim();
+    const compSel = $(`#${cid}-edit-competency`);
+    const compVal = compSel ? compSel.value.trim() : (origQ.competency || '').trim();
 
     const result = {
       type: qType,
       level: lvl,
       learning_outcome: yccd,
+      competency: compVal,
       question: qText,
       review_status: 'draft' // Strictly draft / pending review!
     };
@@ -5955,6 +6000,10 @@ Yêu cầu phân loại và chuẩn hóa kĩ thuật câu hỏi (CV 7991/BGDĐT-
    - Hãy chọn mã bài học (lesson_code) phù hợp nhất từ danh mục bài học ở trên.
    - Gắn "ppct_section": "elective_topic" nếu mã bài thuộc Chuyên đề học tập THPT (CD1, CD2...), ngược lại gắn "ppct_section": "core".
 
+4. Yêu cầu cần đạt (learning_outcome) & Thành phần Năng lực (competency):
+   - "learning_outcome": Gắn Yêu cầu cần đạt tương ứng theo PPCT của bài học cho câu hỏi.
+   - "competency": Gắn đúng 01 mã thành phần năng lực Tin học GDPT 2018: "NLa" (Sử dụng CNTT), "NLb" (Ứng xử số/Bản quyền/An toàn), "NLc" (Giải quyết vấn đề/Lập trình/Dữ liệu), "NLd" (Ứng dụng/Tự học), hoặc "NLe" (Hợp tác trong MT số).
+
 Văn bản đề thi thô cần bóc tách:
 ${rawText}
 
@@ -5965,6 +6014,7 @@ Hãy trả về duy nhất mảng JSON các câu hỏi (không thêm bất kỳ 
     "level": "Biết",
     "lesson_code": "B1",
     "learning_outcome": "...",
+    "competency": "NLa",
     "question": "...",
     "options": ["...", "...", "...", "..."],
     "correct": 0

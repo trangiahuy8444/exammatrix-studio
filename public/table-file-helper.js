@@ -440,13 +440,14 @@
       }
     }
 
-    // Nếu không tìm thấy hàng tiêu đề rõ ràng, gán cột mặc định 11 cột chuẩn
+    // Nếu không tìm thấy hàng tiêu đề rõ ràng, gán cột mặc định 11-12 cột chuẩn
     if (headerIndex === -1) {
       headerIndex = 0; // giả sử dòng đầu là tiêu đề hoặc dữ liệu
       colMap = {
         lesson: 0, level: 1, type: 2, question: 3,
         optA: 4, optB: 5, optC: 6, optD: 7,
-        correct: 8, explanation: 9, outcome: 10
+        correct: 8, explanation: 9, outcome: 10,
+        competency: 11
       };
     }
 
@@ -1177,11 +1178,20 @@
       }
     }
 
+    const competencyGuide = `QUY CHUẨN GÁN ĐẦY ĐỦ NHÃN CHO MỖI CÂU HỎI (CHUẨN GDPT 2018 MÔN TIN HỌC):
+1. Yêu cầu cần đạt (learning_outcome): Mỗi câu hỏi BẮT BUỘC gán đúng 01 YCCĐ tương ứng từ danh sách YCCĐ đã cung cấp ở trên.
+2. Thành phần Năng lực Tin học (competency): Mỗi câu hỏi BẮT BUỘC gán đúng 01 mã năng lực thành phần:
+   - NLa: Sử dụng và quản lý các phương tiện CNTT và truyền thông.
+   - NLb: Ứng xử phù hợp trong môi trường số (đạo đức, an toàn số, bản quyền).
+   - NLc: Giải quyết vấn đề với sự hỗ trợ của CNTT và truyền thông (thuật toán, lập trình, xử lý dữ liệu, bảng tính).
+   - NLd: Ứng dụng CNTT và truyền thông trong học và tự học.
+   - NLe: Hợp tác trong môi trường số.`;
+
     let formatInstruction = '';
     if (outputFormat === 'EXCEL') {
       if (isThpt) {
         formatInstruction = `YÊU CẦU ĐỊNH DẠNG ĐẦU RA (DẠNG BẢNG EXCEL / TSV HOẶC MARKDOWN TABLE ĐỂ GIÁO VIÊN COPY DÁN THẲNG VÀO EXCEL):
-Hãy xuất kết quả dưới dạng BẢNG gồm đúng 11 cột sau (ngăn cách bằng ký tự Tab hoặc bảng Markdown):
+Hãy xuất kết quả dưới dạng BẢNG gồm đúng 12 cột (chuẩn 11 cột truyền thống + cột 12 Năng lực, ngăn cách bằng ký tự Tab hoặc bảng Markdown):
 Cột 1: Mã bài (ghi "${lessonCode}")
 Cột 2: Mức độ (Biết / Hiểu / Vận dụng / Vận dụng cao)
 Cột 3: Dạng câu (MC / YN / SHORT / ES)
@@ -1193,11 +1203,12 @@ Cột 8: Phương án D / Ý d
 Cột 9: Đáp án đúng (Ghi "A", "B", "C" hoặc "D" cho MC; ghi "Đ, S, Đ, S" cho YN; ghi đáp án cho SHORT; để trống cho ES)
 Cột 10: Hướng dẫn giải / Tiêu chí chấm (Giải thích chi tiết vì sao đúng/sai hoặc barem điểm)
 Cột 11: Yêu cầu cần đạt (Gắn đúng YCCĐ tương ứng của bài)
+Cột 12: Năng lực (Ghi đúng một mã: NLa, NLb, NLc, NLd hoặc NLe)
 
 CHỈ XUẤT TRỰC TIẾP BẢNG DỮ LIỆU, KHÔNG VIẾT LỜI MỞ ĐẦU HOẶC LỜI BÌNH BÊN NGOÀI.`;
       } else {
         formatInstruction = `YÊU CẦU ĐỊNH DẠNG ĐẦU RA (DẠNG BẢNG EXCEL / TSV HOẶC MARKDOWN TABLE ĐỂ GIÁO VIÊN COPY DÁN THẲNG VÀO EXCEL):
-Hãy xuất kết quả dưới dạng BẢNG gồm đúng 11 cột sau (ngăn cách bằng ký tự Tab hoặc bảng Markdown):
+Hãy xuất kết quả dưới dạng BẢNG gồm đúng 12 cột (chuẩn 11 cột truyền thống + cột 12 Năng lực, ngăn cách bằng ký tự Tab hoặc bảng Markdown):
 Cột 1: Mã bài (ghi "${lessonCode}")
 Cột 2: Mức độ (Biết / Hiểu / Vận dụng / Vận dụng cao)
 Cột 3: Dạng câu (MC / ES)
@@ -1209,6 +1220,7 @@ Cột 8: Phương án D
 Cột 9: Đáp án đúng (Ghi "A", "B", "C" hoặc "D" cho MC; để trống cho ES)
 Cột 10: Hướng dẫn giải / Tiêu chí chấm (Giải thích chi tiết vì sao đúng/sai hoặc barem chấm điểm)
 Cột 11: Yêu cầu cần đạt (Gắn đúng YCCĐ tương ứng của bài)
+Cột 12: Năng lực (Ghi đúng một mã: NLa, NLb, NLc, NLd hoặc NLe)
 
 CHỈ XUẤT TRỰC TIẾP BẢNG DỮ LIỆU, KHÔNG VIẾT LỜI MỞ ĐẦU HOẶC LỜI BÌNH BÊN NGOÀI.`;
       }
@@ -1224,11 +1236,12 @@ Xuất duy nhất 01 khối mã JSON hợp lệ cấu trúc:
         "lesson_code": "${lessonCode}",
         "type": "MC",
         "level": "Biết",
+        "learning_outcome": "Gắn đúng YCCĐ tương ứng của bài...",
+        "competency": "NLa",
         "question": "Nội dung câu hỏi...",
         "options": ["Phương án A", "Phương án B", "Phương án C", "Phương án D"],
         "correct": 0,
-        "option_explanations": ["Giải thích A", "Giải thích B", "Giải thích C", "Giải thích D"],
-        "learning_outcome": "Gắn đúng YCCĐ..."
+        "option_explanations": ["Giải thích A", "Giải thích B", "Giải thích C", "Giải thích D"]
       }
     ]
   }
@@ -1245,8 +1258,9 @@ D. Phương án D
 *Đáp án:* A
 *Mức độ:* Biết
 *Bài học:* ${lessonCode}
-*Lời giải:* Giải thích rõ vì sao đúng...
 *Yêu cầu cần đạt:* ${outcomes[0] || lessonName}
+*Năng lực:* NLa
+*Lời giải:* Giải thích rõ vì sao đúng...
 
 CHỈ XUẤT NỘI DUNG MARKDOWN, KHÔNG KÈM LỜI BÌNH.`;
     }
@@ -1259,7 +1273,9 @@ Bài học: ${lessonCode} · ${lessonName}
 Mục tiêu & Yêu cầu cần đạt (YCCĐ) theo chương trình:
 ${formattedOutcomes}
 
-${gradePolicyNotice}${partInstruction}
+${gradePolicyNotice}${competencyGuide}
+
+${partInstruction}
 
 ${formatInstruction}`;
   }

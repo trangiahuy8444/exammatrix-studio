@@ -1311,6 +1311,41 @@
     }
   }
 
+  // Đồng bộ song song lên Firebase Firestore (kênh lưu trữ đám mây song song với Google Drive)
+  async function syncToFirestoreParallel(uid, data) {
+    if (!window.FirebaseState?.db || !window.FirebaseState?._firestoreHelpers) return;
+    try {
+      const { doc, setDoc } = window.FirebaseState._firestoreHelpers;
+      const targetUid = (uid && uid !== 'offline') ? uid : (window.FirebaseState.user?.uid || window.FirebaseState.driveSession?.user?.uid || 'offline');
+      if (targetUid === 'offline') return;
+      const ref = doc(window.FirebaseState.db, 'workspaces', targetUid);
+      const email = window.FirebaseState.user?.email || window.FirebaseState.driveSession?.user?.email || '';
+      const payload = {
+        owner_email: email,
+        updated_at: new Date().toISOString(),
+        bank: {
+          questions: data.bank?.questions || [],
+          ppct: data.bank?.ppct || { lessons: [] },
+          competency_catalogs: data.bank?.competency_catalogs || []
+        },
+        exams: data.exams || [],
+        revisions: data.revisions || [],
+        matrices: data.matrices || [],
+        kttx: Array.isArray(data.kttx) ? data.kttx : []
+      };
+      let timer;
+      const writePromise = setDoc(ref, payload, { merge: true });
+      await Promise.race([
+        writePromise,
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Firebase timeout')), 5000); })
+      ]);
+      if (timer) clearTimeout(timer);
+      console.info('[Firebase Sync] Đã đồng bộ bản sao lên Firebase Firestore song song.');
+    } catch (e) {
+      console.warn('[Firebase Sync] Lưu ý đồng bộ Firebase (dữ liệu chính vẫn an toàn trên Google Drive):', e?.message || e);
+    }
+  }
+
   // Đồng bộ lên Google Drive riêng (hoặc Cloud Firestore nếu dùng Firebase)
   async function syncToFirestore(uid, data) {
     const driveSession = window.FirebaseState.driveSession;
@@ -1346,6 +1381,7 @@
         driveSession.fileId = result.fileId;
         driveSession.modifiedTime = result.modifiedTime || driveSession.modifiedTime || null;
         saveDriveSession(driveSession);
+        syncToFirestoreParallel(uid, data);
         data._sync = {
           pending: false,
           provider: 'google-drive',
@@ -1727,62 +1763,76 @@
     return;
   }
 
+  // 1. Khởi tạo Google Drive riêng (nếu có nạp google-drive-storage.js)
   if (window.GoogleDriveStorage) {
     initGoogleDriveMode();
-    return;
   }
 
-  if (!isConfigured) {
-    showOfflineBanner(true);
-    return;
-  }
+  // 2. Khởi tạo song song Firebase SDK (App, Analytics & Firestore)
+  if (isConfigured) {
+    const firebaseVersion = '10.13.0';
+    import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-app.js`).then(async ({ initializeApp }) => {
+      const { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } =
+        await import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-auth.js`);
+      const { getFirestore, doc, getDoc, setDoc } =
+        await import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-firestore.js`);
 
-  // 2. Khởi tạo Firebase SDK (dự phòng khi không nạp google-drive-storage.js)
-  const firebaseVersion = '10.13.0';
-  import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-app.js`).then(async ({ initializeApp }) => {
-    const { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } =
-      await import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-auth.js`);
-    const { getFirestore, doc, getDoc, setDoc } =
-      await import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-firestore.js`);
-
-    const app = initializeApp(config);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
-    window.FirebaseState.auth = auth;
-    window.FirebaseState.db = db;
-    window.FirebaseState._firestoreHelpers = { doc, getDoc, setDoc };
-
-    setupAuthUI(auth, db, {
-      signInWithEmailAndPassword,
-      createUserWithEmailAndPassword,
-      signInWithPopup,
-      GoogleAuthProvider,
-      signOut,
-      doc,
-      getDoc,
-      setDoc
-    });
-
-    let hadUser = false;
-    onAuthStateChanged(auth, async (user) => {
-      window.FirebaseState.user = user;
-      updateUserUI(user);
-      if (user) {
-        hadUser = true;
-        showOfflineBanner(false);
-        console.info('[Firebase] Đã đăng nhập tài khoản giáo viên.');
-        await loadFromFirestore(user, db, { doc, getDoc, setDoc });
-      } else {
-        // Chưa đăng nhập (hoặc vừa đăng xuất): dùng ngoại tuyến, không tự bật hộp đăng nhập.
-        if (hadUser) { hadUser = false; resetToOfflineWorkspace(); }
-        showOfflineBanner(true);
+      const app = initializeApp(config);
+      let analytics = null;
+      try {
+        const { getAnalytics } = await import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-analytics.js`);
+        analytics = getAnalytics(app);
+      } catch (analyticsErr) {
+        // Analytics có thể không hỗ trợ trong môi trường kiểm thử / offline, không ảnh hưởng
       }
+
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+
+      window.FirebaseState.app = app;
+      window.FirebaseState.analytics = analytics;
+      window.FirebaseState.auth = auth;
+      window.FirebaseState.db = db;
+      window.FirebaseState._firestoreHelpers = { doc, getDoc, setDoc };
+
+      console.info('[Firebase] Đã khởi tạo song song Firebase App, Analytics & Firestore.');
+
+      // Nếu không có Google Drive Storage, mới dùng Firebase Auth UI làm kênh đăng nhập chính
+      if (!window.GoogleDriveStorage) {
+        setupAuthUI(auth, db, {
+          signInWithEmailAndPassword,
+          createUserWithEmailAndPassword,
+          signInWithPopup,
+          GoogleAuthProvider,
+          signOut,
+          doc,
+          getDoc,
+          setDoc
+        });
+
+        let hadUser = false;
+        onAuthStateChanged(auth, async (user) => {
+          window.FirebaseState.user = user;
+          updateUserUI(user);
+          if (user) {
+            hadUser = true;
+            showOfflineBanner(false);
+            console.info('[Firebase] Đã đăng nhập tài khoản giáo viên.');
+            await loadFromFirestore(user, db, { doc, getDoc, setDoc });
+          } else {
+            // Chưa đăng nhập (hoặc vừa đăng xuất): dùng ngoại tuyến, không tự bật hộp đăng nhập.
+            if (hadUser) { hadUser = false; resetToOfflineWorkspace(); }
+            showOfflineBanner(true);
+          }
+        });
+      }
+    }).catch(err => {
+      console.warn('[Firebase Bridge] Lỗi tải SDK:', err);
+      if (!window.GoogleDriveStorage) showOfflineBanner(true);
     });
-  }).catch(err => {
-    console.warn('[Firebase Bridge] Lỗi tải SDK:', err);
-    showOfflineBanner(true); // Không có mạng hoặc không tải được Firebase: vẫn dùng ngoại tuyến
-  });
+  } else if (!window.GoogleDriveStorage) {
+    showOfflineBanner(true);
+  }
 
   function escapeHtml(text) {
     return String(text == null ? '' : text)

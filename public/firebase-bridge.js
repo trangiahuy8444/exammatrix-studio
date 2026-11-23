@@ -1758,10 +1758,26 @@
     if (result.exists && valid(result.data)) {
       const remoteQuestions = result.data.bank?.questions || [];
       const localQuestions = currentWorkspaceData.bank?.questions || [];
-      if (remoteQuestions.length === 0 && localQuestions.length > 0) {
+      const remoteScore = calculateDataScore(result.data);
+      let localScore = calculateDataScore(currentWorkspaceData);
+
+      if (remoteScore === 0 && localScore === 0) {
+        // Tệp Drive rỗng và RAM rỗng -> Tự động kiểm tra bản cache tốt nhất trong máy để nạp và đẩy lên Drive
+        const rescued = findBestAvailableCache();
+        if (rescued && calculateDataScore(rescued) > 0) {
+          console.info('[Firebase Bridge] Tự động lấy bản dữ liệu lưu trữ trên máy để khôi phục và đẩy lên Google Drive.');
+          install(rescued);
+          currentWorkspaceData._sync = { pending: true, provider: 'google-drive' };
+          await trySaveLocalCache(user.uid, currentWorkspaceData);
+          syncToFirestore(user.uid, currentWorkspaceData).catch(() => {});
+        } else {
+          install(result.data);
+        }
+      } else if (remoteQuestions.length === 0 && localQuestions.length > 0) {
         console.info('[Firebase Bridge] Giữ lại các câu hỏi trên máy vì tệp Drive từ xa đang trống.');
         currentWorkspaceData._sync = { pending: true, provider: 'google-drive' };
         await trySaveLocalCache(user.uid, currentWorkspaceData);
+        syncToFirestore(user.uid, currentWorkspaceData).catch(() => {});
       } else {
         install({
           bank: result.data.bank,
@@ -1779,14 +1795,26 @@
         status.textContent = `Đã tải dữ liệu từ Google Drive riêng của bạn (${driveCfg.folderName}/${driveCfg.fileName}).`;
       }
     } else {
+      // Tệp chưa có trên Drive: nếu trong máy có dữ liệu lưu trữ, tự động nạp và tạo tệp trên Drive
+      if (calculateDataScore(currentWorkspaceData) === 0) {
+        const rescued = findBestAvailableCache();
+        if (rescued && calculateDataScore(rescued) > 0) {
+          install(rescued);
+        }
+      }
       currentWorkspaceData._sync = {
         pending: Boolean(currentWorkspaceData.bank?.questions?.length > 0),
         provider: 'google-drive'
       };
       await trySaveLocalCache(user.uid, currentWorkspaceData);
+      if (currentWorkspaceData.bank?.questions?.length > 0) {
+        syncToFirestore(user.uid, currentWorkspaceData).catch(() => {});
+      }
       if (status) {
         status.hidden = false;
-        status.textContent = `Đã kết nối Google Drive riêng (${driveCfg.folderName}). Tài khoản mới chưa có tệp dữ liệu; bấm "Đồng bộ Drive" hoặc lưu câu hỏi đầu tiên để tạo ${driveCfg.fileName}.`;
+        status.textContent = currentWorkspaceData.bank?.questions?.length > 0
+          ? `Đã kết nối Google Drive riêng (${driveCfg.folderName}) và đang đồng bộ ${currentWorkspaceData.bank.questions.length} câu hỏi lên Drive.`
+          : `Đã kết nối Google Drive riêng (${driveCfg.folderName}). Tài khoản mới chưa có tệp dữ liệu; hãy bấm "Đồng bộ Drive" hoặc lưu câu hỏi đầu tiên để tạo ${driveCfg.fileName}.`;
       }
     }
     updateDriveSyncButton();
@@ -2162,11 +2190,62 @@
               session.expiresAt = tokenInfo.expiresAt;
               saveDriveSession(session);
             }
-            const res = await window.FirebaseClient.syncCurrentData();
-            if (res.ok) {
-              showToast('Đã đồng bộ dữ liệu lên Google Drive riêng của bạn!');
+
+            // Đồng bộ thông minh 2 chiều: Đọc từ Drive và so sánh với máy
+            const driveCfg = getGoogleDriveSettings();
+            let driveResult = null;
+            try {
+              driveResult = await window.GoogleDriveStorage.readWorkspace(session.accessToken, {
+                folderName: driveCfg.folderName,
+                fileName: driveCfg.fileName,
+                fetchImpl: session.fetchImpl
+              });
+            } catch (readErr) {
+              console.warn('[Sync] Không đọc được tệp Drive:', readErr);
+            }
+
+            const driveScore = (driveResult?.exists && driveResult.data) ? calculateDataScore(driveResult.data) : 0;
+            let currentScore = calculateDataScore(currentWorkspaceData);
+
+            // Nếu trên màn hình đang trống (score = 0) nhưng trong bộ nhớ đệm máy có dữ liệu
+            if (currentScore === 0) {
+              const rescued = findBestAvailableCache();
+              if (rescued && calculateDataScore(rescued) > 0) {
+                currentWorkspaceData = JSON.parse(JSON.stringify(rescued));
+                delete currentWorkspaceData._sync;
+                window.FirebaseState.currentData = currentWorkspaceData;
+                applyWorkspaceToStore();
+                currentScore = calculateDataScore(currentWorkspaceData);
+              }
+            }
+
+            if (driveScore > currentScore && driveResult?.data) {
+              // Trên Google Drive có dữ liệu phong phú hơn -> Kéo từ Google Drive về máy
+              currentWorkspaceData = JSON.parse(JSON.stringify({
+                ...driveResult.data,
+                assessment_plans: Array.isArray(driveResult.data?.assessment_plans) ? driveResult.data.assessment_plans : [],
+                kttx: Array.isArray(driveResult.data?.kttx) ? driveResult.data.kttx : [],
+                _sync: { pending: false, provider: 'google-drive', synced_at: driveResult.updatedAt || new Date().toISOString() }
+              }));
+              window.FirebaseState.currentData = currentWorkspaceData;
+              await trySaveLocalCache(user.uid, currentWorkspaceData);
+              applyWorkspaceToStore();
+              showToast(`Đã tải về thành công ${currentWorkspaceData.bank?.questions?.length || 0} câu hỏi từ Google Drive của bạn!`);
+            } else if (currentScore > 0) {
+              // Trên máy có dữ liệu -> Đẩy lên Google Drive
+              const res = await window.FirebaseClient.syncCurrentData();
+              if (res.ok) {
+                showToast(`Đã đồng bộ thành công ${currentWorkspaceData.bank?.questions?.length || 0} câu hỏi lên Google Drive của bạn!`);
+              } else {
+                showToast('Chưa đồng bộ được lên Google Drive — dữ liệu vẫn được giữ trên máy.', 'error');
+              }
+            } else if (driveResult?.exists && driveResult.data) {
+              currentWorkspaceData = JSON.parse(JSON.stringify(driveResult.data));
+              window.FirebaseState.currentData = currentWorkspaceData;
+              applyWorkspaceToStore();
+              showToast('Đã đồng bộ dữ liệu với Google Drive.');
             } else {
-              showToast('Chưa đồng bộ được lên Google Drive — dữ liệu vẫn được giữ trên máy.', 'error');
+              showToast('Tài khoản Google Drive hiện chưa có dữ liệu câu hỏi để đồng bộ.', 'error');
             }
           } catch (err) {
             if (err && err.code === 'POPUP_CLOSED') return;

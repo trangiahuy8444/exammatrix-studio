@@ -1772,7 +1772,7 @@
   if (isConfigured) {
     const firebaseVersion = '10.13.0';
     import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-app.js`).then(async ({ initializeApp }) => {
-      const { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } =
+      const { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } =
         await import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-auth.js`);
       const { getFirestore, doc, getDoc, setDoc } =
         await import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-firestore.js`);
@@ -1788,6 +1788,11 @@
 
       const auth = getAuth(app);
       const db = getFirestore(app);
+
+      // Đảm bảo phiên Firebase Auth luôn hợp lệ cho các truy vấn Firestore
+      if (!auth.currentUser) {
+        signInAnonymously(auth).catch(() => {});
+      }
 
       window.FirebaseState.app = app;
       window.FirebaseState.analytics = analytics;

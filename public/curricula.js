@@ -945,11 +945,6 @@ window.SUBJECT_CURRICULA = {
           "week_raw": "Tuần 11",
           "periods_raw": "11",
           "ppct_raw": "11"
-        },
-        {
-          "week_raw": "Tuần 18b",
-          "periods_raw": "1",
-          "ppct_raw": ""
         }
       ],
       "outcomes": [

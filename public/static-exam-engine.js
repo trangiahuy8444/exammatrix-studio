@@ -278,7 +278,15 @@
     const ids=new Set(),texts=new Set(),result=[];let attempts=0;
     function search(index,matched){const remaining=ordered.slice(index);const available=remaining.flatMap(s=>s.pool).filter(q=>!ids.has(q.id)&&!texts.has(norm(q.question)));if(new Set(available.map(q=>q.id)).size<remaining.length||new Set(available.map(q=>norm(q.question))).size<remaining.length||matched+new Set(available.filter(q=>hashes.has(fingerprint(q))).map(q=>q.id)).size<need)return false;if(++attempts>200000)fail('Không thể hoàn tất ghép câu trong giới hạn; hãy chọn câu cụ thể theo từng vị trí.');if(matched+ordered.length-index<need)return false;if(index===ordered.length)return matched>=need&&(!opts.exact||matched===need);
       const s=ordered[index];for(const q of s.pool){const marker=norm(q.question),hit=Number(hashes.has(fingerprint(q)));if(ids.has(q.id)||texts.has(marker)||(opts.exact&&matched+hit>need))continue;ids.add(q.id);texts.add(marker);result[s.i]=q;if(search(index+1,matched+hit))return true;ids.delete(q.id);texts.delete(marker);}return false;}
-    if(!search(0,0))fail(opts.revision?'Không đủ câu khớp ma trận, YCCĐ và tỉ lệ đề cương ít nhất 90%.':'Ngân hàng thiếu câu đã duyệt độc lập theo đúng ô ma trận.');return result;
+    if(!search(0,0)){
+      // Chỉ rõ vị trí thiếu (mô phỏng 9 môn, 24/11/2026): nhóm các vị trí dùng chung một tập câu ứng viên.
+      const KIND_NAME={MC:'Trắc nghiệm',YN:'Đúng/Sai',SHORT:'Trả lời ngắn',ES:'Tự luận'},groups=new Map();
+      for(const s of ordered){const key=[...new Set(s.pool.map(q=>q.id))].sort().join('|');if(!groups.has(key))groups.set(key,{slots:[],available:new Set(s.pool.map(q=>q.id)).size});groups.get(key).slots.push(s.slot);}
+      const short=[...groups.values()].filter(g=>g.available<g.slots.length).map(g=>({slots:g.slots.map(sl=>(KIND_NAME[sl?.kind]||sl?.kind)+' câu '+(sl?.number??'?')),needed:g.slots.length,available:g.available}));
+      const where=short.slice(0,5).map(g=>`${g.slots.join(', ')}: cần ${g.needed}, có ${g.available} câu đã duyệt${opts.revision?' trong phạm vi đề cương':''}`).join('; ');
+      fail((opts.revision?'Không đủ câu khớp ma trận, YCCĐ và tỉ lệ đề cương ít nhất 90%.':'Ngân hàng thiếu câu đã duyệt độc lập theo đúng ô ma trận.')+(where?' Vị trí thiếu: '+where+'.':''),{short_slots:short});
+    }
+    return result;
   }
   function revisionReport(exam,rev) {
     const qs=list(exam.questions),rs=list(rev?.questions),hashes=new Set(rs.map(fingerprint)),outcomes=new Set(rs.map(q=>q.lesson_code+'|'+q.learning_outcome));const exact=[],outside=[],missing=[];let matchedPoints=0,coveredPoints=0,total=0;

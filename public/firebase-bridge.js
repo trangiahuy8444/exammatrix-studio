@@ -968,6 +968,18 @@
         const grade = Number(body.grade || 9);
         const code = body.lesson_code;
         const targetSubject = body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học';
+        // Không xóa bài đang được câu hỏi hoặc ma trận dùng: xóa sẽ làm câu và ma trận "mồ côi" (mô phỏng 9 môn, 24/11/2026).
+        const sameSubject = x => (x.subject_name || 'Tin học') === targetSubject && Number(x.grade) === grade;
+        const sameCode = c => String(c || '').trim().toLowerCase() === String(code || '').trim().toLowerCase();
+        const usedQuestions = (currentWorkspaceData.bank.questions || []).filter(q => sameSubject(q) && q.review_status !== 'archived' && sameCode(q.lesson_code)).length;
+        const usedMatrices = (currentWorkspaceData.matrices || []).filter(m => sameSubject(m) && m.status !== 'archived'
+          && [...(m.lessons || []), ...(m.requirements || [])].some(x => sameCode(x.lesson_code))).length;
+        if (usedQuestions || usedMatrices) {
+          const parts = [usedQuestions ? `${usedQuestions} câu hỏi` : '', usedMatrices ? `${usedMatrices} ma trận` : ''].filter(Boolean).join(' và ');
+          const err = new Error(`Không xóa được bài ${code}: bài đang được ${parts} sử dụng. Hãy lưu trữ hoặc chuyển các câu hỏi sang bài khác và bỏ bài này khỏi ma trận trước.`);
+          err.status = 409;
+          throw err;
+        }
         if (!currentWorkspaceData.bank.ppct) currentWorkspaceData.bank.ppct = { lessons: [], cleared_grades: [] };
         currentWorkspaceData.bank.ppct.lessons = (currentWorkspaceData.bank.ppct.lessons || []).filter(
           l => !(((l.subject_name || 'Tin học') === targetSubject) && Number(l.grade) === grade && l.lesson_code === code)
@@ -1215,6 +1227,10 @@
           : (Array.isArray(currentWorkspaceData.kttx) ? currentWorkspaceData.kttx : []),
         ...(nextData.profile && typeof nextData.profile === 'object' ? { profile: nextData.profile } : (currentWorkspaceData.profile ? { profile: currentWorkspaceData.profile } : {}))
       }));
+      // Chặn khôi phục tệp rỗng đè lên dữ liệu đang có: Firestore không có thùng rác, xóa là mất (mô phỏng 9 môn, 24/11/2026).
+      if (calculateDataScore(normalized) === 0 && calculateDataScore(currentWorkspaceData) > 0) {
+        throw new Error('Tệp sao lưu không có câu hỏi, PPCT, ma trận, đề cương hay đề nào. Để tránh mất dữ liệu, ứng dụng không khôi phục tệp rỗng đè lên dữ liệu đang có.');
+      }
       try {
         currentMutationSnapshot = before;
         activeMutationMeta = { path: 'replaceWorkspaceData', allowShrink: true };

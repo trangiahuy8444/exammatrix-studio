@@ -356,7 +356,10 @@
      const q=clone(raw);q.grade=Number(q.grade);
      const code=String(q.lesson_code||'').trim();
      const lessons=(ppct.lessons||[]).filter(l=>Number(l.grade)===q.grade&&subj(l)===subject);
-     if(lessons.length){
+     // Bài và YCCĐ phải thuộc PPCT của khối (cùng quy tắc bản Python, giáo viên duyệt 23/11/2026); khối chưa có PPCT thì chặn,
+     // tránh câu "mồ côi" không dùng được cho ma trận (phát hiện khi mô phỏng 9 môn, 24/11/2026).
+     if(!lessons.length)fail(`Khối ${q.grade} chưa có Phân phối chương trình môn ${subject}. Hãy nhập PPCT của khối này trước khi nhập câu hỏi.`);
+     {
       const lesson=lessons.find(l=>l.lesson_code===code)||lessons.find(l=>String(l.lesson_code).toLowerCase()===code.toLowerCase());
       if(!lesson)fail(`Bài ${code||'(trống)'} không có trong PPCT khối ${q.grade}. Kiểm tra mã bài hoặc khối đang chọn.`);
       q.lesson_code=lesson.lesson_code;

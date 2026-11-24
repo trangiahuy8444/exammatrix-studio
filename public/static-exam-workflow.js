@@ -270,7 +270,12 @@
       if (!['drafting','locked'].includes(status)) fail('Chỉ phát hành được đề cương đang soạn hoặc đã khóa.');
       validateQuestions(r,false);
       if (!linked.length) fail('Cần ít nhất một đề căn cứ đã khóa để phát hành đề cương.');
-      if (linked.some(e => !frozen(e))) fail('Chưa thể phát hành đề cương vì đề căn cứ chưa được khóa.');
+      const unlocked = linked.filter(e => !frozen(e));
+      if (unlocked.length) {
+        // Nêu rõ đề nào còn thiếu (kể cả mã hoán vị: mã hoán vị không thừa hưởng việc duyệt của đề gốc).
+        const names = unlocked.map(e => (e.exam_code ? 'mã ' + e.exam_code : '') + (e.title ? ' “' + e.title + '”' : '') || e.id).map(s => s.trim());
+        fail('Chưa thể phát hành đề cương vì còn ' + unlocked.length + ' đề căn cứ chưa được duyệt và khóa: ' + names.join('; ') + '. Hãy duyệt và khóa các đề này (hoặc xóa mã không dùng) rồi phát hành lại.');
+      }
       for (const e of linked) {
         await assertFrozen(e); validateQuestions(e,true); revisionCheck(e,r); assertRevisionSnapshot(e,r);
       }

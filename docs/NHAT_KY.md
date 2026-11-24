@@ -1,3 +1,10 @@
+## 24/11/2026 — Mô phỏng giáo viên 9 môn; sửa 5 lỗi
+
+- Kịch bản `acceptance/2026-11-24-mo-phong-9-mon/mo-phong.cjs`: 9 tài khoản (Tin 8, Toán 9, Vật lí 10, Hóa 11, Sinh 12, Ngữ văn 7, Tiếng Anh 6, Lịch sử 10, Địa lí 11) chạy qua cầu nối thật với Firestore giả. Vòng 1: 19 bước từ đăng nhập đến phát hành, xuất Word/ZIP, tải lại, hai tab. Vòng 2: 11–12 tình huống lộn xộn. Biên bản: `acceptance/2026-11-24-mo-phong-9-mon/BIEN_BAN.md`.
+- Vòng 1 đạt 9/9 ngay; vòng 2 tìm ra M1 (nhập câu cho khối chưa có PPCT được chấp nhận, lệch quy tắc bản Python 23/11), M2 (xóa bài PPCT đang có câu và ma trận dùng), M3 (khôi phục tệp sao lưu rỗng xóa sạch dữ liệu trên đám mây), M4 (thông báo thiếu câu không chỉ vị trí), M5 (thông báo chặn phát hành đề cương không nói đề nào chưa khóa). Đã sửa cả 5 (`static-api.js`, `firebase-bridge.js`, `static-exam-engine.js`, `static-exam-workflow.js`); sau sửa 18/18 lượt đạt.
+- Kiểm thử: `tests/static_mo_phong.test.cjs` (7 ca, CI chạy mô phỏng Tin 8 và Vật lí 10). Node 177/177, engine 458 (1 bỏ qua). Đổi `?v=20261124n` cho 4 tệp.
+- Chưa kiểm: thao tác giao diện, Firebase/Drive thật, nội dung chuyên môn từng môn, bố cục Word theo mẫu trường.
+
 ## 24/11/2026 — Sửa L4, L5, L7 (tệp mẫu theo môn, Word đề, người phụ trách ma trận)
 
 - Nhánh `fix/loi-nho-dot-2` (tách từ `fix/chan-ghi-de-hai-may`), chưa commit.

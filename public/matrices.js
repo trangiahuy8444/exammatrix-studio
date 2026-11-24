@@ -2494,22 +2494,16 @@
 
   function downloadMatrixWord(m, section='all') {
     if (!m) return;
-    if(window.FirebaseClient?.canHandle('/api/matrices')&&window.BankStaticExport){
-      try{
-        const blob=new Blob([window.BankStaticExport.matrixBytes(m)],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
-        const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`MA_TRAN_VA_DAC_TA_${m.grade}_${m.exam_type}.docx`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
-        message('Đã xuất DOCX gồm ma trận và bảng đặc tả. Hãy xem lại bố cục trước khi nộp.');
-      }catch(error){message(error.message,true);}
-      return;
-    }
     const html = generateMatrixWordStandaloneHtml(m, section);
     const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     const period = { TX: 'TX', GK1: 'GK1', CK1: 'CK1', GK2: 'GK2', CK2: 'CK2' }[m.exam_type] || 'GK1';
+    const rawSubj = String(subject(m) || 'Tin học').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').toUpperCase();
+    const subjCode = (rawSubj === 'TIN_HOC' || rawSubj === 'TIN') ? 'TIN' : (rawSubj || 'MON');
     const secName = section === 'matrix' ? 'MA_TRAN' : section === 'specification' ? 'DAC_TA' : section === 'competencies' ? 'NANG_LUC' : 'MA_TRAN_VA_DAC_TA';
-    a.download = `TIN_${m.grade}_${period}_${secName}.doc`;
+    a.download = `${subjCode}_${m.grade}_${period}_${secName}.doc`;
     document.body.appendChild(a);
     a.click();
     a.remove();

@@ -777,6 +777,58 @@ Khối: 9
     assert.deepEqual(genCall.body.placements, [{ slot_id: 'S1', question_id: 'QD-1', reviewed_part_ids: ['P1'] }]);
     console.log('PASS matrix UI: tự động bật Chế độ linh hoạt Ma trận 2D và gửi flexible: true');
   }
+
+  // Kiểm tra downloadMatrixWord luôn xuất đúng nội dung Web khổ Landscape ngay cả khi có FirebaseClient + BankStaticExport
+  {
+    const prevWin = global.window;
+    const prevDoc = global.document;
+    const prevCreateUrl = global.URL.createObjectURL;
+    const prevRevokeUrl = global.URL.revokeObjectURL;
+    const createdLinks = [];
+    let capturedBlob = null;
+    try {
+      global.window = {
+        ...(prevWin || {}),
+        FirebaseClient: { canHandle: () => true },
+        BankStaticExport: { matrixBytes: () => { throw new Error('downloadMatrixWord must not call raw matrixBytes'); } }
+      };
+      global.document = {
+        ...(prevDoc || {}),
+        createElement: tag => {
+          const el = { tagName: tag.toUpperCase(), href: '', download: '', clicked: false, click() { this.clicked = true; }, remove() {} };
+          createdLinks.push(el);
+          return el;
+        },
+        body: { appendChild: () => {} }
+      };
+      global.URL.createObjectURL = b => { capturedBlob = b; return 'blob:test-word'; };
+      global.URL.revokeObjectURL = () => {};
+
+      const mTest = {
+        id: 'MX-DOC', title: 'Ma trận & Đặc tả K9', grade: 9, subject_name: 'Tin học', exam_type: 'GK1',
+        profile: 'THCS', school_year: '2026-2027',
+        lessons: [{ lesson_code: 'B1', title: 'Thế giới kĩ thuật số', topic: 'Chủ đề 1' }],
+        requirements: [{ id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'Nhận biết thiết bị số' }],
+        slots: [{ id: 'S1', number: 1, kind: 'MC', parts: [{ requirement_id: 'R1', points: 10 }] }]
+      };
+      ui.downloadMatrixWord(mTest, 'all');
+      assert.equal(createdLinks.length, 1);
+      assert.equal(createdLinks[0].download, 'TIN_9_GK1_MA_TRAN_VA_DAC_TA.doc');
+      assert.equal(createdLinks[0].clicked, true);
+      assert.ok(capturedBlob, 'Phải tạo Blob Word');
+      const docText = await capturedBlob.text();
+      assert.ok(docText.includes('KHUNG MA TRẬN ĐỀ KIỂM TRA ĐỊNH KỲ'));
+      assert.ok(docText.includes('BẢNG ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KỲ'));
+      assert.ok(docText.includes('mso-page-orientation: landscape'));
+      assert.ok(docText.includes('class="WordSection1"'));
+      console.log('PASS matrix UI: downloadMatrixWord xuất đúng nội dung Web khổ Landscape ngay cả trên bản Pages');
+    } finally {
+      global.window = prevWin;
+      global.document = prevDoc;
+      global.URL.createObjectURL = prevCreateUrl;
+      global.URL.revokeObjectURL = prevRevokeUrl;
+    }
+  }
 })().catch(err => {
   console.error(err);
   process.exit(1);

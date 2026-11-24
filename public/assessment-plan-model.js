@@ -382,8 +382,11 @@
     if (!raw || typeof raw !== 'object') return null;
     const g = Number(raw.grade) || Number(defaultGrade) || 8;
     const subj = String(raw.subject_name || defaultSubject || 'Tin học').trim();
-    const type = String(raw.exam_type || raw.period || 'GK1').toUpperCase().trim();
-    const id = String(raw.id || `PLAN-K${g}-${type}-${Date.now()}`).trim();
+    const rawPeriodType = String(raw.period || '').toUpperCase().trim();
+    const fallbackType = ['GK1', 'CK1', 'GK2', 'CK2', 'TX'].includes(rawPeriodType) ? rawPeriodType : '';
+    const type = String(raw.exam_type || fallbackType || 'GK1').toUpperCase().trim();
+    const randSuffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const id = String(raw.id || `PLAN-K${g}-${type}-${randSuffix}`).trim();
     const name = String(raw.name || raw.title || PERIOD_NAMES[type] || 'Kiểm tra Đánh giá').trim();
     const duration = Number(raw.duration) || 45;
     const week = String(raw.week || raw.time_week || 'Tuần 9').trim();
@@ -441,13 +444,15 @@
         headerIdx = i;
         row.forEach((col, cIdx) => {
           const c = normH(col);
-          if (c.includes('ten') || c.includes('bai kiem tra') || c.includes('noi dung')) colMap.name = cIdx;
-          else if (c.includes('loai') || c.includes('ky') || c.includes('dot')) colMap.exam_type = cIdx;
+          if (!c || c === 'stt' || c === 'tt') return;
+          if (c.includes('ten') || c.includes('bai kiem tra') || c.includes('bai danh gia') || c === 'noi dung') colMap.name = cIdx;
+          else if (c.includes('loai') || c.includes('ky kiem tra') || c.includes('ki kiem tra') || c.includes('dot')) colMap.exam_type = cIdx;
           else if (c.includes('thoi gian') || c.includes('thoi luong') || c.includes('phut')) colMap.duration = cIdx;
           else if (c.includes('thoi diem') || c.includes('tuan')) colMap.week = cIdx;
           else if (c.includes('tiet') || c.includes('ppct')) colMap.period = cIdx;
           else if (c.includes('hinh thuc')) colMap.form = cIdx;
-          else if (c.includes('pham vi') || c.includes('bai hoc') || c.includes('yccd')) colMap.scope = cIdx;
+          else if (c.includes('pham vi') || c.includes('bai hoc')) colMap.scope = cIdx;
+          else if (c.includes('yeu cau can dat') || c.includes('yccd')) colMap.scope_description = cIdx;
           else if (c.includes('he so')) colMap.coefficient = cIdx;
           else if (c.includes('khoi')) colMap.grade = cIdx;
           else if (c.includes('ghi chu')) colMap.notes = cIdx;
@@ -461,19 +466,25 @@
 
     dataRows.forEach((row, idx) => {
       if (!Array.isArray(row) || row.every(x => x == null || String(x).trim() === '')) return;
+      if (row.every(x => /^[:\s-]*$/.test(String(x ?? '')))) return;
       const getVal = key => (colMap[key] !== undefined && row[colMap[key]] != null) ? String(row[colMap[key]]).trim() : '';
 
       let name = getVal('name');
-      if (!name && row[0]) name = String(row[0]).trim();
+      if (!name) {
+        const c0 = row[0] != null ? String(row[0]).trim() : '';
+        if (/^\d+$/.test(c0) && row[1]) name = String(row[1]).trim();
+        else if (c0 && !/^[:\s-]+$/.test(c0)) name = c0;
+      }
       if (!name) return;
 
       let examType = getVal('exam_type').toUpperCase();
       if (!examType) {
         const nNorm = normH(name);
-        if (nNorm.includes('giua hoc ki 1') || nNorm.includes('giua ki 1') || nNorm.includes('gk1')) examType = 'GK1';
-        else if (nNorm.includes('cuoi hoc ki 1') || nNorm.includes('cuoi ki 1') || nNorm.includes('ck1')) examType = 'CK1';
-        else if (nNorm.includes('giua hoc ki 2') || nNorm.includes('giua ki 2') || nNorm.includes('gk2')) examType = 'GK2';
-        else if (nNorm.includes('cuoi hoc ki 2') || nNorm.includes('cuoi ki 2') || nNorm.includes('ck2')) examType = 'CK2';
+        if (nNorm.includes('giua hoc ki 1') || nNorm.includes('giua hoc ky 1') || nNorm.includes('giua ki 1') || nNorm.includes('giua ky 1') || nNorm.includes('gk1')) examType = 'GK1';
+        else if (nNorm.includes('cuoi hoc ki 1') || nNorm.includes('cuoi hoc ky 1') || nNorm.includes('cuoi ki 1') || nNorm.includes('cuoi ky 1') || nNorm.includes('ck1')) examType = 'CK1';
+        else if (nNorm.includes('giua hoc ki 2') || nNorm.includes('giua hoc ky 2') || nNorm.includes('giua ki 2') || nNorm.includes('giua ky 2') || nNorm.includes('gk2')) examType = 'GK2';
+        else if (nNorm.includes('cuoi hoc ki 2') || nNorm.includes('cuoi hoc ky 2') || nNorm.includes('cuoi ki 2') || nNorm.includes('cuoi ky 2') || nNorm.includes('ck2')) examType = 'CK2';
+        else if (nNorm.includes('thuong xuyen') || nNorm.includes('kttx')) examType = 'TX';
         else examType = idx === 0 ? 'GK1' : (idx === 1 ? 'CK1' : (idx === 2 ? 'GK2' : 'CK2'));
       }
 
@@ -483,7 +494,10 @@
       const week = getVal('week') || (row[2] ? String(row[2]).trim() : `Tuần ${examType === 'GK1' ? 9 : (examType === 'CK1' ? 18 : (examType === 'GK2' ? 27 : 35))}`);
       const period = getVal('period') || '';
       const form = getVal('form') || '';
-      const scopeRaw = getVal('scope') || (row[5] ? String(row[5]).trim() : '');
+      const scopeRaw = getVal('scope') || (colMap.scope === undefined && row[5] ? String(row[5]).trim() : '');
+      const scopeDescRaw = getVal('scope_description') || scopeRaw;
+      const coefRaw = getVal('coefficient');
+      const parsedCoef = coefRaw ? parseFloat(coefRaw.replace(',', '.')) : NaN;
       const notes = getVal('notes') || '';
       const rowGrade = parseInt(getVal('grade'), 10) || defaultGrade;
 
@@ -494,8 +508,9 @@
         week,
         period,
         form,
+        coefficient: Number.isFinite(parsedCoef) && parsedCoef > 0 ? parsedCoef : undefined,
         scope_lessons: scopeRaw,
-        scope_description: scopeRaw,
+        scope_description: scopeDescRaw,
         notes,
         grade: rowGrade,
         subject_name: defaultSubject

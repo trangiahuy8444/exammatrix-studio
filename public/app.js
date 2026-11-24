@@ -576,7 +576,7 @@ function saveStaticFile(file){
 async function mutate(path,body,onSuccess){
  if(store.busy)return;store.busy=true;
  document.querySelectorAll('dialog form button[type=submit],#save-revision,#generate-exam').forEach(b=>b.disabled=true);
- try{const result=await request(path,body);if(result.bank)store.bank=result.bank;await onSuccess?.(result);return result;}
+ try{const result=await request(path,body);if(result.bank)store.bank=result.bank;if(Array.isArray(result.assessment_plans))store.assessmentPlans=result.assessment_plans;await onSuccess?.(result);return result;}
  catch(e){notify(detailError(e),true);const form=$('#edit-dialog[open] #form-error');if(form){form.hidden=false;form.textContent=detailError(e);}return null;}
  finally{store.busy=false;document.querySelectorAll('dialog form button[type=submit],#save-revision').forEach(b=>b.disabled=false);updateGenerationState();}
 }
@@ -4287,14 +4287,236 @@ function bindRevisionMatrixPanel(g){
 function getAssessmentPlans(grade, subj) {
   const s = subj || store.selectedSubject || 'Tin học';
   const g = grade ? Number(grade) : effectiveGrade();
+  const cleared = store.apClearedKeys || (store.apClearedKeys = new Set());
   const all = Array.isArray(store.assessmentPlans) ? store.assessmentPlans : [];
   let list = all.filter(p => (p.subject_name || 'Tin học') === s && Number(p.grade) === g);
-  if (list.length === 0 && window.BankAssessmentPlan) {
-    list = window.BankAssessmentPlan.buildDefaultAssessmentPlans(g, s);
+  if (list.length === 0 && !cleared.has(`${g}|${s}`) && window.BankAssessmentPlan) {
+    list = window.BankAssessmentPlan.buildDefaultAssessmentPlans(g, s).map(p => ({ ...p, _virtual: true }));
     if (!Array.isArray(store.assessmentPlans)) store.assessmentPlans = [];
     store.assessmentPlans.push(...list);
   }
   return list;
+}
+
+async function ensurePersistedAssessmentPlans(g, s) {
+  const current = getAssessmentPlans(g, s);
+  if (!current.some(p => p._virtual)) return;
+  const cleanPlans = current.map(({ _virtual, ...rest }) => rest);
+  const res = await request('/api/assessment-plans/import', {
+    grade: g,
+    subject_name: s,
+    plans: cleanPlans,
+    replace_grade: true
+  });
+  if (Array.isArray(res?.assessment_plans)) store.assessmentPlans = res.assessment_plans;
+  else current.forEach(p => { delete p._virtual; });
+}
+
+function buildAssessmentPlanSampleRows(g, s) {
+  const defaults = window.BankAssessmentPlan
+    ? window.BankAssessmentPlan.buildDefaultAssessmentPlans(g, s)
+    : [];
+  const header = ['STT', 'Bài kiểm tra, đánh giá', 'Kỳ', 'Thời gian (phút)', 'Thời điểm (Tuần)', 'Tiết PPCT', 'Hệ số', 'Hình thức', 'Phạm vi bài học', 'Yêu cầu cần đạt tóm tắt', 'Ghi chú'];
+  const body = defaults.map((p, i) => [
+    String(i + 1),
+    p.name || '',
+    p.exam_type || '',
+    String(p.duration || 45),
+    p.week || '',
+    p.period || '',
+    String(p.coefficient || 2),
+    p.form || '',
+    (p.scope_lessons || []).join('; '),
+    p.scope_description || '',
+    p.notes || ''
+  ]);
+  return [header, ...body];
+}
+
+function parseAssessmentPlanMarkdownTable(text) {
+  const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const tableLines = lines.filter(l => l.includes('|'));
+  if (tableLines.length < 2) return [];
+  return tableLines
+    .map(line => line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim()))
+    .filter(cells => cells.length >= 2 && !cells.every(c => /^[:\s-]+$/.test(c)));
+}
+
+function extractAssessmentPlanRowsFromHtml(html) {
+  if (!html || typeof DOMParser === 'undefined') return [];
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const tables = [...doc.querySelectorAll('table')];
+  let bestRows = [];
+  let bestScore = -1;
+  tables.forEach(tbl => {
+    const rows = [...tbl.querySelectorAll('tr')]
+      .map(tr => [...tr.querySelectorAll('th,td')].map(td => td.textContent.replace(/\s+/g, ' ').trim()))
+      .filter(r => r.some(Boolean));
+    if (rows.length < 2) return;
+    const textNorm = rows.slice(0, 3).flat().join(' ').toLowerCase();
+    let score = rows.length;
+    if (/kiểm tra|đánh giá|giữa h[ọo]c|cuối h[ọo]c|hệ số|thời gian/.test(textNorm)) score += 50;
+    if (/tuần|tiết|hình thức|phạm vi/.test(textNorm)) score += 20;
+    if (score > bestScore) { bestScore = score; bestRows = rows; }
+  });
+  return bestRows;
+}
+
+function looksLikeAssessmentPlanTable(rows) {
+  if (!Array.isArray(rows) || rows.length < 2) return false;
+  const sampleText = rows.slice(0, 6).flat().join(' ').toLowerCase();
+  return /kiểm tra|đánh giá|kiem tra|danh gia|giữa kỳ|giữa kì|cuối kỳ|cuối kì|gk1|ck1|gk2|ck2|hệ số|thời lượng/.test(sampleText);
+}
+
+async function readAssessmentPlanImportInput(g, s) {
+  const file = $('#ap-import-file')?.files?.[0];
+  const pasteText = ($('#ap-import-paste')?.value || '').trim();
+  const replace = $('#ap-import-replace') ? Boolean($('#ap-import-replace').checked) : true;
+  if (!file && !pasteText) {
+    throw new Error('Hãy chọn tệp (.xlsx, .csv, .json, .md, .docx) hoặc dán nội dung bảng KHKTĐG vào ô bên dưới.');
+  }
+  const model = window.BankAssessmentPlan;
+  if (!model) throw new Error('Bộ phân tích KHKTĐG chưa nạp xong, vui lòng tải lại trang.');
+
+  if (file) {
+    const ext = file.name.toLowerCase().split('.').pop();
+    if (ext === 'json') {
+      const parsed = JSON.parse(await file.text());
+      const rawList = Array.isArray(parsed) ? parsed : (parsed.assessment_plans || parsed.plans || []);
+      const plans = rawList.map(x => model.normalizePlan(x, g, s)).filter(Boolean);
+      if (!plans.length) throw new Error('Tệp JSON chưa có danh sách kế hoạch kiểm tra (assessment_plans hoặc plans).');
+      return { grade: g, subject_name: s, filename: file.name, plans, replace };
+    }
+    if (['xlsx', 'xls', 'csv', 'tsv'].includes(ext)) {
+      if (typeof TableFileHelper === 'undefined') throw new Error('Bộ đọc Excel/CSV đang nạp, vui lòng thử lại.');
+      const res = await TableFileHelper.readTableFile(file);
+      const rows = res.rows || [];
+      if (!looksLikeAssessmentPlanTable(rows)) {
+        throw new Error(`Không tìm thấy bảng Kế hoạch KTĐG hợp lệ trong tệp ${file.name}. Bấm "📊 Tải mẫu KHKTĐG (Excel)" để xem mẫu chuẩn.`);
+      }
+      const plans = model.parseAssessmentPlansFromRows(rows, g, s);
+      return { grade: g, subject_name: s, filename: file.name, plans, replace };
+    }
+    if (['md', 'txt'].includes(ext)) {
+      const txt = (await file.text()).trim();
+      if (txt.startsWith('[') || txt.startsWith('{')) {
+        const parsed = JSON.parse(txt);
+        const rawList = Array.isArray(parsed) ? parsed : (parsed.assessment_plans || parsed.plans || []);
+        const plans = rawList.map(x => model.normalizePlan(x, g, s)).filter(Boolean);
+        if (!plans.length) throw new Error('Nội dung JSON chưa có đợt kiểm tra hợp lệ.');
+        return { grade: g, subject_name: s, filename: file.name, plans, replace };
+      }
+      const mdRows = parseAssessmentPlanMarkdownTable(txt);
+      const rows = mdRows.length ? mdRows : (typeof TableFileHelper !== 'undefined' ? TableFileHelper.parseCsvText(txt) : []);
+      if (!looksLikeAssessmentPlanTable(rows)) {
+        throw new Error(`Không nhận diện được bảng KHKTĐG trong tệp ${file.name}.`);
+      }
+      const plans = model.parseAssessmentPlansFromRows(rows, g, s);
+      return { grade: g, subject_name: s, filename: file.name, plans, replace };
+    }
+    if (ext === 'docx') {
+      if (typeof mammoth === 'undefined') throw new Error('Trình đọc Word (.docx) chưa sẵn sàng, hãy thử tải mẫu Excel hoặc dán bảng trực tiếp.');
+      const htmlRes = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
+      const rows = extractAssessmentPlanRowsFromHtml(htmlRes.value || '');
+      if (!looksLikeAssessmentPlanTable(rows)) {
+        throw new Error(`Không tìm thấy bảng Kế hoạch KTĐG (Phụ lục 3) trong tệp Word ${file.name}. Thầy/Cô có thể dùng nút "📋 Chép Prompt AI" để chuyển bảng Word sang Excel/JSON.`);
+      }
+      const plans = model.parseAssessmentPlansFromRows(rows, g, s);
+      return { grade: g, subject_name: s, filename: file.name, plans, replace };
+    }
+    throw new Error('Định dạng tệp chưa hỗ trợ. Hãy chọn .xlsx, .csv, .json, .md hoặc .docx.');
+  }
+
+  if (pasteText.startsWith('[') || pasteText.startsWith('{')) {
+    const parsed = JSON.parse(pasteText);
+    const rawList = Array.isArray(parsed) ? parsed : (parsed.assessment_plans || parsed.plans || []);
+    const plans = rawList.map(x => model.normalizePlan(x, g, s)).filter(Boolean);
+    if (!plans.length) throw new Error('Dữ liệu JSON chưa có đợt kiểm tra hợp lệ.');
+    return { grade: g, subject_name: s, filename: 'Dữ liệu JSON đã dán', plans, replace };
+  }
+  const mdRows = parseAssessmentPlanMarkdownTable(pasteText);
+  const rows = mdRows.length ? mdRows : (typeof TableFileHelper !== 'undefined' ? TableFileHelper.parseCsvText(pasteText) : pasteText.split(/\r?\n/).map(l => l.split('\t').map(c => c.trim())));
+  if (!looksLikeAssessmentPlanTable(rows)) {
+    throw new Error('Không nhận diện được bảng KHKTĐG từ nội dung đã dán. Hãy dán đủ dòng tiêu đề (Bài kiểm tra, Thời gian, Thời điểm, Hệ số, Phạm vi bài học...).');
+  }
+  const plans = model.parseAssessmentPlansFromRows(rows, g, s);
+  return { grade: g, subject_name: s, filename: 'Dữ liệu bảng đã dán', plans, replace };
+}
+
+function assessmentPlanImportCard(g, s) {
+  const preview = store.apImportPreview;
+  const previewRowsHtml = preview?.plans?.length ? preview.plans.map((p, i) => `
+    <tr>
+      <td style="text-align:center"><strong>${i + 1}</strong></td>
+      <td><strong>${esc(p.name)}</strong><div class="small muted">${esc(periodNames[p.exam_type] || p.exam_type)}</div></td>
+      <td style="text-align:center"><span class="badge">${esc(p.duration || 45)} phút</span></td>
+      <td><strong>${esc(p.week || '—')}</strong>${p.period ? `<div class="small muted">${esc(p.period)}</div>` : ''}</td>
+      <td style="text-align:center"><strong>x${esc(p.coefficient || 2)}</strong></td>
+      <td class="small">${esc(p.form || '—')}</td>
+      <td>${(p.scope_lessons || []).map(c => `<span class="badge" style="margin:2px 0">${esc(c)}</span>`).join(' ') || '<span class="muted small">Toàn bộ</span>'}</td>
+      <td class="small">${esc(p.scope_description || '—')}</td>
+    </tr>
+  `).join('') : '';
+
+  return `<div id="ap-import-card" class="card" style="margin-top:20px">
+    <h2>Nhập Kế hoạch kiểm tra, đánh giá từ Excel, JSON, Markdown hoặc Word</h2>
+    <p class="muted">Khuyên dùng <strong>Excel (.xlsx / .csv)</strong> hoặc <strong>JSON / Markdown</strong> chuẩn <strong>Phụ lục 3 (CV 5512/BGDĐT-GDTrH &amp; TT 22/2021)</strong> để nạp tức thì 4 mốc ĐĐGđk cho môn ${esc(s)} Khối ${esc(g)}. Vẫn hỗ trợ đọc trực tiếp bảng KHKTĐG từ tệp Word (<code>.docx</code>).</p>
+    <div style="background:#eef6fd;border:1px solid #c6daed;border-radius:8px;padding:12px 16px;margin:12px 0;color:#1e293b;font-size:13px;line-height:1.6">
+      <strong>🤖 Hướng dẫn thầy/cô dùng AI (Gemini / ChatGPT / Claude) chuyển Word sang Excel / JSON để tải lên:</strong>
+      <ol style="margin:6px 0 0;padding-left:20px">
+        <li>Bấm nút <strong>📋 Chép Prompt AI chuyển Word → Excel/JSON</strong> bên dưới.</li>
+        <li>Mở <strong>Gemini</strong> hoặc <strong>ChatGPT</strong>, dán câu lệnh (Prompt) vào khung chat rồi <strong>đính kèm tệp Word KHDH Phụ lục 3 (<code>.docx</code>)</strong> (hoặc copy bảng KHKTĐG trong Word dán vào) và gửi.</li>
+        <li>Sao chép bảng kết quả AI trả về dán vào Excel lưu thành <strong><code>.xlsx</code> / <code>.csv</code></strong> (hoặc dán thẳng bảng đó vào khung bên dưới).</li>
+        <li>Chọn tệp (hoặc dán) → bấm <strong>🔍 Đọc và đối chiếu</strong> → xem trước bảng bên dưới rồi bấm <strong>✅ Xác nhận nhập</strong>.</li>
+      </ol>
+    </div>
+    <div style="display:flex;gap:10px;margin:10px 0 14px;flex-wrap:wrap;align-items:center">
+      <button type="button" class="button" id="ap-download-excel-sample" style="background:#15803d;color:#fff;border-color:#15803d;padding:6px 12px;font-size:12px;font-weight:700">📊 Tải mẫu KHKTĐG (Excel)</button>
+      <button type="button" class="button quiet" id="ap-download-json-sample" style="color:#0267b1;padding:6px 12px;font-size:12px;font-weight:600">📥 Tải mẫu KHKTĐG (JSON)</button>
+      <button type="button" class="button quiet" id="ap-download-md-sample" style="color:#0267b1;padding:6px 12px;font-size:12px;font-weight:600">📝 Tải mẫu KHKTĐG (Markdown)</button>
+      <button type="button" class="button quiet" id="ap-copy-prompt" style="color:#0267b1;padding:6px 12px;font-size:12px;font-weight:600">📋 Chép Prompt AI chuyển Word → Excel/JSON</button>
+    </div>
+    <div class="form-grid" style="align-items:end;margin-bottom:10px">
+      <div class="field span2">
+        <label for="ap-import-file">Chọn tệp dữ liệu (.xlsx, .xls, .csv, .tsv, .json, .md, .docx)</label>
+        <input type="file" id="ap-import-file" accept=".xlsx,.xls,.csv,.tsv,.docx,.json,.md,.txt">
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
+          <input type="checkbox" id="ap-import-replace"${preview ? (preview.replace ? ' checked' : '') : ' checked'}>
+          <span>Thay thế KHKTĐG Khối ${esc(g)} hiện tại</span>
+        </label>
+      </div>
+      <div class="field full">
+        <label for="ap-import-paste">Hoặc dán trực tiếp bảng từ Excel / Word / Markdown / JSON:</label>
+        <textarea id="ap-import-paste" rows="4" placeholder="Bài kiểm tra, đánh giá | Thời gian | Thời điểm | Tiết PPCT | Hệ số | Hình thức | Phạm vi bài học&#10;Kiểm tra Đánh giá Giữa Học kỳ 1 | 45 phút | Tuần 9 | Tiết 9 | 2 | Trắc nghiệm (70%) + Tự luận (30%) | B1; B2; B3; B4"></textarea>
+      </div>
+    </div>
+    <div class="actions">
+      <button type="button" class="button" id="ap-import-inspect">🔍 Đọc và đối chiếu</button>
+      ${preview ? `<button type="button" class="primary" id="ap-import-apply">✅ Xác nhận nhập (${preview.plans.length} đợt kiểm tra)</button><button type="button" class="quiet" id="ap-import-cancel">Hủy xem trước</button>` : ''}
+    </div>
+    ${preview ? `
+      <p class="callout" style="margin-top:12px">Đã đọc từ <strong>${esc(preview.filename)}</strong> · Môn ${esc(preview.subject_name)} Khối ${esc(preview.grade)} · <strong>${preview.plans.length} đợt kiểm tra</strong> (${preview.replace ? 'sẽ thay thế KHKTĐG khối này' : 'sẽ thêm vào KHKTĐG khối này'}). Kiểm tra lại bảng bên dưới rồi bấm <strong>✅ Xác nhận nhập</strong>.</p>
+      <div class="table-wrap">
+        <table class="ppct-table">
+          <thead>
+            <tr>
+              <th style="width:40px;text-align:center">TT</th>
+              <th>Bài kiểm tra, đánh giá</th>
+              <th style="width:90px;text-align:center">Thời gian</th>
+              <th style="width:120px">Thời điểm</th>
+              <th style="width:70px;text-align:center">Hệ số</th>
+              <th>Hình thức</th>
+              <th>Phạm vi bài học</th>
+              <th>Yêu cầu cần đạt tóm tắt</th>
+            </tr>
+          </thead>
+          <tbody>${previewRowsHtml}</tbody>
+        </table>
+      </div>
+    ` : ''}
+  </div>`;
 }
 
 function renderAssessmentPlans() {
@@ -4333,10 +4555,10 @@ function renderAssessmentPlans() {
         </div>
       </td>
     </tr>`;
-  }).join('') : `<tr><td colspan="8" class="empty" style="text-align:center;padding:24px">Chưa có kế hoạch kiểm tra cho môn ${esc(s)} Khối ${g}. Bấm nút "Khôi phục mẫu GDPT 2018" hoặc "Thêm đợt kiểm tra" để bắt đầu.</td></tr>`;
+  }).join('') : `<tr><td colspan="8" class="empty" style="text-align:center;padding:24px">Chưa có kế hoạch kiểm tra cho môn ${esc(s)} Khối ${g}. Bấm nút "Khôi phục 4 mốc GDPT 2018", "+ Thêm đợt kiểm tra" hoặc nạp tệp bên dưới để bắt đầu.</td></tr>`;
 
   $('#assessment-plans').innerHTML = `
-    ${title(`Kế hoạch môn ${s}`,'Kế hoạch kiểm tra, đánh giá định kỳ',`Kế hoạch kiểm tra định kỳ (Phụ lục 3 CV 5512/BGDĐT-GDTrH &amp; TT 22/2021) môn ${esc(s)} Khối ${g}. Mọi Ma trận và Bảng đặc tả sẽ tự động liên kết - tham chiếu đến các thông số và phạm vi bài học tại đây.`,
+    ${title(`Kế hoạch môn ${s}`, 'Kế hoạch kiểm tra, đánh giá định kỳ', `Kế hoạch kiểm tra định kỳ (Phụ lục 3 CV 5512/BGDĐT-GDTrH & TT 22/2021) môn ${s} Khối ${g}. Mọi Ma trận và Bảng đặc tả sẽ tự động liên kết - tham chiếu đến các thông số và phạm vi bài học tại đây.`,
     `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <label for="ap-grade-select" class="small muted" style="font-weight:600">Khối:</label>
       <select id="ap-grade-select" style="min-height:36px;padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;font-weight:600">${gradeOptions(g)}</select>
@@ -4348,7 +4570,7 @@ function renderAssessmentPlans() {
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
         <div>
           <h3 style="margin:0 0 4px;font-size:15px;color:#1e3a8a">📌 Nguyên tắc kiểm tra định kỳ chuẩn Bộ GD&amp;ĐT (TT 22/2021 &amp; CV 5512)</h3>
-          <p class="small muted" style="margin:0">Môn Tin học: 04 bài ĐĐGđk/năm học (Giữa HK1: hệ số 2; Cuối HK1: hệ số 3; Giữa HK2: hệ số 2; Cuối HK2: hệ số 3). Cụm Chuyên đề học tập chỉ tính 01 điểm ĐĐGtx (Điều 7.1).</p>
+          <p class="small muted" style="margin:0">Môn ${esc(s)}: 04 bài ĐĐGđk/năm học (Giữa HK1: hệ số 2; Cuối HK1: hệ số 3; Giữa HK2: hệ số 2; Cuối HK2: hệ số 3). Cụm Chuyên đề học tập chỉ tính 01 điểm ĐĐGtx (Điều 7.1).</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button type="button" class="primary" id="btn-add-assessment-plan">+ Thêm đợt kiểm tra</button>
@@ -4379,12 +4601,13 @@ function renderAssessmentPlans() {
         </table>
       </div>
     </div>
+    ${assessmentPlanImportCard(g, s)}
   `;
 
   const gSel = $('#ap-grade-select');
-  if (gSel) gSel.onchange = e => { setActiveGrade(Number(e.target.value)); };
+  if (gSel) gSel.onchange = e => { store.apImportPreview = null; setActiveGrade(Number(e.target.value)); };
   const sSel = $('#ap-subject-select');
-  if (sSel) sSel.onchange = e => { store.assessmentPlanSubject = e.target.value; setGlobalSubject(e.target.value); };
+  if (sSel) sSel.onchange = e => { store.apImportPreview = null; store.assessmentPlanSubject = e.target.value; setGlobalSubject(e.target.value); };
 
   const btnAdd = $('#btn-add-assessment-plan');
   if (btnAdd) btnAdd.onclick = () => openAssessmentPlanEditor(g, s, null);
@@ -4392,6 +4615,7 @@ function renderAssessmentPlans() {
   const btnReset = $('#btn-reset-default-assessment-plan');
   if (btnReset) btnReset.onclick = async () => {
     if (!confirm(`Khôi phục 4 đợt kiểm tra định kỳ (GK1, CK1, GK2, CK2) chuẩn GDPT 2018 cho môn ${s} Khối ${g}?`)) return;
+    if (store.apClearedKeys) store.apClearedKeys.delete(`${g}|${s}`);
     await mutate('/api/assessment-plans/reset-defaults', { grade: g, subject_name: s }, () => {
       notify(`Đã khôi phục kế hoạch KTĐG chuẩn GDPT 2018 cho Khối ${g}.`);
       renderAssessmentPlans();
@@ -4399,33 +4623,142 @@ function renderAssessmentPlans() {
   };
 
   const btnImport = $('#btn-import-assessment-plan');
-  if (btnImport) btnImport.onclick = () => openAssessmentPlanImportDialog(g, s);
+  if (btnImport) btnImport.onclick = () => {
+    const card = $('#ap-import-card');
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      card.style.boxShadow = '0 0 0 3px #93c5fd';
+      setTimeout(() => { if (card) card.style.boxShadow = ''; }, 1400);
+    }
+    $('#ap-import-file')?.focus();
+  };
 
-  $$('[data-plan-edit]').forEach(btn => {
+  document.querySelectorAll('#assessment-plans [data-plan-edit]').forEach(btn => {
     btn.onclick = () => {
       const p = plans.find(x => x.id === btn.dataset.planEdit);
       if (p) openAssessmentPlanEditor(g, s, p);
     };
   });
 
-  $$('[data-plan-delete]').forEach(btn => {
+  document.querySelectorAll('#assessment-plans [data-plan-delete]').forEach(btn => {
     btn.onclick = async () => {
       const pid = btn.dataset.planDelete;
       if (!confirm('Xóa đợt kiểm tra đánh giá này khỏi kế hoạch?')) return;
+      try {
+        await ensurePersistedAssessmentPlans(g, s);
+      } catch (err) {
+        notify(detailError(err), true);
+        return;
+      }
       await mutate('/api/assessment-plans/delete', { id: pid }, () => {
+        const remaining = (store.assessmentPlans || []).filter(p => (p.subject_name || 'Tin học') === s && Number(p.grade) === g);
+        if (remaining.length === 0) {
+          store.apClearedKeys = store.apClearedKeys || new Set();
+          store.apClearedKeys.add(`${g}|${s}`);
+        }
         notify('Đã xóa đợt kiểm tra khỏi KHKTĐG.');
         renderAssessmentPlans();
       });
     };
   });
 
-  $$('[data-plan-make-matrix]').forEach(btn => {
+  document.querySelectorAll('#assessment-plans [data-plan-make-matrix]').forEach(btn => {
     btn.onclick = () => {
       const p = plans.find(x => x.id === btn.dataset.planMakeMatrix);
       if (!p) return;
       createMatrixFromAssessmentPlan(p);
     };
   });
+
+  bindAssessmentPlanImport(g, s);
+}
+
+function bindAssessmentPlanImport(g, s) {
+  const dlExcel = $('#ap-download-excel-sample');
+  if (dlExcel) dlExcel.onclick = () => {
+    const rows = buildAssessmentPlanSampleRows(g, s);
+    const filename = `Mau_KHKTDG_Excel_${C.normalize(s).replace(/\s+/g, '_')}_Khoi_${g}_CV5512.csv`;
+    if (typeof TableFileHelper !== 'undefined' && typeof TableFileHelper.downloadCsv === 'function') {
+      TableFileHelper.downloadCsv(rows, filename);
+    } else {
+      const csv = '\uFEFF' + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+      triggerTextDownload(csv, 'text/csv;charset=utf-8', filename);
+    }
+    notify(`Đã tải mẫu Excel KHKTĐG Khối ${g}.`);
+  };
+
+  const dlJson = $('#ap-download-json-sample');
+  if (dlJson) dlJson.onclick = () => {
+    const defaults = window.BankAssessmentPlan
+      ? window.BankAssessmentPlan.buildDefaultAssessmentPlans(g, s)
+      : [];
+    const payload = { grade: g, subject_name: s, school_year: '2026-2027', assessment_plans: defaults };
+    triggerTextDownload(JSON.stringify(payload, null, 2), 'application/json;charset=utf-8', `Mau_KHKTDG_${C.normalize(s).replace(/\s+/g, '_')}_Khoi_${g}.json`);
+    notify(`Đã tải mẫu JSON KHKTĐG Khối ${g}.`);
+  };
+
+  const dlMd = $('#ap-download-md-sample');
+  if (dlMd) dlMd.onclick = () => {
+    const rows = buildAssessmentPlanSampleRows(g, s);
+    const header = '| ' + rows[0].join(' | ') + ' |';
+    const sep = '| ' + rows[0].map(() => '---').join(' | ') + ' |';
+    const body = rows.slice(1).map(r => '| ' + r.join(' | ') + ' |').join('\n');
+    const md = `# KẾ HOẠCH KIỂM TRA, ĐÁNH GIÁ ĐỊNH KỲ MÔN ${s.toLocaleUpperCase('vi')} - KHỐI ${g}\nChuẩn Phụ lục 3 CV 5512/BGDĐT-GDTrH & TT 22/2021\n\n${header}\n${sep}\n${body}\n`;
+    triggerTextDownload(md, 'text/markdown;charset=utf-8', `Mau_KHKTDG_${C.normalize(s).replace(/\s+/g, '_')}_Khoi_${g}.md`);
+    notify(`Đã tải mẫu Markdown KHKTĐG Khối ${g}.`);
+  };
+
+  const copyPromptBtn = $('#ap-copy-prompt');
+  if (copyPromptBtn) copyPromptBtn.onclick = () => {
+    const prompt = `Bạn là chuyên gia giáo vụ chuẩn Công văn 5512/BGDĐT-GDTrH và Thông tư 22/2021/TT-BGDĐT.
+Hãy trích xuất bảng Kế hoạch kiểm tra, đánh giá định kỳ (Phụ lục 3) môn ${s} Khối ${g} từ tệp Word/nội dung tôi đính kèm sang bảng Markdown (hoặc JSON) chuẩn gồm đúng các cột sau để tôi nhập vào ExamMatrix Studio:
+
+| STT | Bài kiểm tra, đánh giá | Kỳ | Thời gian (phút) | Thời điểm (Tuần) | Tiết PPCT | Hệ số | Hình thức | Phạm vi bài học | Yêu cầu cần đạt tóm tắt | Ghi chú |
+
+Quy ước bắt buộc:
+- Cột Kỳ: dùng đúng một trong các mã GK1, CK1, GK2, CK2, TX.
+- Cột Thời gian (phút): chỉ ghi số phút (ví dụ: 45 hoặc 60 hoặc 90).
+- Cột Hệ số: Giữa kì ghi 2, Cuối kì ghi 3, Thường xuyên ghi 1.
+- Cột Phạm vi bài học: liệt kê các mã bài cách nhau bằng dấu chấm phẩy (ví dụ: B1; B2; B3; B4).
+- Không bỏ sót dòng nào; giữ nguyên tên bài kiểm tra, tuần, tiết PPCT theo KHDH của tổ chuyên môn.`;
+    copyTextWithFallback(prompt, 'Đã chép Prompt AI chuyển KHKTĐG (Phụ lục 3) vào bộ nhớ tạm!');
+  };
+
+  const inspectBtn = $('#ap-import-inspect');
+  if (inspectBtn) inspectBtn.onclick = async () => {
+    try {
+      store.apImportPreview = await readAssessmentPlanImportInput(g, s);
+      renderAssessmentPlans();
+      $('#ap-import-card')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      notify(`Đã đọc ${store.apImportPreview.plans.length} đợt kiểm tra từ "${store.apImportPreview.filename}". Bấm "✅ Xác nhận nhập" để lưu.`);
+    } catch (err) {
+      notify(err.message, true);
+    }
+  };
+
+  const applyBtn = $('#ap-import-apply');
+  if (applyBtn) applyBtn.onclick = async () => {
+    const preview = store.apImportPreview;
+    if (!preview?.plans?.length) return;
+    if (store.apClearedKeys) store.apClearedKeys.delete(`${g}|${s}`);
+    await mutate('/api/assessment-plans/import', {
+      grade: g,
+      subject_name: s,
+      plans: preview.plans,
+      replace_grade: Boolean(preview.replace)
+    }, res => {
+      const cnt = (res.imported || preview.plans).length;
+      store.apImportPreview = null;
+      renderAssessmentPlans();
+      notify(`Đã nạp thành công ${cnt} đợt kiểm tra vào Kế hoạch KTĐG môn ${s} Khối ${g}!`);
+    });
+  };
+
+  const cancelBtn = $('#ap-import-cancel');
+  if (cancelBtn) cancelBtn.onclick = () => {
+    store.apImportPreview = null;
+    renderAssessmentPlans();
+  };
 }
 
 function openAssessmentPlanEditor(grade, subj, existing) {
@@ -4460,56 +4793,45 @@ function openAssessmentPlanEditor(grade, subj, existing) {
     </label>`;
   }).join('') : '<p class="small muted">Chưa có bài học PPCT cho khối này. Thầy/Cô có thể nhập phạm vi bài học thủ công ở ô mô tả bên dưới.</p>';
 
-  $('#edit-content').innerHTML = `
-    <div class="dialog-heading">
-      <h2>${existing ? 'Sửa đợt kiểm tra đánh giá' : 'Thêm đợt kiểm tra đánh giá mới'} (Khối ${g})</h2>
-      <button data-close="edit-dialog" class="quiet">Đóng</button>
-    </div>
-    <form id="form-assessment-plan" class="stack">
-      <div class="two-col">
-        <div class="field">
-          <label for="ap-form-name">Tên bài kiểm tra, đánh giá *</label>
-          <input type="text" id="ap-form-name" name="name" value="${esc(p.name)}" required placeholder="Ví dụ: Kiểm tra Đánh giá Giữa Học kỳ 1">
-        </div>
-        <div class="field">
-          <label for="ap-form-type">Kỳ kiểm tra *</label>
-          <select id="ap-form-type" name="exam_type">
-            ${Object.entries(periodNames).map(([k,v])=>opt(k,`${k} - ${v}`,k===p.exam_type)).join('')}
-          </select>
-        </div>
+  $('#edit-title').textContent = `${existing ? 'Sửa đợt kiểm tra đánh giá' : 'Thêm đợt kiểm tra đánh giá mới'} (Khối ${g})`;
+  $('#question-form').innerHTML = `
+    <div id="form-error" class="callout error" role="alert" hidden></div>
+    <div class="form-grid">
+      <div class="field span2">
+        <label for="ap-form-name">Tên bài kiểm tra, đánh giá *</label>
+        <input type="text" id="ap-form-name" name="name" value="${esc(p.name)}" required placeholder="Ví dụ: Kiểm tra Đánh giá Giữa Học kỳ 1">
       </div>
-
-      <div class="three-col">
-        <div class="field">
-          <label for="ap-form-duration">Thời gian (phút) *</label>
-          <input type="number" id="ap-form-duration" name="duration" min="15" max="180" value="${esc(p.duration || 45)}" required>
-        </div>
-        <div class="field">
-          <label for="ap-form-week">Thời điểm (Tuần)</label>
-          <input type="text" id="ap-form-week" name="week" value="${esc(p.week || '')}" placeholder="Ví dụ: Tuần 9">
-        </div>
-        <div class="field">
-          <label for="ap-form-period">Tiết PPCT</label>
-          <input type="text" id="ap-form-period" name="period" value="${esc(p.period || '')}" placeholder="Ví dụ: Tiết 9 hoặc Tiết 18">
-        </div>
-      </div>
-
-      <div class="two-col">
-        <div class="field">
-          <label for="ap-form-coef">Hệ số điểm (TT 22/2021) *</label>
-          <select id="ap-form-coef" name="coefficient">
-            <option value="2"${Number(p.coefficient)===2?' selected':''}>Hệ số 2 (ĐĐGđk Giữa kì)</option>
-            <option value="3"${Number(p.coefficient)===3?' selected':''}>Hệ số 3 (ĐĐGđk Cuối kì)</option>
-            <option value="1"${Number(p.coefficient)===1?' selected':''}>Hệ số 1 (ĐĐGtx Thường xuyên)</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="ap-form-format">Hình thức kiểm tra</label>
-          <input type="text" id="ap-form-format" name="form" value="${esc(p.form || 'Trắc nghiệm khách quan + Tự luận')}" placeholder="Ví dụ: TNKQ kết hợp TL trên máy tính">
-        </div>
-      </div>
-
       <div class="field">
+        <label for="ap-form-type">Kỳ kiểm tra *</label>
+        <select id="ap-form-type" name="exam_type">
+          ${Object.entries(periodNames).map(([k, v]) => opt(k, `${k} - ${v}`, k === p.exam_type)).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label for="ap-form-duration">Thời gian (phút) *</label>
+        <input type="number" id="ap-form-duration" name="duration" min="10" max="180" value="${esc(p.duration || 45)}" required>
+      </div>
+      <div class="field">
+        <label for="ap-form-week">Thời điểm (Tuần)</label>
+        <input type="text" id="ap-form-week" name="week" value="${esc(p.week || '')}" placeholder="Ví dụ: Tuần 9">
+      </div>
+      <div class="field">
+        <label for="ap-form-period">Tiết PPCT</label>
+        <input type="text" id="ap-form-period" name="period" value="${esc(p.period || '')}" placeholder="Ví dụ: Tiết 9 hoặc Tiết 18">
+      </div>
+      <div class="field">
+        <label for="ap-form-coef">Hệ số điểm (TT 22/2021) *</label>
+        <select id="ap-form-coef" name="coefficient">
+          <option value="2"${Number(p.coefficient) === 2 ? ' selected' : ''}>Hệ số 2 (ĐĐGđk Giữa kì)</option>
+          <option value="3"${Number(p.coefficient) === 3 ? ' selected' : ''}>Hệ số 3 (ĐĐGđk Cuối kì)</option>
+          <option value="1"${Number(p.coefficient) === 1 ? ' selected' : ''}>Hệ số 1 (ĐĐGtx Thường xuyên)</option>
+        </select>
+      </div>
+      <div class="field span2">
+        <label for="ap-form-format">Hình thức kiểm tra</label>
+        <input type="text" id="ap-form-format" name="form" value="${esc(p.form || 'Trắc nghiệm khách quan + Tự luận')}" placeholder="Ví dụ: TNKQ kết hợp TL trên máy tính">
+      </div>
+      <div class="field full">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
           <label style="margin:0;font-weight:600">Phạm vi bài học PPCT kiểm tra (Phụ lục 3 CV 5512)</label>
           <div style="display:flex;gap:6px">
@@ -4521,37 +4843,34 @@ function openAssessmentPlanEditor(grade, subj, existing) {
           ${lessonCheckboxesHtml}
         </div>
       </div>
-
-      <div class="field">
+      <div class="field full">
         <label for="ap-form-scope-desc">Tóm tắt nội dung / Yêu cầu cần đạt kiểm tra</label>
         <textarea id="ap-form-scope-desc" name="scope_description" rows="2" placeholder="Ví dụ: Chủ đề 1, 2, 3: Lịch sử máy tính, Thông tin số & Đạo đức môi trường số">${esc(p.scope_description || '')}</textarea>
       </div>
-
-      <div class="field">
+      <div class="field full">
         <label for="ap-form-notes">Ghi chú</label>
         <input type="text" id="ap-form-notes" name="notes" value="${esc(p.notes || '')}" placeholder="Ghi chú thêm (khung ma trận, hình thức nộp bài...)">
       </div>
-
-      <div class="actions" style="margin-top:12px;justify-content:flex-end">
-        <button type="button" class="quiet" data-close="edit-dialog">Hủy</button>
-        <button type="submit" class="primary">${existing ? 'Lưu cập nhật' : 'Thêm vào KHKTĐG'}</button>
-      </div>
-    </form>
+    </div>
+    <div class="dialog-bottom">
+      <button type="button" class="quiet" data-close="edit-dialog">Hủy</button>
+      <button type="submit" class="primary">${existing ? 'Lưu cập nhật' : 'Thêm vào KHKTĐG'}</button>
+    </div>
   `;
 
   $('#btn-select-all-scope')?.addEventListener('click', () => {
-    $$('input[name="scope_lesson"]').forEach(cb => { cb.checked = true; cb.closest('label').style.background = '#eff6ff'; });
+    document.querySelectorAll('#question-form input[name="scope_lesson"]').forEach(cb => { cb.checked = true; cb.closest('label').style.background = '#eff6ff'; });
   });
   $('#btn-clear-all-scope')?.addEventListener('click', () => {
-    $$('input[name="scope_lesson"]').forEach(cb => { cb.checked = false; cb.closest('label').style.background = 'transparent'; });
+    document.querySelectorAll('#question-form input[name="scope_lesson"]').forEach(cb => { cb.checked = false; cb.closest('label').style.background = 'transparent'; });
   });
-  $$('input[name="scope_lesson"]').forEach(cb => {
+  document.querySelectorAll('#question-form input[name="scope_lesson"]').forEach(cb => {
     cb.addEventListener('change', () => {
       cb.closest('label').style.background = cb.checked ? '#eff6ff' : 'transparent';
     });
   });
 
-  $('#form-assessment-plan').onsubmit = async (e) => {
+  $('#question-form').onsubmit = async e => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const selectedLessons = [...fd.getAll('scope_lesson')];
@@ -4571,143 +4890,18 @@ function openAssessmentPlanEditor(grade, subj, existing) {
       notes: String(fd.get('notes') || '').trim()
     };
 
+    try {
+      await ensurePersistedAssessmentPlans(g, s);
+    } catch (err) {
+      notify(detailError(err), true);
+      return;
+    }
+    if (store.apClearedKeys) store.apClearedKeys.delete(`${g}|${s}`);
     await mutate('/api/assessment-plans/save', { plan: payload }, () => {
       $('#edit-dialog').close();
       renderAssessmentPlans();
       notify(`Đã lưu đợt kiểm tra "${payload.name}" vào KHKTĐG.`);
     });
-  };
-
-  $('#edit-dialog').showModal();
-}
-
-function openAssessmentPlanImportDialog(grade, subj) {
-  const g = Number(grade || effectiveGrade());
-  const s = subj || store.assessmentPlanSubject || 'Tin học';
-
-  $('#edit-content').innerHTML = `
-    <div class="dialog-heading">
-      <h2>📥 Nạp Kế hoạch kiểm tra, đánh giá Khối ${g} (Phụ lục 3 CV 5512)</h2>
-      <button data-close="edit-dialog" class="quiet">Đóng</button>
-    </div>
-    <div class="stack" style="gap:14px">
-      <p class="small muted">
-        Hỗ trợ nạp tệp Excel (.xlsx, .xls), CSV, Word (.docx) hoặc dán bảng KHKTĐG theo mẫu Phụ lục 3 Công văn 5512/BGDĐT-GDTrH.
-      </p>
-
-      <div class="field">
-        <label for="ap-file-input">Chọn tệp dữ liệu KHKTĐG (.xlsx, .csv, .json, .docx)</label>
-        <input type="file" id="ap-file-input" accept=".xlsx,.xls,.csv,.json,.docx,.txt">
-      </div>
-
-      <div class="field">
-        <label for="ap-text-input">Hoặc dán nội dung bảng KHKTĐG (TSV, CSV, Markdown, JSON):</label>
-        <textarea id="ap-text-input" rows="6" placeholder="Bài kiểm tra, đánh giá | Thời gian | Thời điểm | Yêu cầu cần đạt | Hình thức&#10;Kiểm tra giữa kì 1 | 45 phút | Tuần 9 | B1, B2, B3, B4, B5, B6 | TNKQ + TL"></textarea>
-      </div>
-
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <button type="button" class="quiet small" id="btn-download-ap-template">⬇ Tải tệp mẫu KHKTĐG (.csv)</button>
-        <div style="display:flex;gap:8px">
-          <button type="button" class="quiet" data-close="edit-dialog">Hủy</button>
-          <button type="button" class="primary" id="btn-process-ap-import">Bắt đầu nạp</button>
-        </div>
-      </div>
-    </div>
-  `;
-
-  $('#btn-download-ap-template').onclick = () => {
-    const csvContent = "\uFEFF" +
-      "STT,Bài kiểm tra đánh giá,Thời gian (phút),Thời điểm (Tuần),Tiết PPCT,Hệ số,Hình thức,Phạm vi bài học,Yêu cầu cần đạt tóm tắt,Ghi chú\n" +
-      "1,Kiểm tra Đánh giá Giữa Học kỳ 1,45,Tuần 9,Tiết 9,2,Trắc nghiệm khách quan (70%) + Tự luận (30%),B1; B2; B3; B4; B5; B6,Chủ đề 1 2 3,ĐĐGđk hệ số 2 TT 22/2021\n" +
-      "2,Kiểm tra Đánh giá Cuối Học kỳ 1,45,Tuần 18,Tiết 18,3,Trắc nghiệm khách quan (70%) + Tự luận (30%),B1; B2; B3; B4; B5; B6; B7; B8; B9; B10; B11; B12; B13,Toàn bộ HK1,ĐĐGđk hệ số 3 TT 22/2021\n" +
-      "3,Kiểm tra Đánh giá Giữa Học kỳ 2,45,Tuần 27,Tiết 27,2,Trắc nghiệm khách quan (70%) + Tự luận (30%),B14; B15; B16,Chủ đề 5 Lập trình Scratch,ĐĐGđk hệ số 2 TT 22/2021\n" +
-      "4,Kiểm tra Đánh giá Cuối Học kỳ 2,45,Tuần 35,Tiết 35,3,Trắc nghiệm khách quan (70%) + Tự luận (30%),B14; B15; B16; B17; B18; B19; B20; B21,Toàn bộ HK2,ĐĐGđk hệ số 3 TT 22/2021\n";
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Ke_hoach_KTDG_Khoi_${g}_Mau_CV5512.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  $('#btn-process-ap-import').onclick = async () => {
-    const fileInput = $('#ap-file-input');
-    const textInput = $('#ap-text-input');
-    const text = textInput ? textInput.value.trim() : '';
-
-    if (fileInput && fileInput.files && fileInput.files.length > 0) {
-      const file = fileInput.files[0];
-      const fileName = file.name.toLowerCase();
-      try {
-        if (fileName.endsWith('.json')) {
-          const rawText = await file.text();
-          const parsed = JSON.parse(rawText);
-          const plans = Array.isArray(parsed) ? parsed : (parsed.assessment_plans || parsed.plans || []);
-          await mutate('/api/assessment-plans/import', { grade: g, subject_name: s, plans }, () => {
-            $('#edit-dialog').close();
-            renderAssessmentPlans();
-            notify(`Đã nạp thành công ${plans.length} đợt kiểm tra từ tệp JSON!`);
-          });
-          return;
-        } else if (fileName.endsWith('.csv') || fileName.endsWith('.txt')) {
-          const rawText = await file.text();
-          const rows = rawText.split('\n').map(line => {
-            if (line.includes('\t')) return line.split('\t').map(c => c.trim().replace(/^"|"$/g, ''));
-            return line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-          }).filter(r => r.length > 1);
-          await mutate('/api/assessment-plans/import', { grade: g, subject_name: s, rows }, () => {
-            $('#edit-dialog').close();
-            renderAssessmentPlans();
-            notify(`Đã nạp thành công ${rows.length - 1} đợt kiểm tra từ tệp CSV!`);
-          });
-          return;
-        } else if (window.TableFileHelper && typeof window.TableFileHelper.parseTableFile === 'function') {
-          const parsed = await window.TableFileHelper.parseTableFile(file);
-          const rows = parsed.rows || [];
-          await mutate('/api/assessment-plans/import', { grade: g, subject_name: s, rows }, () => {
-            $('#edit-dialog').close();
-            renderAssessmentPlans();
-            notify(`Đã nạp thành công kế hoạch kiểm tra từ tệp bảng tính!`);
-          });
-          return;
-        }
-      } catch (err) {
-        notify('Lỗi nạp tệp: ' + err.message, true);
-        return;
-      }
-    }
-
-    if (text) {
-      try {
-        if (text.startsWith('[') || text.startsWith('{')) {
-          const parsed = JSON.parse(text);
-          const plans = Array.isArray(parsed) ? parsed : (parsed.assessment_plans || parsed.plans || []);
-          await mutate('/api/assessment-plans/import', { grade: g, subject_name: s, plans }, () => {
-            $('#edit-dialog').close();
-            renderAssessmentPlans();
-            notify(`Đã nạp thành công ${plans.length} đợt kiểm tra!`);
-          });
-          return;
-        }
-        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-        const rows = lines.map(line => {
-          if (line.includes('|')) return line.split('|').map(c => c.trim()).filter(Boolean);
-          if (line.includes('\t')) return line.split('\t').map(c => c.trim());
-          return line.split(',').map(c => c.trim());
-        });
-        await mutate('/api/assessment-plans/import', { grade: g, subject_name: s, rows }, () => {
-          $('#edit-dialog').close();
-          renderAssessmentPlans();
-          notify(`Đã nạp thành công đợt kiểm tra từ dữ liệu bảng!`);
-        });
-      } catch (err) {
-        notify('Lỗi xử lý dữ liệu: ' + err.message, true);
-      }
-      return;
-    }
-
-    notify('Vui lòng chọn tệp hoặc dán nội dung bảng KHKTĐG.', true);
   };
 
   $('#edit-dialog').showModal();

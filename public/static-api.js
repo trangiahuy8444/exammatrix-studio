@@ -991,17 +991,17 @@
    }
    const validation=engine.validateMatrix(matrix,ppct);return result({matrix,validation,ppct_differences:validation.errors||[]});}
   if(path==='/api/assessment-plans'||path==='/api/assessment-plans/list'){
-   const g=p.grade?Number(p.grade):null;
-   let list=(data.assessment_plans||[]).filter(plan=>(plan.subject_name||'Tin học')===subject);
+   const g=p.grade?Number(p.grade):null,targetSubj=String(p.subject_name||subject||'Tin học').trim();
+   let list=(data.assessment_plans||[]).filter(plan=>(plan.subject_name||'Tin học')===targetSubj);
    if(g)list=list.filter(plan=>Number(plan.grade)===g);
    return result({assessment_plans:list});
   }
   if(path==='/api/assessment-plans/save'){
    const raw=clone(p.plan||{});
    if(!raw.name?.trim())fail('Tên đợt kiểm tra đánh giá không được để trống.');
-   const grade=Number(raw.grade||p.grade||8);
+   const grade=Number(raw.grade||p.grade||8),targetSubj=String(raw.subject_name||p.subject_name||subject||'Tin học').trim();
    const planModel=root.BankAssessmentPlan||(typeof require==='function'?require('./assessment-plan-model.js'):null);
-   const normalized=planModel?planModel.normalizePlan(raw,grade,subject):{id:raw.id||id('AP'),grade,subject_name:subject,...raw};
+   const normalized=planModel?planModel.normalizePlan(raw,grade,targetSubj):{id:raw.id||id('AP'),grade,subject_name:targetSubj,...raw};
    put(data.assessment_plans,normalized);
    return result({plan:normalized,assessment_plans:data.assessment_plans},true);
   }
@@ -1012,21 +1012,25 @@
    return result({success:true,assessment_plans:data.assessment_plans},true);
   }
   if(path==='/api/assessment-plans/reset-defaults'){
-   const grade=Number(p.grade||8);
+   const grade=Number(p.grade||8),targetSubj=String(p.subject_name||subject||'Tin học').trim();
    const planModel=root.BankAssessmentPlan||(typeof require==='function'?require('./assessment-plan-model.js'):null);
    if(!planModel)fail('Chưa nạp bộ định nghĩa KHKTĐG.',503);
-   const defaults=planModel.buildDefaultAssessmentPlans(grade,subject);
-   data.assessment_plans=[...(data.assessment_plans||[]).filter(ap=>Number(ap.grade)!==grade||(ap.subject_name||'Tin học')!==subject),...defaults];
+   const defaults=planModel.buildDefaultAssessmentPlans(grade,targetSubj);
+   data.assessment_plans=[...(data.assessment_plans||[]).filter(ap=>Number(ap.grade)!==grade||(ap.subject_name||'Tin học')!==targetSubj),...defaults];
    return result({success:true,assessment_plans:data.assessment_plans,defaults},true);
   }
   if(path==='/api/assessment-plans/import'){
    const planModel=root.BankAssessmentPlan||(typeof require==='function'?require('./assessment-plan-model.js'):null);
    if(!planModel)fail('Chưa nạp bộ định nghĩa KHKTĐG.',503);
-   const grade=Number(p.grade||8);
+   const grade=Number(p.grade||8),targetSubj=String(p.subject_name||subject||'Tin học').trim();
    let imported=[];
-   if(Array.isArray(p.plans)){imported=p.plans.map(raw=>planModel.normalizePlan(raw,grade,subject));}
-   else if(Array.isArray(p.rows)){imported=planModel.parseAssessmentPlansFromRows(p.rows,grade,subject);}
+   if(Array.isArray(p.plans)){imported=p.plans.map(raw=>planModel.normalizePlan(raw,grade,targetSubj)).filter(Boolean);}
+   else if(Array.isArray(p.rows)){imported=planModel.parseAssessmentPlansFromRows(p.rows,grade,targetSubj).filter(Boolean);}
    else{fail('Thiếu danh sách kế hoạch (plans hoặc rows).');}
+   if(!imported.length)fail('Không tìm thấy đợt kiểm tra hợp lệ trong dữ liệu nạp.');
+   if(p.replace_grade===true){
+    data.assessment_plans=(data.assessment_plans||[]).filter(ap=>!(Number(ap.grade)===grade&&(ap.subject_name||'Tin học')===targetSubj));
+   }
    imported.forEach(plan=>put(data.assessment_plans,plan));
    return result({success:true,imported,assessment_plans:data.assessment_plans},true);
   }

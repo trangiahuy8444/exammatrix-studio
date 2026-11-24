@@ -139,4 +139,57 @@ test('static-api handles /api/assessment-plans endpoints successfully', async ()
   const delRes = await staticApi.handle('/api/assessment-plans/delete', { id: savedId }, saveRes.data, env);
   assert.ok(delRes.changed);
   assert.equal(delRes.data.assessment_plans.length, 4);
+
+  // 5. Import replace_grade preserves other grades/subjects and replaces current grade cleanly
+  const grade9Seed = await staticApi.handle('/api/assessment-plans/reset-defaults', { grade: 9, subject_name: 'Tin học' }, delRes.data, env);
+  assert.equal(grade9Seed.data.assessment_plans.length, 8);
+  const impRes = await staticApi.handle('/api/assessment-plans/import', {
+    grade: 8,
+    subject_name: 'Tin học',
+    replace_grade: true,
+    rows: [
+      ['STT', 'Bài kiểm tra, đánh giá', 'Thời gian', 'Thời điểm (Tuần)', 'Tiết PPCT', 'Hệ số', 'Hình thức', 'Phạm vi bài học', 'Yêu cầu cần đạt tóm tắt', 'Ghi chú'],
+      ['---', '---', '---', '---', '---', '---', '---', '---', '---', '---'],
+      ['1', 'Kiểm tra Giữa Học kỳ 1', '45 phút', 'Tuần 9', 'Tiết 9', '2', 'TNKQ + TL', 'B1; B2; B3', 'Chủ đề 1 & 2', 'Theo TT 22'],
+      ['2', 'Kiểm tra Cuối Học kỳ 1', '60 phút', 'Tuần 18', 'Tiết 18', '3', 'TNKQ + TL', 'B1; B2; B3; B4; B5', 'Toàn bộ HK1', 'Theo TT 22']
+    ]
+  }, grade9Seed.data, env);
+  assert.ok(impRes.changed);
+  assert.equal(impRes.response.imported.length, 2);
+  const k8After = impRes.data.assessment_plans.filter(p => p.grade === 8);
+  const k9After = impRes.data.assessment_plans.filter(p => p.grade === 9);
+  assert.equal(k8After.length, 2, 'Thay thế KHKTĐG Khối 8 thành 2 mốc mới');
+  assert.equal(k9After.length, 4, 'Giữ nguyên 4 mốc Khối 9');
+  assert.equal(k8After[1].exam_type, 'CK1');
+  assert.equal(k8After[1].duration, 60);
+  assert.equal(k8After[1].coefficient, 3);
+  assert.equal(k8After[0].scope_description, 'Chủ đề 1 & 2');
+});
+
+test('assessment-plan-model parses Markdown rows with kì/kỳ spelling and STT column', () => {
+  const rows = [
+    ['STT', 'Bài kiểm tra, đánh giá', 'Thời gian (phút)', 'Thời điểm (Tuần)', 'Hệ số', 'Hình thức', 'Phạm vi bài học', 'Yêu cầu cần đạt'],
+    ['---', '---', '---', '---', '---', '---', '---', '---'],
+    ['1', 'Kiểm tra Đánh giá Cuối Học kỳ 1', '45', 'Tuần 18', '3', 'Trắc nghiệm + Tự luận', 'B1; B2; B3; B4', 'Tổng hợp kiến thức HK1'],
+    ['2', 'Kiểm tra Đánh giá Giữa Học kỳ 2', '45', 'Tuần 27', '2', 'Thực hành', 'B5; B6', 'Kiến thức giữa HK2']
+  ];
+  const parsed = planModel.parseAssessmentPlansFromRows(rows, 9, 'Tin học');
+  assert.equal(parsed.length, 2);
+  assert.equal(parsed[0].exam_type, 'CK1');
+  assert.equal(parsed[0].coefficient, 3);
+  assert.deepEqual(parsed[0].scope_lessons, ['B1', 'B2', 'B3', 'B4']);
+  assert.equal(parsed[0].scope_description, 'Tổng hợp kiến thức HK1');
+  assert.equal(parsed[1].exam_type, 'GK2');
+  assert.equal(parsed[1].coefficient, 2);
+});
+
+test('app.js assessment-plans UI has no invalid $$ or #edit-content selectors and includes import helpers', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const appSource = fs.readFileSync(path.join(__dirname, '../public/app.js'), 'utf8');
+  assert.equal(/\$\$\s*\(/.test(appSource), false, 'app.js must never call undefined $$()');
+  assert.equal(appSource.includes('#edit-content'), false, 'app.js must not reference non-existent #edit-content');
+  for (const id of ['ap-import-card', 'ap-download-excel-sample', 'ap-download-json-sample', 'ap-download-md-sample', 'ap-copy-prompt', 'ap-import-inspect', 'ap-import-apply']) {
+    assert.ok(appSource.includes(id), `app.js missing UI element #${id}`);
+  }
 });

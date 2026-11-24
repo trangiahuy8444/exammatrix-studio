@@ -914,3 +914,15 @@ nav a[aria-current=page] {
     grid-template-columns: 1fr;
   }
 }
+
+/* Bản đồ tri thức (knowledge-ui.js) */
+.kg-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:12px}
+.kg-stat{text-align:center;padding:12px}
+.kg-num{font-size:1.8rem;font-weight:700;color:var(--navy,#102d4a)}
+.kg-findings{list-style:none;padding:0;margin:8px 0;display:grid;gap:6px}
+.kg-findings li{padding:8px 10px;border-radius:6px;border-left:4px solid #94a3b8;background:#f8fafc}
+.kg-findings li.kg-error{border-left-color:#c2410c;background:#fff7ed}
+.kg-findings li.kg-warning{border-left-color:#ca8a04;background:#fefce8}
+.kg-why{white-space:pre-wrap;font-size:.85rem;margin:6px 0 0;background:#fff;border:1px solid var(--line,#e2e8f0);padding:8px;border-radius:4px}
+.kg-coverage td.kg-zero{background:#fde2e1;font-weight:700}
+.kg-order li{margin:2px 0}

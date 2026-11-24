@@ -806,6 +806,13 @@ function syncEditedQuestionsFromSheet(sheet,record){
         'Đánh dấu hoạt động được chọn để ghi nhận đầu điểm; điểm quy đổi về thang 10 và làm tròn đến số nguyên.'],
       tips:['Khối THPT có thể ghi nhận kết quả cụm chuyên đề học tập như 1 đầu điểm ĐĐGtx (Điều 6.3).',
         'Tổng quan chỉ cảnh báo khi thiếu đầu điểm, không chặn thao tác.']},
+    knowledge:{title:'Bản đồ tri thức',purpose:'Nối PPCT, yêu cầu cần đạt, năng lực, câu hỏi, đề cương và đề thành một mạng quan hệ để tìm chỗ thiếu, chỗ trùng và kiểm tra đề theo kho luật có giải thích.',
+      steps:['Chọn khối, có thể nhập "Kiểm tra đến hết tuần" để biết bài nào chưa học tới.',
+        'Bấm "Phân tích": xem câu mồ côi (bài hoặc YCCĐ không có trong PPCT), YCCĐ chưa có câu đã duyệt, bảng phủ YCCĐ × mức độ và các câu gần trùng.',
+        'Xem thứ tự ôn theo bài tiền đề; ghi "Bài tiền đề" cho từng bài ở màn hình Phân phối chương trình.',
+        'Chọn một đề đã lưu rồi bấm "Kiểm tra theo kho luật": mỗi vi phạm có nút "Vì sao?" nêu luật, chuỗi suy luận và căn cứ văn bản.'],
+      tips:['Màn hình chỉ đọc, không thay đổi dữ liệu.',
+        'Kho luật chạy song song với kiểm định hiện có; quyết định duyệt đề vẫn theo kiểm định hiện có.']},
   };
   function screenGuide(tab){
     const g=SCREEN_GUIDES[tab]||SCREEN_GUIDES.overview;

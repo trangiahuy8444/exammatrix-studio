@@ -1,6 +1,18 @@
 # Kế hoạch áp dụng đồ thị tri thức và hệ cơ sở tri thức — 24/11/2026
 
-> Trạng thái: **đề xuất, chưa triển khai.** Mỗi giai đoạn cần giáo viên đồng ý trước khi làm. Không giai đoạn nào được làm trước khi xong Giai đoạn 0.
+> Trạng thái (24/11/2026): giáo viên yêu cầu triển khai và tự chuyển giai đoạn. **Đã triển khai Giai đoạn 1–5 dạng mô-đun mới, chỉ đọc hoặc chạy song song**, không đổi cách lưu dữ liệu và chưa thay quyết định duyệt đề của mã cũ. Giai đoạn 0 làm một phần (xem bảng dưới).
+>
+> | Giai đoạn | Trạng thái | Tệp |
+> | :--- | :--- | :--- |
+> | 0 | Một phần: đã chặn ghi đè hai máy (`4ec7e56`), gom về một nhánh, một kho. **Chưa** gỡ 3 nhánh lưu cũ (nhiều bộ kiểm thử còn dựa vào chúng; trang thật không dùng), **chưa** thử bằng tài khoản Google thật | — |
+> | 1 | Đã làm: dựng đồ thị tự động, kiểm câu mồ côi | `public/knowledge-graph.js` |
+> | 2 | Đã làm: 23 luật (6 suy ra, 12 chặn, 5 cảnh báo) có căn cứ; chạy song song `verifyExam`, khớp kết luận trên 9 kịch bản | `public/knowledge-rules.js` |
+> | 3 | Đã làm: trường "Bài tiền đề" trong PPCT, thứ tự ôn, cảnh báo bài chưa học theo tuần | `knowledge-graph.js`, `knowledge-rules.js`, `app.js`, `firebase-bridge.js` |
+> | 4 | Đã làm: bảng phủ YCCĐ × mức độ, nhóm câu gần trùng, gợi ý câu cho ô thiếu (hàm `suggestForCell`, chưa nối vào màn hình ma trận) | `knowledge-graph.js`, `knowledge-ui.js` |
+> | 5 | Đã làm: lời nhắc AI kèm ngữ cảnh tri thức; cảnh báo câu nhập lệch PPCT trong hộp xem trước | `table-file-helper.js`, `app.js` |
+>
+> Giao diện: mục **"🧠 Bản đồ tri thức"** (chỉ đọc) và phần **"Vì sao?"** trong báo cáo kiểm định đề. Kiểm thử: `tests/static_knowledge_graph.test.cjs`, `tests/static_knowledge_rules.test.cjs`.
+> Bước tiếp theo cần giáo viên: dùng thử trên dữ liệu thật, tổ xác nhận danh sách luật và căn cứ; sau đó mới cho kho luật thay mã kiểm định cũ.
 > Phạm vi: chỉ bản GitHub Pages (quyết định 24/11/2026, `BOI_CANH.md` mục 4). Mọi thứ chạy trong trình duyệt và lưu cùng chỗ với dữ liệu hiện có (Firestore + Google Drive của giáo viên). Không dùng máy chủ đồ thị (Neo4j…).
 > Phân biệt: thư mục `graphify-out/` là đồ thị **mã nguồn** cho lập trình. Tài liệu này nói về đồ thị tri thức **môn học và quy tắc kiểm tra đánh giá**.
 

@@ -9,7 +9,7 @@
  function draft(record,prefix){const r=clone(record);for(const k of ['approved_hash','approved_by','approved_at','locked_at','published_at','published_by','locked_by','usage','lifecycle','verification','exam_set','parent_exam_id'])delete r[k];r.id=id(prefix);r.status='drafting';r.created_at=now();return r;}
  // Thông tin bộ đề giống bản Python (bank_service.generate_exam_set): id, title, revision_id, exam_ids, created_at, index, count.
  function stampExamSet(exams,{id,title,revision_id}){const exam_ids=exams.map(e=>e.id),created_at=new Date().toISOString();exams.forEach((e,i)=>{e.exam_set={id,title,revision_id,exam_ids,created_at,index:i+1,count:exams.length};});}
- function canHandle(path){return /^\/api\/(exams|revisions|questions|matrices|assessment-plans)(\/|$)/.test(path)||['/api/bank/import','/api/bank/save','/api/bank/save-question','/api/bank/delete-question','/api/ppct/clear-grade','/api/ppct/restore-grade'].includes(path);}
+ function canHandle(path){return /^\/api\/(exams|revisions|questions|matrices|assessment-plans|knowledge)(\/|$)/.test(path)||['/api/bank/import','/api/bank/save','/api/bank/save-question','/api/bank/delete-question','/api/ppct/clear-grade','/api/ppct/restore-grade'].includes(path);}
  async function handle(path,body,input,env={}){
   const data=clone(input),p=body||{},engine=env.engine||root.BankStaticEngine,workflow=env.workflow||root.BankStaticWorkflow;
   if(!engine||!workflow)fail('Bộ xử lý ra đề chưa nạp xong. Vui lòng tải lại trang.',503);
@@ -291,7 +291,9 @@
   };
   function checkedMatrix(key){return normalizeMatrixSlots(own(find(data.matrices,key)));}
   function revisionFor(exam){return exam.revision_id?own(find(data.revisions,exam.revision_id)):null;}
-  function verification(exam){return engine.verifyExam(data,exam);}
+  // Kho luật tri thức (Giai đoạn 2) chạy song song mã kiểm định cũ: chỉ bổ sung giải thích, chưa thay quyết định duyệt.
+  function knowledgeLibs(){const g=env.knowledgeGraph||root.BankKnowledgeGraph||(typeof require==='function'?require('./knowledge-graph.js'):null);const r=env.knowledgeRules||root.BankKnowledgeRules||(typeof require==='function'?require('./knowledge-rules.js'):null);return {g,r};}
+  function verification(exam){const v=engine.verifyExam(data,exam);const {r}=knowledgeLibs();if(r){try{v.knowledge=r.checkExam(data,exam,{scopeWeek:exam.scope_week});}catch(err){v.knowledge={error:'Chưa chạy được kho luật: '+(err&&err.message||err)};}}return v;}
   async function refreshIntegrity(exam){exam.snapshot_integrity=await workflow.contentHash({questions:exam.questions,matrix:exam.matrix_snapshot||null,blueprint:exam.blueprint,revision:exam.revision_snapshot,ppct:exam.ppct_snapshot});}
   async function transition(exam,action){
    own(exam);
@@ -860,6 +862,17 @@
    if(members.length!==members[0].exam_set.count)fail('Bộ đề thiếu thành viên; không chuyển trạng thái một phần.',409);
    const changed=[];for(const e of members)changed.push(await transition(e,p.action));changed.forEach(e=>put(data.exams,e));
    return result({exams:changed,exams_all:data.exams},true);
+  }
+  if(path==='/api/knowledge/overview'||path==='/api/knowledge/lesson-context'||path==='/api/knowledge/rules'||path==='/api/knowledge/check-exam'){
+   const {g:KG,r:KR}=knowledgeLibs();if(!KG||!KR)fail('Chưa nạp mô-đun đồ thị tri thức. Vui lòng tải lại trang.',503);
+   if(path==='/api/knowledge/rules')return result({rules:KR.describeRules()});
+   const graph=KG.buildGraph(data,{subject});
+   if(path==='/api/knowledge/lesson-context'){const ctx=KG.lessonContext(graph,subject,p.grade,p.lesson_code);if(!ctx)fail('Không tìm thấy bài trong PPCT.',404);return result({context:ctx});}
+   if(path==='/api/knowledge/check-exam'){const exam=own(find(data.exams,p.id));const w=Number(p.scope_week);return result({report:KR.checkExam(data,exam,Number.isInteger(w)&&w>0?{scopeWeek:w}:{})});}
+   const grade=p.grade===undefined||p.grade===null||p.grade===''?undefined:Number(p.grade);
+   const opt=grade===undefined?{}:{grade};const qs=bank.filter(q=>q&&(grade===undefined||Number(q.grade)===grade)&&String(q.subject_name||'Tin học').normalize('NFC').trim().toLowerCase()===String(subject).normalize('NFC').trim().toLowerCase());
+   const week=Number(p.scope_week);
+   return result({summary:KG.summary(graph),issues:KG.validateGraph(graph,opt),coverage:KG.coverage(graph,opt),duplicates:KG.nearDuplicateGroups(graph,qs,{...opt,threshold:p.threshold??0.8}),study_order:KG.studyOrder(graph,opt),after_week:grade!==undefined&&Number.isInteger(week)&&week>0?KG.lessonsAfterWeek(graph,grade,week,subject):[]});
   }
   if(path==='/api/exams/verify'){
    const exam=own(find(data.exams,p.id));workflow.assertEditable(exam);

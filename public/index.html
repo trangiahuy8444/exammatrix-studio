@@ -10,31 +10,34 @@
   <meta property="og:description" content="Hệ thống quản lý Ma trận, Bảng đặc tả, Đề cương và Đề thi chuẩn Thông tư Bộ GD&ĐT">
   <meta property="og:type" content="website">
   <title>ExamMatrix Studio · Khảo thí & Đánh giá</title>
-  <link rel="stylesheet" href="./styles.css?v=20261124h">
+  <link rel="stylesheet" href="./styles.css?v=20261124k">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-  <script src="./core.js?v=20261124h" defer></script>
+  <script src="./core.js?v=20261124k" defer></script>
   <script src="./exam-comparison.js?v=20261124h" defer></script>
   <script src="./competency-catalog.js?v=20261124h" defer></script>
   <script src="./competency-catalog-ui.js?v=20261124h" defer></script>
   <script src="./static-exam-engine.js?v=20261124h" defer></script>
   <script src="./static-exam-workflow.js?v=20261124h" defer></script>
   <script src="./static-exam-export.js?v=20261124h" defer></script>
-  <script src="./static-api.js?v=20261124h" defer></script>
+  <script src="./knowledge-graph.js?v=20261124k" defer></script>
+  <script src="./knowledge-rules.js?v=20261124k" defer></script>
+  <script src="./static-api.js?v=20261124k" defer></script>
   <script src="./static-download.js?v=20261124h" defer></script>
   <link rel="stylesheet" href="./matrices.css?v=20261124h">
   <script src="./assessment-plan-model.js?v=20261124h" defer></script>
-  <script src="./table-file-helper.js?v=20261124h" defer></script>
+  <script src="./table-file-helper.js?v=20261124k" defer></script>
   <script src="./matrices.js?v=20261124h" defer></script>
   <script src="./curricula.js?v=20261124h" defer></script>
   <script src="./firebase-config.js?v=20261124h" defer></script>
   <script src="./google-drive-config.js?v=20261124h" defer></script>
   <script src="./google-drive-storage.js?v=20261124h" defer></script>
   <script src="./cloud-storage-v2.js?v=20261124h" defer></script>
-  <script src="./firebase-bridge.js?v=20261124h" defer></script>
+  <script src="./firebase-bridge.js?v=20261124k" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" defer></script>
-  <script src="./app.js?v=20261124h" defer></script>
+  <script src="./app.js?v=20261124k" defer></script>
+  <script src="./knowledge-ui.js?v=20261124k" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Đến nội dung chính</a>
@@ -60,6 +63,7 @@
     <a href="#matrices" data-tab="matrices" title="Ma trận & đặc tả"><span class="nav-icon">📐</span><span class="nav-label">Ma trận & đặc tả</span></a>
     <a href="#exams" data-tab="exams" title="Tạo đề kiểm tra"><span class="nav-icon">📑</span><span class="nav-label">Tạo đề kiểm tra</span></a>
     <a href="#kttx" data-tab="kttx" title="Kiểm tra thường xuyên"><span class="nav-icon">🎯</span><span class="nav-label">Kiểm tra thường xuyên</span></a>
+    <a href="#knowledge" data-tab="knowledge" title="Bản đồ tri thức"><span class="nav-icon">🧠</span><span class="nav-label">Bản đồ tri thức</span></a>
   </nav>
   <div class="sidebar-foot"><span class="local-dot"></span> Lưu trữ trực tuyến<p>Tự động đồng bộ và sao lưu độc lập theo từng Khối lớp trên Google Drive.</p></div>
 </aside>
@@ -147,6 +151,7 @@
   <section id="matrices" class="view" hidden></section>
   <section id="exams" class="view" hidden></section>
   <section id="kttx" class="view" hidden></section>
+  <section id="knowledge" class="view" hidden></section>
 </main>
 <footer id="page-footer">Hệ thống Ngân hàng đề & Khảo thí · Môn <span id="footer-subject-name" style="font-weight:bold">Tin học</span> <span>Asian School · Năm học 2026–2027</span></footer>
 </div>

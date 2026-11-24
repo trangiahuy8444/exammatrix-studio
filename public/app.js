@@ -627,16 +627,16 @@ async function load(initial=false){
  finally{$('#refresh').disabled=false;}
 }
 function switchTab(tab){
- store.tab=['overview','bank','review','ppct','assessment-plans','revisions','matrices','exams','kttx'].includes(tab)?tab:'overview';
+ store.tab=['overview','bank','review','ppct','assessment-plans','revisions','matrices','exams','kttx','knowledge'].includes(tab)?tab:'overview';
  document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==store.tab);
  document.querySelectorAll('[data-tab]').forEach(a=>{if(a.dataset.tab===store.tab)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
- const tabLabels={overview:'Tổng quan',bank:'Ngân hàng câu hỏi',review:'Duyệt câu hỏi',ppct:'Phân phối chương trình','assessment-plans':'Kế hoạch KTĐG',revisions:'Đề cương ôn tập',matrices:'Ma trận & đặc tả',exams:'Tạo đề kiểm tra',kttx:'Kiểm tra thường xuyên'};
+ const tabLabels={knowledge:'Bản đồ tri thức',overview:'Tổng quan',bank:'Ngân hàng câu hỏi',review:'Duyệt câu hỏi',ppct:'Phân phối chương trình','assessment-plans':'Kế hoạch KTĐG',revisions:'Đề cương ôn tập',matrices:'Ma trận & đặc tả',exams:'Tạo đề kiểm tra',kttx:'Kiểm tra thường xuyên'};
  const curEl=document.getElementById('current-tab-label');if(curEl)curEl.textContent=tabLabels[store.tab]||'Khảo thí';
  if(store.bank)renderCurrent();
 }
 function render(){switchTab(location.hash.slice(1)||store.tab);}
 function renderCurrent(){
- ({overview:renderOverview,bank:renderBank,review:renderReview,ppct:renderPPCT,'assessment-plans':renderAssessmentPlans,revisions:renderRevisions,exams:renderExams,kttx:renderKttx,matrices:renderMatrices}[store.tab])();
+ ({overview:renderOverview,bank:renderBank,review:renderReview,ppct:renderPPCT,'assessment-plans':renderAssessmentPlans,revisions:renderRevisions,exams:renderExams,kttx:renderKttx,matrices:renderMatrices,knowledge:()=>{if(typeof window.renderKnowledge==='function')window.renderKnowledge();}}[store.tab])();
  setTimeout(() => renderLatex(), 40);
 }
 function renderReview(){
@@ -1132,7 +1132,8 @@ ${commonEs}`;
             outcomes: outcomes,
             part: selectedPart,
             outputFormat: selectedFormat,
-            count: Number(selectedCount) || 4
+            count: Number(selectedCount) || 4,
+            knowledge: (() => { try { const KG = window.BankKnowledgeGraph; return KG ? KG.lessonContext(KG.buildGraph({ bank: store.bank }, { subject: subj }), subj, curGrade, l.lesson_code) : null; } catch (e) { return null; } })()
           });
           const previewEl = $('#ai-prompt-preview-text');
           if (previewEl) previewEl.value = prompt;
@@ -2212,7 +2213,7 @@ function shortQuestionHtml(q,index,showAnswer=false){
  return `<article class="doc-question" data-edit-qid="${esc(q.id||'')}"><div class="doc-question-heading" style="margin:0 0 8px;font-size:17px"><strong>Câu ${number} (${fmtPts(points)} điểm).</strong> ${C.questionTextHtml(q.question,{editable:true})}</div>${showAnswer?`<p contenteditable="false"><strong>Đáp án:</strong> ${esc(C.shortAnswerOf(q)||'Chưa có đáp án')}</p>`:'<p contenteditable="false">Trả lời: ................................................................</p>'}</article>`;
 }
 function buildExamSheetHtml(record,mode='student'){
- if(mode==='verify')return buildVerificationReportHtml(record)+revisionCriterionHtml(record)+cellReportHtml(record.verification);
+ if(mode==='verify')return buildVerificationReportHtml(record)+revisionCriterionHtml(record)+cellReportHtml(record.verification)+(window.BankKnowledgeUI?window.BankKnowledgeUI.verificationHtml(record):'');
  const mcs=(record.questions||[]).filter(q=>q.type==='MC');
  const yns=(record.questions||[]).filter(q=>q.type==='YN');
  const shorts=(record.questions||[]).filter(q=>q.type==='SHORT');
@@ -2698,8 +2699,12 @@ function openImportDedupDialog({ filename, questions, grade, subjectName, detect
       return true;
     });
 
+    const kgWarnings = (typeof TableFileHelper !== 'undefined' && typeof TableFileHelper.knowledgeImportWarnings === 'function')
+      ? TableFileHelper.knowledgeImportWarnings(questions, store.bank?.ppct, { subject: effectiveSubject }) : [];
+    const kgWarningHtml = kgWarnings.length ? `<details class="callout warning" style="margin:0"><summary><strong>Bản đồ tri thức: ${kgWarnings.length} câu cần xem lại</strong> (bài/YCCĐ không khớp PPCT hoặc dạng câu không hợp cấp học; không chặn nhập)</summary><ul style="margin:6px 0 0">${kgWarnings.slice(0, 50).map(w => `<li>${esc(w.message)}</li>`).join('')}${kgWarnings.length > 50 ? `<li>… và ${kgWarnings.length - 50} cảnh báo khác</li>` : ''}</ul></details>` : '';
     container.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:12px;font-size:13px">
+        ${kgWarningHtml}
         <!-- Hộp chọn Khối lớp áp dụng & thông báo nhận diện -->
         <div style="display:flex;align-items:center;justify-content:space-between;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 16px;flex-wrap:wrap;gap:10px">
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -3970,7 +3975,7 @@ function openPPCTEditor(grade,code='',subj='',defaultSection=''){
  const initialCode = existing ? existing.lesson_code : (isElectiveInit ? nextCdForGrade(curGrade) : '');
  const initialTopic = existing?.topic_source || (isElectiveInit ? 'Chuyên đề lựa chọn' : '');
  $('#edit-title').textContent=existing?`Sửa bài học PPCT · ${existing.lesson_code}`:(isElectiveInit?'Thêm chuyên đề lựa chọn THPT':'Thêm bài học vào PPCT');
- $('#question-form').innerHTML=`<div id="form-error" class="callout error" role="alert" hidden></div><div class="form-grid"><div class="field"><label for="ppct-edit-grade">Khối lớp</label><select id="ppct-edit-grade" name="grade"${existing?' disabled':''}>${gradeOptions(curGrade)}</select></div><div class="field"><label for="ppct-edit-section">Phân mục PPCT (CV 5512)</label><select id="ppct-edit-section" name="section"><option value="core"${curSection==='core'?' selected':''}>Phần cốt lõi (Mục II.1)</option><option value="elective_topic"${curSection==='elective_topic'?' selected':''}${curGrade<10?' disabled':''}>Chuyên đề lựa chọn THPT (Mục II.2)</option><option value="review"${curSection==='review'?' selected':''}>Ôn tập học kì</option><option value="assessment"${curSection==='assessment'?' selected':''}>Kiểm tra định kì (GK/CK)</option></select></div><div class="field"><label for="ppct-edit-orientation">Định hướng THPT (TT 32/2018)</label><select id="ppct-edit-orientation" name="orientation"${curGrade<10?' disabled':''}><option value=""${curOrientation===''?' selected':''}>Chung / Chưa phân định hướng</option><option value="ICT"${curOrientation==='ICT'?' selected':''}>ICT — Tin học ứng dụng</option><option value="CS"${curOrientation==='CS'?' selected':''}>CS — Khoa học máy tính</option></select></div><div class="field"><label for="ppct-edit-code">Mã bài / Chuyên đề (B1, CD1, KTGK1...)</label><input id="ppct-edit-code" name="lesson_code" value="${esc(initialCode)}" ${existing?'readonly':''} required></div><div class="field"><label for="ppct-edit-week">Tuần <span class="small muted" id="ppct-week-hint">${isElectiveInit?'(Không bắt buộc với CĐHT)':''}</span></label><input id="ppct-edit-week" name="week_raw" value="${esc(weekVal)}" placeholder="${isElectiveInit?'Để trống nếu chưa chia tuần':''}"${isElectiveInit?'':' required'}></div><div class="field"><label for="ppct-edit-duration">Số tiết</label><input id="ppct-edit-duration" name="duration_raw" value="${esc(durationVal)}" required></div><div class="field"><label for="ppct-edit-ppct">PPCT <span class="small muted" id="ppct-ppct-hint">${isElectiveInit?'(Không bắt buộc với CĐHT)':''}</span></label><input id="ppct-edit-ppct" name="ppct_raw" value="${esc(ppctVal)}" placeholder="${isElectiveInit?'Để trống nếu chưa đánh tiết PPCT':''}"${isElectiveInit?'':' required'}></div><div class="field"><label for="ppct-edit-topic">Chủ đề</label><input id="ppct-edit-topic" name="topic_source" value="${esc(initialTopic)}" required></div><div class="field full"><label for="ppct-edit-name">Bài học / Tên chuyên đề</label><input id="ppct-edit-name" name="lesson_name_source" value="${esc(existing?.lesson_name_source||'')}" required></div><div class="field full"><label for="ppct-edit-outcomes">Yêu cầu cần đạt (mỗi dòng 1 yêu cầu)</label><textarea id="ppct-edit-outcomes" name="outcomes" rows="5" required>${esc((existing?.outcomes||[]).join('\n'))}</textarea></div><div class="field full"><label for="ppct-edit-nls">Phát triển năng lực số &amp; AI (mỗi dòng 1 nội dung — TT 02/2025 &amp; QĐ 2422)</label><textarea id="ppct-edit-nls" name="digital_competencies" rows="3">${esc(fields.competencies.join('\n'))}</textarea></div><div class="field full"><label for="ppct-edit-notes">Ghi chú / Thiết bị dạy học</label><textarea id="ppct-edit-notes" name="notes" rows="2">${esc(fields.notesText)}</textarea></div></div><div class="dialog-bottom"><button type="button" data-close="edit-dialog">Hủy</button><button type="submit" class="primary">Lưu bài học PPCT</button></div>`;
+ $('#question-form').innerHTML=`<div id="form-error" class="callout error" role="alert" hidden></div><div class="form-grid"><div class="field"><label for="ppct-edit-grade">Khối lớp</label><select id="ppct-edit-grade" name="grade"${existing?' disabled':''}>${gradeOptions(curGrade)}</select></div><div class="field"><label for="ppct-edit-section">Phân mục PPCT (CV 5512)</label><select id="ppct-edit-section" name="section"><option value="core"${curSection==='core'?' selected':''}>Phần cốt lõi (Mục II.1)</option><option value="elective_topic"${curSection==='elective_topic'?' selected':''}${curGrade<10?' disabled':''}>Chuyên đề lựa chọn THPT (Mục II.2)</option><option value="review"${curSection==='review'?' selected':''}>Ôn tập học kì</option><option value="assessment"${curSection==='assessment'?' selected':''}>Kiểm tra định kì (GK/CK)</option></select></div><div class="field"><label for="ppct-edit-orientation">Định hướng THPT (TT 32/2018)</label><select id="ppct-edit-orientation" name="orientation"${curGrade<10?' disabled':''}><option value=""${curOrientation===''?' selected':''}>Chung / Chưa phân định hướng</option><option value="ICT"${curOrientation==='ICT'?' selected':''}>ICT — Tin học ứng dụng</option><option value="CS"${curOrientation==='CS'?' selected':''}>CS — Khoa học máy tính</option></select></div><div class="field"><label for="ppct-edit-code">Mã bài / Chuyên đề (B1, CD1, KTGK1...)</label><input id="ppct-edit-code" name="lesson_code" value="${esc(initialCode)}" ${existing?'readonly':''} required></div><div class="field"><label for="ppct-edit-week">Tuần <span class="small muted" id="ppct-week-hint">${isElectiveInit?'(Không bắt buộc với CĐHT)':''}</span></label><input id="ppct-edit-week" name="week_raw" value="${esc(weekVal)}" placeholder="${isElectiveInit?'Để trống nếu chưa chia tuần':''}"${isElectiveInit?'':' required'}></div><div class="field"><label for="ppct-edit-duration">Số tiết</label><input id="ppct-edit-duration" name="duration_raw" value="${esc(durationVal)}" required></div><div class="field"><label for="ppct-edit-ppct">PPCT <span class="small muted" id="ppct-ppct-hint">${isElectiveInit?'(Không bắt buộc với CĐHT)':''}</span></label><input id="ppct-edit-ppct" name="ppct_raw" value="${esc(ppctVal)}" placeholder="${isElectiveInit?'Để trống nếu chưa đánh tiết PPCT':''}"${isElectiveInit?'':' required'}></div><div class="field"><label for="ppct-edit-topic">Chủ đề</label><input id="ppct-edit-topic" name="topic_source" value="${esc(initialTopic)}" required></div><div class="field full"><label for="ppct-edit-name">Bài học / Tên chuyên đề</label><input id="ppct-edit-name" name="lesson_name_source" value="${esc(existing?.lesson_name_source||'')}" required></div><div class="field full"><label for="ppct-edit-outcomes">Yêu cầu cần đạt (mỗi dòng 1 yêu cầu)</label><textarea id="ppct-edit-outcomes" name="outcomes" rows="5" required>${esc((existing?.outcomes||[]).join('\n'))}</textarea></div><div class="field full"><label for="ppct-edit-nls">Phát triển năng lực số &amp; AI (mỗi dòng 1 nội dung — TT 02/2025 &amp; QĐ 2422)</label><textarea id="ppct-edit-nls" name="digital_competencies" rows="3">${esc(fields.competencies.join('\n'))}</textarea></div><div class="field full"><label for="ppct-edit-notes">Ghi chú / Thiết bị dạy học</label><textarea id="ppct-edit-notes" name="notes" rows="2">${esc(fields.notesText)}</textarea></div><div class="field"><label for="ppct-edit-prereq">Bài tiền đề (mã bài cần học trước, cách nhau dấu phẩy; không bắt buộc)</label><input id="ppct-edit-prereq" name="prerequisites" type="text" placeholder="VD: B1, B2" value="${esc((existing?.prerequisites||[]).join(', '))}"><p class="muted small">Dùng cho Bản đồ tri thức: sắp thứ tự ôn tập và cảnh báo câu thuộc bài chưa học.</p></div></div><div class="dialog-bottom"><button type="button" data-close="edit-dialog">Hủy</button><button type="submit" class="primary">Lưu bài học PPCT</button></div>`;
  const gradeEl = $('#ppct-edit-grade');
  const sectionEl = $('#ppct-edit-section');
  const orientationEl = $('#ppct-edit-orientation');
@@ -4045,7 +4050,8 @@ function openPPCTEditor(grade,code='',subj='',defaultSection=''){
    periods_raw:ppctRaw || durationRaw || (secVal==='elective_topic'?'10':'1'),
    outcomes:String(f.get('outcomes')||'').split('\n').map(x=>x.trim()).filter(Boolean),
    digital_competencies:String(f.get('digital_competencies')||'').split('\n').map(x=>x.trim()).filter(Boolean),
-   notes:String(f.get('notes')||'').trim()
+   notes:String(f.get('notes')||'').trim(),
+   prerequisites:String(f.get('prerequisites')||'').split(/[,;\n]/).map(x=>x.trim()).filter(Boolean)
   };
   await mutate('/api/ppct/save-lesson',{lesson:payload},()=>{
    $('#edit-dialog').close();renderPPCT();notify(`Đã lưu đầy đủ thông tin ${secVal==='elective_topic'?'chuyên đề lựa chọn':'bài học'} vào PPCT.`);

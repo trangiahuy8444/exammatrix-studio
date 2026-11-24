@@ -86,6 +86,6 @@ Kế hoạch thực thi có phân công agents và cổng nghiệm thu: [Hoàn t
 
 **Nghiệp vụ:** trùng ngữ nghĩa; đề song song kèm báo cáo tương đương; thống kê lịch sử dùng câu; độ khó, độ phân biệt từ kết quả học sinh; câu lập trình có chạy test mẫu; kiểm chứng câu AI theo nguồn giáo viên đưa; vòng đời chương trình học.
 
-**Đồ thị tri thức và kho luật (đề xuất 24/11/2026, chưa duyệt):** ontology chương trình, quy tắc kiểm tra đánh giá thành luật có giải thích, quan hệ tiền đề, gợi ý theo YCCĐ, AI có căn cứ tri thức. Kế hoạch 6 giai đoạn: [KE_HOACH_DO_THI_TRI_THUC.md](KE_HOACH_DO_THI_TRI_THUC.md). Chỉ bắt đầu sau Giai đoạn 0 (ổn định bản Pages).
+**Đồ thị tri thức và kho luật (triển khai 24/11/2026, chờ giáo viên dùng thử và tổ xác nhận luật):** ontology chương trình, quy tắc kiểm tra đánh giá thành luật có giải thích, quan hệ tiền đề, gợi ý theo YCCĐ, AI có căn cứ tri thức. Kế hoạch 6 giai đoạn: [KE_HOACH_DO_THI_TRI_THUC.md](KE_HOACH_DO_THI_TRI_THUC.md). Chỉ bắt đầu sau Giai đoạn 0 (ổn định bản Pages).
 
 **Nền tảng online:** dọn lịch sử phiên bản nháp; migrate `0005` trên nhánh Neon; test ghi đồng thời PostgreSQL; sao lưu, khôi phục Neon có diễn tập; khôi phục mật khẩu qua email; phân quyền giáo viên / tổ trưởng / quản trị kèm nhật ký truy cập đáp án (Luật 91/2025, NĐ 356/2025), E2E Playwright trên URL thật; chuyển dần sang mô hình quan hệ; lưu định dạng ở máy chủ, hàng đợi xuất.

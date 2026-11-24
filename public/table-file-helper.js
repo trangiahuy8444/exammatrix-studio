@@ -1138,7 +1138,8 @@
       outcomes = [],
       part = 'ALL', // 'MC', 'YN', 'SHORT_ES', 'ALL'
       outputFormat = 'EXCEL', // 'EXCEL', 'JSON', 'MARKDOWN'
-      count = 4
+      count = 4,
+      knowledge = null // Ngữ cảnh từ Bản đồ tri thức (BankKnowledgeGraph.lessonContext), không bắt buộc
     } = params || {};
 
     const g = Number(grade) || 9;
@@ -1156,7 +1157,7 @@
 
     let gradePolicyNotice = '';
     if (!isThpt) {
-      gradePolicyNotice = `LƯU Ý QUY CHUẨN ĐẶC BIỆT CẤP THCS (KHỐI ${g} · THEO THÔNG TƯ 22/2021/TT-BGDĐT):
+      gradePolicyNotice = `LƯU Ý QUY CHUẨN ĐẶC BIỆT CẤP THCS (KHỐI ${g} · THEO QUY ƯỚC CỦA TỔ CHUYÊN MÔN):
 - Đề kiểm tra và đề cương ôn tập cấp THCS TUYỆT ĐỐI KHÔNG SỬ DỤNG dạng câu hỏi trắc nghiệm Đúng/Sai (YN).
 - Cấu trúc đề chuẩn Á Châu cấp THCS chỉ gồm 2 phần: Phần 1 Trắc nghiệm nhiều lựa chọn (MC - 4 phương án A, B, C, D) và Phần 2 Tự luận / Thực hành (ES). Tỉ lệ chuẩn 70% Trắc nghiệm (7.0 điểm) + 30% Tự luận (3.0 điểm).\n\n`;
     }
@@ -1294,11 +1295,57 @@ Bài học: ${lessonCode} · ${lessonName}
 Mục tiêu & Yêu cầu cần đạt (YCCĐ) theo chương trình:
 ${formattedOutcomes}
 
-${gradePolicyNotice}${competencyGuide}
+${knowledgeBlock(knowledge, lessonCode)}${gradePolicyNotice}${competencyGuide}
 
 ${partInstruction}
 
 ${formatInstruction}`;
+  }
+
+  // Khối "Ngữ cảnh tri thức" cho lời nhắc AI (Giai đoạn 5, docs/KE_HOACH_DO_THI_TRI_THUC.md).
+  function knowledgeBlock(ctx, lessonCode) {
+    if (!ctx || !Array.isArray(ctx.outcomes) || !ctx.outcomes.length) return '';
+    const lines = ['NGỮ CẢNH TRI THỨC (lấy từ PPCT và Bản đồ tri thức của giáo viên):'];
+    if (ctx.topic) lines.push(`- Chủ đề: ${ctx.topic}`);
+    lines.push('- Yêu cầu cần đạt của bài và năng lực liên quan:');
+    ctx.outcomes.forEach((o, i) => lines.push(`   ${i + 1}. ${o.text}${o.competencies && o.competencies.length ? ` (năng lực: ${o.competencies.join(', ')})` : ''}`));
+    lines.push(`- Trường "learning_outcome" của mỗi câu PHẢI chép NGUYÊN VĂN một YCCĐ trong danh sách trên; trường "lesson_code" là "${lessonCode}".`);
+    if (Array.isArray(ctx.prerequisites) && ctx.prerequisites.length) {
+      lines.push(`- Học sinh đã học các bài tiền đề: ${ctx.prerequisites.map(p => `${p.lesson_code}${p.name ? ' (' + p.name + ')' : ''}`).join(', ')}. Câu hỏi có thể dựa vào kiến thức này.`);
+    }
+    lines.push('- Không hỏi kiến thức của các bài chưa học sau bài này.');
+    return lines.join('\n') + '\n\n';
+  }
+
+  // Kiểm câu nhập (từ AI, Excel, Markdown) với Bản đồ tri thức: bài và YCCĐ phải có trong PPCT, dạng câu hợp cấp học.
+  // Chỉ trả cảnh báo; không sửa, không chặn (đường nhập hiện có vẫn tự kiểm theo quy tắc riêng).
+  function knowledgeImportWarnings(questions, ppct, opts = {}) {
+    const norm = (x) => String(x || '').normalize('NFC').trim().toLowerCase().replace(/\s+/g, ' ');
+    const subject = norm(opts.subject || 'Tin học');
+    const lessons = new Map();
+    for (const l of (ppct && Array.isArray(ppct.lessons) ? ppct.lessons : [])) {
+      if (!l || !l.lesson_code || norm(l.subject_name || 'Tin học') !== subject) continue;
+      lessons.set(`${Number(l.grade)}|${norm(l.lesson_code)}`, l);
+    }
+    const out = [];
+    (Array.isArray(questions) ? questions : []).forEach((q, i) => {
+      if (!q) return;
+      const n = i + 1;
+      const grade = Number(q.grade);
+      const lesson = lessons.get(`${grade}|${norm(q.lesson_code)}`);
+      if (!lesson) {
+        out.push({ index: n, code: 'bai_ngoai_ppct', message: `Câu ${n}: bài “${q.lesson_code || '(trống)'}” không có trong PPCT Khối ${grade || '?'}.` });
+      } else {
+        const outcomes = (lesson.outcomes || []).map(o => norm(typeof o === 'string' ? o : (o && o.text)));
+        if (!outcomes.includes(norm(q.learning_outcome))) {
+          out.push({ index: n, code: 'yccd_ngoai_ppct', message: `Câu ${n}: YCCĐ “${q.learning_outcome || '(trống)'}” không khớp nguyên văn YCCĐ nào của bài ${q.lesson_code}.` });
+        }
+      }
+      if (grade && grade < 10 && ['YN', 'SHORT'].includes(q.type)) {
+        out.push({ index: n, code: 'dang_cau_cap_hoc', message: `Câu ${n}: dạng ${q.type} không dùng cho Khối ${grade} (THCS dùng trắc nghiệm nhiều lựa chọn và tự luận theo quy ước của tổ).` });
+      }
+    });
+    return out;
   }
 
   function normalizeQuestionText(str) {
@@ -1463,6 +1510,7 @@ ${formatInstruction}`;
     getSamplePpctRows,
     getSampleMatrixRows,
     buildAiPromptByLesson,
+    knowledgeImportWarnings,
     stripAccents,
     norm,
     normalizeQuestionText,

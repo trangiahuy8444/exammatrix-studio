@@ -1161,6 +1161,12 @@
           digital_competencies: compList,
           notes: notesStr
         };
+        // Bài tiền đề (Bản đồ tri thức, Giai đoạn 3): giữ giá trị cũ nếu biểu mẫu không gửi trường này.
+        const prevLesson = existing.find(x => ((x.subject_name || 'Tin học') === targetSubject) && Number(x.grade) === grade && x.lesson_code === l.lesson_code);
+        const prereqSource = l.prerequisites !== undefined ? l.prerequisites : prevLesson?.prerequisites;
+        const prereqs = (Array.isArray(prereqSource) ? prereqSource : String(prereqSource || '').split(/[,;\n]/))
+          .map(x => String(x || '').trim()).filter(x => x && x.toLowerCase() !== String(l.lesson_code || '').toLowerCase());
+        if (prereqs.length) lessonObj.prerequisites = [...new Set(prereqs)];
         const idx = existing.findIndex(x => ((x.subject_name || 'Tin học') === targetSubject) && Number(x.grade) === grade && x.lesson_code === lessonObj.lesson_code);
         if (idx >= 0) existing[idx] = lessonObj;
         else existing.push(lessonObj);

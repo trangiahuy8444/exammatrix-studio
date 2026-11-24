@@ -16,6 +16,18 @@
 - Phát hiện 3 lỗi nghiêm trọng: nhập PPCT đoán khối từ tên tệp ("HK1" thành Khối 1, dữ liệu bị cất mất); tạo bộ đề làm hỏng danh sách đề và lần tải sau, các đề cùng mã 101; Khối 10 không tạo được đề cương/đề từ ma trận vì chưa hỗ trợ Đúng/Sai. Cùng 5 lỗi quan trọng và 8 lỗi nhỏ.
 - Biên bản, bảng lỗi và công cụ chạy lại: `acceptance/2026-11-24-kiem-thu-gia-lap/`.
 
+## 24/11/2026 — Triển khai đồ thị tri thức và kho luật (Giai đoạn 1–5)
+
+- Giáo viên yêu cầu triển khai kế hoạch `KE_HOACH_DO_THI_TRI_THUC.md` và tự chuyển giai đoạn. Làm dạng mô-đun mới, không đổi cách lưu dữ liệu; kho luật chạy song song, chưa thay quyết định duyệt đề.
+- `public/knowledge-graph.js`: dựng đồ thị (môn, khối, chủ đề, bài, YCCĐ, năng lực, mức độ, dạng câu, câu hỏi, ma trận, đề cương, đề; cạnh thuộc, có YCCĐ, phát triển, đánh giá, nằm trong, căn cứ, tiền đề) từ PPCT và dữ liệu sẵn có; kiểm câu mồ côi; bảng phủ YCCĐ × mức độ; câu gần trùng; gợi ý câu cho ô thiếu; thứ tự ôn theo tiền đề; ngữ cảnh cho lời nhắc AI. Đọc cả `topic`/`topic_source`, `competencies`/`digital_competencies`.
+- `public/knowledge-rules.js`: luật dạng dữ liệu + suy diễn tiến tới điểm bất động + giải thích (sự kiện, luật suy ra trung gian, điều kiện phủ định "không có…; chỉ có…", căn cứ). Căn cứ đã đối chiếu bản OCR: TT 22/2021 Điều 5 khoản 3 điểm b (thang điểm 10), Điều 7 khoản 1 (ma trận, đặc tả, YCCĐ; 45 phút với môn ≤ 70 tiết/năm); CV 7991 Phụ lục (dạng câu THPT); `rules/01` (90% từ đề cương); quyết định giáo viên 26/10 (câu đã duyệt, phủ YCCĐ 100%). Dạng câu THCS ghi là quy ước của tổ (còn chờ tổ xác nhận).
+- `static-api.js`: `/api/knowledge/overview|rules|lesson-context|check-exam` (chỉ đọc); `/api/exams/verify` gắn thêm `verification.knowledge` (trường quản trị, ngoài hash duyệt).
+- Giao diện: mục "🧠 Bản đồ tri thức" (`knowledge-ui.js`, hướng dẫn trong `core.screenGuide('knowledge')`), phần "Vì sao?" trong báo cáo kiểm định; trường "Bài tiền đề" khi sửa bài PPCT (lưu `prerequisites`, bỏ chính nó, giữ giá trị cũ khi không gửi); lời nhắc AI kèm ngữ cảnh tri thức; hộp xem trước nhập câu hỏi cảnh báo bài/YCCĐ lệch PPCT.
+- Sửa trích dẫn sai có sẵn: lời nhắc AI ghi THCS không dùng Đúng/Sai "theo TT 22/2021"; TT 22/2021 không quy định điều này, nay ghi "theo quy ước của tổ chuyên môn".
+- Đổi `?v=20261124k` cho các tệp đã sửa/thêm (tránh trùng số phiên cũ `d`).
+- Kiểm thử: thêm 26 ca (`static_knowledge_graph`, `static_knowledge_rules`). Node 176/176, engine 458 (1 bỏ qua), Django 112/112. Đã mở màn hình mới trên trình duyệt với dữ liệu mẫu tự soạn, không lỗi console. Chưa thử với tài khoản Google và dữ liệu thật.
+- Chưa làm: gỡ 3 nhánh lưu cũ (Giai đoạn 0); nối `suggestForCell` vào màn hình ma trận; cho kho luật thay mã kiểm định cũ (cần tổ xác nhận danh sách luật).
+
 ## 24/11/2026 — Gom về một nhánh, một kho ExamMatrix Studio
 
 - Mọi nhánh đã nằm trong `main`; đóng PR #1, xóa `ck1-readiness`, `fix/chan-ghi-de-hai-may`, `fix/loi-nho-dot-2` trên máy và trên GitHub.

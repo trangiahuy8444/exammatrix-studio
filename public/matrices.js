@@ -1170,6 +1170,7 @@
     return out.length?out:base;
   };
   const generic=()=>ui.ctx?.context?.school_profile===false;
+  const defaultOwner=()=>`Tổ ${subject()||'chuyên môn'}`;
   const subject=m=>m?.subject_name||ui.ctx?.context?.subject_name||'Tin học';
   const competencies=()=>{
     if(ui.editing?.competency_catalog?.length)return ui.editing.competency_catalog.map(c=>c.code);
@@ -1258,7 +1259,8 @@
       preset.revision=0;
       preset.status='draft';
       preset.mode='authored';
-      preset.owner_name=preset.owner_name||'Tổ Tin học Á Châu';
+      // Mẫu chuẩn được soạn cho Tin học; người phụ trách lấy theo môn đang chọn để môn khác không bị ghi "Tổ Tin học".
+      preset.owner_name=(!preset.owner_name||/Tổ Tin học/i.test(preset.owner_name))?defaultOwner():preset.owner_name;
       preset.campus=preset.campus||(generic()?'':'Cao Thắng');
       preset.school_year=ui.ctx?.context?.school_year||preset.school_year||'2026-2027';
       preset.subject_name=subject();
@@ -1278,7 +1280,7 @@
       exam_type:'GK1',
       duration:45,
       title:`Ma trận Giữa HK1 ${subject()} ${g}`,
-      owner_name:'Tổ Tin học Á Châu',
+      owner_name:defaultOwner(),
       campus:generic()?'':'Cao Thắng',
       total_points:10,
       lessons:[],
@@ -3727,10 +3729,34 @@
     };
   }
 
+  // Mẫu ma trận được soạn cho Tin học; với môn khác giữ nguyên cấu trúc, số câu, điểm và thay nội dung Tin học bằng ô cần điền.
+  const isTinSubjectName=()=>String(subject()||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').toLowerCase().trim()==='tin hoc';
+  const sampleFileSubject=()=>String(subject()||'Mon').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');
+  function adaptSampleToSubject(m, g) {
+    if (!m || isTinSubjectName()) return m;
+    const L = `${subject()} lớp ${g}`;
+    m.subject_name = subject();
+    m.title = `Ma trận & đặc tả Kiểm tra Giữa HK1 · Môn ${subject()} Khối ${g}`;
+    m.owner_name = defaultOwner();
+    (m.lessons || []).forEach(l => { l.title = `[Tên bài ${l.lesson_code} – ${L}]`; l.topic = `[Chủ đề của ${l.lesson_code} – ${L}]`; });
+    (m.requirements || []).forEach(r => { r.text = `[Yêu cầu cần đạt mức ${r.level} của ${r.lesson_code} – ${L}]`; });
+    m.indicator_catalog = [];
+    (m.slots || []).forEach(sl => (sl.parts || []).forEach(p => { p.indicator = ''; }));
+    return m;
+  }
+  function adaptSampleMarkdownToSubject(md, g) {
+    if (isTinSubjectName()) return md;
+    const L = `${subject()} lớp ${g}`;
+    return md
+      .replace(/Môn: Tin học/g, `Môn: ${subject()}`)
+      .replace(/^## Chủ đề ([^:]+):.*$/gm, (_, k) => `## Chủ đề ${k}: [Tên chủ đề – ${L}]`)
+      .replace(/^### Bài (\d+):.*\(Mã: (B\d+)\)\s*$/gm, (_, n, code) => `### Bài ${n}: [Tên bài ${n} – ${L}] (Mã: ${code})`)
+      .replace(/^- \[([^\]]+)\] \[([A-Z]+)\] [^(]*\(/gm, (_, lv, kind) => `- [${lv}] [${kind}] [Yêu cầu cần đạt mức ${lv} – ${L}] (`);
+  }
   function downloadMatrixExcelSample(grade = 9) {
     const g = Number(grade) || 9;
     if (typeof TableFileHelper !== 'undefined') {
-      const rows = TableFileHelper.getSampleMatrixRows(g, 'Tin học');
+      const rows = TableFileHelper.getSampleMatrixRows(g, subject());
       TableFileHelper.downloadCsv(rows, `Mau_Ma_tran_Dac_ta_Excel_${g}_2026-2027.csv`);
     } else {
       message('Bộ công cụ bảng tính đang nạp, vui lòng thử lại sau giây lát.', true);
@@ -3831,10 +3857,11 @@
         ]
       }
     };
+    adaptSampleToSubject(sample.matrix, g);
     const blob = new Blob([JSON.stringify(sample, null, 2)], { type: 'application/json;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `Mau_Ma_tran_Tin_${g}_2026-2027.json`;
+    a.download = `Mau_Ma_tran_${sampleFileSubject()}_${g}_2026-2027.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -3873,10 +3900,10 @@ Thời gian: 45 phút - Năm học: 2026-2027
 | 2 | Tổ chức lưu trữ, tìm kiếm | Bài 2: Thông tin trong giải quyết vấn đề | Vận dụng | - Thực hành tìm kiếm và đánh giá thông tin phục vụ giải quyết vấn đề thực tế. | 2 TL | Câu 1, Câu 2 TL | 2.0 |
 | | | | Vận dụng cao | - Đề xuất cách khai thác thông tin an toàn, hiệu quả trong tình huống thực tế. | 1 TL | Câu 3 TL | 1.0 |
 `;
-    const blob = new Blob([sampleMd], { type: 'text/markdown;charset=utf-8' });
+    const blob = new Blob([adaptSampleMarkdownToSubject(sampleMd, g)], { type: 'text/markdown;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `Mau_Ma_tran_Tin_${g}_2026-2027.md`;
+    a.download = `Mau_Ma_tran_${sampleFileSubject()}_${g}_2026-2027.md`;
     a.click();
     URL.revokeObjectURL(a.href);
   }

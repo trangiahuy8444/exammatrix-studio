@@ -6,6 +6,9 @@
  'use strict';
  const encode=value=>new TextEncoder().encode(value),clone=x=>JSON.parse(JSON.stringify(x));
  const name=value=>String(value).replace(/[^\p{L}\p{N}._-]/gu,'_').slice(0,100);
+ // Tên tệp dễ đọc cho giáo viên: môn, khối, kì, mã đề (không còn mã kỹ thuật EXAM-… / REV-…).
+ const ascii=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D');
+ const readable=record=>{const parts=[record.subject_name,record.grade?'Khoi_'+record.grade:'',record.exam_type,record.exam_code?'Ma_'+record.exam_code:''].filter(Boolean).map(x=>ascii(x).replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,''));return parts.filter(Boolean).join('_')||name(record.id);};
  const DOCX='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
  function fail(message){throw Error(message);}
  function find(list,id){const r=(list||[]).find(r=>r.id===id);if(!r)fail('Không tìm thấy hồ sơ cần xuất trong không gian hiện tại.');return r;}
@@ -33,14 +36,15 @@
   if(format!=='docx'&&format!=='json')fail('Bản Pages hiện hỗ trợ DOCX và JSON. Định dạng này cần bản máy chủ.');
   if(kind!=='matrices'&&(!Array.isArray(record.questions)||!record.questions.length))fail('Hồ sơ chưa có snapshot câu hỏi để xuất.');
   if(kind==='exams')await assertIntegrity(record);
-  const prefix=(revision?'De_cuong_':kind==='matrices'?'Ma_tran_':answers?'Dap_an_':'De_hoc_sinh_')+name(record.id);
+  const prefix=(revision?'De_cuong_':kind==='matrices'?'Ma_tran_':answers?'Dap_an_':'De_hoc_sinh_')+readable(record);
   if(action==='bundle.zip'){
    if(kind!=='exams'||format!=='docx')fail('Gói hồ sơ Pages chỉ hỗ trợ bộ đề Word DOCX.');
    const entries=[],family=record.parent_exam_id||record.id;
    const members=data.exams.filter(e=>e.id===record.id||e.parent_exam_id===family||e.id===family);
-   for(const e of members){await assertIntegrity(e);const code=name(e.exam_code||e.id);
-    entries.push({name:'De_hoc_sinh_'+code+'_'+name(e.id)+'.docx',data:exporter.documentBytes(e)});
-    entries.push({name:'Dap_an_'+code+'_'+name(e.id)+'.docx',data:exporter.documentBytes(e,{answers:true})});
+   const codeCount=members.reduce((m,e)=>m.set(e.exam_code||e.id,(m.get(e.exam_code||e.id)||0)+1),new Map());
+   for(const e of members){await assertIntegrity(e);const raw=e.exam_code||e.id,code=name(raw)+(codeCount.get(raw)>1?'_'+name(e.id):'');
+    entries.push({name:'De_hoc_sinh_Ma_'+code+'.docx',data:exporter.documentBytes(e)});
+    entries.push({name:'Dap_an_Ma_'+code+'.docx',data:exporter.documentBytes(e,{answers:true})});
    }
    const rev=record.revision_snapshot||data.revisions.find(r=>r.id===record.revision_id);
    if(rev){const scope=record.matrix_snapshot||data.matrices.find(m=>m.id===record.matrix_id);entries.push({name:'De_cuong_on_tap.docx',data:exporter.documentBytes({...rev,matrix_snapshot:scope},{revision:true})});warnings.push(...exporter.exportWarnings({revision:true}));}

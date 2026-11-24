@@ -950,6 +950,11 @@ ${subjectCompetencyGuideText(s)}`;
   }
   function sampleQuestionsByGrade(g, subjName) {
     const subj = String(subjName || subject() || 'Tin học').trim();
+    // Môn khác Tin học: dùng khung mẫu có ô cần điền, không đưa câu Tin học vào tệp mẫu (lỗi L4, kiểm thử 24/11/2026).
+    if (!/^tin\s*h[oọ]c$/i.test(subj) && typeof TableFileHelper !== 'undefined') {
+      return TableFileHelper.parseQuestionsFromRows(TableFileHelper.getSampleBankRows(g, subj), g, subj)
+        .map((q, i) => ({ ...q, id: `K${g}-GV-sample${i + 1}`, subject_name: subj }));
+    }
     const baseMc = {
       id: `K${g}-GV-sample1`, grade: g, subject_name: subj, lesson_code: 'B1',
       ppct_section: 'core', type: 'MC', level: 'Biết', response_mode: 'Trắc nghiệm',
@@ -1008,7 +1013,17 @@ ${subjectCompetencyGuideText(s)}`;
     };
     return [baseMc, thptYn, thptShort, baseEs];
   }
-  function sampleMdBodyByGrade(g) {
+  function sampleMdBodyByGrade(g, subjName) {
+    const subj = String(subjName || subject() || 'Tin học').trim();
+    if (!/^tin\s*h[oọ]c$/i.test(subj)) {
+      const L = `${subj} lớp ${g}`;
+      const mc = `### Câu 1:\n[Câu trắc nghiệm mức Biết – Bài 1 – ${L}]\nA. [Phương án sai 1]\nB. [Phương án đúng]\nC. [Phương án sai 2]\nD. [Phương án sai 3]\n*Đáp án:* B\n*Mức độ:* Biết\n*Bài học:* B1\n*Yêu cầu cần đạt:* [Yêu cầu cần đạt mức Biết của Bài 1 – ${L}]\n*Lời giải:* [Giải thích vì sao phương án B đúng]`;
+      const es = (n) => `### Câu ${n}:\n[Câu tự luận mức Vận dụng – Bài 2 – ${L}]\n*Mức độ:* Vận dụng\n*Bài học:* B2\n*Yêu cầu cần đạt:* [Yêu cầu cần đạt mức Vận dụng của Bài 2 – ${L}]`;
+      if (g < 10) return `${mc}\n\n${es(2)}`;
+      const yn = `### Câu 2:\n[Câu Đúng/Sai – Bài 1 – ${L}: xét tính đúng sai của các nhận định sau]\na) [Đúng] [Nhận định a]\nb) [Sai] [Nhận định b]\nc) [Đúng] [Nhận định c]\nd) [Sai] [Nhận định d]\n*Mức độ:* Hiểu\n*Bài học:* B1\n*Yêu cầu cần đạt:* [Yêu cầu cần đạt mức Hiểu của Bài 1 – ${L}]`;
+      const sh = `### Câu 3:\n[Câu trả lời ngắn – Bài 2 – ${L}]\n*Đáp án:* [Đáp án ngắn, ví dụ 12,5]\n*Mức độ:* Vận dụng\n*Bài học:* B2\n*Yêu cầu cần đạt:* [Yêu cầu cần đạt mức Vận dụng của Bài 2 – ${L}]`;
+      return `${mc}\n\n${yn}\n\n${sh}\n\n${es(4)}`;
+    }
     const commonMc = `### Câu 1:
 Thiết bị nào sau đây là thiết bị vào của máy tính?
 A. Màn hình
@@ -1278,7 +1293,7 @@ ${commonEs}`;
     const g = Number(grade) || 9;
     const subj = subject();
     const cap = g >= 10 ? 'THPT (CV 7991)' : 'THCS';
-    const sampleMd = `# BỘ CÂU HỎI MÔN ${subj.toLocaleUpperCase('vi')} KHỐI ${g} · ${cap}\nNăm học: 2026-2027\n\n${sampleMdBodyByGrade(g)}\n`;
+    const sampleMd = `# BỘ CÂU HỎI MÔN ${subj.toLocaleUpperCase('vi')} KHỐI ${g} · ${cap}\nNăm học: 2026-2027\n\n${sampleMdBodyByGrade(g, subj)}\n`;
     triggerTextDownload(sampleMd, 'text/markdown;charset=utf-8', `Mau_Cau_hoi_${C.normalize(subj).replace(/\s+/g, '_')}_${g}_2026-2027.md`);
   }
 
@@ -1343,7 +1358,7 @@ Chỉ xuất trực tiếp nội dung Markdown, không kèm lời bình bên ngo
   function downloadRevisionMdSample(grade = 9) {
     const g = Number(grade) || 9;
     const subj = subject();
-    const sampleMd = `# ĐỀ CƯƠNG ÔN TẬP GIỮA HỌC KỲ 1\nMôn: ${subj} - Khối: ${g} - Năm học: 2026-2027\n\n${sampleMdBodyByGrade(g)}\n`;
+    const sampleMd = `# ĐỀ CƯƠNG ÔN TẬP GIỮA HỌC KỲ 1\nMôn: ${subj} - Khối: ${g} - Năm học: 2026-2027\n\n${sampleMdBodyByGrade(g, subj)}\n`;
     triggerTextDownload(sampleMd, 'text/markdown;charset=utf-8', `Mau_De_cuong_${C.normalize(subj).replace(/\s+/g, '_')}_${g}_2026-2027.md`);
   }
 
@@ -1434,7 +1449,7 @@ Chỉ xuất trực tiếp nội dung Markdown, không kèm bình luận.`;
     const subj = subject();
     const label = (periodNames[examType] || 'GIỮA HỌC KỲ 1').toLocaleUpperCase('vi');
     const dur = examType === 'TX' ? 15 : 45;
-    const sampleMd = `# ĐỀ KIỂM TRA ${label} - MÃ ĐỀ 101\nMôn: ${subj} - Khối: ${g} - Thời gian làm bài: ${dur} phút - Năm học: 2026-2027\n\n${sampleMdBodyByGrade(g)}\n`;
+    const sampleMd = `# ĐỀ KIỂM TRA ${label} - MÃ ĐỀ 101\nMôn: ${subj} - Khối: ${g} - Thời gian làm bài: ${dur} phút - Năm học: 2026-2027\n\n${sampleMdBodyByGrade(g, subj)}\n`;
     triggerTextDownload(sampleMd, 'text/markdown;charset=utf-8', `Mau_De_thi_${C.normalize(subj).replace(/\s+/g, '_')}_${g}_${examType}_2026-2027.md`);
   }
 

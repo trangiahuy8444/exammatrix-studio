@@ -1,3 +1,9 @@
+## 24/11/2026 — Sửa L4, L5, L7 (tệp mẫu theo môn, Word đề, người phụ trách ma trận)
+
+- Nhánh `fix/loi-nho-dot-2` (tách từ `fix/chan-ghi-de-hai-may`), chưa commit.
+- L4: tệp mẫu Excel/JSON/Markdown (câu hỏi, PPCT, đề cương, đề thi, ma trận) theo môn đang chọn; môn khác Tin học dùng khung có ô cần điền, không tự soạn nội dung chuyên môn. L5: Word đề có chân trang "Trang X/Y", phương án cùng dòng với nhãn, điểm dùng dấu phẩy, tên tệp theo môn/khối/kì/mã đề. L7: người phụ trách ma trận mặc định theo môn.
+- Node 148/148, Python 458 (1 bỏ qua); kiểm lại trên trình duyệt với tài khoản Toán 9. Chi tiết: `acceptance/2026-11-24-kiem-thu-gia-lap/BIEN_BAN.md`.
+
 ## 24/11/2026 — Sửa 3 lỗi nghiêm trọng từ kiểm thử giả lập (L1–L3)
 
 - Giáo viên chọn sửa L1–L3. Làm trên nhánh `fix/chan-ghi-de-hai-may` (cùng thay đổi chặn ghi đè), chưa commit.

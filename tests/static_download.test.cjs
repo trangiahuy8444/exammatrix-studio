@@ -15,6 +15,8 @@ print(json.dumps(out,ensure_ascii=False))`],{input:bytes,encoding:null});assert.
 test('Pages downloads true DOCX, safe student JSON and genuine bundle',async()=>{
  const d=await makeData(),e=d.exams[0],url=`/api/exams/${e.id}`;
  const doc=await D.createDownload(url+'/export?format=docx&answers=0',d);assert.match(doc.filename,/\.docx$/);
+ // L5: tên tệp dễ đọc (môn, khối, kì, mã đề), không còn mã kỹ thuật EXAM-…
+ assert.ok(!doc.filename.includes(e.id),doc.filename);assert.match(doc.filename,/^De_hoc_sinh_.*Khoi_\d+/);
  const xml=inspect(doc.bytes)['word/document.xml'];assert.ok(!xml.includes('Đáp án đúng'));assert.ok(xml.includes('BẢN NHÁP'));
  const json=JSON.parse(new TextDecoder().decode((await D.createDownload(url+'/export?format=json&answers=0',d)).bytes));
  assert.equal(json.questions[0].correct,undefined);assert.equal(json.matrix_snapshot,undefined);assert.equal(json.revision_snapshot,undefined);

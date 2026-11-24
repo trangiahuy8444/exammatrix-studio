@@ -55,7 +55,7 @@ test('real OOXML student document preserves grammar and excludes private answers
 });
 test('teacher output includes answers and numeric rubric criterion',()=>{
  const xml=inspect(E.documentBytes(record,{answers:true}))['word/document.xml'];
- for(const s of ['PRIVATE_SHORT','PRIVATE_ESSAY','PRIVATE_CRITERION','1.25','PRIVATE_EXPLANATION','Sai'])assert.ok(xml.includes(s),s);
+ for(const s of ['PRIVATE_SHORT','PRIVATE_ESSAY','PRIVATE_CRITERION','1,25','PRIVATE_EXPLANATION','Sai'])assert.ok(xml.includes(s),s);
 });
 test('revision scope has exactly three columns and discloses absent logo',()=>{
  const r={...record,matrix_snapshot:{lessons:[{topic:'Topic',title:'Lesson'}]}};
@@ -67,7 +67,7 @@ test('revision scope has exactly three columns and discloses absent logo',()=>{
 test('teacher rubric is scaled to assigned exam points and headers identify the paper',()=>{
  const r={title:'Đề minh họa',grade:9,subject_name:'Tin học',exam_type:'GK1',duration:45,questions:[{id:'ES1',type:'ES',question:'Giải thích dữ liệu',slot_number:1,points:5,max_score:1,rubric:[{criterion:'Ý thứ nhất',points:0.25},{criterion:'Ý thứ hai',points:0.75}]}]};
  const xml=inspect(E.documentBytes(r,{answers:true}))['word/document.xml'];
- assert.match(xml,/1\.25/);assert.match(xml,/3\.75/);assert.match(xml,/45 phút/);assert.match(xml,/5 điểm/);
+ assert.match(xml,/1,25/);assert.match(xml,/3,75/);assert.match(xml,/45 phút/);assert.match(xml,/5 điểm/);
  assert.match(xml,/BẢN NHÁP/);assert.match(xml,/TỰ LUẬN/);
  assert.throws(()=>E.documentBytes({...r,questions:[{...r.questions[0],max_score:2}]},{answers:true}),/thang điểm|hướng dẫn chấm/);
 });
@@ -113,4 +113,16 @@ test('all declared errors and export limitations use Vietnamese',()=>{
  }
  assert.match(E.exportWarnings({revision:true})[0],/thiếu logo/);
  assert.match(E.exportWarnings({revision:true})[0],/chưa đầy đủ theo mẫu đề cương của trường/);
+});
+// L5 (kiểm thử giả lập 24/11/2026): chân trang Trang X/Y, phương án cùng dòng, điểm dùng dấu phẩy.
+test('đề có chân trang Trang X/Y, phương án cùng dòng và điểm viết 0,25',()=>{
+ const r={title:'Đề minh họa',grade:9,subject_name:'Toán học',exam_type:'GK1',duration:45,status:'locked',questions:[
+  {id:'M1',type:'MC',question:'Câu một',slot_number:1,points:0.25,options:['Một','Hai','Ba','Bốn'],correct:0},
+  {id:'Y1',type:'YN',question:'Xét các ý',slot_number:1,points:1,statements:['a','b','c','d'].map((l,i)=>({label:l,text:'Ý '+l,correct:i%2===0}))}]};
+ const files=inspect(E.documentBytes(r));const xml=files['word/document.xml'];
+ assert.ok(files['word/footer1.xml'],'có footer');assert.match(files['word/footer1.xml'],/PAGE/);assert.match(files['word/footer1.xml'],/NUMPAGES/);assert.match(files['word/footer1.xml'],/Trang /);
+ assert.match(xml,/footerReference/);assert.match(files['[Content_Types].xml'],/footer1\.xml/);assert.match(files['word/_rels/document.xml.rels'],/footer1\.xml/);
+ assert.match(xml,/A\. Một</);assert.match(xml,/D\. Bốn</);assert.match(xml,/a\) Ý a</);
+ assert.match(xml,/0,25 điểm/);assert.doesNotMatch(xml,/0\.25 điểm/);
+ assert.doesNotMatch(xml,/Đúng<|>Sai</,'bản học sinh không có đáp án Đúng/Sai');
 });

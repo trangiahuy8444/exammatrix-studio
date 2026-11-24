@@ -71,6 +71,16 @@ Kiểm thử tự động sau khi sửa: Node 145/145 (thêm 5 ca bộ máy, 1 c
 
 Còn lại (chưa sửa): L4–L16; nguyên nhân L9 là ô "Trắc nghiệm / Tự luận" (`type_counts`) ở màn hình đề cương bị `engine.plan` bỏ qua, nên số câu bốc theo mặc định ceil(1,5 × số câu cần).
 
+## Đợt sửa L4, L5, L7 (24/11/2026, nhánh `fix/loi-nho-dot-2`, chưa commit)
+
+| Lỗi | Sửa | Kiểm lại trên trình duyệt (Firebase giả, tài khoản Toán 9) |
+| :--- | :--- | :--- |
+| L4 | `table-file-helper.js`: mẫu Excel câu hỏi/PPCT/ma trận theo môn; Tin học giữ mẫu cũ, môn khác dùng khung đúng cột và dạng câu theo cấp (THCS: TN, TL; THPT: TN, Đ/S, TLN, TL) với ô cần điền như `[Tên bài 1 – Toán học lớp 9]`, không tự soạn nội dung chuyên môn. `app.js`: mẫu JSON/Markdown câu hỏi, đề cương, đề thi dùng cùng khung. `matrices.js`: mẫu ma trận Excel/JSON/Markdown theo môn đang chọn, tên tệp theo môn. | Tải mẫu PPCT và câu hỏi từ giao diện: không còn nội dung Tin học; mẫu nhập lại được (Đ/S 4 ý, TLN có đáp án). |
+| L5 | `static-exam-export.js`: chân trang "Trang X/Y" (trường PAGE/NUMPAGES, Word tính khi mở); "A. nội dung", "a) nội dung" cùng một dòng khi nội dung là một dòng văn bản; điểm viết dấu phẩy (0,25). `static-download.js`: tên tệp theo môn, khối, kì, mã đề. | `De_hoc_sinh_Toan_hoc_Khoi_9_GK1_Ma_101.docx`; "Câu 1. (0,25 điểm)", "A. …" cùng dòng; có chân trang; đề ngắn hơn (182 so với 293 đoạn). Mở bằng python-docx: khổ ngang, chân trang "Trang 1/1" (số chỗ giữ, Word cập nhật). |
+| L7 | `matrices.js`: người phụ trách mặc định "Tổ {môn đang chọn}" (thay "Tổ Tin học Á Châu"), kể cả khi dùng mẫu ma trận chuẩn theo khối. Giữ cơ sở "Cao Thắng". | Ma trận mới ở tài khoản Toán: "Tổ Toán học". |
+
+Kiểm thử tự động: Node 148/148 (thêm ca tệp mẫu theo môn, chân trang/phương án/dấu phẩy, tên tệp; sửa 2 ca cũ chờ "1.25" thành "1,25"), Python 458 (1 bỏ qua). Chưa kiểm bằng Microsoft Word thật (số trang hiển thị khi Word mở tệp).
+
 ## Chưa kiểm tra trong đợt này
 
 Trộn mã đề 101–104, xuất ZIP trọn bộ, xuất Word ma trận/đặc tả/đề cương, Word đáp án, tệp LMS, đồng bộ Google Drive, hai máy cùng sửa (đang làm ở phiên riêng), màn hình Kế hoạch KTĐG và KTTX, nhập Word/Markdown/JSON, trợ lý AI.

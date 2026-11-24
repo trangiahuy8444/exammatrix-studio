@@ -1,7 +1,7 @@
 /* Offline, synchronous OOXML export. No network, DOM, or third-party packages.
  * Bounds: ZIP32 stored entries only; 32 MiB total, 4096 entries, 2000 questions.
  * Literal text/code and rectangular grammar tables only. No images, equations,
- * PDF, template fidelity, page totals, or school revision banner. Call
+ * PDF, template fidelity, or school revision banner. Footer shows "Trang X/Y" via Word fields. Call
  * exportWarnings({revision:true}) before presenting a revision download.
  */
 (function(root,factory){
@@ -10,7 +10,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(core){
   'use strict';
   const encoder=new TextEncoder(),MAX=32*1024*1024,WIDTH=13600;
-  const limitations=Object.freeze(['Chỉ hỗ trợ ZIP32 không nén; giới hạn 32 MiB và 4096 mục.', 'Tối đa 2000 câu hỏi; chỉ hỗ trợ văn bản thuần, khối mã trong dấu rào và bảng chữ nhật phân cột bằng dấu |.', 'Chưa hỗ trợ hình ảnh, đối tượng phương trình, PDF, định dạng hoàn toàn giống mẫu và tự động tính tổng số trang.', 'Bản xuất đề cương thiếu logo hoặc banner của trường; hồ sơ chưa đầy đủ theo mẫu đề cương của trường.']);
+  const limitations=Object.freeze(['Chỉ hỗ trợ ZIP32 không nén; giới hạn 32 MiB và 4096 mục.', 'Tối đa 2000 câu hỏi; chỉ hỗ trợ văn bản thuần, khối mã trong dấu rào và bảng chữ nhật phân cột bằng dấu |.', 'Chưa hỗ trợ hình ảnh, đối tượng phương trình, PDF và định dạng hoàn toàn giống mẫu. Số trang "Trang X/Y" do Word tính khi mở tệp.', 'Bản xuất đề cương thiếu logo hoặc banner của trường; hồ sơ chưa đầy đủ theo mẫu đề cương của trường.']);
   function exportWarnings(options={}){return options.revision?[limitations[3]]:[];}
   function fail(message){throw new Error(message);}
   function bytes(value){if(typeof value==='string')return encoder.encode(value);if(value instanceof Uint8Array)return value;return fail('Dữ liệu ZIP phải là mảng byte Uint8Array hoặc chuỗi văn bản.');}
@@ -35,6 +35,14 @@
   }
   function text(v){if(v===undefined||v===null)return '';if(typeof v==='object')fail('Chưa hỗ trợ hình ảnh, phương trình hoặc đối tượng văn bản có cấu trúc.');const s=String(v);if(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/u.test(s))fail('Chưa hỗ trợ ký tự điều khiển XML trong văn bản.');return s;}
   function esc(v){return text(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));}
+  // Số thập phân theo cách viết tiếng Việt: 0,25; 1; 2,5.
+  function num(v){const n=Number(v);if(!Number.isFinite(n))return text(v);return String(Number(n.toFixed(6))).replace('.',',');}
+  // Nhãn phương án và nội dung cùng một dòng khi nội dung là một dòng văn bản thường.
+  function labeled(label,value){
+    const s=text(value);
+    if(!/[\n|`]/.test(s)&&!/!\[[^\]]*\]\(|<(?:img|svg|math)\b/i.test(s))return p(label+' '+s);
+    return p(label)+rich(s);
+  }
   function p(value,bold=false){return '<w:p><w:r>'+(bold?'<w:rPr><w:b/></w:rPr>':'')+'<w:t xml:space="preserve">'+esc(value)+'</w:t></w:r></w:p>';}
   function table(rows){
     if(!rows.length)return '';const cols=rows[0].length;if(!cols||cols>32||rows.some(r=>r.length!==cols))fail('Chưa hỗ trợ bảng không có dạng chữ nhật hoặc vượt quá 32 cột.');
@@ -54,14 +62,18 @@
       if(v&&typeof v==='object')rejectMedia(v);
     }
   }
+  function run(t){return '<w:r><w:t xml:space="preserve">'+esc(t)+'</w:t></w:r>';}
+  // Trường PAGE/NUMPAGES; giá trị "1" chỉ là chỗ giữ, Word tính lại khi mở hoặc in.
+  function field(code){return '<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> '+code+' </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>';}
   const declaration='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
   function doc(body){
     const entries={
-      '[Content_Types].xml':'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',
+      '[Content_Types].xml':'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/></Types>',
       '_rels/.rels':'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
-      'word/_rels/document.xml.rels':'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
+      'word/_rels/document.xml.rels':'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>',
+      'word/footer1.xml':'<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:pPr><w:jc w:val="center"/></w:pPr>'+run('Trang ')+field('PAGE')+run('/')+field('NUMPAGES')+'</w:p></w:ftr>',
       'word/styles.xml':'<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/><w:sz w:val="24"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>',
-      'word/document.xml':'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'+body+'<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="567" w:right="1440" w:bottom="567" w:left="1440" w:header="0" w:footer="0" w:gutter="0"/></w:sectPr></w:body></w:document>'
+      'word/document.xml':'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'+body+'<w:sectPr xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:footerReference w:type="default" r:id="rId2"/><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="567" w:right="1440" w:bottom="567" w:left="1440" w:header="0" w:footer="284" w:gutter="0"/></w:sectPr></w:body></w:document>'
     };return zipFiles(Object.entries(entries).map(([name,data])=>({name,data:declaration+data})));
   }
   function scope(record){
@@ -79,15 +91,15 @@
     record.questions.slice().sort((a,b)=>order.indexOf(a?.type)-order.indexOf(b?.type)).forEach((q,i)=>{
       rejectMedia(q);if(!['MC','YN','SHORT','ES'].includes(q.type))fail('Chưa hỗ trợ dạng câu hỏi này.');
       if(q.type!==previous){body+=p(headings[q.type],true);previous=q.type;}
-      body+=p('Câu '+text(q.slot_number??q.number??i+1)+'.'+(q.points!==undefined?' ('+text(q.points)+' điểm)':''),true)+rich(q.question);
+      body+=p('Câu '+text(q.slot_number??q.number??i+1)+'.'+(q.points!==undefined?' ('+num(q.points)+' điểm)':''),true)+rich(q.question);
       if(q.type==='MC'){
         if(!Array.isArray(q.options))fail('Danh sách phương án câu hỏi trắc nghiệm không hợp lệ.');
-        q.options.forEach((o,j)=>{body+=p(String.fromCharCode(65+j)+'.')+rich(o);});
+        q.options.forEach((o,j)=>{body+=labeled(String.fromCharCode(65+j)+'.',o);});
         if(answers){if(!Number.isInteger(q.correct)||q.correct<0||q.correct>=q.options.length)fail('Chỉ số phương án đúng của câu hỏi trắc nghiệm không hợp lệ.');body+=p('Đáp án: '+String.fromCharCode(65+q.correct),true);}
       }
       if(q.type==='YN'){
         if(!Array.isArray(q.statements))fail('Danh sách mệnh đề câu hỏi đúng/sai không hợp lệ.');
-        q.statements.forEach((s,j)=>{body+=p(text(s.label||String.fromCharCode(97+j))+')')+rich(s.text);if(answers){if(typeof s.correct!=='boolean')fail('Giá trị đáp án câu hỏi đúng/sai phải là đúng hoặc sai.');body+=p(s.correct?'Đúng':'Sai',true);if(s.explanation)body+=rich(s.explanation);}});
+        q.statements.forEach((s,j)=>{body+=labeled(text(s.label||String.fromCharCode(97+j))+')',s.text);if(answers){if(typeof s.correct!=='boolean')fail('Giá trị đáp án câu hỏi đúng/sai phải là đúng hoặc sai.');body+=p(s.correct?'Đúng':'Sai',true);if(s.explanation)body+=rich(s.explanation);}});
       }
       if(answers){
         if(q.type==='SHORT')body+=p('Đáp án: '+(core.shortAnswerOf?core.shortAnswerOf(q):text(q.short_answer??q.correct_answer??q.answer)),true);
@@ -97,10 +109,10 @@
           if(!Number.isFinite(base)||base<=0||!Number.isFinite(target)||target<0)fail('Không thể quy đổi điểm hướng dẫn chấm.');
           if(Math.abs(rawTotal-base)>1e-8)fail('Tổng điểm hướng dẫn chấm gốc không khớp thang điểm gốc; hãy sửa trước khi xuất.');
           const scale=revision?1:target/base;
-          body+=table([['Tiêu chí','Điểm'],...q.rubric.map(r=>{if(typeof r.points!=='number'||!Number.isFinite(r.points)||r.points<0)fail('Điểm của tiêu chí chấm phải là số hữu hạn và không âm.');return [text(r.criterion),Number((r.points*scale).toFixed(6))];})]);
+          body+=table([['Tiêu chí','Điểm'],...q.rubric.map(r=>{if(typeof r.points!=='number'||!Number.isFinite(r.points)||r.points<0)fail('Điểm của tiêu chí chấm phải là số hữu hạn và không âm.');return [text(r.criterion),num(r.points*scale)];})]);
         }
         for(const key of ['explanation','equivalent_answer_policy'])if(q[key])body+=rich(q[key]);
-        if(Array.isArray(q.option_explanations))q.option_explanations.forEach((e,j)=>{if(e)body+=p(String.fromCharCode(65+j)+'.')+rich(e);});
+        if(Array.isArray(q.option_explanations))q.option_explanations.forEach((e,j)=>{if(e)body+=labeled(String.fromCharCode(65+j)+'.',e);});
       }else if(['SHORT','ES'].includes(q.type))body+=p('................................................................................................');
     });return doc(body);
   }
@@ -112,7 +124,7 @@
     body+=table([['Bài','Mức độ','Dạng','Câu','Điểm'],...slots.map((s,i)=>{
       const parts=s.parts||[],rs=parts.map(part=>{const r=reqs.find(r=>r.id===part.requirement_id);if(!r)fail('Không tìm thấy yêu cầu cần đạt được tham chiếu trong ma trận.');return r;});
       const points=parts.reduce((sum,part)=>{if(typeof part.points!=='number'||!Number.isFinite(part.points)||part.points<0)fail('Điểm phân bổ trong ma trận phải là số hữu hạn và không âm.');return sum+part.points;},0);
-      return [[...new Set(rs.map(r=>r.lesson_code))].join(', '),[...new Set(rs.map(r=>r.level))].join(', '),s.kind,s.number??i+1,Number(points.toFixed(6))];
+      return [[...new Set(rs.map(r=>r.lesson_code))].join(', '),[...new Set(rs.map(r=>r.level))].join(', '),s.kind,s.number??i+1,num(points)];
     })]);
     body+=p('BẢNG ĐẶC TẢ',true)+table([['Bài / Chủ đề','Yêu cầu cần đạt','Mức độ','Phân bổ'],...reqs.map(r=>{
       const refs=[];slots.forEach((s,i)=>(s.parts||[]).forEach(part=>{if(part.requirement_id===r.id)refs.push('Câu '+(s.number??i+1)+(part.label?' '+part.label:'')+' ('+s.kind+')');}));

@@ -294,3 +294,22 @@ test('TableFileHelper: detectGradeFromFilename & parseQuestionsFromRows with Gra
   assert.equal(parsed[1].grade, 9);
   assert.equal(parsed[1]._hasExplicitRowGrade, true);
 });
+
+// L4 (kiểm thử giả lập 24/11/2026): tệp mẫu môn khác không chứa câu hỏi Tin học, vẫn đúng dạng câu theo cấp và nhập lại được.
+test('TableFileHelper: tệp mẫu theo môn không mang nội dung Tin học', () => {
+  const tinWords = /máy tính|Internet|bảng tính|kĩ thuật số|mạng máy tính|thiết bị số|Router/i;
+  for (const [subject, grade] of [['Toán học', 9], ['Vật lí', 10], ['Ngữ văn', 8], ['Hóa học', 11]]) {
+    const bank = TableFileHelper.getSampleBankRows(grade, subject);
+    const ppct = TableFileHelper.getSamplePpctRows(grade, subject);
+    const matrix = TableFileHelper.getSampleMatrixRows(grade, subject);
+    assert.doesNotMatch(JSON.stringify([bank, ppct, matrix]), tinWords, subject);
+    const types = bank.slice(1).map(r => r[2]);
+    if (grade >= 10) { for (const k of ['MC', 'YN', 'SHORT', 'ES']) assert.ok(types.includes(k), subject + ' ' + k); }
+    else { assert.ok(!types.includes('YN') && !types.includes('SHORT'), subject); }
+    const parsed = TableFileHelper.parseQuestionsFromRows(bank, grade, subject);
+    assert.equal(parsed.length, bank.length - 1, subject);
+    assert.ok(parsed.every(q => q.subject_name === subject && q.grade === grade), subject);
+    assert.equal(TableFileHelper.parsePpctFromRows(ppct, grade, subject).length, 3, subject);
+  }
+  assert.match(JSON.stringify(TableFileHelper.getSampleBankRows(9, 'Tin học')), tinWords, 'Tin học giữ mẫu cũ');
+});

@@ -703,7 +703,7 @@
   // =========================================================================
   // 8. TẠO MẪU FILE CSV (CÓ UTF-8 BOM) CHO CẢ 3 PHÂN HỆ
   // =========================================================================
-  function getSampleBankRows(grade = 9, subject = 'Tin học') {
+  function tinGetSampleBankRows(grade = 9, subject = 'Tin học') {
     const g = Number(grade) || 9;
     const isThpt = g >= 10;
 
@@ -957,7 +957,7 @@
     ];
   }
 
-  function getSamplePpctRows(grade = 9, subject = 'Tin học') {
+  function tinGetSamplePpctRows(grade = 9, subject = 'Tin học') {
     const g = Number(grade) || 9;
     const isThpt = g >= 10;
     const header = ['Tuần', 'Tên bài học', 'Số tiết', 'Tiết PPCT', 'Yêu cầu cần đạt', 'Phát triển năng lực số & AI', 'Ghi chú'];
@@ -1080,7 +1080,7 @@
     ];
   }
 
-  function getSampleMatrixRows(grade = 9, subject = 'Tin học') {
+  function tinGetSampleMatrixRows(grade = 9, subject = 'Tin học') {
     const g = Number(grade) || 9;
     const isThpt = g >= 10;
 
@@ -1369,6 +1369,69 @@ ${formatInstruction}`;
       validNewQuestions: items.filter(x => x.status === 'new').map(x => x.question),
       nonInternalDupQuestions: items.filter(x => x.status !== 'internal_dup').map(x => x.question)
     };
+  }
+
+  // Mẫu tải về theo môn. Tin học dùng mẫu có nội dung minh họa; môn khác dùng khung đúng cột và dạng câu theo cấp học,
+  // với các ô ghi chỗ cần điền, để không đưa câu hỏi Tin học vào tệp mẫu của môn khác.
+  const isTinSubject = (subject) => stripAccents(String(subject || 'Tin học')).toLowerCase().replace(/\s+/g, ' ').trim() === 'tin hoc';
+  const placeholderLabel = (subject, g) => `${String(subject || 'môn học').trim()} lớp ${g}`;
+
+  function getSampleBankRows(grade = 9, subject = 'Tin học') {
+    if (isTinSubject(subject)) return tinGetSampleBankRows(grade, subject);
+    const g = Number(grade) || 9;
+    const isThpt = g >= 10;
+    const L = placeholderLabel(subject, g);
+    const header = [
+      'Mã bài', 'Mức độ', 'Dạng câu', 'Nội dung câu hỏi',
+      isThpt ? 'Phương án A / Ý a' : 'Phương án A', isThpt ? 'Phương án B / Ý b' : 'Phương án B',
+      isThpt ? 'Phương án C / Ý c' : 'Phương án C', isThpt ? 'Phương án D / Ý d' : 'Phương án D',
+      'Đáp án đúng', 'Hướng dẫn giải / Tiêu chí chấm', 'Yêu cầu cần đạt', 'Năng lực'
+    ];
+    const rows = [
+      header,
+      ['B1', 'Biết', 'MC', `[Câu trắc nghiệm mức Biết – Bài 1 – ${L}]`, '[Phương án đúng]', '[Phương án sai 1]', '[Phương án sai 2]', '[Phương án sai 3]', 'A', '[Giải thích vì sao phương án A đúng]', `[Yêu cầu cần đạt mức Biết của Bài 1 – ${L}]`, ''],
+      ['B1', 'Hiểu', 'MC', `[Câu trắc nghiệm mức Hiểu – Bài 1 – ${L}]`, '[Phương án sai 1]', '[Phương án đúng]', '[Phương án sai 2]', '[Phương án sai 3]', 'B', '[Giải thích vì sao phương án B đúng]', `[Yêu cầu cần đạt mức Hiểu của Bài 1 – ${L}]`, '']
+    ];
+    if (isThpt) {
+      rows.push(['B2', 'Hiểu', 'YN', `[Câu Đúng/Sai – Bài 2 – ${L}: xét tính đúng sai của các nhận định sau]`, '[Nhận định a]', '[Nhận định b]', '[Nhận định c]', '[Nhận định d]', 'Đ, S, Đ, S', '[Giải thích từng ý a, b, c, d]', `[Yêu cầu cần đạt mức Hiểu của Bài 2 – ${L}]`, '']);
+      rows.push(['B2', 'Vận dụng', 'SHORT', `[Câu trả lời ngắn – Bài 2 – ${L}]`, '', '', '', '', '[Đáp án ngắn, ví dụ 12,5]', '[Các bước giải ngắn gọn]', `[Yêu cầu cần đạt mức Vận dụng của Bài 2 – ${L}]`, '']);
+    } else {
+      rows.push(['B2', 'Vận dụng', 'MC', `[Câu trắc nghiệm mức Vận dụng – Bài 2 – ${L}]`, '[Phương án sai 1]', '[Phương án đúng]', '[Phương án sai 2]', '[Phương án sai 3]', 'B', '[Giải thích vì sao phương án B đúng]', `[Yêu cầu cần đạt mức Vận dụng của Bài 2 – ${L}]`, '']);
+    }
+    rows.push(['B3', 'Vận dụng cao', 'ES', `[Câu tự luận mức Vận dụng cao – Bài 3 – ${L}]`, '', '', '', '', '', '[Ý 1: nội dung cần đạt (0,5 điểm)]; [Ý 2: nội dung cần đạt (0,5 điểm)]', `[Yêu cầu cần đạt mức Vận dụng cao của Bài 3 – ${L}]`, '']);
+    return rows;
+  }
+
+  function getSamplePpctRows(grade = 9, subject = 'Tin học') {
+    if (isTinSubject(subject)) return tinGetSamplePpctRows(grade, subject);
+    const g = Number(grade) || 9;
+    const L = placeholderLabel(subject, g);
+    const header = ['Tuần', 'Tên bài học', 'Số tiết', 'Tiết PPCT', 'Yêu cầu cần đạt', 'Phát triển năng lực số & AI', 'Ghi chú'];
+    return [
+      header,
+      ['Tuần 1', `Bài 1: [Tên bài 1 – ${L}]`, '2', 'Tiết 1, 2', `[Yêu cầu cần đạt mức Biết của Bài 1]\n[Yêu cầu cần đạt mức Hiểu của Bài 1]`, '', 'Nội dung cốt lõi'],
+      ['Tuần 2', `Bài 2: [Tên bài 2 – ${L}]`, '2', 'Tiết 3, 4', `[Yêu cầu cần đạt mức Hiểu của Bài 2]\n[Yêu cầu cần đạt mức Vận dụng của Bài 2]`, '', 'Nội dung cốt lõi'],
+      ['Tuần 3', `Bài 3: [Tên bài 3 – ${L}]`, '2', 'Tiết 5, 6', `[Yêu cầu cần đạt mức Vận dụng cao của Bài 3]`, '', 'Nội dung cốt lõi']
+    ];
+  }
+
+  function getSampleMatrixRows(grade = 9, subject = 'Tin học') {
+    const rows = tinGetSampleMatrixRows(grade, subject);
+    if (isTinSubject(subject)) return rows;
+    // Giữ nguyên số câu, điểm và cấu trúc; thay tên chủ đề, tên bài, YCCĐ của Tin học bằng ô cần điền.
+    const L = placeholderLabel(subject, Number(grade) || 9);
+    const headerIdx = rows.findIndex(r => r.includes('Chủ đề') && r.includes('Tên bài học'));
+    const specIdx = rows.findIndex(r => r.includes('Yêu cầu cần đạt / Mục tiêu đánh giá cụ thể'));
+    return rows.map((r, i) => {
+      if (headerIdx >= 0 && i > headerIdx && (specIdx < 0 || i < specIdx) && r.length > 3 && /^B\d+$/.test(String(r[2] || ''))) {
+        const out = r.slice(); out[1] = `[Chủ đề của ${out[2]} – ${L}]`; out[3] = `[Tên bài ${out[2]} – ${L}]`; return out;
+      }
+      if (specIdx >= 0 && i > specIdx && r.length > 5 && /^B\d+$/.test(String(r[3] || ''))) {
+        const out = r.slice(); out[5] = `[Yêu cầu cần đạt mức ${out[4]} của ${out[3]} – ${L}]`; return out;
+      }
+      if (i === 0 || (r.length === 1 && /BẢNG/.test(String(r[0])))) return r;
+      return r;
+    });
   }
 
   function detectGradeFromFilename(filename) {

@@ -5,6 +5,8 @@
 
 ## Hiện tại
 
+**24/11/2026 — cập nhật tài liệu theo mã nguồn mới:** từ 20 đến 24/11 bản Pages (chạy trong trình duyệt) được mở rộng nhiều: lưu Google Drive và Firestore, PPCT chuẩn 7 cột, danh mục năng lực 13 môn, kế hoạch kiểm tra đánh giá, nhập Excel/JSON/Markdown theo kiểu thêm vào, luồng ra đề một cửa. Chi tiết theo commit trong `NHAT_KY.md`; mô tả kiến trúc trong mục "Pages build" của `CLAUDE.md`. Các mốc chưa đổi trạng thái: cần chạy lại toàn bộ kiểm thử, kiểm quy chuẩn xuất bản và để giáo viên xác nhận kết quả.
+
 **19/11/2026 — nạp danh mục năng lực/chỉ báo:** đã triển khai theo thiết kế giáo viên đồng ý, kiểm bằng dữ liệu minh họa trên File/Chromium và Python/Django. Kế hoạch: `KE_HOACH_DANH_MUC_NANG_LUC.md`; hướng dẫn/kết quả: `../acceptance/2026-11-19-vat-li/NAP_DANH_MUC.md`. Chờ giáo viên thử tài liệu thật; chưa push và không đánh dấu nghiệm thu mốc C/D.
 
 **19/11/2026 — ổn định luồng Pages theo yêu cầu tiếp nối:** đã thay các nhánh kiểm định/sinh đề giả bằng xử lý thật, nối vòng đời, DOCX/ZIP, bảo vệ lưu cục bộ và thêm cổng kiểm thử cho workflow Pages. Kế hoạch: `KE_HOACH_ON_DINH_PAGES.md`; kết quả và phần chưa hỗ trợ: `../acceptance/2026-11-19-pages/BIEN_BAN.md`. Chưa triển khai hoặc nghiệm thu toàn bộ website, chưa thay các ô mốc C/D.
@@ -46,7 +48,7 @@ Kế hoạch thực thi có phân công agents và cổng nghiệm thu: [Hoàn t
 - [x] B7. Mã đề hoán vị, bảng đối chiếu (`f1f49f1`)
 - [x] B8. KTTX theo TT 22 Điều 6, cụm chuyên đề Điều 6.3 (`f7a90cc`, `85e08d1`)
 - [x] B9. Báo cáo thiếu câu theo ô ma trận (`85e08d1`)
-- [x] Ngoài kế hoạch: vùng Test (`9f46aac`), nhập PPCT từ Word (`8b89825`)
+- [x] Ngoài kế hoạch: vùng Test (`9f46aac`, đã gỡ ngày 17/11/2026 ở `45f4657`), nhập PPCT từ Word (`8b89825`)
 
 ## Mốc C — Nghiệm thu nghiệp vụ (bắt buộc trước khi dùng đề thật)
 

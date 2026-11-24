@@ -43,6 +43,7 @@ Bản chuẩn chỉ nằm trong `../01_Van_ban_phap_ly_va_Quy_dinh/` (tra `DANH_
 
 | Ngày | Quyết định |
 | :--- | :--- |
+| 24/11/2026 | **Chỉ giữ bản GitHub Pages làm bản chính.** Bản Django (Render) và bản chạy cục bộ (`start.py`) tạm dừng phát triển: không thêm tính năng, chỉ giữ cho kiểm thử hiện có còn chạy. Quy tắc nghiệp vụ mới chỉ viết trong `public/static-*.js` / `firebase-bridge.js` kèm `tests/static_*.test.cjs`. Lý do: cùng một quy tắc viết hai lần (Python và JavaScript) làm phát sinh lỗi lệch nhau. |
 | 31/10/2026 | Ưu tiên hoàn thiện chức năng hỗ trợ giáo viên nhiều môn làm đề giữa học kì; chưa làm nội dung/đề/ma trận cuối HK1. Kiểm thử bằng dữ liệu tự soạn. |
 | 26/10/2026 | Giữ trợ lý Gemini nhưng làm an toàn (khóa chỉ ở biến môi trường, câu AI là nháp) |
 | 26/10/2026 | Bản đặc tả theo `rules/02`. Đề chính thức chỉ dùng câu `approved` |

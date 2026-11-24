@@ -42,13 +42,17 @@ Toàn bộ nghiệp vụ được thiết kế theo mô hình tách biệt giữ
 - `domain/policies.py`: Các ràng buộc nghiệp vụ, quy tắc làm tròn điểm (GK/CK làm tròn đến 0,1; KTTX làm tròn đến số nguyên).
 - `ai_assistant.py`: Trợ lý Gemini hỗ trợ giáo viên soạn thảo; khóa bảo mật lấy từ biến môi trường `GEMINI_API_KEY`, các câu tạo ra luôn ở trạng thái `draft`.
 
-### 3.2. Hai môi trường chạy (Two Hosts)
-1. **Django Host (`cloud/`):**
-   - Ứng dụng chính cho môi trường đa tài khoản và triển khai trên Render / máy cục bộ.
+### 3.2. Ba môi trường chạy — chỉ bản Pages là bản chính
+
+> **Quyết định của giáo viên ngày 24/11/2026:** bản **GitHub Pages** (`public/`, chạy hoàn toàn trong trình duyệt qua `firebase-bridge.js` → `static-api.js` → các mô-đun `static-*.js`) là bản chính duy nhất. Django Host và Legacy Host bên dưới **tạm dừng phát triển**: không thêm tính năng hay endpoint mới, chỉ sửa khi cần để bộ kiểm thử hiện có còn đạt. Quy tắc nghiệp vụ mới viết trong `public/static-*.js` kèm `tests/static_*.test.cjs`, không chép sang Python trừ khi giáo viên yêu cầu.
+
+0. **Pages Host (`public/`, bản chính):** dữ liệu ở trình duyệt, đồng bộ Google Drive/Firestore. Xem mục "Pages build" trong `CLAUDE.md`.
+1. **Django Host (`cloud/`, tạm dừng):**
+   - Môi trường đa tài khoản, triển khai trên Render / máy cục bộ.
    - `cloud/assessment/legacy_views.py`: `original_api` bọc các request trong giao dịch `transaction.atomic()` với khóa `select_for_update` trên `Workspace`.
-   - `DjangoHandler` kế thừa từ `Handler` trong `server.py`. Mọi endpoint API nghiệp vụ bổ sung phải viết trong `server.py` để dùng chung.
+   - `DjangoHandler` kế thừa từ `Handler` trong `server.py`. (Trước 24/11/2026: endpoint mới viết trong `server.py`. Nay không thêm endpoint mới cho host này.)
    - `legacy_storage.py` (`DatabaseStorage`): Ánh xạ 6 tệp JSON cấu trúc (`bank.json`, `exams.json`, `revisions.json`, `exam_templates.json`, `matrices/records.json`, `kttx.json`) vào bảng `LegacyState.documents`, tự động lưu `LegacyStateVersion` trước mỗi thao tác ghi.
-2. **Legacy Host (`server.py`, `start.py`, `MO_NGAN_HANG_DE.command`):**
+2. **Legacy Host (`server.py`, `start.py`, `MO_NGAN_HANG_DE.command`, tạm dừng):**
    - Phục vụ môi trường chạy đơn lẻ cục bộ trực tiếp trên tệp JSON trong `data/` hoặc `DEFAULT_BANK`.
 
 ### 3.3. Frontend (Vanilla JS Buildless)

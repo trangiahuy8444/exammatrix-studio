@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Ngân hàng đề: a web app for Vietnamese teachers. It manages subjects and curricula, lessons with their learning outcomes (YCCĐ), a question bank (MC/ES), review guides (đề cương), test matrices with specification tables (ma trận/đặc tả), and generated exams. It exports Word, HTML, LaTeX/PDF and LMS files. The app is a multi-account Django site wrapped around an older single-user localhost app. It runs on Python 3.12 and is deployed to Render (free tier) with Neon PostgreSQL (`render.yaml`, `deploy/`).
 
+There is also a third, browser-only host: the static **GitHub Pages build** (`public/`, deployed from `main`), which the teacher currently uses day to day. It runs the exam workflow in the browser, with no Django or Python server (see "Pages build" below). **Teacher decision 24/11/2026: the Pages build is the only primary host.** Django and the legacy localhost host are frozen: no new features there, only keep their existing tests passing. New behaviour lands in the Pages modules (`public/static-*.js`, `firebase-bridge.js`) with `tests/static_*.test.cjs`; do not port it to Python unless the teacher asks.
+
 This repo sits inside the teacher's Google Drive workspace. The parent folder holds the real question bank and the exam formatting rules (`../AGENTS.md`, `../rules/`). Those rules (numbering, landscape ≤ 24 cm tables, Times New Roman, logo only on đề cương, LMS answer marking) define what correct output from `exports.py`, `latex_generator.py` and `matrices/exports.py` looks like.
 
 UI text, `ServiceError` messages and docs are in Vietnamese. Keep it that way.
@@ -38,6 +40,8 @@ python3 -m venv .venv && .venv/bin/python -m pip install -r cloud/requirements.l
 .venv/bin/python -m unittest tests/test_c2_scenarios.py                   # Milestone C2 teacher scenarios suite
 .venv/bin/python -m unittest discover -s tests -p test_backend.py         # one engine module
 node tests/frontend.test.cjs && node tests/matrices_frontend.test.cjs     # frontend logic
+node --test tests/static_*.test.cjs                                       # Pages build (static API, exam engine/workflow/export, Drive, catalogs)
+node tests/exam_comparison.test.cjs && node tests/table_file_helper.test.cjs  # other Node suites in tests/*.test.cjs
 
 (cd cloud && ../.venv/bin/python manage.py seed_subject_samples --owner USER --dry-run) # then --apply (Toán10/Vật lí10)
 (cd cloud && ../.venv/bin/python manage.py import_legacy --owner USER --dry-run) # copy local JSON bank into an account
@@ -70,11 +74,25 @@ Some engine tests (`test_exam_verification`, `test_matrix_import`, `test_matrix_
 
 **Frontend** is buildless vanilla JS in `public/`: `index.html`, `app.js` (main UI), `matrices.js`, `curricula.js`, and `core.js`. `core.js` holds the pure helpers in UMD form, so Node tests can `require('../public/core.js')`. Put logic you want tested into `core.js`. Django serves only a whitelisted set of these assets (`legacy_views.source_asset` plus the `re_path` in `cloud/config/urls.py`), so add a new JS/CSS file to both places. The legacy server sends a strict CSP (`script-src 'self'`), which means no inline scripts.
 
+The script tags in `public/index.html` carry a cache-busting query (`?v=YYYYMMDD<letter>`); bump it whenever a shipped JS file changes, or browsers may keep serving the old file.
+
 **Django apps** (`cloud/`):
 - `accounts`: signup/login, per-account limits
 - `workspace`: Subject/Curriculum CRUD with trash and restore. REST lives at `/api/subjects/` and `/api/curricula/`, uses an `expected_revision` optimistic-concurrency check, and allows owner-only access via `workspace.access.workspace_for`.
 - `assessment`: the legacy bridge, storage and sample packs
 - `documents`
+
+## Pages build (static, browser-only host)
+
+`.github/workflows/deploy-pages.yml` runs on every push to `main` (and manually) with three jobs: `verify-static` (Python 3.12 + Node 22, checks the Pages flow), `build`, then `deploy`, which publishes `public/` as the Pages artifact (`cancel-in-progress: false`). `tests.yml` also runs on push and runs the Django suite a second time on Postgres 16.
+
+- **Dispatch.** `public/firebase-bridge.js` handles `/api/*` inside the browser when the page is on a static host (`github.io`, `localhost`, `file:`); on other hosts the real server API is used. Routes that `BankStaticAPI.canHandle` (`public/static-api.js`) are delegated to it. It works on a copy of the workspace data, so the caller saves only if the whole operation succeeded; an unsupported route returns 501 ("chưa được hỗ trợ trên bản Pages") and changes nothing.
+- **Workspace data** lives in memory (`currentWorkspaceData`: bank, exams, revisions, matrices) and is cached in `localStorage` (`exammatrix_teacher_cache_<uid or offline>`). After a Firebase login it is synced to Firestore (`workspaces/<uid>` in the original bridge; `cloud-storage-v2.js` describes the sharded layout); `firestore.rules` holds the rules.
+- **Offline mode.** Not signed in, or no network: the app works on the `offline` cache, the login dialog does not open by itself, and `#offline-banner` explains that data stays in this browser, with buttons to download and restore a backup (`.json`, format `exammatrix-offline-backup`). Signing out returns to the offline data. The old server-side "Test mode" (sandbox bank) was removed; Django migrations `0006` and `0007` delete those states and drop `is_test_mode`.
+- **Cloud storage.** `google-drive-storage.js` keeps one workspace file on the teacher's own Google Drive (Drive API v3, scope `drive.file`, folder `ExamMatrix Studio`, file `exammatrix-workspace.json`; config in `google-drive-config.js`, which may hold only the public OAuth client ID, never a client secret). `cloud-storage-v2.js` is "Cloud-First v2": data sharded by school year, subject and grade, with Firestore as the primary store and Drive in parallel. Setup notes: `docs/HUONG_DAN_GOOGLE_DRIVE_API.md`, `docs/HUONG_DAN_GITHUB_PAGES_FIREBASE.md`. Firebase Authentication must list `trangiahuy8444.github.io` under Authorized domains, or Google sign-in fails with `auth/unauthorized-domain`.
+- **Engine modules** (pure, no I/O unless stated): `static-exam-engine.js` (draft exam generation; multipart questions are not supported), `static-exam-workflow.js` (lifecycle rules; persistence and authorization belong to the host), `static-exam-export.js` (offline OOXML/DOCX writer: stored ZIP32 only, 32 MiB, 4096 entries, 2000 questions; text, code and rectangular tables only, no images or equations, no PDF), `static-download.js` (builds real files from a snapshot, nothing leaves the browser), `exam-comparison.js` (same contract as `domain/exam_comparison.py`; keep the two in sync).
+- **Catalogs and plans.** `competency-catalog.js` + `competency-catalog-ui.js` (read XLSX/CSV/TSV and pasted tables, per-subject competency and indicator catalogs, applied to a draft only when the teacher chooses), `assessment-plan-model.js` (assessment plan, CV 5512 Phụ lục 3, linked into matrices), `table-file-helper.js` (import and export of question banks, PPCT and matrices; format priority Excel, then JSON, then Markdown; also builds the AI prompts). Question import adds to the bank and skips verbatim duplicates instead of replacing it.
+- The Pages build duplicates behaviour of the Python engine. Since 24/11/2026 the Pages modules are the source of truth: a rule change is finished when the `static-*.js` / `firebase-bridge.js` path and its `tests/static_*.test.cjs` are updated. Python/Django are frozen; touch them only to keep their suites green.
 
 ## Domain invariants (tests enforce these; see `docs/THIET_KE.md`)
 

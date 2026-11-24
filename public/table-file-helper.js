@@ -1375,7 +1375,8 @@ ${formatInstruction}`;
     if (!filename || typeof filename !== 'string') return null;
     const clean = stripAccents(filename).toLowerCase();
     // Patterns like: 'khoi 8', 'khoi_8', 'k8', 'lop 8', 'grade 8', 'tin 8', 'tin_hoc_8', 'tin8', etc.
-    const m = clean.match(/(?:khoi|k|lop|grade|tin(?:[_\s\-]*hoc)?)[_\s\-]*([6-9]|1[0-2])(?:[_\s\-\.]|$)/i);
+    // Từ khóa phải đứng đầu một từ: 'HK1', 'GK1' không bị hiểu là Khối 1.
+    const m = clean.match(/(?:^|[^a-z0-9])(?:khoi|k|lop|grade|tin(?:[_\s\-]*hoc)?)[_\s\-]*([6-9]|1[0-2])(?:[_\s\-\.]|$)/i);
     if (m) {
       const num = Number(m[1]);
       if (num >= 6 && num <= 12) return num;

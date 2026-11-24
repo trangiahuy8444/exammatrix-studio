@@ -63,6 +63,9 @@ async function main(){
  const setPayload={title:'Bộ đề minh họa',grade:9,exam_type:'GK1',matrix_id:'M1',exam_count:2,seed:'set'};
  stagedResult=await api.handle('/api/exams/generate-set',setPayload,sets,env);sets=stagedResult.data;
  assert.equal(stagedResult.response.exams.length,2);const setId=sets.exams[0].exam_set.id;
+ // L2 (kiểm thử giả lập 24/11/2026): mỗi đề trong bộ có mã riêng và thông tin bộ đề đủ như bản Python.
+ assert.deepEqual(sets.exams.map(e=>e.exam_code),['101','102']);
+ for(const [i,e] of sets.exams.entries()){assert.equal(e.exam_set.title,'Bộ đề minh họa');assert.equal(e.exam_set.index,i+1);assert.equal(e.exam_set.count,2);assert.deepEqual(e.exam_set.exam_ids,sets.exams.map(x=>x.id));assert.ok(e.exam_set.revision_id);}
  sets.exams[1].questions[0].question='Sửa để tái hiện lỗi';const savedSet=JSON.stringify(sets);
  await assert.rejects(api.handle('/api/exams/set/transition',{set_id:setId,action:'submit'},sets,env));assert.equal(JSON.stringify(sets),savedSet);
  const legacyEs=fixture();

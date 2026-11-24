@@ -1,5 +1,6 @@
 /* Đồng bộ, không I/O. Chỉ tạo bản nháp; chủ ứng dụng lưu, duyệt và xuất hồ sơ.
- * Multipart chưa được hỗ trợ: không suy diễn liên kết từng ý từ câu mẹ.
+ * Câu nhiều ý: chỉ hỗ trợ câu Đúng/Sai 4 ý cùng một YCCĐ (bảng ma trận 2D tạo ra), giống quy tắc bản Python.
+ * Đúng/Sai trải trên nhiều YCCĐ và tự luận nhiều ý vẫn bị chặn.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -84,10 +85,22 @@
   const lessons = ppct => list(ppct && ppct.lessons);
   const lesson = (ppct,m,code) => lessons(ppct).find(l=>l.grade===m.grade && subject(l.subject_name)===subject(m.subject_name) && l.lesson_code===code);
   function kinds(m) { return m.allowed_kinds || (m.profile==='THCS' ? ['MC','ES'] : KINDS); }
+  // Vị trí ra đề được: một ý, hoặc câu Đúng/Sai 4 ý cùng bài, mức độ và YCCĐ gốc. Tự luận nhiều ý vẫn chặn.
+  // Hai YCCĐ được coi là một khi cùng bài, mức độ và YCCĐ gốc trong PPCT (bảng đặc tả có thể tách mỗi ý thành một mục tiêu riêng).
+  function singleRequirement(s,m) {
+    if(!obj(s)||!Array.isArray(s.parts)||!s.parts.length||!s.parts.every(p=>obj(p)))return false;
+    if(s.parts.length===1)return true;
+    if(s.kind!=='YN'||s.parts.length!==4)return false;
+    const reqs=s.parts.map(p=>list(m?.requirements).find(r=>obj(r)&&r.id===p.requirement_id));
+    if(reqs.some(r=>!r))return false;
+    const key=r=>[r.lesson_code,r.level,r.ppct_outcome_index].join('|');
+    return reqs.every(r=>key(r)===key(reqs[0]));
+  }
   function technical(q) {
     if(!obj(q)||!text(q.id)||!text(q.question)||!text(q.learning_outcome)||!LEVELS.includes(q.level))return false;
     if(q.type==='MC')return Array.isArray(q.options)&&q.options.length===4&&q.options.every(text)&&new Set(q.options.map(norm)).size===4&&Number.isInteger(q.correct)&&q.correct>=0&&q.correct<4;
-    if(q.type==='SHORT')return text(q.short_answer)||typeof q.short_answer==='number'&&Number.isFinite(q.short_answer);
+    if(q.type==='SHORT')return ['short_answer','correct_answer','answer'].some(k=>text(q[k])||typeof q[k]==='number'&&Number.isFinite(q[k]));
+    if(q.type==='YN')return Array.isArray(q.statements)&&q.statements.length===4&&q.statements.every(st=>obj(st)&&text(st.text)&&typeof st.correct==='boolean')&&new Set(q.statements.map(st=>norm(st.text))).size===4;
     if(q.type==='ES')return Array.isArray(q.rubric)&&q.rubric.length>0&&q.rubric.every(r=>obj(r)&&text(r.criterion)&&positive(r.points));
     return false;
   }
@@ -141,7 +154,7 @@
       (numbers[s.kind] ||= []).push(s.number);
       if(!obj(s.scoring)||s.scoring.mode!=='sum_parts')error('scoring','slots','Cần tính điểm theo từng ý.');
       if(!Array.isArray(s.parts)||!s.parts.length||s.parts.some(p=>!obj(p))){error('parts','slots','Câu cần danh sách yêu cầu con.');supported=false;continue;}
-      if(s.kind==='YN'||s.parts.length!==1)supported=false;
+      if(!singleRequirement(s,m))supported=false;
       if(['MC','SHORT'].includes(s.kind)&&s.parts.length!==1)error('parts','slots','Câu đơn phải có đúng một phần.');
       const labels=s.parts.map(p=>p.label||'');
       if(s.kind==='YN'&&labels.join('')!=='abcd')error('yn_labels','slots','Đúng/Sai phải đủ ý a, b, c, d.');
@@ -175,7 +188,7 @@
     if(!report.valid)fail('Ma trận chưa hợp lệ: '+report.errors.map(e=>e.message).join(' '),report);
     if(m.status!=='locked')fail('Chọn phiên bản ma trận đã khóa.');
     if(m.content_sha256 && m.content_sha256!==digest(m))fail('Nội dung ma trận đã thay đổi so với bản khóa; cần khóa lại.');
-    if(!report.exam_supported)fail('Chưa hỗ trợ câu Đúng/Sai hoặc câu nhiều ý, nhiều phần; cần đối chiếu từng ý, không được bỏ phần thi.');
+    if(!report.exam_supported)fail('Ma trận có câu nhiều ý gắn với nhiều YCCĐ khác nhau. Bản trên trình duyệt chỉ tạo đề với câu một ý, hoặc câu Đúng/Sai có 4 ý cùng một YCCĐ; hãy sửa các ý về cùng một YCCĐ hoặc tách thành câu riêng.');
     return m;
   }
   function eligible(q,m,s,ppct,approved=true) {
@@ -189,7 +202,7 @@
   }
   function shortfall(matrix,questions,ppct) {
     const v=validateMatrix(matrix,ppct),cells=[],unresolved_slots=[],groups=new Map();
-    for(const s of list(matrix?.slots)){if(!obj(s)||s.kind==='YN'||!Array.isArray(s.parts)||s.parts.length!==1){unresolved_slots.push({slot_id:s?.id,kind:s?.kind,number:s?.number,parts:s?.parts||[],reason:'Chưa hỗ trợ đối chiếu câu nhiều ý, nhiều phần.'});continue;}
+    for(const s of list(matrix?.slots)){if(!singleRequirement(s,matrix)){unresolved_slots.push({slot_id:s?.id,kind:s?.kind,number:s?.number,parts:s?.parts||[],reason:'Chưa hỗ trợ câu nhiều ý gắn với nhiều YCCĐ khác nhau.'});continue;}
       const r=list(matrix.requirements).find(r=>r.id===s.parts[0]?.requirement_id),l=r&&lesson(ppct,matrix,r.lesson_code);if(!r||!l){unresolved_slots.push({slot_id:s.id,reason:'Chưa xác định YCCĐ trong PPCT.'});continue;}
       const outcome=l.outcomes?.[r.ppct_outcome_index],key=[r.lesson_code,s.kind,r.level,outcome].join('|');
       if(!groups.has(key))groups.set(key,{lesson_code:r.lesson_code,outcome,kind:s.kind,level:r.level,needed:0,approved:0,pending_review:0,needs_review:0,draft:0,shortfall:0,slot:s});groups.get(key).needed++;

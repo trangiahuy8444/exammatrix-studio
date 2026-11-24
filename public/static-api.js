@@ -7,6 +7,8 @@
  function find(list,key){if(typeof key!=='string'||!key)fail('Thiếu mã hồ sơ.');const r=list.find(x=>x.id===key);if(!r)fail('Không tìm thấy hồ sơ trong không gian hiện tại.',404);return r;}
  function put(list,value){const i=list.findIndex(x=>x.id===value.id);if(i<0)list.push(value);else list[i]=value;return value;}
  function draft(record,prefix){const r=clone(record);for(const k of ['approved_hash','approved_by','approved_at','locked_at','published_at','published_by','locked_by','usage','lifecycle','verification','exam_set','parent_exam_id'])delete r[k];r.id=id(prefix);r.status='drafting';r.created_at=now();return r;}
+ // Thông tin bộ đề giống bản Python (bank_service.generate_exam_set): id, title, revision_id, exam_ids, created_at, index, count.
+ function stampExamSet(exams,{id,title,revision_id}){const exam_ids=exams.map(e=>e.id),created_at=new Date().toISOString();exams.forEach((e,i)=>{e.exam_set={id,title,revision_id,exam_ids,created_at,index:i+1,count:exams.length};});}
  function canHandle(path){return /^\/api\/(exams|revisions|questions|matrices|assessment-plans)(\/|$)/.test(path)||['/api/bank/import','/api/bank/save','/api/bank/save-question','/api/bank/delete-question','/api/ppct/clear-grade','/api/ppct/restore-grade'].includes(path);}
  async function handle(path,body,input,env={}){
   const data=clone(input),p=body||{},engine=env.engine||root.BankStaticEngine,workflow=env.workflow||root.BankStaticWorkflow;
@@ -827,6 +829,7 @@
      exam.exam_set={id:setId,index:n+1,count};
      exams.push(exam);
     }
+    stampExamSet(exams,{id:setId,title:genPayload.title.trim(),revision_id:revision?.id||null});
     if(createdRev)put(data.revisions,createdRev);
     exams.forEach(ex=>put(data.exams,ex));
     const revIdSet=new Set(revision.question_ids||(revision.questions||[]).map(q=>q.id));
@@ -839,9 +842,11 @@
    if(!revision){const plan=engine.proposeRevision(data,{...p,subject_name:subject,counts:p.revision_counts,total:p.revision_total});revision=saveRevision({title:p.title+' — Đề cương',grade:p.grade,question_ids:plan.question_ids});}
    const setId=id('SET'),exams=[];
    for(let n=0;n<count;n++){
-    const exam=clone(engine.generateExam(data,{...p,title:p.title+` — Đề ${n+1}`,subject_name:subject,revision_id:revision.id,seed:String(p.seed||'')+':'+n}));
-    exam.exam_set={id:setId,index:n+1,count};exams.push(exam);put(data.exams,exam);
+    const exam=clone(engine.generateExam(data,{...p,title:p.title+` — Đề ${n+1}`,subject_name:subject,revision_id:revision.id,exam_code:String(101+n),seed:String(p.seed||'')+':'+n}));
+    exam.exam_set={id:setId,index:n+1,count};exams.push(exam);
    }
+   stampExamSet(exams,{id:setId,title:String(p.title||'').trim(),revision_id:revision.id});
+   for(const exam of exams)put(data.exams,exam);
    const shared=exams.some((e,i)=>exams.slice(i+1).some(other=>e.questions.some(q=>other.questions.some(x=>x.id===q.id))));
    return result({exams,exams_all:data.exams,revisions:data.revisions,revision,revision_size:revision.questions.length,
     outside_per_exam:exams[0].questions.filter(q=>!revision.question_ids.includes(q.id)).length,

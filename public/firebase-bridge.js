@@ -99,6 +99,8 @@
   // Trạng thái Cloud-First v2 (Firebase Auth + Firestore v2 + Google Drive v2)
   const RUNTIME_DRIVE_TOKEN_KEY = 'exammatrix_runtime_drive_token_v2';
   let lastSyncedSlicesV2 = null;
+  // Dấu phiên bản `_rev` của từng tài liệu Firestore mà tab này đã tải/ghi (chặn ghi đè giữa hai máy/tab).
+  let lastKnownRevsV2 = null;
   let currentMutationSnapshot = null;
   let activeMutationMeta = null;
   const cloudFolderCacheV2 = new Map();
@@ -372,6 +374,7 @@
       currentWorkspaceData.assessment_plans = [];
       currentWorkspaceData.kttx = [];
       lastSyncedSlicesV2 = null;
+      lastKnownRevsV2 = null;
       return;
     }
     try {
@@ -733,13 +736,10 @@
       if (path === '/api/ppct/inspect-import') {
         const fn = body.filename || '';
         let grade = Number(body.grade || 0);
-        if (!grade && fn) {
-          const m = fn.match(/(?:TIN|KHỐI|KHOI|LỚP|LOP|K)\s*(\d+)/i);
-          if (m) grade = Number(m[1]);
-        }
+        if (!grade && fn) grade = Number(window.TableFileHelper?.detectGradeFromFilename?.(fn) || 0);
         if (!grade && body.extracted_text) {
           const m = body.extracted_text.match(/(?:KHỐI\s*LỚP|KHỐI|LỚP)\s*(\d+)/i);
-          if (m) grade = Number(m[1]);
+          if (m && Number(m[1]) >= 6 && Number(m[1]) <= 12) grade = Number(m[1]);
         }
         if (!grade) grade = (window.store && window.store.ppctGrade) || 9;
 
@@ -1072,11 +1072,11 @@
 
       if (path === '/api/ppct/apply-import') {
         let grade = Number(body.grade || 0);
-        if (!grade && body.filename) {
-          const m = body.filename.match(/(?:TIN|KHỐI|KHOI|LỚP|LOP|K)\s*(\d+)/i);
-          if (m) grade = Number(m[1]);
-        }
+        if (!grade && body.filename) grade = Number(window.TableFileHelper?.detectGradeFromFilename?.(body.filename) || 0);
         if (!grade) grade = (window.store && window.store.ppctGrade) || 9;
+        if (!Number.isInteger(grade) || grade < 6 || grade > 12) {
+          throw new Error(`Khối ${grade} không hợp lệ (chỉ nhận Khối 6–12). Chưa nhập PPCT; hãy chọn đúng khối rồi đọc lại tệp.`);
+        }
         const targetSubject = body.subject_name || (window.store && window.store.selectedSubject) || 'Tin học';
 
         const incoming = Array.isArray(body.lessons) ? body.lessons : [];
@@ -1664,16 +1664,28 @@
     }
 
     setCloudSyncPill('syncing', '⏳ Đang lưu dữ liệu…');
+    let writeResult;
     try {
-      await v2.firestoreWriteDiffV2(targetUid, db, helpers, beforeSlices, afterSlices, {
-        ownerEmail: user.email || ''
+      writeResult = await v2.firestoreWriteDiffV2(targetUid, db, helpers, beforeSlices, afterSlices, {
+        ownerEmail: user.email || '',
+        // Chỉ kiểm khi tab biết dấu phiên bản của bản đã tải (luôn có sau khi tải từ Cloud v2).
+        knownRevs: lastSyncedSlicesV2 ? lastKnownRevsV2 : null
       });
     } catch (err) {
+      if (v2.isConflictError && v2.isConflictError(err)) {
+        setCloudSyncPill('error', '⛔ Dữ liệu đã đổi ở máy khác');
+        showCloudConflictNotice(err);
+        const conflictErr = new Error(err.message);
+        conflictErr.code = err.code;
+        conflictErr.conflicts = err.conflicts;
+        throw conflictErr;
+      }
       setCloudSyncPill('error', '⚠️ Chưa lưu được');
       throw new Error('Chưa lưu được dữ liệu trực tuyến (' + (err?.message || 'lỗi kết nối') + '). Vui lòng kiểm tra mạng và thử lại.');
     }
 
     lastSyncedSlicesV2 = afterSlices;
+    lastKnownRevsV2 = writeResult && writeResult.knownRevs ? writeResult.knownRevs : lastKnownRevsV2;
     afterData._sync = {
       pending: false,
       provider: 'firebase-cloud-v2',
@@ -1716,7 +1728,7 @@
 
     const status = document.getElementById('static-sync-status');
     const driveCfg = getGoogleDriveSettings();
-    const installV2 = (data, slices) => {
+    const installV2 = (data, slices, revs) => {
       const clean = JSON.parse(JSON.stringify({
         bank: {
           questions: Array.isArray(data?.bank?.questions) ? data.bank.questions : [],
@@ -1736,6 +1748,8 @@
       currentWorkspaceData = clean;
       window.FirebaseState.currentData = currentWorkspaceData;
       lastSyncedSlicesV2 = slices || v2.splitWorkspaceIntoSlices(currentWorkspaceData);
+      lastKnownRevsV2 = revs || null;
+      hideCloudConflictNotice();
       applyWorkspaceToStore();
     };
 
@@ -1745,7 +1759,7 @@
       if (window.FirebaseState.user?.uid !== user.uid) return null;
 
       if (fsV2.exists && fsV2.hasContent) {
-        installV2(fsV2.data, fsV2.slices);
+        installV2(fsV2.data, fsV2.slices, fsV2.revs);
         const driveTok = opts.driveAccessToken || loadRuntimeDriveToken(user.uid)?.accessToken || '';
         if (driveTok && window.GoogleDriveStorage) {
           setCloudSyncPill('synced', '☁ Đã lưu · Drive ✓');
@@ -1822,7 +1836,7 @@
           folderName: driveCfg.folderName,
           ownerEmail: user.email || ''
         });
-        installV2(migrated.data, migrated.slices);
+        installV2(migrated.data, migrated.slices, migrated.knownRevs);
         setCloudSyncPill('synced', driveTok ? '☁ Đã lưu · Drive ✓' : '☁ Đã lưu trực tuyến');
         if (status) { status.hidden = true; status.textContent = ''; }
         showToast('Đã tự động sắp xếp dữ liệu theo từng Khối trên hệ thống trực tuyến!');
@@ -1840,10 +1854,12 @@
         kttx: [],
         profile: v2.normalizeProfile({ active_grades: [8, 9, 10], active_grade: 8, active_subject: 'Tin học' })
       };
+      let initialRevs = fsV2.exists ? (fsV2.revs || null) : null;
       if (!fsV2.exists) {
-        await v2.firestoreWriteFullV2(user.uid, db, helpers, initialData, { ownerEmail: user.email || '' });
+        const written = await v2.firestoreWriteFullV2(user.uid, db, helpers, initialData, { ownerEmail: user.email || '' });
+        initialRevs = written && written.knownRevs ? written.knownRevs : null;
       }
-      installV2(initialData, v2.splitWorkspaceIntoSlices(initialData));
+      installV2(initialData, v2.splitWorkspaceIntoSlices(initialData), initialRevs);
       setCloudSyncPill('synced', driveTok ? '☁ Đã lưu · Drive ✓' : '☁ Đã lưu trực tuyến');
       if (status) {
         status.hidden = false;
@@ -2239,7 +2255,18 @@
     window.store.plans={};window.store.selected=new Set();
     window.store.activeExamViewId=null;window.store.activeRevisionViewId=null;
     if(typeof window.restoreExamDraft==='function')window.restoreExamDraft();
-    if (typeof window.render === 'function') window.render();
+    // Dữ liệu đã nạp xong; lỗi vẽ giao diện không được báo thành "chưa tải được dữ liệu".
+    if (typeof window.render === 'function') {
+      try { window.render(); }
+      catch (renderErr) {
+        console.error('[Hiển thị] Lỗi vẽ giao diện sau khi nạp dữ liệu:', renderErr);
+        const status = document.getElementById('static-sync-status');
+        if (status) {
+          status.hidden = false;
+          status.textContent = 'Dữ liệu đã tải xong nhưng một màn hình hiển thị bị lỗi. Hãy tải lại trang; nếu còn lỗi, báo cho người quản trị ứng dụng.';
+        }
+      }
+    }
   }
 
   // Đưa không gian làm việc trong bộ nhớ về dữ liệu ngoại tuyến (khi đăng xuất hoặc khôi phục tệp).
@@ -2419,6 +2446,7 @@
         currentWorkspaceData = JSON.parse(JSON.stringify(migrated.data));
         window.FirebaseState.currentData = currentWorkspaceData;
         lastSyncedSlicesV2 = migrated.slices;
+        lastKnownRevsV2 = migrated.knownRevs || null;
         applyWorkspaceToStore();
         setCloudSyncPill('synced', '☁ Đã lưu · Drive ✓');
         showToast(`Đã tải & đồng bộ ${currentWorkspaceData.bank?.questions?.length || 0} câu hỏi từ Google Drive!`);
@@ -2635,6 +2663,7 @@
               await helpers.signOut(auth);
               saveRuntimeDriveToken(null, '', 0);
               lastSyncedSlicesV2 = null;
+      lastKnownRevsV2 = null;
               cloudFolderCacheV2.clear();
               showToast('Đã đăng xuất.');
             }
@@ -2660,7 +2689,7 @@
     import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-app.js`).then(async ({ initializeApp }) => {
       const { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } =
         await import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-auth.js`);
-      const { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc, writeBatch } =
+      const { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc, writeBatch, runTransaction } =
         await import(`https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-firestore.js`);
 
       const app = initializeApp(config);
@@ -2679,7 +2708,7 @@
       window.FirebaseState.analytics = analytics;
       window.FirebaseState.auth = auth;
       window.FirebaseState.db = db;
-      window.FirebaseState._firestoreHelpers = { doc, getDoc, setDoc, collection, getDocs, deleteDoc, writeBatch };
+      window.FirebaseState._firestoreHelpers = { doc, getDoc, setDoc, collection, getDocs, deleteDoc, writeBatch, runTransaction };
 
       if (unifiedModeEnabled) {
         const v2AuthHelpers = {
@@ -2694,7 +2723,8 @@
           collection,
           getDocs,
           deleteDoc,
-          writeBatch
+          writeBatch,
+          runTransaction
         };
         setupUnifiedCloudAuthUI(auth, db, v2AuthHelpers);
         console.info('[Cloud v2] Đã kích hoạt chế độ lưu trữ Đám mây (Firebase Auth + Firestore v2 + Google Drive phân khối).');
@@ -2719,6 +2749,7 @@
             window.FirebaseState.user = null;
             saveRuntimeDriveToken(null, '', 0);
             lastSyncedSlicesV2 = null;
+      lastKnownRevsV2 = null;
             if (hadCloudUser || calculateDataScore(currentWorkspaceData) > 0) {
               hadCloudUser = false;
               currentWorkspaceData = {
@@ -3177,6 +3208,59 @@
   }
 
   // Thông báo Toast trang nhã (thay thế popup alert)
+  // Thông báo khi dữ liệu trên đám mây đã được sửa ở máy/tab khác: không tự gộp, yêu cầu tải lại.
+  function showCloudConflictNotice(err) {
+    if (typeof document === 'undefined' || typeof document.createElement !== 'function' || !document.body) return;
+    let box = document.getElementById('cloud-conflict-notice');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'cloud-conflict-notice';
+      box.setAttribute('role', 'alertdialog');
+      box.setAttribute('aria-live', 'assertive');
+      box.style.cssText = [
+        'position: fixed', 'left: 50%', 'bottom: 24px', 'transform: translateX(-50%)', 'z-index: 10001',
+        'max-width: 560px', 'width: calc(100% - 32px)', 'padding: 16px 18px', 'border-radius: 10px',
+        'background: #fff4f2', 'color: #7a1c0c', 'border: 1px solid #f0b6a8',
+        'box-shadow: 0 10px 28px rgba(0,0,0,0.18)', 'font-size: 14px', 'line-height: 1.5'
+      ].join(';');
+      const title = document.createElement('strong');
+      title.textContent = 'Dữ liệu đã được sửa ở máy hoặc tab khác';
+      title.style.display = 'block';
+      const body = document.createElement('p');
+      body.id = 'cloud-conflict-notice-text';
+      body.style.margin = '6px 0 12px';
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap';
+      const later = document.createElement('button');
+      later.type = 'button';
+      later.className = 'btn';
+      later.textContent = 'Để sau';
+      later.onclick = () => { box.hidden = true; };
+      const reload = document.createElement('button');
+      reload.type = 'button';
+      reload.className = 'btn btn-primary';
+      reload.textContent = 'Tải lại để lấy bản mới nhất';
+      reload.onclick = () => { if (typeof location !== 'undefined') location.reload(); };
+      actions.append(later, reload);
+      box.append(title, body, actions);
+      document.body.appendChild(box);
+    }
+    const n = Array.isArray(err?.conflicts) ? err.conflicts.length : 0;
+    const text = document.getElementById('cloud-conflict-notice-text');
+    if (text) {
+      text.textContent = 'Thao tác vừa rồi CHƯA được lưu để không ghi đè lên phần đã sửa ở nơi khác'
+        + (n ? ` (${n} mục bị trùng)` : '')
+        + '. Hãy tải lại trang để lấy bản mới nhất rồi làm lại thao tác. Nên chỉ mở ứng dụng ở một tab khi soạn.';
+    }
+    box.hidden = false;
+  }
+
+  function hideCloudConflictNotice() {
+    const box = typeof document !== 'undefined' && typeof document.getElementById === 'function'
+      ? document.getElementById('cloud-conflict-notice') : null;
+    if (box) box.hidden = true;
+  }
+
   function showToast(message, type = 'success') {
     if (typeof document.createElement !== 'function' || !document.body) return;
     let toast = document.getElementById('fb-toast-notification');

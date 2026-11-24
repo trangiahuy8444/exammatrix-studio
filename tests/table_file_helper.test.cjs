@@ -273,6 +273,11 @@ test('TableFileHelper: detectGradeFromFilename & parseQuestionsFromRows with Gra
   assert.equal(TableFileHelper.detectGradeFromFilename('Tin_11.xlsx'), 11);
   assert.equal(TableFileHelper.detectGradeFromFilename('Tin_12_de_kiem_tra.csv'), 12);
   assert.equal(TableFileHelper.detectGradeFromFilename('ngan_hang_tong_hop.xlsx'), null);
+  // L1 (kiểm thử giả lập 24/11/2026): 'HK1', 'GK1' không bị hiểu là Khối 1.
+  assert.equal(TableFileHelper.detectGradeFromFilename('PPCT HK1 Tin 9.csv'), 9);
+  assert.equal(TableFileHelper.detectGradeFromFilename('PPCT_HK1_Tin_9.xlsx'), 9);
+  assert.equal(TableFileHelper.detectGradeFromFilename('GK1 Toan 9.csv'), null);
+  assert.equal(TableFileHelper.detectGradeFromFilename('De HK2 khoi 8.xlsx'), 8);
 
   // Test parseQuestionsFromRows with Grade column overriding defaultGrade
   const rowsWithGradeCol = [

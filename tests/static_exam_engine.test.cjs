@@ -52,3 +52,33 @@ test('nonblank revision title and unsupported options cannot silently succeed',(
 test('ambiguous bank IDs cannot leak a draft into a revision snapshot',()=>{const d=fixture();d.bank.questions.unshift({...clone(d.bank.questions[0]),review_status:'draft'});assert.throws(()=>engine.proposeRevision(d,payload),/trùng|mã/i);});
 test('proportional total allocation never requests negative cell counts',()=>{const d=fixture();const rows=Array.from({length:4},(_,i)=>({lesson_code:'B1',type:'MC',level:['Biết','Hiểu','Vận dụng','Vận dụng cao'][i],count:1,points_per_question:2.5,outcomes:['Dữ liệu']}));d.bank.questions.forEach((q,i)=>q.level=['Biết','Hiểu','Vận dụng','Vận dụng cao'][i%4]);const p=engine.plan(d,{...payload,matrix_id:undefined,blueprint:rows,total:2});assert.equal(p.cells.reduce((n,c)=>n+c.requested,0),2);assert.ok(p.cells.every(c=>c.requested>=0));});
 test('freezing output never freezes caller arrays; reports own their returned arrays',()=>{const d=fixture();d.matrices[0].allowed_kinds=['MC'];engine.generateExam(d,payload);assert.equal(Object.isFrozen(d.matrices[0].allowed_kinds),false);const p={...payload,matrix_id:undefined,blueprint:[{lesson_code:'B1',type:'MC',level:'Biết',count:10,points_per_question:1,outcomes:['Dữ liệu']}]};const plan=engine.plan(d,p);plan.cells[0].outcomes.push('Sửa');assert.deepEqual(p.blueprint[0].outcomes,['Dữ liệu']);});
+
+function ynFixture(){
+ const d=fixture(),m=d.matrices[0];m.profile='THPT';m.grade=10;m.allowed_kinds=['MC','YN'];
+ d.bank.ppct.lessons[0].grade=10;m.requirements.push({id:'R2',lesson_code:'B1',level:'Hiểu',text:'Xử lí',ppct_outcome_index:1,competency:'NLa'});
+ m.indicator_catalog=[{code:'NLa.1',competency:'NLa',text:'Chỉ báo minh họa'}];
+ m.slots=[...Array.from({length:6},(_,i)=>({id:'S'+i,kind:'MC',number:i+1,parts:[{id:'P'+i,label:'',requirement_id:'R1',points:1,indicator:'NLa.1'}],scoring:{mode:'sum_parts'}})),
+  ...Array.from({length:4},(_,i)=>({id:'Y'+i,kind:'YN',number:i+1,parts:['a','b','c','d'].map(l=>({id:'Y'+i+l,label:l,requirement_id:'R2',points:0.25,indicator:'NLa.1'})),scoring:{mode:'sum_parts'}}))];
+ d.bank.questions.forEach(q=>q.grade=10);
+ for(let i=0;i<6;i++)d.bank.questions.push({id:'YN'+i,grade:10,subject_name:'Tin học',lesson_code:'B1',type:'YN',level:'Hiểu',learning_outcome:'Xử lí',question:'Đúng/Sai minh họa '+i,statements:['a','b','c','d'].map((l,k)=>({label:l,text:'Ý '+l+' câu '+i,correct:k%2===0})),review_status:'approved'});
+ return d;
+}
+const ynPayload={...payload,grade:10};
+test('THPT Đúng/Sai 4 ý cùng một YCCĐ tạo được đề cương và đề đủ 10 điểm',()=>{const d=ynFixture();
+ assert.equal(engine.validateMatrix(d.matrices[0],d.bank.ppct).exam_supported,true);
+ const sf=engine.shortfall(d.matrices[0],d.bank.questions,d.bank.ppct);assert.equal(sf.complete,true);assert.equal(sf.ok,true);
+ const p=engine.proposeRevision(d,ynPayload);assert.ok(p.cells.some(c=>c.type==='YN'&&c.revision_count>=4));
+ const e=engine.generateExam(d,ynPayload);assert.equal(e.total_points,10);assert.equal(e.questions.filter(q=>q.type==='YN').length,4);assert.ok(e.questions.filter(q=>q.type==='YN').every(q=>q.points===1));
+ d.revisions=[{id:'R',grade:10,subject_name:'Tin học',title:'Ôn tập',questions:clone(d.bank.questions)}];const ok=engine.generateExam(d,{...ynPayload,revision_id:'R'});assert.equal(engine.verifyExam(d,ok).passed,true);
+});
+test('Đúng/Sai trải trên nhiều YCCĐ vẫn bị chặn với thông báo rõ',()=>{const d=ynFixture();d.matrices[0].slots[6].parts[3].requirement_id='R1';
+ assert.equal(engine.validateMatrix(d.matrices[0],d.bank.ppct).exam_supported,false);assert.throws(()=>engine.generateExam(d,ynPayload),/nhiều YCCĐ/);});
+test('câu Đúng/Sai thiếu ý hoặc thiếu đáp án không đủ điều kiện kỹ thuật',()=>{const d=ynFixture();d.bank.questions.filter(q=>q.type==='YN').forEach((q,i)=>{if(i<3)q.statements.pop();else delete q.statements[0].correct;});assert.throws(()=>engine.generateExam(d,ynPayload),/đủ|thiếu/i);});
+test('câu Trả lời ngắn nhập từ Excel (trường answer) được nhận như short_answer',()=>{const d=fixture();d.matrices[0].allowed_kinds=['SHORT'];d.matrices[0].slots.forEach(s=>s.kind='SHORT');d.bank.questions.forEach((q,i)=>{q.type='SHORT';delete q.options;delete q.correct;q.answer=String(10+i);});assert.equal(engine.generateExam(d,payload).questions.length,10);});
+
+test('Đúng/Sai sau khi "Tách mục tiêu theo từng câu hỏi" (mỗi ý một mã YCCĐ, cùng bài/mức/YCCĐ gốc) vẫn tạo được đề',()=>{const d=ynFixture(),m=d.matrices[0];
+ for(const s of m.slots.filter(s=>s.kind==='YN'))for(const p of s.parts){const r={...m.requirements.find(r=>r.id==='R2'),id:'R2-'+p.id,text:'Xử lí (Mục tiêu ý '+p.label+')'};m.requirements.push(r);p.requirement_id=r.id;}
+ assert.equal(engine.validateMatrix(m,d.bank.ppct).exam_supported,true);
+ const e=engine.generateExam(d,ynPayload);assert.equal(e.questions.filter(q=>q.type==='YN').length,4);assert.equal(e.total_points,10);
+ m.requirements.find(r=>r.id==='R2-Y0d').level='Vận dụng';assert.equal(engine.validateMatrix(m,d.bank.ppct).exam_supported,false);
+});

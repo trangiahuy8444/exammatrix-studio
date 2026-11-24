@@ -845,7 +845,9 @@
     if (!exists) {
       return { exists: false, hasContent: false, data: null };
     }
-    const profileRaw = typeof profileSnap.data === 'function' ? profileSnap.data() : (profileSnap.data || {});
+    const revs = {};
+    const profileRaw = takeRev(revs, ['workspaces', uid, 'meta', 'profile'],
+      typeof profileSnap.data === 'function' ? profileSnap.data() : (profileSnap.data || {})) || {};
     const profile = normalizeProfile(profileRaw);
     const scopesIndex = Array.isArray(profileRaw.scopes_index) ? profileRaw.scopes_index : [];
     const scopes = {};
@@ -870,7 +872,8 @@
         const catSnap = await helpers.getDoc(helpers.doc(db, 'workspaces', uid, 'scopes', scopeKey, 'shared', 'competency_catalog'));
         const catExists = Boolean(catSnap && (typeof catSnap.exists === 'function' ? catSnap.exists() : catSnap.exists));
         if (catExists) {
-          scopeObj.competency_catalog = clone(typeof catSnap.data === 'function' ? catSnap.data() : catSnap.data);
+          scopeObj.competency_catalog = clone(takeRev(revs, ['workspaces', uid, 'scopes', scopeKey, 'shared', 'competency_catalog'],
+            typeof catSnap.data === 'function' ? catSnap.data() : catSnap.data));
         }
       } catch (e) {}
 
@@ -884,7 +887,8 @@
           try {
             const snap = await helpers.getDoc(helpers.doc(db, 'workspaces', uid, 'scopes', scopeKey, 'grades', gStr, 'modules', modName));
             const ok = Boolean(snap && (typeof snap.exists === 'function' ? snap.exists() : snap.exists));
-            return ok ? (typeof snap.data === 'function' ? snap.data() : snap.data) : null;
+            return ok ? takeRev(revs, ['workspaces', uid, 'scopes', scopeKey, 'grades', gStr, 'modules', modName],
+              typeof snap.data === 'function' ? snap.data() : snap.data) : null;
           } catch (e) {
             return null;
           }
@@ -899,6 +903,21 @@
           readFirestoreCollection(db, helpers, ['workspaces', uid, 'scopes', scopeKey, 'grades', gStr, 'revisions']),
           readFirestoreCollection(db, helpers, ['workspaces', uid, 'scopes', scopeKey, 'grades', gStr, 'exams'])
         ]);
+
+        const gradePath = ['workspaces', uid, 'scopes', scopeKey, 'grades', gStr];
+        for (const [colName, items] of [['question_chunks', chunkDocs], ['matrices', mxDocs], ['revisions', revDocs], ['exams', exDocs]]) {
+          for (const item of items) {
+            if (item && item.data) item.data = takeRev(revs, [...gradePath, colName, item.id], item.data);
+          }
+        }
+        // Gói câu hỏi được ghi kèm `updated_at`; bỏ khi đọc để bản đọc khớp bản chia lại,
+        // nếu không mỗi lần lưu sẽ ghi lại thừa mọi gói câu hỏi (và tự gây xung đột giữa hai máy).
+        for (const item of chunkDocs) {
+          if (item && item.data && 'updated_at' in item.data) {
+            item.data = { ...item.data };
+            delete item.data.updated_at;
+          }
+        }
 
         if (ppctDoc) {
           gSlice.ppct = {
@@ -947,11 +966,112 @@
       data.bank.competency_catalogs.length > 0
     );
 
-    return { exists: true, hasContent, data, slices, profile };
+    return { exists: true, hasContent, data, slices, profile, revs };
   }
 
-  async function executeFirestoreOps(db, helpers, ops) {
+  // =========================================================================
+  // CHẶN GHI ĐÈ GIỮA HAI MÁY/TAB (optimistic concurrency)
+  // Mỗi tài liệu ghi lên Firestore mang `_rev` (chuỗi ngẫu nhiên, đổi mỗi lần ghi). Tab giữ bảng
+  // `knownRevs` {đường dẫn: dấu} của bản nó đã tải/ghi. Trước khi ghi, dấu trên đám mây phải khớp;
+  // lệch dấu nghĩa là máy/tab khác đã sửa -> báo CLOUD_CONFLICT và không ghi gì. `_rev` không bao giờ
+  // nằm trong dữ liệu giáo viên (bị tách ra khi đọc).
+  // =========================================================================
+  const CONFLICT_CODE = 'CLOUD_CONFLICT';
+  const REV_ABSENT = 'absent';
+  const REV_LEGACY = 'legacy';
+
+  function revPath(segments) {
+    return segments.join('/');
+  }
+
+  function newRevToken() {
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function takeRev(revs, segments, data) {
+    if (!data || typeof data !== 'object') return data;
+    const rev = typeof data._rev === 'string' && data._rev ? data._rev : REV_LEGACY;
+    revs[revPath(segments)] = rev;
+    if (!('_rev' in data)) return data;
+    const cleaned = { ...data };
+    delete cleaned._rev;
+    return cleaned;
+  }
+
+  function remoteRevOf(snap) {
+    const exists = Boolean(snap && (typeof snap.exists === 'function' ? snap.exists() : snap.exists));
+    if (!exists) return REV_ABSENT;
+    const data = typeof snap.data === 'function' ? snap.data() : snap.data;
+    return data && typeof data._rev === 'string' && data._rev ? data._rev : REV_LEGACY;
+  }
+
+  function makeConflictError(conflicts) {
+    const err = new Error('Dữ liệu trên đám mây vừa được sửa ở máy hoặc tab khác. Thao tác vừa rồi chưa được lưu. Hãy tải lại trang để lấy bản mới nhất rồi làm lại.');
+    err.code = CONFLICT_CODE;
+    err.conflicts = conflicts;
+    return err;
+  }
+
+  function findConflicts(ops, remoteRevs, knownRevs) {
+    const conflicts = [];
+    ops.forEach((op, i) => {
+      const path = revPath(op.pathSegments);
+      const known = Object.prototype.hasOwnProperty.call(knownRevs, path) ? knownRevs[path] : REV_ABSENT;
+      if (remoteRevs[i] !== known) {
+        conflicts.push({ path, module: op.module, grade: op.grade, docId: op.docId, op: op.op });
+      }
+    });
+    return conflicts;
+  }
+
+  function isConflictError(err) {
+    return Boolean(err && err.code === CONFLICT_CODE);
+  }
+
+  // Gắn dấu mới cho mọi thao tác set; trả về bảng dấu sau khi ghi.
+  function stampOps(ops) {
+    const revsAfter = {};
+    const stamped = ops.map(op => {
+      const path = revPath(op.pathSegments);
+      if (op.op === 'delete') {
+        revsAfter[path] = REV_ABSENT;
+        return op;
+      }
+      const rev = newRevToken();
+      revsAfter[path] = rev;
+      return { ...op, data: { ...op.data, _rev: rev } };
+    });
+    return { stamped, revsAfter };
+  }
+
+  async function executeFirestoreOps(db, helpers, ops, { knownRevs = null } = {}) {
     if (!ops.length) return;
+    const checkConflicts = Boolean(knownRevs && typeof knownRevs === 'object');
+    const TX_LIMIT = 450;
+
+    if (checkConflicts && typeof helpers.runTransaction === 'function' && ops.length <= TX_LIMIT) {
+      // Giao dịch: đọc dấu và ghi trong cùng một lượt nguyên tử của Firestore.
+      await helpers.runTransaction(db, async (tx) => {
+        const refs = ops.map(op => helpers.doc(db, ...op.pathSegments));
+        const remoteRevs = [];
+        for (const ref of refs) remoteRevs.push(remoteRevOf(await tx.get(ref)));
+        const conflicts = findConflicts(ops, remoteRevs, knownRevs);
+        if (conflicts.length) throw makeConflictError(conflicts);
+        ops.forEach((op, i) => {
+          if (op.op === 'delete') tx.delete(refs[i]);
+          else tx.set(refs[i], op.data);
+        });
+      });
+      return;
+    }
+
+    if (checkConflicts) {
+      // Không có giao dịch (hoặc quá nhiều tài liệu): đọc dấu trước, lệch thì dừng trước khi ghi.
+      const remoteRevs = await Promise.all(ops.map(op => helpers.getDoc(helpers.doc(db, ...op.pathSegments)).then(remoteRevOf)));
+      const conflicts = findConflicts(ops, remoteRevs, knownRevs);
+      if (conflicts.length) throw makeConflictError(conflicts);
+    }
+
     if (typeof helpers.writeBatch === 'function') {
       const BATCH_LIMIT = 400;
       for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
@@ -980,13 +1100,15 @@
     }
   }
 
-  async function firestoreWriteDiffV2(uid, db, helpers, beforeSlices, afterSlices, { ownerEmail, forceProfile = false } = {}) {
+  async function firestoreWriteDiffV2(uid, db, helpers, beforeSlices, afterSlices, { ownerEmail, forceProfile = false, knownRevs = null } = {}) {
     if (!uid || !db || !helpers || typeof helpers.doc !== 'function' || typeof helpers.setDoc !== 'function') {
       throw new Error('Thiếu kết nối Firebase Firestore v2.');
     }
     const diff = diffSlices(beforeSlices, afterSlices, uid);
     const ops = [...diff.firestoreOps];
-    if (forceProfile || diff.profileChanged || ops.length > 0) {
+    // Chỉ ghi lại hồ sơ khi hồ sơ hoặc mục lục khối thay đổi: hai máy sửa hai tài liệu khác nhau
+    // sẽ không đụng nhau ở tài liệu hồ sơ.
+    if (forceProfile || diff.profileChanged) {
       const profilePayload = {
         ...normalizeProfile(afterSlices.profile || {}),
         owner_email: ownerEmail || '',
@@ -1003,8 +1125,10 @@
         docId: 'profile'
       });
     }
-    await executeFirestoreOps(db, helpers, ops);
+    const { stamped, revsAfter } = stampOps(ops);
+    await executeFirestoreOps(db, helpers, stamped, { knownRevs });
     return {
+      knownRevs: { ...(knownRevs || {}), ...revsAfter },
       opsCount: ops.length,
       driveFiles: diff.driveFiles,
       scopesIndex: diff.scopesIndex
@@ -1213,8 +1337,10 @@
     const slices = splitWorkspaceIntoSlices(cleanLegacy);
     const assembled = assembleWorkspaceFromSlices(slices);
 
+    let knownRevs = null;
     if (uid && db && firestoreHelpers) {
-      await firestoreWriteFullV2(uid, db, firestoreHelpers, assembled, { ownerEmail });
+      const written = await firestoreWriteFullV2(uid, db, firestoreHelpers, assembled, { ownerEmail });
+      knownRevs = written.knownRevs;
     }
 
     if (driveAccessToken && driveStorage) {
@@ -1236,7 +1362,7 @@
       await driveWriteFullV2(driveAccessToken, driveStorage, assembled, { folderName, ownerEmail, fetchImpl });
     }
 
-    return { data: assembled, slices };
+    return { data: assembled, slices, knownRevs };
   }
 
   function accessTokenOrToken(t) {
@@ -1272,6 +1398,8 @@
     driveReadWorkspaceV2,
     driveWriteDiffV2,
     driveWriteFullV2,
-    migrateV1ToV2
+    migrateV1ToV2,
+    CONFLICT_CODE,
+    isConflictError
   };
 });

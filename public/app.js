@@ -542,7 +542,7 @@ function title(k,h,p,actions=''){return `<div class="page-head"><div><p class="e
 function empty(h,p){return `<div class="empty"><h3>${esc(h)}</h3><p>${esc(p)}</p></div>`;}
 function notify(message,error=false){const el=$('#notice');el.hidden=false;el.className=error?'error':'';el.textContent=message;el.setAttribute('role',error?'alert':'status');if(error)el.scrollIntoView({block:'nearest',behavior:'smooth'});}
 function clearNotice(){$('#notice').hidden=true;}
-function detailError(e){const details=e.details;if(!details)return e.message;return e.message+'\n'+(typeof details==='string'?details:JSON.stringify(details,null,2));}
+function detailError(e){const details=e.details;if(!details||(typeof details==='object'&&!Array.isArray(details)&&!Object.keys(details).length)||(Array.isArray(details)&&!details.length))return e.message;return e.message+'\n'+(typeof details==='string'?details:JSON.stringify(details,null,2));}
 async function request(path,body){
  if (typeof window !== 'undefined' && window.FirebaseClient && window.FirebaseClient.canHandle(path)) {
    return await window.FirebaseClient.handle(path, body);
@@ -3613,9 +3613,11 @@ function bindPpctImport(g){
 
    // Nhận diện Khối lớp tự động từ tên tệp (ví dụ: TIN 9, KHOI 9, LOP 9, K9)
    let detectedGrade = Number(g || store.ppctGrade || 9);
-   const mGrade = file.name.match(/(?:TIN|KHỐI|KHOI|LỚP|LOP|K)\s*(\d+)/i);
-   if (mGrade) {
-     detectedGrade = Number(mGrade[1]);
+   const fileGrade = (typeof TableFileHelper !== 'undefined') ? TableFileHelper.detectGradeFromFilename(file.name) : null;
+   const mGrade = fileGrade ? [String(fileGrade), String(fileGrade)] : null;
+   if (fileGrade) {
+     if (fileGrade !== detectedGrade) notify(`Tên tệp ${file.name} ghi Khối ${fileGrade}, khác Khối ${detectedGrade} đang chọn. Ứng dụng đọc theo Khối ${fileGrade}; hãy kiểm tra lại trước khi bấm Xác nhận nhập.`, true);
+     detectedGrade = fileGrade;
    }
 
    const ext = file.name.toLowerCase().split('.').pop();
@@ -3666,7 +3668,7 @@ function bindPpctImport(g){
    // Nếu tên tệp chưa có, kiểm tra trong nội dung văn bản
    if (!mGrade && extractedText) {
      const mTextGrade = extractedText.match(/(?:KHỐI\s*LỚP|KHỐI|LỚP)\s*(\d+)/i);
-     if (mTextGrade) detectedGrade = Number(mTextGrade[1]);
+     if (mTextGrade && Number(mTextGrade[1]) >= 6 && Number(mTextGrade[1]) <= 12) detectedGrade = Number(mTextGrade[1]);
    }
 
    const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});
@@ -4974,7 +4976,7 @@ function examLifecycle(r){
   }
  }
  return `<div class="exam-lifecycle">`+
-  (isSet?`<span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd">📦 Bộ đề: ${esc(r.exam_set.title)} (${r.exam_set.index}/${r.exam_set.exam_ids.length})</span>`:'')+
+  (isSet?`<span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd">📦 Bộ đề: ${esc(r.exam_set.title||String(r.title||'').replace(/\s*—\s*Đề\s*\d+$/,''))} (${r.exam_set.index||'?'}/${r.exam_set.exam_ids?.length||r.exam_set.count||store.exams.filter(x=>x.exam_set?.id===r.exam_set.id).length})</span>`:'')+
   `<span class="badge exam-${s}">${esc(examStatusNames[s])}</span>`+
   (reused?`<span class="badge draft" title="Câu đã có trong đề phát hành ${esc(r.reuse_check.days)} ngày gần đây; chỉ là cảnh báo">⚠ ${reused} câu vừa dùng</span>`:'')+
   (last?`<span class="small muted">${esc(last.at?.slice(0,16).replace('T',' ')||'')} · ${esc(last.by||'')}${last.reason?' — '+esc(last.reason):''}</span>`:'')+
@@ -6035,8 +6037,9 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
     const filename = file.name.toLowerCase();
 
     // Tự động nhận diện khối từ tên tệp (ví dụ: TIN 9, KHOI 9, K9)
-    const mGrade = file.name.match(/(?:TIN|KHỐI|KHOI|LỚP|LOP|K)\s*(\d+)/i);
-    const effectiveGrade = mGrade ? Number(mGrade[1]) : grade;
+    const fileGrade = (typeof TableFileHelper !== 'undefined') ? TableFileHelper.detectGradeFromFilename(file.name) : null;
+    const mGrade = fileGrade ? [String(fileGrade), String(fileGrade)] : null;
+    const effectiveGrade = fileGrade || grade;
     if (mGrade && $('#ai-parse-grade')) {
       $('#ai-parse-grade').value = String(effectiveGrade);
     }

@@ -1,3 +1,46 @@
+## 24/11/2026 — Sửa 3 lỗi nghiêm trọng từ kiểm thử giả lập (L1–L3)
+
+- Giáo viên chọn sửa L1–L3. Làm trên nhánh `fix/chan-ghi-de-hai-may` (cùng thay đổi chặn ghi đè), chưa commit.
+- L1: nhận diện khối từ tên tệp chặt hơn, dùng chung ở nhập PPCT/nhập đề AI/cầu nối; chặn PPCT ngoài Khối 6–12. L2: bộ đề lưu đủ thông tin như bản Python, mã 101, 102…; màn hình đọc an toàn dữ liệu cũ; lỗi vẽ màn hình không còn báo "chưa tải được dữ liệu". L3: bộ máy Pages tạo đề cương/đề với câu Đúng/Sai 4 ý cùng bài, mức độ, YCCĐ gốc; nhận đáp án Trả lời ngắn nhập từ Excel.
+- Node 145/145, Python 458 (1 bỏ qua). Kiểm lại trên trình duyệt với Firebase giả: Tin 9 (bộ đề) và Vật lí 10 (Đúng/Sai) chạy hết quy trình đến xuất Word. Chi tiết: `acceptance/2026-11-24-kiem-thu-gia-lap/BIEN_BAN.md`. Chưa thử trên Firebase thật.
+
+## 24/11/2026 — Kiểm thử giả lập 3 tài khoản giáo viên trên bản Pages
+
+- Theo yêu cầu giáo viên: đóng vai người kiểm thử, giả lập Tin 9, Toán 9, Vật lí 10 với Firebase giả trên localhost, thao tác bằng giao diện. Mã thử là bản `main` (`cad8389`) chụp trước khi sửa; không đụng Firebase/Drive thật, không sửa mã ứng dụng.
+- Phát hiện 3 lỗi nghiêm trọng: nhập PPCT đoán khối từ tên tệp ("HK1" thành Khối 1, dữ liệu bị cất mất); tạo bộ đề làm hỏng danh sách đề và lần tải sau, các đề cùng mã 101; Khối 10 không tạo được đề cương/đề từ ma trận vì chưa hỗ trợ Đúng/Sai. Cùng 5 lỗi quan trọng và 8 lỗi nhỏ.
+- Biên bản, bảng lỗi và công cụ chạy lại: `acceptance/2026-11-24-kiem-thu-gia-lap/`.
+
+## 24/11/2026 — Chặn ghi đè giữa hai máy/tab (Cloud v2), nhánh `fix/chan-ghi-de-hai-may`
+
+- Sửa mục 3 của phiên rà soát bên dưới. `cloud-storage-v2.js`: mỗi tài liệu Firestore ghi kèm dấu phiên bản `_rev`; `firestoreReadWorkspaceV2` trả `revs` và tách `_rev` khỏi dữ liệu giáo viên; `firestoreWriteDiffV2(..., { knownRevs })` so dấu trên đám mây với dấu tab đã tải trước khi ghi (dùng `runTransaction` nếu có, nếu không thì đọc trước rồi ghi lô). Lệch dấu thì ném lỗi `CLOUD_CONFLICT` kèm danh sách mục trùng và không ghi gì trong lượt đó.
+- Hồ sơ (`meta/profile`) chỉ ghi lại khi hồ sơ hoặc mục lục khối đổi, nên hai máy sửa hai tài liệu khác nhau vẫn lưu được cả hai. Sửa lỗi có sẵn: gói câu hỏi đọc về mang `updated_at` nên mỗi lần lưu ghi lại thừa mọi gói câu hỏi; nay bỏ trường này khi đọc.
+- `firebase-bridge.js`: giữ `lastKnownRevsV2`, truyền vào mỗi lần lưu; gặp xung đột thì hoàn lại thay đổi trong tab, nhãn đồng bộ báo "⛔ Dữ liệu đã đổi ở máy khác" và hiện hộp thông báo kèm nút "Tải lại để lấy bản mới nhất". Không tự gộp. Thêm `runTransaction` vào bộ hàm Firestore. Đổi `?v=20261124c` cho hai tệp.
+- Kiểm thử mới: `tests/static_cloud_conflict_v2.test.cjs` (17 ca, cả hai cách ghi), `tests/static_bridge_conflict.test.cjs` (3 ca qua cầu nối), Firestore giả dùng chung ở `tests/firestore_mock.cjs`. Trước khi sửa: 10 ca thất bại đúng như lỗi. Sau khi sửa: Node 141/141, engine 458 (1 bỏ qua), Django 112/112.
+- Chưa kiểm trên Firestore thật và trình duyệt đã đăng nhập. Chưa commit, chưa push (push lên `main` sẽ triển khai ngay lên trang giáo viên đang dùng).
+- Lưu ý: tài liệu đã có trên Firestore nhưng nằm ở khối không có trong mục lục hồ sơ (nếu có do lỗi cũ) sẽ luôn bị coi là xung đột khi ghi đè lên; chưa gặp trong kiểm thử.
+
+## 24/11/2026 — Chốt bản Pages là bản chính; rà soát lưu trữ
+
+- Giáo viên quyết định chỉ giữ bản GitHub Pages; Django và bản cục bộ tạm dừng phát triển. Đã ghi vào `BOI_CANH.md` (mục 4), `CLAUDE.md`, `AGENTS.md`.
+- Kiểm thử trên máy: engine 458 (1 bỏ qua), Django 112/112, Node 121/121, đều đạt.
+- Phát hiện khi chạy thử bản Pages trên localhost (chưa sửa):
+  1. Chế độ Cloud v2 bật khi có cấu hình Firebase: chưa đăng nhập Google thì mọi thao tác ghi bị từ chối ("Vui lòng đăng nhập…") và không có bản lưu trong trình duyệt. Mô tả "Offline mode" trong `CLAUDE.md` không còn đúng với bản Pages thật.
+  2. `firebase-bridge.js` còn 4 nhánh lưu (Cloud v2, Drive v1, Firestore v1, ngoại tuyến); chỉ Cloud v2 đang dùng.
+  3. Ghi Firestore theo phần chênh so với lần tải của tab hiện tại, không kiểm phiên bản: hai máy/tab sửa cùng một phần thì bản ghi sau đè bản trước mà không báo.
+  4. Ghi Google Drive chạy ngầm sau Firestore; lỗi chỉ hiện nhãn "Chờ đồng bộ Drive".
+  5. Mỗi lần push lên `main` là tự triển khai lên trang giáo viên đang dùng, không có bước thử trước.
+
+## 24/11/2026 — Cập nhật tài liệu theo mã nguồn mới (20–24/11)
+
+- Đọc lại dự án sau 58 commit (`28d1c1a` đến `cad8389`): 87 tệp, khoảng +23.500/−1.900 dòng. Bản trên máy khớp `studio/main`.
+- 20/11: lưu trữ Google Drive riêng cho bản Pages (`28d1c1a`, `412d269`); khung nhập PPCT lên đầu trang, bỏ nút nạp mẫu, không tự nạp bài Tin học cho tài khoản mới (`ca09f7f`, `a93ab05`).
+- 21/11: PPCT chuẩn 7 cột theo CV 5512, TT 02/2025, QĐ 2422 (`36adb3d`, `6641a10`); chuẩn hóa 5 phân hệ THPT theo CV 7991 và THCS (`799ee58`); danh mục năng lực 13 môn (`961e2a1`); đánh số lại từ Câu 1 cho từng dạng câu (`19a6a3a`, `afc564c`).
+- 22/11: ma trận THPT theo khung 19 trắc nghiệm (4,75 đ) + 3 Đúng/Sai (3,0 đ) + 3 tự luận (2,25 đ) (`939e020`); chỉ báo THPT không còn chặn khóa ma trận (`83a092c`); ưu tiên Excel, rồi JSON, rồi Markdown (`fc9e72f`).
+- 23/11: Cloud-First v2 (Firestore cùng cây thư mục Drive, `a688daa`) và đồng bộ hai chiều (`3ec20ff`, `079261e`, `6f6b6c1`); nhập Excel/Markdown/AI thêm câu thay vì thay cả ngân hàng (`97eb7e4`); kế hoạch kiểm tra đánh giá Phụ lục 3 CV 5512 nối vào ma trận (`17f4d2d`); nhãn năng lực NLa–NLe (`7f3134c`, `5a61461`); hộp chọn khi xuất (`0fb0476`); tạo đề linh hoạt, tránh tạo trùng đề (`014a61c`, `67c90a5`, `ccd5caf`); ẩn mã kỹ thuật khỏi giao diện (`d96b146`); CI Pages tách `build` và `deploy` (`9d7c99c`).
+- 24/11: gộp luồng giáo viên một cửa, duyệt hàng loạt, độ giống từ 0–100% (`473d0ca`, `cad8389`).
+- Tài liệu: `CLAUDE.md` thêm mục "Pages build" (cầu nối `firebase-bridge.js`, `static-api.js`, các mô-đun `static-*`, lưu trữ Drive/Firestore, chế độ ngoại tuyến), lệnh kiểm thử Node mới và lưu ý đổi số phiên `?v=` khi sửa tệp JS. `LO_TRINH.md` ghi trạng thái hiện tại.
+- Chưa làm: chạy lại toàn bộ kiểm thử sau đợt thay đổi này; kiểm các thay đổi mới có đúng quy chuẩn xuất bản của trường (khổ ngang ≤ 24 cm, Times New Roman, cách đánh số câu); các ô nghiệm thu của giáo viên vẫn chưa đổi. Thư mục `acceptance/2026-11-21-khoa-bang/` còn chưa theo dõi.
+
 ## 23/11/2026 — Nhập câu hỏi từ Excel: thêm vào, không thay ngân hàng
 
 - Giáo viên chọn sửa đường nhập (Cách 1) để nạp ngân hàng Tin 8/9/10 cả năm. Lỗi tái hiện trên bản sao: nhập Excel thay toàn bộ ngân hàng (360 câu còn 20), mọi câu tự luận bị từ chối (hướng chấm gộp 1 tiêu chí), mã bài bị viết hoa (B8a → B8A, câu nháp gắn vào bài không có trong PPCT). Nạp câu AI cũng thay toàn bộ ngân hàng.
@@ -36,6 +79,15 @@
 - Rà soát độc lập phát hiện hai thiếu sót: tổng điểm ô che trọng số câu khác nhau và phép làm tròn JS lệch Python. Đã tái hiện bằng kiểm thử lỗi rồi sửa; kiểm đầu ra chéo 30 kịch bản.
 - Kế hoạch, cấu trúc và rủi ro: `docs/KE_HOACH_SO_SANH_DE.md`; kết quả cuối phiên: `acceptance/2026-11-19-so-sanh-de/BIEN_BAN.md`.
 - Dữ liệu thử tự soạn và CSDL thử trong thư mục tạm; không khôi phục hoặc migrate dữ liệu thật, không commit/push/triển khai. Chưa tự đánh dấu nghiệm thu giáo viên trong lộ trình.
+
+## 17–18/11/2026 — Gỡ Chế độ Test, chế độ ngoại tuyến, gộp lịch sử Pages
+
+- Gỡ hoàn toàn Chế độ Test (vùng Test) theo yêu cầu: giao diện, `server.py` (`/api/test/*`), lớp Django, `domain/test_seed.py` và test liên quan. Migration `0006` xóa dữ liệu các vùng Test, `0007` bỏ cột `is_test_mode` và đưa ràng buộc về mỗi tài khoản/khóa học một ngân hàng (`45f4657`).
+- Bản Pages: chế độ ngoại tuyến lưu `localStorage`, banner kèm tải bản sao lưu và khôi phục từ tệp `.json`; không tự bật hộp đăng nhập; đăng xuất quay về dữ liệu ngoại tuyến; mở `window.store` để cầu nối cập nhật giao diện sau đăng nhập/đăng xuất.
+- Lỗi đăng nhập Google: miền `trangiahuy8444.github.io` chưa nằm trong Firebase Authorized domains (việc của quản trị viên trong Firebase Console). Thông báo lỗi tiếng Việt cho `unauthorized-domain`, mất mạng, khóa API không hợp lệ.
+- Ma trận: khung "Hướng dẫn nhập số liệu" và thanh thu phóng khung xem trước (chỉ đổi cỡ hiển thị, không đổi định dạng xuất); chỉnh nhẹ CSS (`5fe0ad9`).
+- Gộp lịch sử `ck1-readiness` vào `main` của `exammatrix-studio` giữ cả hai lịch sử, không ghi đè (`8daed14`). Sửa hai ca lỗi CI: danh mục 9 môn và sao lưu trên Postgres (`935d752`).
+- Kiểm thử lúc đó: Django 105 ca đạt, Node đạt, `makemigrations --check` sạch; Tests và Deploy trên GitHub Actions đạt.
 
 ## 08/11/2026 — Kiểm định trung thực ma trận & Hoàn thiện luồng kiểm thử đa môn
 

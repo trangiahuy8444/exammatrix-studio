@@ -298,7 +298,7 @@ function makeSampleWorkspace() {
 
 async function runTests() {
   // 1. Exports check
-  assert.equal(Object.keys(CloudStorageV2).length, 29, 'CloudStorageV2 must export 29 members');
+  assert.equal(Object.keys(CloudStorageV2).length, 31, 'CloudStorageV2 must export 31 members');
 
   // 2. GoogleDriveStorage v1 payload preserves assessment_plans, kttx, profile
   {
@@ -452,7 +452,8 @@ async function runTests() {
     updated.revisions.push({ id: 'REV-9-2', grade: 9, subject_name: 'Tin học', title: 'Đề cương CK1 K9', question_ids: ['Q9-1'] });
     const afterSlices = CloudStorageV2.splitWorkspaceIntoSlices(updated);
     const diffRes = await CloudStorageV2.firestoreWriteDiffV2('teacher-1', db, helpers, read1.slices, afterSlices, { ownerEmail: 'gv@ahs.edu.vn' });
-    assert.ok(diffRes.opsCount >= 2);
+    // Chỉ ghi đúng đề cương mới: Khối 9 đã có trong mục lục nên hồ sơ không ghi lại, gói câu hỏi không ghi thừa.
+    assert.equal(diffRes.opsCount, 1);
 
     const read2 = await CloudStorageV2.firestoreReadWorkspaceV2('teacher-1', db, helpers);
     assert.equal(read2.data.revisions.length, 2);

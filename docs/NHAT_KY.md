@@ -16,6 +16,17 @@
 - Phát hiện 3 lỗi nghiêm trọng: nhập PPCT đoán khối từ tên tệp ("HK1" thành Khối 1, dữ liệu bị cất mất); tạo bộ đề làm hỏng danh sách đề và lần tải sau, các đề cùng mã 101; Khối 10 không tạo được đề cương/đề từ ma trận vì chưa hỗ trợ Đúng/Sai. Cùng 5 lỗi quan trọng và 8 lỗi nhỏ.
 - Biên bản, bảng lỗi và công cụ chạy lại: `acceptance/2026-11-24-kiem-thu-gia-lap/`.
 
+## 24/11/2026 — Gom về một nhánh, một kho ExamMatrix Studio
+
+- Mọi nhánh đã nằm trong `main`; đóng PR #1, xóa `ck1-readiness`, `fix/chan-ghi-de-hai-may`, `fix/loi-nho-dot-2` trên máy và trên GitHub.
+- Giáo viên chọn chỉ dùng kho `trangiahuy8444/exammatrix-studio`. Remote `origin` giờ trỏ về kho này (bỏ remote cũ `ngan-hang-de-web`). Kho cũ được lưu trữ (archive, chỉ đọc) trên GitHub, không xóa. Thư mục trên máy vẫn tên `ngan-hang-de-web/` để không làm hỏng đường dẫn trong workspace.
+- Dịch vụ Render (bản Django, đã tạm dừng) từng nối với kho cũ: sẽ không nhận bản mới nữa; muốn chạy lại phải nối sang `exammatrix-studio` (`deploy/README.md`).
+- Từ nay giáo viên cho phép làm xong là commit và push, không cần hỏi; vẫn làm trên nhánh tạm rồi gộp vào `main` và xóa nhánh.
+
+## 24/11/2026 — Kế hoạch đồ thị tri thức (đề xuất)
+
+- Giáo viên hỏi áp dụng kiến thức môn "Các hệ cơ sở tri thức" (đồ thị tri thức) vào dự án. Đã viết kế hoạch 6 giai đoạn (0 → 2 → 1 → 3 → 4 → 5) ở `KE_HOACH_DO_THI_TRI_THUC.md` và thêm dòng trỏ trong `LO_TRINH.md` mục D. Chưa triển khai, chưa sửa mã; mỗi giai đoạn cần giáo viên đồng ý.
+
 ## 24/11/2026 — Chặn ghi đè giữa hai máy/tab (Cloud v2), nhánh `fix/chan-ghi-de-hai-may`
 
 - Sửa mục 3 của phiên rà soát bên dưới. `cloud-storage-v2.js`: mỗi tài liệu Firestore ghi kèm dấu phiên bản `_rev`; `firestoreReadWorkspaceV2` trả `revs` và tách `_rev` khỏi dữ liệu giáo viên; `firestoreWriteDiffV2(..., { knownRevs })` so dấu trên đám mây với dấu tab đã tải trước khi ghi (dùng `runTransaction` nếu có, nếu không thì đọc trước rồi ghi lô). Lệch dấu thì ném lỗi `CLOUD_CONFLICT` kèm danh sách mục trùng và không ghi gì trong lượt đó.

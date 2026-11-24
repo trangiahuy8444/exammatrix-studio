@@ -14,7 +14,7 @@ Mã nguồn nằm trong repository GitHub riêng tư. Render chạy Django; Neon
 
 ## 2. Tạo web trên Render
 
-1. Đăng nhập Render và kết nối đúng repository `trangiahuy8444/ngan-hang-de-web`. Khi cấp quyền GitHub, chỉ chọn repository cần thiết.
+1. Đăng nhập Render và kết nối đúng repository `trangiahuy8444/exammatrix-studio` (kho cũ `ngan-hang-de-web` đã lưu trữ từ 24/11/2026; bản Django cũng đang tạm dừng phát triển). Khi cấp quyền GitHub, chỉ chọn repository cần thiết.
 2. Tạo **Blueprint** từ nhánh `main`. Render đọc `render.yaml` ở thư mục gốc.
 3. Xác nhận web service là gói **Free**. Không thêm database Render hay persistent disk trả phí.
 4. Điền connection string của Neon vào biến bí mật `DATABASE_URL` khi Render yêu cầu.

@@ -241,6 +241,32 @@ async function main(){
  assert.equal(bulkDelRes.response.deleted_count,2);
  assert.equal(bulkDelRes.response.exams.length,0);
 
+ // Đề xuất đề cương linh hoạt theo type_counts (bốc ngẫu nhiên theo seed) & tỉ lệ tương đồng 50% khi tạo đề
+ const revPropose1=await api.handle('/api/revisions/propose',{
+  matrix_id:'M1',grade:9,exam_type:'GK1',flexible:true,type_counts:{MC:3},seed:'seed-rev-a'
+ },flexLessonData,env);
+ assert.equal(revPropose1.response.total,3);
+ assert.equal(new Set(revPropose1.response.question_ids).size,3);
+ const revPropose2=await api.handle('/api/revisions/propose',{
+  matrix_id:'M1',grade:9,exam_type:'GK1',flexible:true,type_counts:{MC:3},seed:'seed-rev-b'
+ },flexLessonData,env);
+ assert.equal(revPropose2.response.total,3);
+
+ const twoIds=revPropose1.response.question_ids.slice(0,2);
+ const savedSimRev=await api.handle('/api/revisions/save',{
+  title:'Đề cương 50 phần trăm',grade:9,question_ids:twoIds,similarity_target_percent:50
+ },flexLessonData,env);
+ assert.equal(savedSimRev.response.revision.similarity_target_percent,50);
+
+ const sim50Exam=await api.handle('/api/exams/generate',{
+  matrix_id:'M1',grade:9,exam_type:'GK1',duration:45,seed:'sim50-test',
+  title:'Đề đối chiếu 50 phần trăm',flexible:true,
+  revision_id:savedSimRev.response.revision.id,
+  similarity_percent:50,similarity_mode:'exact'
+ },savedSimRev.data,env);
+ assert.equal(sim50Exam.response.exam.questions.length,2);
+ assert.equal(sim50Exam.response.exam.revision_match_count,1);
+
  console.log('PASS static API: ma trận → đề cương → sinh thật → khóa → phát hành; lỗi nguyên tử, bất biến snapshot và không tự duyệt câu');
 }
 if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1;});

@@ -48,8 +48,10 @@
     return clone(q);});
    const codes=new Set(questions.map(q=>q.lesson_code));
    const scope=(ppct.lessons||[]).filter(l=>l.grade===grade&&(l.subject_name||'Tin học')===subject&&codes.has(l.lesson_code)).map(l=>({lesson_code:l.lesson_code,title:l.title||l.lesson_name_source||l.lesson_name||l.lesson_code,topic:l.topic||l.topic_source||l.topic_name||''}));
+   const simRaw=payload.similarity_target_percent;
+   const simPct=simRaw!==undefined&&simRaw!==null&&simRaw!==''&&Number.isFinite(Number(simRaw))?Math.max(0,Math.min(100,Math.round(Number(simRaw)))):(existing?.similarity_target_percent??90);
    return put(data.revisions,{...(existing||{}),id:existing?.id||id('REV'),title:payload.title.trim(),grade,subject_name:subject,lessons:scope,
-    status:existing?.status||'drafting',created_at:existing?.created_at||now(),updated_at:now(),question_ids:ids,questions,question_count:questions.length});
+    status:existing?.status||'drafting',similarity_target_percent:simPct,created_at:existing?.created_at||now(),updated_at:now(),question_ids:ids,questions,question_count:questions.length});
   }
   function normalizeMatrixSlots(m){
    if(!m||typeof m!=='object'||m.status==='locked'||m.status==='archived')return m;
@@ -180,12 +182,31 @@
    const isApp=q=>q.review_status==='approved'?1:0;
    const seedStr=String(opts.seed??'');
    const seedKey=q=>String(engine?.jsonDigest?engine.jsonDigest(seedStr+':'+q.id):q.id);
+   const pct=Number.isFinite(Number(opts.percent))?Math.max(0,Math.min(100,Number(opts.percent))):90;
+   const simMode=opts.similarity_mode==='exact'?'exact':'min';
+   const targetInRev=revQs.length?(simMode==='min'?Math.ceil(flexSlots.length*pct/100):Math.round(flexSlots.length*pct/100)):0;
+   const diffCount=revQs.length?Math.max(0,flexSlots.length-targetInRev):0;
+   const outsideIdxSet=new Set();
+   if(diffCount>0){
+    const lvRank=lv=>({'Vận dụng cao':4,'Vận dụng':3,'Hiểu':2,'Biết':1}[normLevel(lv)]||0);
+    const kindRank=k=>({ES:4,SHORT:3,YN:2,MC:1}[String(k||'').trim().toUpperCase()]||0);
+    const outCandidates=flexSlots.map((entry,idx)=>{
+     const cands=entry.candidates||[];
+     if(!cands.some(q=>!inRev(q)))return null;
+     const srcCell=(entry.requirements&&entry.requirements[0])||entry.cell||{};
+     return {idx,lv:lvRank(srcCell.level),kr:kindRank(entry.slot?.kind)};
+    }).filter(Boolean).sort((a,b)=>(b.lv-a.lv)||(b.kr-a.kr)||(b.idx-a.idx));
+    outCandidates.slice(0,diffCount).forEach(x=>outsideIdxSet.add(x.idx));
+   }
    const ordered=flexSlots.map((entry,idx)=>({
     idx,
     slot:entry.slot,
     requirements:entry.requirements||[],
     cell:entry.cell||null,
-    pool:[...(entry.candidates||[])].sort((a,b)=>(inRev(b)-inRev(a))||(isApp(b)-isApp(a))||seedKey(a).localeCompare(seedKey(b)))
+    pool:[...(entry.candidates||[])].sort((a,b)=>{
+     const revCmp=outsideIdxSet.has(idx)?(inRev(a)-inRev(b)):(inRev(b)-inRev(a));
+     return revCmp||(isApp(b)-isApp(a))||seedKey(a).localeCompare(seedKey(b));
+    })
    })).sort((a,b)=>a.pool.length-b.pool.length||a.idx-b.idx);
    const usedIds=new Set(),usedTexts=new Set(),chosen=new Array(flexSlots.length);
    let attempts=0;
@@ -415,7 +436,130 @@
    data.bank.ppct.cleared_grades=(data.bank.ppct.cleared_grades||[]).filter(x=>Number(x)!==grade&&x!==`${targetSubject}:${grade}`);
    return result({bank:data.bank},true);
   }
-  if(path==='/api/revisions/propose')return result(engine.proposeRevision(data,{...p,subject_name:subject}));
+  if(path==='/api/revisions/propose'){
+   if(p.flexible!==true)return result(engine.proposeRevision(data,{...p,subject_name:subject}));
+   const targetMatrix=p.matrix_id?(data.matrices.find(m=>m.id===p.matrix_id)||null):null;
+   if(p.matrix_id&&!targetMatrix)fail('Không tìm thấy phiên bản ma trận đã lưu.');
+   const mGrade=Number(targetMatrix?targetMatrix.grade:p.grade);
+   const mSubj=(targetMatrix&&targetMatrix.subject_name)||p.subject_name||subject;
+   const flexSlots=targetMatrix
+    ?buildFlexibleSlots(targetMatrix,bank,ppct)
+    :buildFlexibleBlueprintSlots(p.blueprint,mGrade,mSubj,bank);
+   const groupMap=new Map();
+   for(const entry of flexSlots){
+    const s=entry.slot;
+    const firstReq=(entry.requirements&&entry.requirements[0])||null;
+    const srcCell=firstReq||entry.cell||{};
+    const lessonCode=srcCell.lesson_code||'';
+    const kind=String(s?.kind||'MC').trim().toUpperCase();
+    const level=normLevel(srcCell.level||'Biết');
+    const key=[normLesson(lessonCode),kind,level].join('|');
+    let g=groupMap.get(key);
+    if(!g){
+     let outcomes=[];
+     if(firstReq){
+      const les=(ppct.lessons||[]).find(l=>Number(l.grade)===mGrade&&normSubj(l.subject_name)===normSubj(mSubj)&&normLesson(l.lesson_code)===normLesson(lessonCode));
+      const o=les&&Array.isArray(les.outcomes)&&firstReq.ppct_outcome_index!=null?les.outcomes[firstReq.ppct_outcome_index]:'';
+      outcomes=o?[o]:(firstReq.text?[firstReq.text]:[]);
+     }else if(Array.isArray(srcCell.outcomes)){
+      outcomes=clone(srcCell.outcomes);
+     }
+     g={key,lesson_code:lessonCode,type:kind,level,outcomes,need:0,points:[],pool:[],seenPool:new Set(),seenText:new Set()};
+     groupMap.set(key,g);
+    }
+    g.need++;
+    g.points.push((s?.parts||[]).reduce((sum,pt)=>sum+Number(pt.points||0),0));
+    for(const q of (entry.candidates||[])){
+     const qt=normText(q.question);
+     if(!g.seenPool.has(q.id)&&!(qt&&g.seenText.has(qt))){
+      g.seenPool.add(q.id);if(qt)g.seenText.add(qt);
+      g.pool.push(q);
+     }
+    }
+   }
+   const groups=[...groupMap.values()];
+   const allocateWithCap=(items,target)=>{
+    const out=new Map(items.map(it=>[it.key,0]));
+    let left=Math.max(0,Math.floor(Number(target)||0));
+    let active=items.filter(it=>it.pool.length>0);
+    while(left>0&&active.length){
+     const sumNeed=active.reduce((s,it)=>s+Math.max(1,it.need),0);
+     let givenRound=0;
+     const rems=[];
+     for(const it of active){
+      const capLeft=it.pool.length-out.get(it.key);
+      const exact=left*(Math.max(1,it.need)/sumNeed);
+      const add=Math.min(capLeft,Math.floor(exact));
+      if(add>0){out.set(it.key,out.get(it.key)+add);givenRound+=add;}
+      if(capLeft>add)rems.push({it,frac:exact-Math.floor(exact)});
+     }
+     left-=givenRound;
+     if(left>0&&rems.length){
+      rems.sort((a,b)=>b.frac-a.frac||b.it.need-a.it.need||a.it.key.localeCompare(b.it.key));
+      let remGiven=0;
+      for(const r of rems){
+       if(left<=0)break;
+       const cur=out.get(r.it.key);
+       if(cur<r.it.pool.length){out.set(r.it.key,cur+1);left--;remGiven++;}
+      }
+      if(!givenRound&&!remGiven)break;
+     }else if(!givenRound){
+      break;
+     }
+     active=active.filter(it=>out.get(it.key)<it.pool.length);
+    }
+    return out;
+   };
+   const warnings=[];
+   const reqMap=new Map();
+   const typeLabels={MC:'Trắc nghiệm',YN:'Đúng/Sai',SHORT:'Trả lời ngắn',ES:'Tự luận'};
+   if(p.type_counts&&typeof p.type_counts==='object'){
+    for(const tp of ['MC','YN','SHORT','ES']){
+     const typeGroups=groups.filter(g=>g.type===tp);
+     if(!typeGroups.length)continue;
+     const want=Math.max(0,Math.floor(Number(p.type_counts[tp])||0));
+     const availSum=typeGroups.reduce((n,g)=>n+g.pool.length,0);
+     if(want>availSum)warnings.push(`Dạng ${typeLabels[tp]||tp} yêu cầu ${want} câu nhưng ngân hàng chỉ có ${availSum} câu.`);
+     const alloc=allocateWithCap(typeGroups,Math.min(want,availSum));
+     alloc.forEach((v,k)=>reqMap.set(k,v));
+    }
+   }else if(p.counts&&typeof p.counts==='object'){
+    const normCounts=new Map();
+    Object.entries(p.counts).forEach(([k,v])=>{
+     const parts=String(k).split('|');
+     const nk=parts.length>=3?[normLesson(parts[0]),String(parts[1]||'').trim().toUpperCase(),normLevel(parts[2])].join('|'):k;
+     normCounts.set(nk,(normCounts.get(nk)||0)+Math.max(0,Math.floor(Number(v)||0)));
+    });
+    for(const g of groups){
+     const rawWant=p.counts[g.key]!==undefined?Math.max(0,Math.floor(Number(p.counts[g.key])||0)):(normCounts.get(g.key)||0);
+     reqMap.set(g.key,rawWant);
+    }
+   }else if(p.total!=null){
+    const alloc=allocateWithCap(groups,Math.max(1,Math.floor(Number(p.total)||1)));
+    alloc.forEach((v,k)=>reqMap.set(k,v));
+   }else{
+    for(const g of groups)reqMap.set(g.key,Math.min(g.pool.length,Math.ceil(g.need*1.5)));
+   }
+   const seed=String(p.seed||Date.now());
+   const hashPick=(q,keyStr)=>String(engine?.jsonDigest?engine.jsonDigest(seed+':'+keyStr+':'+q.id):q.id);
+   const chosenIds=[],chosenSet=new Set(),chosenTexts=new Set();
+   const cellsOut=groups.map(g=>{
+    const req=reqMap.get(g.key)||0;
+    const sortedPool=[...g.pool].sort((a,b)=>hashPick(a,g.key).localeCompare(hashPick(b,g.key)));
+    const picked=[];
+    for(const q of sortedPool){
+     if(picked.length>=req)break;
+     const qt=normText(q.question);
+     if(chosenSet.has(q.id)||(qt&&chosenTexts.has(qt)))continue;
+     chosenSet.add(q.id);if(qt)chosenTexts.add(qt);
+     chosenIds.push(q.id);picked.push(q.id);
+    }
+    if(picked.length<req)warnings.push(`Ô ${g.lesson_code} · ${typeLabels[g.type]||g.type} · ${g.level} thiếu câu: cần ${req}, có ${g.pool.length}.`);
+    const {seenPool,seenText,pool,...rest}=g;
+    return {...rest,available:pool.length,requested:req,revision_count:picked.length,question_ids:picked};
+   });
+   return result({cells:cellsOut,question_ids:chosenIds,total:chosenIds.length,exam_question_count:flexSlots.length,warnings});
+  }
   if(path==='/api/revisions/save'||path==='/api/revisions/update'){
    const old=path.endsWith('/update')?own(find(data.revisions,p.id)):null;
    const revision=saveRevision(p,old);return result({revision,revisions:data.revisions},true);
@@ -599,7 +743,7 @@
     const flexSlots=resolveFlexSource(genPayload,p,targetMatrix);
     const rev=genPayload.revision_id?own(find(data.revisions,genPayload.revision_id)):null;
     if(rev&&Number(rev.grade)!==Number(genPayload.grade))fail('Đề cương phải cùng khối, môn và kì kiểm tra.');
-    const pickedQuestions=assignFlexibleSlots(flexSlots,{revision:rev,seed:genPayload.seed,percent:genPayload.similarity_percent??90});
+    const pickedQuestions=assignFlexibleSlots(flexSlots,{revision:rev,seed:genPayload.seed,percent:genPayload.similarity_percent??rev?.similarity_target_percent??90,similarity_mode:genPayload.similarity_mode||'min'});
     const dup=findRecentDuplicateExam(data.exams,genPayload,targetMatrix,pickedQuestions.map(q=>q.id));
     if(dup)return result({exam:dup,exams:data.exams},false);
     const exam=assembleFlexibleExam({targetMatrix,blueprint:p.blueprint,flexSlots,pickedQuestions,genPayload,rev});
@@ -653,7 +797,7 @@
     const setId=id('SET'),exams=[];
     for(let n=0;n<count;n++){
      const examSeed=String(genPayload.seed??'')+':'+n;
-     const pickedQuestions=assignFlexibleSlots(flexSlots,{revision,seed:examSeed,percent:genPayload.similarity_percent??90});
+     const pickedQuestions=assignFlexibleSlots(flexSlots,{revision,seed:examSeed,percent:genPayload.similarity_percent??revision?.similarity_target_percent??90,similarity_mode:genPayload.similarity_mode||'min'});
      const exam=assembleFlexibleExam({targetMatrix,blueprint:p.blueprint,flexSlots,pickedQuestions,genPayload:{...genPayload,title:genPayload.title.trim()+` — Đề ${n+1}`,exam_code:String(101+n),seed:examSeed},rev:revision});
      exam.exam_set={id:setId,index:n+1,count};
      exams.push(exam);

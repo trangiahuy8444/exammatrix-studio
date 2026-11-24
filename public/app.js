@@ -4119,22 +4119,127 @@ function bindLessonPickerInputs(prefix, targetObj) {
   });
 }
 
-function revisionMatrixPanel(g,qs){const sources=revisionMatrixSources(g);if(!sources.length)return `<p class="small muted">Chưa có ma trận của khối ${g} để đối chiếu. Khóa ma trận ở Ma trận & đặc tả, hoặc thiết lập phân bố đủ 10 điểm ở màn hình Tạo đề kiểm tra.</p>`;const src=sources.find(x=>x.id===store.revisionMatrixId)||sources[0],plan=ensurePlan('rev',src.payload,()=>{if(store.tab==='revisions')renderRevisions();});store.revCounts=store.revCounts||{};const cells=plan.data?.cells||[],count=c=>store.revCounts[c.key]??defaultRevCount(c),total=cells.reduce((n,c)=>n+count(c),0),picked=c=>qs.filter(q=>C.cellMatches(c,q)).length,inMatrix=qs.filter(q=>cells.some(c=>C.cellMatches(c,q))).length;
- return `<div class="field"><label for="revision-matrix">Tạo đề cương theo ma trận</label><select id="revision-matrix">${sources.map(x=>opt(x.id,x.label,x.id===src.id)).join('')}</select></div>${planTable(plan,'<th>Số câu đề cương</th><th>Đã chọn</th>',c=>`<td><input type="number" class="small-input" min="0" max="${c.available}" step="1" data-rev-count="${esc(c.key)}" value="${esc(count(c))}" aria-label="Số câu đề cương ô ${esc(c.lesson_code)} ${esc(c.type)} ${esc(c.level)}"></td><td><span class="badge${picked(c)<count(c)?' draft':' approved'}">${picked(c)}</span></td>`)}${lessonPickerTable(cells, 'rev', store.revLessonCounts || {})}${cells.length?`<div class="actions"><label for="rev-total" class="small">Tổng số câu</label><input id="rev-total" type="number" class="small-input" min="1" step="1" value="${total}"><button type="button" id="rev-split">Chia theo tỉ lệ</button><button type="button" class="primary" id="rev-auto">Tự chọn ${total} câu theo ma trận</button></div><p class="small muted">Đang chọn ${qs.length} câu (${inMatrix} câu thuộc ô ma trận${qs.length-inMatrix?`, ${qs.length-inMatrix} câu ngoài ma trận`:''}). Mặc định mỗi ô gấp 1,5 lần số câu một đề; sửa số ở cột "Số câu đề cương" rồi bấm "Tự chọn". Câu được rải đều các YCCĐ của ô; xem lại, thêm bớt ở Ngân hàng rồi lưu phiên bản.</p>`:''}`;}
-function bindRevisionMatrixPanel(g){const el=$('#revision-matrix');if(!el)return;el.onchange=e=>{store.revisionMatrixId=e.target.value;renderRevisions();};
+function revAvailByType(g,cells,tp,flex){
+ const targetCells=cells.filter(c=>String(c.type||'').toUpperCase()===tp);
+ if(!targetCells.length)return 0;
+ const seen=new Set();let total=0;
+ questions().forEach(q=>{
+  if(!q||q.review_status==='archived'||!String(q.question||'').trim()||Number(q.grade)!==Number(g))return;
+  if(String(q.type||'').trim().toUpperCase()!==tp)return;
+  if(!flex&&q.review_status!=='approved')return;
+  const matches=targetCells.some(c=>flex
+   ?(examNormLesson(q.lesson_code)===examNormLesson(c.lesson_code)&&examNormLevel(q.level)===examNormLevel(c.level))
+   :C.cellMatches(c,q));
+  if(!matches)return;
+  const qt=String(q.question||'').normalize('NFC').trim().toLowerCase().replace(/\s+/g,' ');
+  if(seen.has(qt))return;
+  seen.add(qt);total++;
+ });
+ return total;
+}
+function revCellPickedCount(g,c,qs,flex){
+ return qs.filter(q=>flex
+  ?(Number(q.grade)===Number(g)&&examNormLesson(q.lesson_code)===examNormLesson(c.lesson_code)&&String(q.type||'').toUpperCase()===String(c.type||'').toUpperCase()&&examNormLevel(q.level)===examNormLevel(c.level))
+  :C.cellMatches(c,q)).length;
+}
+function revisionMatrixPanel(g,qs){
+ const sources=revisionMatrixSources(g);
+ if(!sources.length)return `<p class="small muted">Chưa có ma trận của khối ${g} để đối chiếu. Khóa ma trận ở Ma trận & đặc tả, hoặc thiết lập phân bố đủ 10 điểm ở màn hình Tạo đề kiểm tra.</p>`;
+ if(store.revPanelGrade!==Number(g)){store.revPanelGrade=Number(g);store.revCounts={};store.revTypeCounts={};store.revLessonCounts={};store.revFlexibleUserSet=false;}
+ const src=sources.find(x=>x.id===store.revisionMatrixId)||sources[0];
+ const plan=ensurePlan('rev',src.payload,()=>{if(store.tab==='revisions')renderRevisions();});
+ store.revCounts=store.revCounts||{};
+ store.revTypeCounts=store.revTypeCounts||{};
+ const cells=plan.data?.cells||[];
+ const gradeQs=questions().filter(q=>q&&q.review_status!=='archived'&&Number(q.grade)===Number(g));
+ const approvedGradeQs=gradeQs.filter(q=>q.review_status==='approved').length;
+ const strictShort=cells.some(c=>c.available<c.need);
+ if(!store.revFlexibleUserSet){
+  store.revFlexibleMode=Boolean(strictShort&&gradeQs.length>0);
+ }
+ const flex=Boolean(store.revFlexibleMode);
+ const capOf=c=>flex?flexCountForCell(g,c.lesson_code,c.type,c.level):c.available;
+ const count=c=>store.revCounts[c.key]??defaultRevCount(c,capOf(c));
+ const total=cells.reduce((n,c)=>n+count(c),0);
+ const picked=c=>revCellPickedCount(g,c,qs,flex);
+ const inMatrix=qs.filter(q=>cells.some(c=>flex?(Number(q.grade)===Number(g)&&examNormLesson(q.lesson_code)===examNormLesson(c.lesson_code)&&String(q.type||'').toUpperCase()===String(c.type||'').toUpperCase()&&examNormLevel(q.level)===examNormLevel(c.level)):C.cellMatches(c,q))).length;
+ const displayCells=flex?cells.map(c=>({...c,available:capOf(c)})):cells;
+ const activeTypes=['MC','YN','SHORT','ES'].filter(tp=>cells.some(c=>String(c.type||'').toUpperCase()===tp));
+ const typeEntries=activeTypes.map(tp=>{
+  const needByType=cells.filter(c=>String(c.type||'').toUpperCase()===tp).reduce((n,c)=>n+Number(c.need||0),0);
+  const availByType=revAvailByType(g,cells,tp,flex);
+  const val=store.revTypeCounts[tp]!==undefined?Math.max(0,Math.floor(Number(store.revTypeCounts[tp])||0)):Math.min(availByType,Math.ceil(needByType*1.5));
+  return {tp,label:examTypeLabel(tp),needByType,availByType,val};
+ });
+ const totalTypeCount=typeEntries.reduce((n,x)=>n+x.val,0);
+ const flexSwitchHtml=`<div class="exam-flex-switch${flex?' is-on':''}" style="margin:10px 0">`+
+  `<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:600;color:var(--navy)">`+
+   `<input type="checkbox" id="rev-flexible-mode"${flex?' checked':''} style="margin-top:3px">`+
+   `<span>⚡ Chế độ linh hoạt (dùng cả câu Nháp / Chờ duyệt và khớp theo Bài + Dạng + Mức độ, bỏ qua sai khác câu chữ YCCĐ)</span>`+
+  `</label>`+
+  (strictShort&&gradeQs.length>0?`<p class="small muted" style="margin:6px 0 0 25px">Ngân hàng Khối ${g} hiện có <strong>${gradeQs.length} câu</strong> (${approvedGradeQs} câu đã duyệt). ${flex?'Đã tự bật chế độ linh hoạt để chọn số câu đề cương từ toàn bộ ngân hàng khối.':'Đang tắt: chỉ lấy câu đã duyệt khớp 100% YCCĐ.'}</p>`:'')+
+ `</div>`;
+ const randomByTypeBox=cells.length?`<div class="callout" style="margin:12px 0;background:#f8fbff;border-color:#93c5fd">`+
+  `<strong style="display:block;color:var(--navy);margin-bottom:8px">🎲 Tự tạo đề cương theo dạng câu hỏi (bốc ngẫu nhiên theo tỉ lệ ma trận)</strong>`+
+  `<div class="form-grid" style="margin-bottom:10px">${typeEntries.map(x=>`<div class="field"><label for="rev-type-${esc(x.tp)}">${esc(x.label)} <span class="muted">(đề ${x.needByType} · tối đa ${x.availByType})</span></label><input id="rev-type-${esc(x.tp)}" type="number" min="0" max="${x.availByType}" step="1" data-rev-type-count="${esc(x.tp)}" value="${esc(x.val)}"></div>`).join('')}</div>`+
+  `<div class="actions"><button type="button" id="rev-random-by-type" class="primary"${totalTypeCount<1?' disabled':''}>🎲 Bốc ngẫu nhiên ${totalTypeCount} câu theo ma trận</button><span class="small muted">Mỗi lần bấm sẽ bốc một bộ ngẫu nhiên mới đúng tỉ lệ bài &amp; mức độ trong ma trận.</span></div>`+
+ `</div>`:'';
+ return `<div class="field"><label for="revision-matrix">Tạo đề cương theo ma trận</label><select id="revision-matrix">${sources.map(x=>opt(x.id,x.label,x.id===src.id)).join('')}</select></div>${flexSwitchHtml}${randomByTypeBox}<details style="margin:12px 0"><summary style="cursor:pointer;font-weight:600;color:var(--blue)">📊 Tùy chỉnh chi tiết theo từng bài / ô ma trận (${cells.length} ô)</summary><div style="margin-top:10px">${planTable(plan,'<th>Số câu đề cương</th><th>Đã chọn</th>',c=>{const cap=capOf(c);return `<td><input type="number" class="small-input" min="0" max="${cap}" step="1" data-rev-count="${esc(c.key)}" value="${esc(count(c))}" aria-label="Số câu đề cương ô ${esc(c.lesson_code)} ${esc(examTypeLabel(c.type))} ${esc(c.level)}"></td><td><span class="badge${picked(c)<count(c)?' draft':' approved'}">${picked(c)}</span></td>`;},{flexible:flex,grade:Number(g)})}${lessonPickerTable(displayCells,'rev',store.revLessonCounts||{})}${cells.length?`<div class="actions" style="margin-top:10px"><label for="rev-total" class="small">Tổng số câu</label><input id="rev-total" type="number" class="small-input" min="1" step="1" value="${total}"><button type="button" id="rev-split">Chia theo tỉ lệ</button><button type="button" class="primary" id="rev-auto">Tự chọn ${total} câu theo từng ô</button></div><p class="small muted">Đang chọn ${qs.length} câu (${inMatrix} câu thuộc ô ma trận${qs.length-inMatrix?`, ${qs.length-inMatrix} câu ngoài ma trận`:''}). Sửa số từng ô rồi bấm "Tự chọn theo từng ô", hoặc dùng khung bốc ngẫu nhiên theo dạng ở trên.</p>`:''}</div></details>`;
+}
+function bindRevisionMatrixPanel(g){
+ const el=$('#revision-matrix');if(!el)return;
+ el.onchange=e=>{store.revisionMatrixId=e.target.value;store.revCounts={};store.revTypeCounts={};store.revFlexibleUserSet=false;renderRevisions();};
+ if($('#rev-flexible-mode'))$('#rev-flexible-mode').onchange=e=>{store.revFlexibleMode=e.target.checked;store.revFlexibleUserSet=true;store.revCounts={};store.revTypeCounts={};renderRevisions();};
+ document.querySelectorAll('[data-rev-type-count]').forEach(inp=>{
+  inp.oninput=()=>{
+   store.revTypeCounts=store.revTypeCounts||{};
+   store.revTypeCounts[inp.dataset.revTypeCount]=Math.max(0,Math.floor(Number(inp.value)||0));
+   const btn=$('#rev-random-by-type');
+   if(btn){
+    const sum=[...document.querySelectorAll('[data-rev-type-count]')].reduce((n,i)=>n+Math.max(0,Math.floor(Number(i.value)||0)),0);
+    btn.textContent=`🎲 Bốc ngẫu nhiên ${sum} câu theo ma trận`;
+    btn.disabled=sum<1;
+   }
+  };
+ });
  document.querySelectorAll('[data-rev-count]').forEach(inp=>{inp.onchange=()=>{store.revCounts[inp.dataset.revCount]=Math.max(0,Math.floor(Number(inp.value)||0));renderRevisions();};});
  const src=()=>{const list=revisionMatrixSources(g);return list.find(x=>x.id===store.revisionMatrixId)||list[0];};
+ const getFlexCells=()=>{
+  const raw=store.plans?.rev?.data?.cells||[];
+  return store.revFlexibleMode?raw.map(c=>({...c,available:flexCountForCell(g,c.lesson_code,c.type,c.level)})):raw;
+ };
  store.revLessonCounts = store.revLessonCounts || {};
  bindLessonPickerInputs('rev', store.revLessonCounts);
+ if($('#rev-random-by-type'))$('#rev-random-by-type').onclick=async()=>{
+  const typeCounts={};
+  document.querySelectorAll('[data-rev-type-count]').forEach(inp=>{
+   typeCounts[inp.dataset.revTypeCount]=Math.max(0,Math.floor(Number(inp.value)||0));
+  });
+  const sum=Object.values(typeCounts).reduce((a,b)=>a+b,0);
+  if(sum<1){notify('Hãy nhập ít nhất 1 câu hỏi cho một dạng câu.',true);return;}
+  try{
+   const res=await request('/api/revisions/propose',{...src().payload,flexible:Boolean(store.revFlexibleMode),type_counts:typeCounts,seed:String(Date.now())+'-'+Math.random().toString(36).slice(2)});
+   questions().filter(q=>Number(q.grade)===Number(g)).forEach(q=>store.selected.delete(q.id));
+   res.question_ids.forEach(id=>store.selected.add(id));
+   store.revCounts=store.revCounts||{};
+   (res.cells||[]).forEach(c=>{store.revCounts[c.key]=c.revision_count;});
+   const countsByType={};
+   (res.cells||[]).forEach(c=>{countsByType[c.type]=(countsByType[c.type]||0)+Number(c.revision_count||0);});
+   const summaryStr=Object.entries(countsByType).filter(([,v])=>v>0).map(([tp,v])=>`${v} ${examTypeLabel(tp)}`).join(', ');
+   renderRevisions();
+   notify(`Đã bốc ngẫu nhiên ${res.total} câu theo ma trận cho Khối ${g}${summaryStr?` (${summaryStr})`:''}. Bấm "Lưu phiên bản đề cương" bên dưới để lưu.`+(res.warnings?.length?'\nLưu ý: '+res.warnings.join(' '):''),Boolean(res.warnings?.length));
+  }catch(err){notify(detailError(err),true);}
+ };
  if($('#rev-apply-lesson-split'))$('#rev-apply-lesson-split').onclick=()=>{
-   const cells=store.plans?.rev?.data?.cells||[];
+   const cells=getFlexCells();
    const distributed = C.distributeCountsByLesson(cells, store.revLessonCounts);
    Object.assign(store.revCounts, distributed);
    renderRevisions();
  };
- if($('#rev-split'))$('#rev-split').onclick=()=>{const cells=store.plans?.rev?.data?.cells||[];Object.assign(store.revCounts,C.distributeCounts(cells,Math.max(1,Math.floor(Number($('#rev-total').value)||0))));renderRevisions();};
- if($('#rev-auto'))$('#rev-auto').onclick=async()=>{const cells=store.plans?.rev?.data?.cells||[],counts={};cells.forEach(c=>{counts[c.key]=store.revCounts[c.key]??defaultRevCount(c);});
-  try{const res=await request('/api/revisions/propose',{...src().payload,counts,seed:String(Date.now())});questions().filter(q=>Number(q.grade)===Number(g)).forEach(q=>store.selected.delete(q.id));res.question_ids.forEach(id=>store.selected.add(id));renderRevisions();notify(`Đã chọn ${res.total} câu theo ma trận cho khối ${g}. Xem lại danh sách, chỉnh ở Ngân hàng nếu cần, rồi bấm "Lưu phiên bản đề cương".`+(res.warnings?.length?'\nLưu ý: '+res.warnings.join(' '):''),Boolean(res.warnings?.length));}catch(err){notify(detailError(err),true);}};}
+ if($('#rev-split'))$('#rev-split').onclick=()=>{const cells=getFlexCells();Object.assign(store.revCounts,C.distributeCounts(cells,Math.max(1,Math.floor(Number($('#rev-total').value)||0))));renderRevisions();};
+ if($('#rev-auto'))$('#rev-auto').onclick=async()=>{const cells=getFlexCells(),counts={};cells.forEach(c=>{counts[c.key]=store.revCounts[c.key]??defaultRevCount(c,c.available);});
+  try{const res=await request('/api/revisions/propose',{...src().payload,flexible:Boolean(store.revFlexibleMode),counts,seed:String(Date.now())+'-'+Math.random().toString(36).slice(2)});questions().filter(q=>Number(q.grade)===Number(g)).forEach(q=>store.selected.delete(q.id));res.question_ids.forEach(id=>store.selected.add(id));renderRevisions();notify(`Đã chọn ${res.total} câu theo ma trận cho khối ${g}. Xem lại danh sách, chỉnh ở Ngân hàng nếu cần, rồi bấm "Lưu phiên bản đề cương".`+(res.warnings?.length?'\nLưu ý: '+res.warnings.join(' '):''),Boolean(res.warnings?.length));}catch(err){notify(detailError(err),true);}};
+}
 function getAssessmentPlans(grade, subj) {
   const s = subj || store.selectedSubject || 'Tin học';
   const g = grade ? Number(grade) : effectiveGrade();
@@ -4588,17 +4693,18 @@ function renderRevisions(){
  const revSummaryText=r=>{
   const list=r.questions||[];
   const mc=list.filter(q=>q.type==='MC').length,yn=list.filter(q=>q.type==='YN').length,sh=list.filter(q=>q.type==='SHORT').length,es=list.filter(q=>q.type==='ES').length;
-  return `${mc} MC${yn?`, ${yn} Đúng/Sai`:''}${sh?`, ${sh} Trả lời ngắn`:''}, ${es} Tự luận`;
+  return `${mc} Trắc nghiệm${yn?`, ${yn} Đúng/Sai`:''}${sh?`, ${sh} Trả lời ngắn`:''}, ${es} Tự luận`;
  };
+ const revSimPct=Math.max(0,Math.min(100,Math.round(Number(store.revisionSimDraft??editingRev?.similarity_target_percent??90))));
  $('#revisions').innerHTML=wizardNav(2)+title('Chuẩn bị ôn tập','Đề cương ôn tập','Lưu một phiên bản nội dung để đối chiếu khi tạo đề. Hỗ trợ Xem toàn bộ trên trang, Import (.docx/.json/.md), Tạo mới, Sửa, Nhân bản và Xóa.',`<button type="button" class="primary" id="import-revision-btn">📥 Import Đề cương (.docx / .json / .md)</button><input type="file" id="import-revision-file" class="json-import" accept=".docx,.json,.md,.txt"><a class="button" href="#bank">Chọn câu trong ngân hàng</a>`)+
  `<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
    <button type="button" class="button quiet" id="rev-download-json-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📥 Tải mẫu Đề cương (JSON)</button>
    <button type="button" class="button quiet" id="rev-download-md-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📝 Tải mẫu Đề cương (Markdown)</button>
    <button type="button" class="button quiet" id="rev-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI tạo Đề cương</button>
  </div>`+
- `<div class="card"><div class="list-toolbar" style="margin-top:0"><h2 style="margin:0">Các phiên bản đề cương đã lưu (${shownRevs.length} / ${store.revisions.length})</h2><div class="actions" style="display:flex;align-items:center;gap:8px"><label for="rev-list-grade-filter" class="small muted" style="font-weight:600">Khối lớp:</label><select id="rev-list-grade-filter" style="min-width:150px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff">${opt('all',`Tất cả khối (${store.revisions.length})`,revFilterG==='all')}${revGrades.map(gr=>opt(gr,`Khối ${gr} (${store.revisions.filter(x=>Number(x.grade)===gr).length})`,String(revFilterG)===String(gr))).join('')}</select></div></div>${shownRevs.length?[...shownRevs].reverse().map(r=>`<article class="saved-item"><div><h3>${esc(r.title)}</h3><p><strong>Khối ${r.grade}</strong> · ${countRecord(r)} câu hỏi (${revSummaryText(r)}) · ${esc(date(r.updated_at||r.created_at))}</p>${r.source_file?`<p class="q-id">Nguồn: ${esc(r.source_file)}</p>`:''}</div><div class="actions">${revisionLinks(r)}</div></article>`).join(''):empty('Chưa có phiên bản đề cương','Chọn câu ở ngân hàng hoặc Import tệp .docx đề cương.')}</div>`+
+ `<div class="card"><div class="list-toolbar" style="margin-top:0"><h2 style="margin:0">Các phiên bản đề cương đã lưu (${shownRevs.length} / ${store.revisions.length})</h2><div class="actions" style="display:flex;align-items:center;gap:8px"><label for="rev-list-grade-filter" class="small muted" style="font-weight:600">Khối lớp:</label><select id="rev-list-grade-filter" style="min-width:150px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff">${opt('all',`Tất cả khối (${store.revisions.length})`,revFilterG==='all')}${revGrades.map(gr=>opt(gr,`Khối ${gr} (${store.revisions.filter(x=>Number(x.grade)===gr).length})`,String(revFilterG)===String(gr))).join('')}</select></div></div>${shownRevs.length?[...shownRevs].reverse().map(r=>`<article class="saved-item"><div><h3>${esc(r.title)}</h3><p><strong>Khối ${r.grade}</strong> · ${countRecord(r)} câu hỏi (${revSummaryText(r)})${r.similarity_target_percent!=null?` · Tương đồng đề thi: <strong>${r.similarity_target_percent}%</strong>`:''} · ${esc(date(r.updated_at||r.created_at))}</p>${r.source_file?`<p class="q-id">Nguồn: ${esc(r.source_file)}</p>`:''}</div><div class="actions">${revisionLinks(r)}</div></article>`).join(''):empty('Chưa có phiên bản đề cương','Chọn câu ở ngân hàng hoặc Import tệp .docx đề cương.')}</div>`+
  `<div id="revision-inline-viewer" class="card" hidden></div>`+
- `<div class="two-col"><div class="card"><h2>${editingRev?`Sửa phiên bản đề cương: ${esc(editingRev.title||'')}`:'Lưu đề cương mới từ Ngân hàng'}</h2><form id="revision-form"><div class="form-grid"><div class="field"><label for="revision-grade">Khối lớp</label><select id="revision-grade">${gradeOptions(g)}</select></div><div class="field span2"><label for="revision-title">Tên phiên bản</label><input id="revision-title" value="${esc(store.revisionTitleDraft||(editingRev?.title||''))}" placeholder="Ví dụ: Đề cương Giữa HK1 · Khối ${g} · bản 1" required></div></div><div class="selection-tray"><span><strong>${ids.length}</strong> câu khối ${g} đang được chọn</span><a href="#bank">Điều chỉnh lựa chọn</a></div>${electiveQs.length?`<div class="callout warning" style="margin-bottom:10px">⚠️ Đang có <strong>${electiveQs.length}</strong> câu thuộc <strong>Chuyên đề học tập (Mục II.2)</strong>. Theo Thông tư 22/2021/TT-BGDĐT Điều 7.1, câu Chuyên đề không dùng trong Đề cương ôn tập kiểm tra định kì. <button type="button" class="export-link" id="revision-remove-elective">Loại câu Chuyên đề khỏi lựa chọn</button></div>`:''}${revisionMatrixPanel(g,qs)}<div class="actions"><button type="button" id="revision-add-filter">Thêm câu đang lọc của khối ${g}</button><button type="button" id="revision-preview-draft"${!ids.length?' disabled':''}>Xem toàn bộ đang chọn</button><button type="button" id="revision-clear" class="quiet">Bỏ chọn khối ${g}</button></div><div class="revision-ids">${qs.length?qs.map(q=>`${isTechId(q.id)?'':`${esc(q.id)} · `}${esc(q.lesson_code)} · ${esc(q.level)} · ${esc(statusNames[q.review_status])}${questionSectionOf(q)==='elective_topic'?' · [CĐHT]':''}`).join('<br>'):'Chưa chọn câu. Mở ngân hàng, lọc theo bài và đánh dấu những câu muốn đưa vào đề cương.'}</div><div class="actions"><button type="submit" id="save-revision" class="primary"${!ids.length?' disabled':''}>${editingRev?'Cập nhật đề cương đang sửa':'Lưu phiên bản đề cương'}</button>${editingRev?`<button type="button" id="save-revision-as-new"${!ids.length?' disabled':''}>Lưu thành bản mới</button><button type="button" class="quiet" id="cancel-edit-revision">Hủy sửa</button>`:''}</div></form></div><div class="card"><h2>Giữ đúng nội dung đã chuẩn bị</h2><p class="muted">Phiên bản lưu giữ nội dung câu hỏi tại thời điểm tạo. Nếu sửa một câu trong ngân hàng sau đó, phiên bản cũ vẫn giữ nguyên.</p><div class="callout">Khi tạo đề hoặc kiểm định đề thi, ít nhất <strong>90% điểm số / câu hỏi</strong> phải khớp nội dung trong phiên bản đề cương của khối. ${Number(g)>=10?'Đề cương định kì THPT chỉ lấy câu từ Nội dung cốt lõi (Mục II.1), không đưa bài Chuyên đề học tập.':''}</div><p class="small muted">Bấm <strong>👁 Xem toàn bộ</strong> ở bất kì đề cương nào phía trên để xem đầy đủ bảng giới hạn kiến thức, toàn bộ câu hỏi và chỉnh sửa trực tiếp ngay trên trang web.</p></div></div>`;
+ `<div class="two-col"><div class="card"><h2>${editingRev?`Sửa phiên bản đề cương: ${esc(editingRev.title||'')}`:'Lưu đề cương mới từ Ngân hàng'}</h2><form id="revision-form"><div class="form-grid"><div class="field"><label for="revision-grade">Khối lớp</label><select id="revision-grade">${gradeOptions(g)}</select></div><div class="field span2"><label for="revision-title">Tên phiên bản</label><input id="revision-title" value="${esc(store.revisionTitleDraft||(editingRev?.title||''))}" placeholder="Ví dụ: Đề cương Giữa HK1 · Khối ${g} · bản 1" required></div></div><div class="callout" style="margin:10px 0;background:#f8fafc;border-color:var(--line)"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px"><label for="revision-sim-pct" style="font-weight:650;color:var(--navy);margin:0">🎯 Mức độ tương đồng mục tiêu với Đề thi (%)</label><div class="actions" style="gap:4px">${[70,80,90,100].map(v=>`<button type="button" class="export-link${revSimPct===v?' primary':''}" data-rev-sim-preset="${v}">${v}%</button>`).join('')}</div></div><div class="sim-slider-wrap"><input id="revision-sim-pct" type="range" min="0" max="100" step="5" value="${esc(revSimPct)}"><input id="revision-sim-pct-num" type="number" min="0" max="100" step="1" value="${esc(revSimPct)}" style="width:74px"><span>%</span><span id="revision-sim-desc" class="small muted">(${revSimPct}% trong đề cương · ${100-revSimPct}% câu mới)</span></div></div><div class="selection-tray"><span><strong>${ids.length}</strong> câu khối ${g} đang được chọn</span><a href="#bank">Điều chỉnh lựa chọn</a></div>${electiveQs.length?`<div class="callout warning" style="margin-bottom:10px">⚠️ Đang có <strong>${electiveQs.length}</strong> câu thuộc <strong>Chuyên đề học tập (Mục II.2)</strong>. Theo Thông tư 22/2021/TT-BGDĐT Điều 7.1, câu Chuyên đề không dùng trong Đề cương ôn tập kiểm tra định kì. <button type="button" class="export-link" id="revision-remove-elective">Loại câu Chuyên đề khỏi lựa chọn</button></div>`:''}${revisionMatrixPanel(g,qs)}<div class="actions"><button type="button" id="revision-add-filter">Thêm câu đang lọc của khối ${g}</button><button type="button" id="revision-preview-draft"${!ids.length?' disabled':''}>Xem toàn bộ đang chọn</button><button type="button" id="revision-clear" class="quiet">Bỏ chọn khối ${g}</button></div><div class="revision-ids">${qs.length?qs.map(q=>`${isTechId(q.id)?'':`${esc(q.id)} · `}${esc(q.lesson_code)} · ${esc(q.level)} · ${esc(statusNames[q.review_status])}${questionSectionOf(q)==='elective_topic'?' · [CĐHT]':''}`).join('<br>'):'Chưa chọn câu. Dùng khung bốc ngẫu nhiên theo ma trận ở trên hoặc chọn thêm từ Ngân hàng.'}</div><div class="actions"><button type="submit" id="save-revision" class="primary"${!ids.length?' disabled':''}>${editingRev?'Cập nhật đề cương đang sửa':'Lưu phiên bản đề cương'}</button>${editingRev?`<button type="button" id="save-revision-as-new"${!ids.length?' disabled':''}>Lưu thành bản mới</button><button type="button" class="quiet" id="cancel-edit-revision">Hủy sửa</button>`:''}</div></form></div><div class="card"><h2>Giữ đúng nội dung đã chuẩn bị</h2><p class="muted">Phiên bản lưu giữ nội dung câu hỏi tại thời điểm tạo. Nếu sửa một câu trong ngân hàng sau đó, phiên bản cũ vẫn giữ nguyên.</p><div class="callout">Thầy/Cô có thể chọn số câu từng dạng (Trắc nghiệm, Đúng/Sai, Trả lời ngắn, Tự luận), bấm <strong>🎲 Bốc ngẫu nhiên</strong> đúng tỉ lệ ma trận rồi thiết lập <strong>mức tương đồng (%)</strong> mong muốn trước khi lưu. ${Number(g)>=10?'Đề cương định kì THPT chỉ lấy câu từ Nội dung cốt lõi (Mục II.1), không đưa bài Chuyên đề học tập.':''}</div><p class="small muted">Bấm <strong>👁 Xem toàn bộ</strong> ở bất kì đề cương nào phía trên để xem đầy đủ bảng giới hạn kiến thức, toàn bộ câu hỏi và chỉnh sửa trực tiếp ngay trên trang web.</p></div></div>`;
  const btnRevJson = $('#rev-download-json-sample');
  if (btnRevJson) btnRevJson.onclick = () => downloadRevisionJsonSample(effectiveGrade());
  const btnRevMd = $('#rev-download-md-sample');
@@ -4687,30 +4793,44 @@ function renderRevisions(){
    }
   }catch(err){notify(err.message,true);}finally{ev.target.value='';}
  };
- $('#revision-grade').onchange=e=>{setActiveGrade(Number(e.target.value));};
+ $('#revision-grade').onchange=e=>{store.revCounts={};store.revTypeCounts={};store.revFlexibleUserSet=false;setActiveGrade(Number(e.target.value));};
  const revFilterSel=$('#rev-list-grade-filter');
  if(revFilterSel)revFilterSel.onchange=e=>{setActiveGrade(e.target.value||'all');};
  bindRevisionMatrixPanel(g);
  if($('#revision-remove-elective'))$('#revision-remove-elective').onclick=()=>{electiveQs.forEach(q=>store.selected.delete(q.id));renderRevisions();notify(`Đã loại ${electiveQs.length} câu Chuyên đề học tập khỏi lựa chọn đề cương.`);};
  $('#revision-title').oninput=e=>{store.revisionTitleDraft=e.target.value;};
+ const revSimRange=$('#revision-sim-pct'),revSimNum=$('#revision-sim-pct-num');
+ const applyRevSim=v=>{
+  const pct=Math.max(0,Math.min(100,Math.round(Number(v)||0)));
+  store.revisionSimDraft=pct;
+  if(revSimRange)revSimRange.value=pct;
+  if(revSimNum)revSimNum.value=pct;
+  if($('#revision-sim-desc'))$('#revision-sim-desc').textContent=`(${pct}% trong đề cương · ${100-pct}% câu mới)`;
+  document.querySelectorAll('[data-rev-sim-preset]').forEach(btn=>btn.classList.toggle('primary',Number(btn.dataset.revSimPreset)===pct));
+ };
+ if(revSimRange)revSimRange.oninput=()=>applyRevSim(revSimRange.value);
+ if(revSimNum)revSimNum.oninput=()=>applyRevSim(revSimNum.value);
+ document.querySelectorAll('[data-rev-sim-preset]').forEach(btn=>{btn.onclick=()=>applyRevSim(btn.dataset.revSimPreset);});
  $('#revision-add-filter').onclick=()=>{const list=filtered().filter(q=>q.grade===g&&q.review_status!=='archived');const coreList=list.filter(q=>questionSectionOf(q)!=='elective_topic');const skipped=list.length-coreList.length;coreList.forEach(q=>store.selected.add(q.id));renderRevisions();if(skipped)notify(`Đã thêm ${coreList.length} câu cốt lõi; bỏ qua ${skipped} câu Chuyên đề học tập (TT 22/2021 Điều 7.1).`,true);};
  $('#revision-preview-draft').onclick=()=>openRevisionViewer({title:$('#revision-title').value.trim()||`Đề cương dự kiến · Khối ${g}`,grade:g,questions:qs},false);
  $('#revision-clear').onclick=()=>{questions().filter(q=>q.grade===g).forEach(q=>store.selected.delete(q.id));renderRevisions();};
- if($('#cancel-edit-revision'))$('#cancel-edit-revision').onclick=()=>{store.editingRevisionId=null;store.revisionTitleDraft='';renderRevisions();};
+ if($('#cancel-edit-revision'))$('#cancel-edit-revision').onclick=()=>{store.editingRevisionId=null;store.revisionTitleDraft='';store.revisionSimDraft=undefined;renderRevisions();};
+ const getRevSim=()=>Math.max(0,Math.min(100,Math.round(Number(store.revisionSimDraft??editingRev?.similarity_target_percent??90))));
  if($('#save-revision-as-new'))$('#save-revision-as-new').onclick=async()=>{
   const title=$('#revision-title').value.trim();if(!title)return;
-  await mutate('/api/revisions/save',{title,grade:g,question_ids:ids},async result=>{store.revisions.push(result.revision);store.editingRevisionId=null;store.revisionTitleDraft='';renderRevisions();notify('Đã lưu thành phiên bản đề cương mới.');});
+  await mutate('/api/revisions/save',{title,grade:g,question_ids:ids,similarity_target_percent:getRevSim()},async result=>{store.revisions=result.revisions||[...store.revisions,result.revision];store.editingRevisionId=null;store.revisionTitleDraft='';store.revisionSimDraft=undefined;renderRevisions();notify('Đã lưu thành phiên bản đề cương mới.');});
  };
  $('#revision-form').onsubmit=async e=>{
   e.preventDefault();const title=$('#revision-title').value.trim();if(!title)return;
+  const similarity_target_percent=getRevSim();
   if(editingRev){
-   await mutate('/api/revisions/update',{id:editingRev.id,title,grade:g,question_ids:ids},async result=>{
+   await mutate('/api/revisions/update',{id:editingRev.id,title,grade:g,question_ids:ids,similarity_target_percent},async result=>{
     if(result.revisions)store.revisions=result.revisions;
     else{const idx=store.revisions.findIndex(x=>x.id===editingRev.id);if(idx>=0)store.revisions[idx]=result.revision;}
-    store.editingRevisionId=null;store.revisionTitleDraft='';renderRevisions();notify('Đã cập nhật phiên bản đề cương.');
+    store.editingRevisionId=null;store.revisionTitleDraft='';store.revisionSimDraft=undefined;renderRevisions();notify('Đã cập nhật phiên bản đề cương.');
    });
   }else{
-   await mutate('/api/revisions/save',{title,grade:g,question_ids:ids},async result=>{store.revisions.push(result.revision);store.revisionTitleDraft='';renderRevisions();notify('Đã lưu phiên bản đề cương. Có thể xuất Word hoặc dùng khi tạo đề.');});
+   await mutate('/api/revisions/save',{title,grade:g,question_ids:ids,similarity_target_percent},async result=>{store.revisions=result.revisions||[...store.revisions,result.revision];store.revisionTitleDraft='';store.revisionSimDraft=undefined;renderRevisions();notify('Đã lưu phiên bản đề cương. Có thể xuất Word hoặc dùng khi tạo đề.');});
   }
  };
  const activeRev=store.revisions.find(r=>r.id===store.activeRevisionViewId)||store.revisions[0];
@@ -4724,6 +4844,7 @@ function startEditRevision(id){
  store.editingRevisionId=r.id;
  setActiveGrade(Number(r.grade),{skipRender:true});
  store.revisionTitleDraft=r.title;
+ store.revisionSimDraft=r.similarity_target_percent??90;
  questions().filter(q=>q.grade===Number(r.grade)).forEach(q=>store.selected.delete(q.id));
  (r.question_ids||(r.questions||[]).map(q=>q.id)).forEach(qid=>{if(qid)store.selected.add(qid);});
  renderRevisions();
@@ -4977,20 +5098,31 @@ function renderExams(){
   `<button type="button" role="tab" aria-selected="${subTab==='create'}" class="exam-subtab${subTab==='create'?' is-active':''}" data-exam-subtab="create">✨ Tạo đề mới</button>`+
   `<button type="button" role="tab" aria-selected="${subTab==='saved'}" class="exam-subtab${subTab==='saved'?' is-active':''}" data-exam-subtab="saved">📂 Đề đã lưu (${shownExams.length})</button>`+
  `</div>`;
+ const simMin=d.flexible_mode?0:90;
+ const simVal=Math.max(simMin,Math.min(100,Math.round(Number(d.similarity_percent??90))));
+ const simPresets=d.flexible_mode?[70,80,90,100]:[90,95,100];
  const createViewHtml=`<form id="exam-form"><span id="browser-exam-draft" hidden></span>`+
-  `<div class="card exam-step-card"><div class="exam-step-head"><span class="exam-step-num">1</span><div><h2>Thông tin đề & Ma trận</h2><p>Chọn khối lớp, kì kiểm tra và ma trận nguồn để hệ thống tự đối chiếu ngân hàng.</p></div></div>`+
+  `<div class="card exam-step-card"><div class="exam-step-head"><span class="exam-step-num">1</span><div><h2>Thông tin đề & Ma trận</h2><p>Chọn khối lớp, kì kiểm tra, ma trận nguồn và mức tương đồng với đề cương.</p></div></div>`+
    `<div class="form-grid">`+
     `<div class="field"><label for="exam-grade">Khối lớp</label><select id="exam-grade">${gradeOptions(d.grade)}</select></div>`+
     `<div class="field"><label for="exam-period">Kì kiểm tra</label><select id="exam-period">${Object.entries(periodNames).map(([k,v])=>opt(k,v,k===d.exam_type)).join('')}</select></div>`+
     `<div class="field"><label for="exam-duration">Thời gian (phút)</label><input id="exam-duration" type="number" min="1" max="240" value="${esc(d.duration)}" required></div>`+
     `<div class="field span2"><label for="exam-title">Tên đề kiểm tra</label><input id="exam-title" value="${esc(d.title)}" placeholder="${esc(periodNames[d.exam_type])} · ${esc(subject())} ${d.grade}" required></div>`+
     `<div class="field full"><label for="exam-template">Ma trận áp dụng</label><select id="exam-template">${mxs.map(m=>opt('mx:'+m.id,`Ma trận & đặc tả · ${m.title} · V${m.version}`,m.id===d.matrix_id)).join('')}${!required?opt('','Tự thiết lập phân bố câu hỏi',!d.template_id&&!d.matrix_id):''}${templates.map(t=>opt(t.id,'Mẫu ma trận · '+t.title+(t.unsupported?' · Chưa hỗ trợ đầy đủ':''),t.id===d.template_id&&!d.matrix_id)).join('')}${required&&!templates.length&&!mxs.length?opt('','Chưa có ma trận đã khóa phù hợp',true):''}</select>${(!mxs.length&&!templates.length)?`<a href="#matrices" class="button export-link" style="margin-top:6px;width:fit-content">📐 Mở Ma trận & đặc tả để khóa ma trận</a>`:''}</div>`+
-    `<details class="sim-details-toggle" style="grid-column:1/-1;margin-top:4px"><summary>⚙️ Tùy chọn nâng cao (Đề cương đối chiếu · Mã xáo trộn · Tỉ lệ bám sát)</summary>`+
+    `<div class="field full"><label for="exam-revision">Phiên bản đề cương dùng đối chiếu</label><select id="exam-revision">${opt('','Chưa gắn đề cương (có thể gắn sau khi kiểm định)',!d.revision_id)}${currentRevisions().filter(r=>Number(r.grade)===Number(d.grade)).map(r=>opt(r.id,`${r.title} · ${countRecord(r)} câu${r.similarity_target_percent!=null?` · mục tiêu ${r.similarity_target_percent}%`:''} · ${date(r.created_at)}`,r.id===d.revision_id)).join('')}</select></div>`+
+    `<div class="callout" style="grid-column:1/-1;margin:4px 0;background:#f8fbff;border-color:#93c5fd">`+
+     `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">`+
+      `<strong style="color:var(--navy)">🎯 Mức độ tương đồng giữa Đề cương và Đề thi (${simVal}%)</strong>`+
+      `<div class="actions" style="gap:4px">${simPresets.map(v=>`<button type="button" class="export-link${simVal===v?' primary':''}" data-exam-sim-preset="${v}">${v}%</button>`).join('')}</div>`+
+     `</div>`+
+     `<div class="form-grid">`+
+      `<div class="field span2"><label for="exam-sim-pct">Tỉ lệ câu trùng Đề cương (%)</label><div class="sim-slider-wrap"><input id="exam-sim-pct" type="range" min="${simMin}" max="100" step="5" value="${esc(simVal)}"><input id="exam-sim-pct-num" type="number" min="${simMin}" max="100" step="1" value="${esc(simVal)}" style="width:74px"><span>%</span><span id="exam-sim-desc" class="small muted">(${simVal}% từ đề cương · ${100-simVal}% câu mới)</span></div></div>`+
+      `<div class="field"><label for="exam-sim-mode">Chế độ áp dụng</label><select id="exam-sim-mode"><option value="min"${d.similarity_mode==='min'?' selected':''}>Tối thiểu (≥ ${simVal}%)</option><option value="exact"${d.similarity_mode==='exact'?' selected':''}>Bám sát (${simVal}% đề cương, ${100-simVal}% ngoài)</option></select></div>`+
+     `</div>`+
+    `</div>`+
+    `<details class="sim-details-toggle" style="grid-column:1/-1;margin-top:2px"><summary>⚙️ Tùy chọn nâng cao (Mã xáo trộn)</summary>`+
      `<div class="form-grid" style="margin-top:10px">`+
-      `<div class="field span2"><label for="exam-revision">Phiên bản đề cương dùng đối chiếu</label><select id="exam-revision">${opt('','Chưa gắn đề cương (có thể gắn sau khi kiểm định)',!d.revision_id)}${currentRevisions().filter(r=>Number(r.grade)===Number(d.grade)).map(r=>opt(r.id,`${r.title} · ${countRecord(r)} câu · ${date(r.created_at)}`,r.id===d.revision_id)).join('')}</select></div>`+
       `<div class="field"><label for="exam-seed">Mã xáo trộn</label><input id="exam-seed" value="${esc(d.seed)}" required></div>`+
-      `<div class="field"><label for="exam-sim-pct">Mức tương đồng Đề cương (%)</label><div class="sim-slider-wrap"><input id="exam-sim-pct" type="range" min="90" max="100" step="5" value="${esc(d.similarity_percent??90)}"><input id="exam-sim-pct-num" type="number" min="90" max="100" step="1" value="${esc(d.similarity_percent??90)}"><span>%</span></div></div>`+
-      `<div class="field"><label for="exam-sim-mode">Chế độ tương đồng</label><select id="exam-sim-mode"><option value="min"${d.similarity_mode==='min'?' selected':''}>Tối thiểu (≥ ${d.similarity_percent??90}%)</option><option value="exact"${d.similarity_mode==='exact'?' selected':''}>Bám sát (${d.similarity_percent??90}% đề cương, ${(100-(d.similarity_percent??90))}% ngoài)</option></select></div>`+
      `</div>`+
     `</details>`+
    `</div>`+
@@ -5114,13 +5246,29 @@ function renderExams(){
  if($('#exam-grade'))$('#exam-grade').onchange=()=>{readExamInputs();const nextG=Number($('#exam-grade').value);d.grade=nextG;d.revision_id='';d.matrix_id='';d.template_id='';d.flexible_mode=false;d.flexible_mode_user_set=false;d.set_rev='auto';d.set_counts={};d.title='';chooseExamTemplate();setActiveGrade(nextG);};
  if($('#exam-period'))$('#exam-period').onchange=()=>{readExamInputs();d.exam_type=$('#exam-period').value;if(d.exam_type==='TX'&&Number(d.duration)===45)d.duration=15;else if(d.exam_type!=='TX'&&Number(d.duration)===15)d.duration=45;d.flexible_mode=false;d.flexible_mode_user_set=false;d.set_counts={};d.title='';chooseExamTemplate();if(d.exam_type!=='TX'){const coreAvail=instructionalLessons(d.grade,undefined,{includeElective:false});const fallbackCode=coreAvail[0]?.lesson_code||'';d.blueprint=(d.blueprint||[]).map(row=>{const matched=lessons(d.grade).find(l=>l.lesson_code===row.lesson_code);return matched&&normalizePpctSection(matched)==='elective_topic'?{...row,lesson_code:fallbackCode}:row;});}renderExams();};
  if($('#exam-template'))$('#exam-template').onchange=()=>{readExamInputs();const v=$('#exam-template').value;d.matrix_id=v.startsWith('mx:')?v.slice(3):'';d.template_id=d.matrix_id?'':v;d.flexible_mode=false;d.flexible_mode_user_set=false;if(!d.template_id&&!d.matrix_id&&!d.blueprint.length){const avail=instructionalLessons(d.grade,undefined,{includeElective:d.exam_type==='TX'});d.blueprint=[{lesson_code:avail[0]?.lesson_code||'',type:'MC',level:'Biết',count:10,points_per_question:1}];}renderExams();};
- if($('#exam-revision'))$('#exam-revision').onchange=()=>{d.revision_id=$('#exam-revision').value;updateGenerationState();};
+ if($('#exam-revision'))$('#exam-revision').onchange=()=>{readExamInputs();d.revision_id=$('#exam-revision').value;const rev=store.revisions.find(r=>r.id===d.revision_id);if(rev&&rev.similarity_target_percent!=null){d.similarity_percent=d.flexible_mode?Math.max(0,Math.min(100,Number(rev.similarity_target_percent))):Math.max(90,Math.min(100,Number(rev.similarity_target_percent)));renderExams();return;}updateGenerationState();};
  if($('#exam-flexible-mode'))$('#exam-flexible-mode').onchange=e=>{d.flexible_mode=e.target.checked;d.flexible_mode_user_set=true;renderExams();};
  const simRange=$('#exam-sim-pct');const simNum=$('#exam-sim-pct-num');
+ const applyExamSim=v=>{
+  const minPct=d.flexible_mode?0:90;
+  const pct=Math.max(minPct,Math.min(100,Math.round(Number(v)||0)));
+  d.similarity_percent=pct;
+  if(simRange)simRange.value=pct;
+  if(simNum)simNum.value=pct;
+  if($('#exam-sim-desc'))$('#exam-sim-desc').textContent=`(${pct}% từ đề cương · ${100-pct}% câu mới)`;
+  document.querySelectorAll('[data-exam-sim-preset]').forEach(btn=>btn.classList.toggle('primary',Number(btn.dataset.examSimPreset)===pct));
+  const modeSel=$('#exam-sim-mode');
+  if(modeSel&&modeSel.options.length>=2){
+   modeSel.options[0].textContent=`Tối thiểu (≥ ${pct}%)`;
+   modeSel.options[1].textContent=`Bám sát (${pct}% đề cương, ${100-pct}% ngoài)`;
+  }
+  if($('#exam-set-card'))renderExams();
+ };
  if(simRange&&simNum){
-  simRange.oninput=()=>{simNum.value=simRange.value;d.similarity_percent=Number(simRange.value);};
-  simNum.oninput=()=>{simRange.value=simNum.value;d.similarity_percent=Number(simNum.value);};
+  simRange.oninput=()=>applyExamSim(simRange.value);
+  simNum.oninput=()=>applyExamSim(simNum.value);
  }
+ document.querySelectorAll('[data-exam-sim-preset]').forEach(btn=>{btn.onclick=()=>applyExamSim(btn.dataset.examSimPreset);});
  if($('#exam-sim-mode'))$('#exam-sim-mode').onchange=e=>{d.similarity_mode=e.target.value;};
  ['title','duration','seed'].forEach(k=>{const el=$('#exam-'+k);if(el)el.oninput=()=>{readExamInputs();updateGenerationState();};});
  if($('#add-matrix-row'))$('#add-matrix-row').onclick=()=>{readExamInputs();const avail=instructionalLessons(d.grade,undefined,{includeElective:d.exam_type==='TX'});d.blueprint.push({lesson_code:avail[0]?.lesson_code||'',type:'MC',level:'Biết',count:1,points_per_question:.25});renderExams();};
@@ -5205,23 +5353,30 @@ function setPlan(){const d=store.examDraft;if(d.matrix_id)return examPlan();cons
 function setCellAvail(d,c){return d.flexible_mode?flexCountForCell(d.grade,c.lesson_code,c.type,c.level):c.available;}
 function setCounts(cells){const d=examSetDefaults(),out={};cells.forEach(c=>{out[c.key]=d.set_counts[c.key]??defaultRevCount(c,setCellAvail(d,c));});return out;}
 function examSetProblems(){const d=examSetDefaults(),t=selectedTemplate(),p=[],plan=setPlan();if(C.templateBlocked(t))p.push('Ma trận này chưa đủ điều kiện tạo đề.');if(needsSource(d.grade,d.exam_type)&&!t&&!d.matrix_id)p.push('Kì kiểm tra này cần ma trận nguồn đã xác minh.');if(!plan)p.push('Chọn ma trận hoặc thiết lập phân bố đủ 10 điểm ở trên.');else if(plan.loading)p.push('Đang đọc ma trận…');else if(plan.error)p.push(plan.error);else{const short=plan.data.cells.filter(c=>setCellAvail(d,c)<c.need);if(short.length)p.push((d.flexible_mode?'Ngân hàng chưa đủ câu khả dụng cho một đề: ':'Ngân hàng chưa đủ câu đã duyệt cho một đề: ')+short.map(c=>`${c.lesson_code} · ${examTypeLabel(c.type)} · ${c.level} thiếu ${c.need-setCellAvail(d,c)}`).join('; ')+'.');}if(!Number.isInteger(Number(d.set_count))||d.set_count<1||d.set_count>6)p.push('Số đề trong bộ từ 1 đến 6.');if(d.set_rev!=='auto'&&!store.revisions.some(r=>r.id===d.set_rev))p.push('Chọn đề cương.');return p;}
-function examSetCard(){const d=examSetDefaults(),plan=setPlan(),cells=plan?.data?.cells||[],displayCells=d.flexible_mode?cells.map(c=>({...c,available:setCellAvail(d,c)})):cells,counts=setCounts(cells),per=cells.reduce((n,c)=>n+c.need,0),keep=Math.ceil(Number(d.similarity_percent??90)/100*per),total=Object.values(counts).reduce((n,v)=>n+Number(v||0),0),auto=d.set_rev==='auto',M=Number(d.set_count)||1;
+function examSetCard(){const d=examSetDefaults(),plan=setPlan(),cells=plan?.data?.cells||[],displayCells=d.flexible_mode?cells.map(c=>({...c,available:setCellAvail(d,c)})):cells,counts=setCounts(cells),per=cells.reduce((n,c)=>n+c.need,0),setSimMin=d.flexible_mode?0:90,setSimPct=Math.max(setSimMin,Math.min(100,Math.round(Number(d.similarity_percent??90)))),keep=(d.similarity_mode==='exact'?Math.round:Math.ceil)(setSimPct/100*per),total=Object.values(counts).reduce((n,v)=>n+Number(v||0),0),auto=d.set_rev==='auto',M=Number(d.set_count)||1;
  const head=auto?'<th>Số câu đề cương</th><th>Để các đề khác câu</th>':'';
  const extra=auto?c=>{const cap=setCellAvail(d,c);return `<td><input type="number" class="small-input" min="0" max="${cap}" step="1" data-set-count="${esc(c.key)}" value="${esc(counts[c.key])}" aria-label="Số câu đề cương ô ${esc(c.lesson_code)} ${esc(examTypeLabel(c.type))} ${esc(c.level)}"></td><td class="small muted">≥ ${Math.min(cap,Math.ceil(c.need*M*0.9))}</td>`;}:null;
  return `<div id="exam-set-card" style="padding-top:12px;border-top:1px solid var(--line)">`+
   `<div class="form-grid">`+
    `<div class="field"><label for="set-count">Số lượng đề cần tạo (1–6)</label><input id="set-count" type="number" min="1" max="6" step="1" value="${esc(d.set_count)}"></div>`+
-   `<div class="field span2"><label for="set-rev">Đề cương ôn tập</label><select id="set-rev">${opt('auto','Tự lập đề cương mới theo ma trận bên trên',auto)}${currentRevisions().filter(r=>Number(r.grade)===Number(d.grade)).map(r=>opt(r.id,`Dùng đề cương đã lưu · ${r.title} · ${countRecord(r)} câu`,r.id===d.set_rev)).join('')}</select></div>`+
+   `<div class="field span2"><label for="set-rev">Đề cương ôn tập</label><select id="set-rev">${opt('auto','Tự lập đề cương mới theo ma trận bên trên',auto)}${currentRevisions().filter(r=>Number(r.grade)===Number(d.grade)).map(r=>opt(r.id,`Dùng đề cương đã lưu · ${r.title} · ${countRecord(r)} câu${r.similarity_target_percent!=null?` · mục tiêu ${r.similarity_target_percent}%`:''}`,r.id===d.set_rev)).join('')}</select></div>`+
    (auto?`<div class="field"><label for="set-total">Tổng số câu đề cương</label><div class="sim-slider-wrap"><input id="set-total" type="number" min="1" step="1" value="${total}"><button type="button" id="set-split">Chia theo tỉ lệ</button></div></div>`:'')+
   `</div>`+
-  `<p class="small muted" style="margin:10px 0 0">Mỗi đề có <strong>${keep}/${per||'—'} câu</strong> lấy từ đề cương (≥ ${esc(d.similarity_percent??90)}%); ${Math.max(0,(per||0)-keep)} câu còn lại dùng để phân hóa.</p>`+
+  `<p class="small muted" style="margin:10px 0 0">Mỗi đề có <strong>${keep}/${per||'—'} câu</strong> lấy từ đề cương (${d.similarity_mode==='exact'?'bám sát ':'≥ '}${setSimPct}%); ${Math.max(0,(per||0)-keep)} câu còn lại dùng để phân hóa.</p>`+
   `<details style="margin:12px 0"><summary style="cursor:pointer;font-weight:600;color:var(--blue)">🎛️ Tùy chỉnh số câu đề cương theo từng bài / ô ma trận</summary><div style="margin-top:10px">${auto?lessonPickerTable(displayCells,'set',d.set_lesson_counts||{}):''}${planTable(plan,head,extra,{flexible:Boolean(d.flexible_mode),grade:Number(d.grade)})}${auto&&cells.length?`<p class="small muted" style="margin-top:8px">Đề cương hiện có ${total} câu. Để ${M} đề ít trùng câu, mỗi ô nên có khoảng gấp ${(M*0.9).toFixed(1).replace('.',',')} lần số câu một đề.</p>`:''}</div></details>`+
   `<div id="set-warning" class="callout warning" hidden></div>`+
   `<button type="button" id="generate-set" class="primary exam-primary-cta">📚 Tạo ${auto?'đề cương + ':''}${esc(M)} đề kiểm tra</button>`+
  `</div>`;}
 function bindExamSetCard(){if(!$('#exam-set-card'))return;const d=examSetDefaults(),rerender=()=>{readExamInputs();renderExams();$('#exam-set-card')?.scrollIntoView({block:'nearest'});};
  if($('#set-count'))$('#set-count').onchange=e=>{d.set_count=Number(e.target.value);rerender();};
- if($('#set-rev'))$('#set-rev').onchange=e=>{d.set_rev=e.target.value;rerender();};
+ if($('#set-rev'))$('#set-rev').onchange=e=>{
+  d.set_rev=e.target.value;
+  const rev=store.revisions.find(r=>r.id===d.set_rev);
+  if(rev&&rev.similarity_target_percent!=null){
+   d.similarity_percent=d.flexible_mode?Math.max(0,Math.min(100,Number(rev.similarity_target_percent))):Math.max(90,Math.min(100,Number(rev.similarity_target_percent)));
+  }
+  rerender();
+ };
  document.querySelectorAll('[data-set-count]').forEach(el=>{el.onchange=()=>{d.set_counts[el.dataset.setCount]=Math.max(0,Math.floor(Number(el.value)||0));rerender();};});
  d.set_lesson_counts = d.set_lesson_counts || {};
  bindLessonPickerInputs('set', d.set_lesson_counts);
@@ -5237,7 +5392,7 @@ function bindExamSetCard(){if(!$('#exam-set-card'))return;const d=examSetDefault
  if($('#generate-set'))$('#generate-set').disabled=store.busy||Boolean(p.length);
  if($('#set-warning')){$('#set-warning').hidden=!p.length;$('#set-warning').textContent=p.join('\n');}
  if($('#generate-set'))$('#generate-set').onclick=generateExamSet;}
-async function generateExamSet(){readExamInputs();const d=examSetDefaults(),p=examSetProblems();if(p.length){notify(p.join('\n'),true);return;}const name=d.title.trim()||`${periodNames[d.exam_type]} · ${subject()} ${d.grade}`,cells=setPlan().data.cells;const payload={title:name,grade:Number(d.grade),exam_type:d.exam_type,duration:Number(d.duration),...examSourcePayload(),seed:d.seed,exam_count:Number(d.set_count),similarity_percent:Number(d.similarity_percent??90),flexible:Boolean(d.flexible_mode),...(d.set_rev==='auto'?{revision_counts:setCounts(cells)}:{revision_id:d.set_rev})};
+async function generateExamSet(){readExamInputs();const d=examSetDefaults(),p=examSetProblems();if(p.length){notify(p.join('\n'),true);return;}const name=d.title.trim()||`${periodNames[d.exam_type]} · ${subject()} ${d.grade}`,cells=setPlan().data.cells;const simMin=d.flexible_mode?0:90,simPct=Math.max(simMin,Math.min(100,Math.round(Number(d.similarity_percent??90))));const payload={title:name,grade:Number(d.grade),exam_type:d.exam_type,duration:Number(d.duration),...examSourcePayload(),seed:d.seed,exam_count:Number(d.set_count),similarity_percent:simPct,similarity_mode:d.similarity_mode||'min',flexible:Boolean(d.flexible_mode),...(d.set_rev==='auto'?{revision_counts:setCounts(cells)}:{revision_id:d.set_rev})};
  await mutate('/api/exams/generate-set',payload,res=>{store.exams=res.exams_all||store.exams;store.revisions=res.revisions||store.revisions;store.activeExamViewId=res.exams?.[0]?.id;store.examSubTab='saved';renderExams();notify(`Đã tạo ${res.exams.length} đề${d.set_rev==='auto'?` và đề cương "${res.revision.title}" (${res.revision_size} câu)`:''}. Mỗi đề để ${res.outside_per_exam} câu ngoài đề cương.`+(res.warnings?.length?'\nLưu ý: '+res.warnings.join(' '):''),Boolean(res.warnings?.length));});}
 function matrixRow(r,i,locked){const d=store.examDraft;const key=`data-row="${i}"`,disabled=locked?' disabled':'';const count=d.flexible_mode?flexCountForCell(d.grade,r.lesson_code,r.type,r.level):questions().filter(q=>q.grade===Number(d.grade)&&q.lesson_code===r.lesson_code&&q.type===r.type&&q.level===r.level&&q.review_status==='approved').length;const optsList=instructionalLessons(d.grade,undefined,{includeElective:d.exam_type==='TX'});const shownOpts=r.lesson_code&&!optsList.some(l=>l.lesson_code===r.lesson_code)?[...optsList,...lessons(d.grade).filter(l=>l.lesson_code===r.lesson_code)]:optsList;const allowedTypes=Number(d.grade)>=10?['MC','SHORT','ES']:['MC','ES'];const typeOpts=allowedTypes.includes(r.type)?allowedTypes:[...allowedTypes,r.type];return `<tr><td><select aria-label="Bài học dòng ${i+1}" ${key} data-key="lesson_code"${disabled}>${shownOpts.map(l=>opt(l.lesson_code,lessonOptionLabel(l),l.lesson_code===r.lesson_code)).join('')}</select></td><td><select aria-label="Dạng câu dòng ${i+1}" ${key} data-key="type"${disabled}>${typeOpts.map(v=>opt(v,examTypeLabel(v),v===r.type)).join('')}</select></td><td><select aria-label="Mức độ dòng ${i+1}" ${key} data-key="level"${disabled}>${C.levelOptions(r.level)}</select></td><td><input aria-label="Số câu dòng ${i+1}" ${key} data-key="count" type="number" min="1" step="1" value="${esc(r.count)}"${disabled}></td><td><input aria-label="Điểm mỗi câu dòng ${i+1}" ${key} data-key="points_per_question" type="number" min="0.01" step="0.01" value="${esc(r.points_per_question)}"${disabled}></td><td><span class="badge${count<r.count?' draft':(d.flexible_mode?' approved':'')}">${count} câu</span></td>${!locked?`<td><button type="button" class="quiet danger" data-remove-row="${i}" aria-label="Bỏ dòng ${i+1}">Bỏ</button></td>`:''}</tr>`;}
 function readExamInputs(){const d=store.examDraft;if(!$('#exam-title'))return;d.title=$('#exam-title').value;d.duration=Number($('#exam-duration').value);d.seed=$('#exam-seed').value;d.revision_id=$('#exam-revision').value;if($('#exam-sim-pct-num'))d.similarity_percent=Number($('#exam-sim-pct-num').value);if($('#exam-sim-mode'))d.similarity_mode=$('#exam-sim-mode').value;}
@@ -5247,7 +5402,8 @@ async function generateExam(event){
  event.preventDefault();readExamInputs();
  const d=store.examDraft,p=generationProblems();
  if(p.length){notify(p.join('\n'),true);return;}
- const payload={title:d.title.trim(),grade:Number(d.grade),exam_type:d.exam_type,duration:Number(d.duration),...examSourcePayload(),revision_id:d.revision_id||null,seed:d.seed,similarity_percent:Number(d.similarity_percent??90),similarity_mode:d.similarity_mode||'min',flexible:Boolean(d.flexible_mode)};
+ const simMin=d.flexible_mode?0:90,simPct=Math.max(simMin,Math.min(100,Math.round(Number(d.similarity_percent??90))));
+ const payload={title:d.title.trim(),grade:Number(d.grade),exam_type:d.exam_type,duration:Number(d.duration),...examSourcePayload(),revision_id:d.revision_id||null,seed:d.seed,similarity_percent:simPct,similarity_mode:d.similarity_mode||'min',flexible:Boolean(d.flexible_mode)};
  if(!payload.title){notify('Nhập tên đề kiểm tra trước khi tạo.',true);return;}
  const genBtn=$('#generate-exam'),origTxt=genBtn?.textContent;
  if(genBtn){genBtn.disabled=true;genBtn.textContent='⏳ Đang tạo đề…';}

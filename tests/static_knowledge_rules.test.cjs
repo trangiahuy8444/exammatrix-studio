@@ -128,3 +128,20 @@ test('API: kiểm định đề gắn báo cáo kho luật; các API tri thức 
   assert.equal(check.changed, false);
   assert.equal(check.response.report.passed, true);
 });
+
+test('Ma trận: báo cáo thiếu câu kèm gợi ý câu đúng ô chưa duyệt, hiển thị trong bảng', async () => {
+  const data = fixture();
+  data.bank.questions.forEach((q, i) => { q.review_status = i < 1 ? 'approved' : 'draft'; });
+  data.bank.questions.push({ ...data.bank.questions[1], id: 'Q-HIEU', level: 'Hiểu', question: 'Câu mức Hiểu, không được gợi ý cho ô Biết' });
+  const r = await api.handle('/api/matrices/M1/shortfall', undefined, data, env);
+  const cell = r.response.cells.find(c => c.shortfall > 0);
+  assert.ok(cell, 'Phải có ô thiếu');
+  assert.deepEqual(cell.suggestions.map(s => s.question_id), ['Q2', 'Q3', 'Q4']);
+  assert.ok(cell.suggestions.every(s => s.action === 'can_duyet' && s.question));
+  assert.equal(r.changed, false);
+  const ui = require('../public/matrices.js');
+  const html = ui.shortfallHtml(r.response, true);
+  assert.match(html, /Gợi ý từ Bản đồ tri thức/);
+  assert.match(html, /Q2<\/code> \(bản nháp\)/);
+  assert.doesNotMatch(html, /Q-HIEU/);
+});

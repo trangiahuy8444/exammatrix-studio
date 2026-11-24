@@ -7059,36 +7059,11 @@ function initBackupManager() {
                 kttx: kttxs
               });
             } catch (syncErr) {
-              console.warn('[Backup] Sync warning:', syncErr);
+              // Chưa lưu được lên đám mây (chưa đăng nhập, mất mạng, xung đột): không báo thành công.
+              throw syncErr;
             }
-          } else if (window.FirebaseState) {
-            window.FirebaseState.currentData = {
-              bank: {
-                ...(window.FirebaseState.currentData?.bank || {}),
-                questions: bankQs,
-                ppct: restoredPpct,
-                competency_catalogs: restoredCatalogs
-              },
-              revisions: revs,
-              exams: exams,
-              matrices: mats,
-              kttx: kttxs
-            };
-            const uid = window.FirebaseState.user ? window.FirebaseState.user.uid : 'offline';
-            try {
-              localStorage.setItem('exammatrix_teacher_cache_' + uid, JSON.stringify(window.FirebaseState.currentData));
-              if (window.FirebaseState.user && window.FirebaseState.db && window.FirebaseState._firestoreHelpers) {
-                const { doc, setDoc } = window.FirebaseState._firestoreHelpers;
-                const ref = doc(window.FirebaseState.db, 'workspaces', uid);
-                await setDoc(ref, {
-                  owner_email: window.FirebaseState.user.email,
-                  updated_at: new Date().toISOString(),
-                  ...window.FirebaseState.currentData
-                }, { merge: true });
-              }
-            } catch(syncErr) {
-              console.warn('[Backup] Sync warning:', syncErr);
-            }
+          } else {
+            throw new Error('Chưa nạp được bộ lưu trữ đám mây. Hãy tải lại trang rồi khôi phục lại.');
           }
 
           if (typeof render === 'function') render();
@@ -7099,7 +7074,9 @@ function initBackupManager() {
           notify('Khôi phục dữ liệu từ bản sao lưu thành công!');
           setTimeout(() => dialog.close(), 1200);
         } catch(err) {
-          alert('Lỗi phân tích tệp sao lưu: ' + err.message);
+          // Không lưu được thì nạp lại dữ liệu đang có để màn hình không hiện bản chưa lưu.
+          if (typeof load === 'function') load().catch(() => {});
+          alert('Chưa khôi phục được dữ liệu: ' + err.message);
         }
       };
       reader.readAsText(file);

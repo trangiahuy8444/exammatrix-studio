@@ -39,8 +39,8 @@ assert.ok(!html.includes('<img'));
 assert.ok(html.includes('&lt;img'));
 assert.ok(!html.includes('rubric'));
 // Thực thi cầu nối Pages thật, không tải Firebase hoặc dùng dữ liệu giáo viên.
-const values=new Map([['exammatrix_teacher_cache_offline',JSON.stringify({bank:{questions:[],ppct:{lessons:[]}},exams:examples(),revisions:[],matrices:[]})]]);
-const window={location:{hostname:'teacher.github.io',protocol:'https:'},BankExamComparison:comparison,
+const values=new Map();
+const window={location:{hostname:'teacher.github.io',protocol:'https:'},BankExamComparison:comparison,EXAMMATRIX_TEST_SEED:{bank:{questions:[],ppct:{lessons:[]}},exams:examples(),revisions:[],matrices:[]},
  BankStaticAPI:require('../public/static-api.js'),BankStaticEngine:require('../public/static-exam-engine.js'),BankStaticWorkflow:require('../public/static-exam-workflow.js')};
 const context={window,localStorage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)},document:{getElementById:()=>null},console};
 vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../public/firebase-bridge.js'),'utf8'),context);

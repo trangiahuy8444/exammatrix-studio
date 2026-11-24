@@ -986,7 +986,22 @@
   }
   const match=/^\/api\/matrices\/([^/]+)(?:\/(candidates|shortfall|compare))?$/.exec(path);
   if(match){const matrix=checkedMatrix(decodeURIComponent(match[1]));
-   if(match[2]==='shortfall')return result(engine.shortfall(matrix,bank,ppct));
+   if(match[2]==='shortfall'){
+    const report=engine.shortfall(matrix,bank,ppct);
+    // Bản đồ tri thức (Giai đoạn 4): gợi ý câu đúng ô (bài × YCCĐ × dạng × mức độ) cho ô còn thiếu. Không hạ mức độ, không đổi dạng.
+    const {g:KG}=knowledgeLibs();
+    if(KG&&Array.isArray(report.cells)){
+     const ms=String(matrix.subject_name||subject).normalize('NFC').trim().toLowerCase();
+     const pool=bank.filter(q=>q&&q.review_status!=='archived'&&String(q.subject_name||'Tin học').normalize('NFC').trim().toLowerCase()===ms);
+     const graph=KG.buildGraph({bank:{questions:pool,ppct}},{subject:matrix.subject_name||subject});
+     for(const c of report.cells){if(!c.shortfall)continue;
+      c.suggestions=KG.suggestForCell(graph,pool,{grade:matrix.grade,lesson_code:c.lesson_code,type:c.kind,level:c.level,learning_outcome:c.outcome})
+       .filter(x=>x.action!=='dung_ngay').slice(0,5)
+       .map(x=>{const q=pool.find(q=>q.id===x.question_id);return {...x,question:String(q?.question||'').replace(/\s+/g,' ').slice(0,120)};});
+     }
+    }
+    return result(report);
+   }
    if(match[2]==='candidates'){
     const strictRes=engine.candidates(matrix,bank,ppct);
     const flexible_slots=buildFlexibleSlots(matrix,bank,ppct);

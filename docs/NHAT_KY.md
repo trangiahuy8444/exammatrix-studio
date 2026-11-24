@@ -16,6 +16,15 @@
 - Phát hiện 3 lỗi nghiêm trọng: nhập PPCT đoán khối từ tên tệp ("HK1" thành Khối 1, dữ liệu bị cất mất); tạo bộ đề làm hỏng danh sách đề và lần tải sau, các đề cùng mã 101; Khối 10 không tạo được đề cương/đề từ ma trận vì chưa hỗ trợ Đúng/Sai. Cùng 5 lỗi quan trọng và 8 lỗi nhỏ.
 - Biên bản, bảng lỗi và công cụ chạy lại: `acceptance/2026-11-24-kiem-thu-gia-lap/`.
 
+## 24/11/2026 — Gỡ 3 cách lưu cũ; gợi ý câu trong báo cáo thiếu câu của ma trận
+
+- `firebase-bridge.js` chỉ còn lưu qua Cloud-First v2. Gỡ chế độ Google Drive v1 (một tệp), Firestore v1 (một tài liệu) và phần ghi bộ nhớ trình duyệt (localStorage, IndexedDB, bản sao khẩn cấp): 20 hàm, khoảng 960 dòng. Giữ: đọc Firestore v1 / Drive v1 một lần để chuyển dữ liệu sang v2; `rescueBestCache` vẫn đọc khóa cũ và IndexedDB để cứu dữ liệu trước ngày gỡ; tải và khôi phục tệp sao lưu `.json` (khôi phục nay lưu lên đám mây qua `replaceWorkspaceData`, cần đăng nhập). `applyRescuedCache` cũng lưu lên đám mây thay vì bộ nhớ trình duyệt.
+- Chưa cấu hình Firebase (kiểm thử, phát triển): dữ liệu chỉ nằm trong bộ nhớ trang; kiểm thử nạp dữ liệu mẫu qua `window.EXAMMATRIX_TEST_SEED`.
+- `app.js`, hộp "Khôi phục sao lưu": bỏ nhánh ghi localStorage/Firestore v1; sửa lỗi có sẵn là lưu lên đám mây thất bại vẫn báo "Khôi phục thành công" (nay báo lỗi và nạp lại dữ liệu đang có).
+- Ma trận: `/api/matrices/<id>/shortfall` gắn `suggestions` cho ô thiếu (câu đúng bài × YCCĐ × dạng × mức độ nhưng chưa duyệt, tối đa 5); bảng thiếu câu hiện "Gợi ý từ Bản đồ tri thức".
+- Kiểm thử: viết lại phần nạp dữ liệu của `static_bridge`, `exam_comparison`, `static_catalog_api` (nay kiểm ghi danh mục lên Firestore v2), `static_knowledge_graph`; xóa 7 ca kiểm chế độ Drive v1 trong `static_google_drive` (giữ các ca của mô-đun Drive dùng cho chuyển dữ liệu); thêm ca gợi ý ô thiếu và ca "cứu hộ vẫn đọc bản cũ". Node 170/170, engine 458 (1 bỏ qua).
+- Chưa thử với tài khoản Google thật.
+
 ## 24/11/2026 — Triển khai đồ thị tri thức và kho luật (Giai đoạn 1–5)
 
 - Giáo viên yêu cầu triển khai kế hoạch `KE_HOACH_DO_THI_TRI_THUC.md` và tự chuyển giai đoạn. Làm dạng mô-đun mới, không đổi cách lưu dữ liệu; kho luật chạy song song, chưa thay quyết định duyệt đề.

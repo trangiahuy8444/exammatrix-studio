@@ -136,9 +136,10 @@ test('PPCT: lưu "Bài tiền đề" qua cầu nối Pages, bỏ chính nó, gi�
   const vm = require('node:vm');
   const fs = require('node:fs');
   const { webcrypto } = require('node:crypto');
-  const values = new Map([['exammatrix_teacher_cache_offline', JSON.stringify({ bank: { questions: [], ppct: { lessons: [
-    { grade: 9, subject_name: 'Tin học', lesson_code: 'B1', lesson_name_source: 'Bài một', outcomes: ['YC 1'] }] } }, matrices: [], revisions: [], exams: [] })]]);
-  const window = { location: { hostname: 'localhost', protocol: 'http:' }, BankStaticAPI: require('../public/static-api.js'),
+  const values = new Map();
+  const window = { EXAMMATRIX_TEST_SEED: { bank: { questions: [], ppct: { lessons: [
+    { grade: 9, subject_name: 'Tin học', lesson_code: 'B1', lesson_name_source: 'Bài một', outcomes: ['YC 1'] }] } }, matrices: [], revisions: [], exams: [] },
+    location: { hostname: 'localhost', protocol: 'http:' }, BankStaticAPI: require('../public/static-api.js'),
     BankStaticEngine: require('../public/static-exam-engine.js'), BankStaticWorkflow: require('../public/static-exam-workflow.js'),
     BankCore: require('../public/core.js'), crypto: webcrypto };
   const context = { window, crypto: webcrypto, console: { ...console, info() {}, log() {} }, setTimeout, clearTimeout,

@@ -4,11 +4,11 @@
 >
 > | Giai đoạn | Trạng thái | Tệp |
 > | :--- | :--- | :--- |
-> | 0 | Một phần: đã chặn ghi đè hai máy (`4ec7e56`), gom về một nhánh, một kho. **Chưa** gỡ 3 nhánh lưu cũ (nhiều bộ kiểm thử còn dựa vào chúng; trang thật không dùng), **chưa** thử bằng tài khoản Google thật | — |
+> | 0 | Gần xong: chặn ghi đè hai máy (`4ec7e56`), gom về một nhánh, một kho, **đã gỡ 3 cách lưu cũ** (Drive v1, Firestore v1, bộ nhớ trình duyệt). Còn lại: thử bằng tài khoản Google thật | `firebase-bridge.js` |
 > | 1 | Đã làm: dựng đồ thị tự động, kiểm câu mồ côi | `public/knowledge-graph.js` |
 > | 2 | Đã làm: 23 luật (6 suy ra, 12 chặn, 5 cảnh báo) có căn cứ; chạy song song `verifyExam`, khớp kết luận trên 9 kịch bản | `public/knowledge-rules.js` |
 > | 3 | Đã làm: trường "Bài tiền đề" trong PPCT, thứ tự ôn, cảnh báo bài chưa học theo tuần | `knowledge-graph.js`, `knowledge-rules.js`, `app.js`, `firebase-bridge.js` |
-> | 4 | Đã làm: bảng phủ YCCĐ × mức độ, nhóm câu gần trùng, gợi ý câu cho ô thiếu (hàm `suggestForCell`, chưa nối vào màn hình ma trận) | `knowledge-graph.js`, `knowledge-ui.js` |
+> | 4 | Đã làm: bảng phủ YCCĐ × mức độ, nhóm câu gần trùng, gợi ý câu cho ô thiếu (hiện trong báo cáo thiếu câu ở màn hình Ma trận) | `knowledge-graph.js`, `knowledge-ui.js`, `static-api.js`, `matrices.js` |
 > | 5 | Đã làm: lời nhắc AI kèm ngữ cảnh tri thức; cảnh báo câu nhập lệch PPCT trong hộp xem trước | `table-file-helper.js`, `app.js` |
 >
 > Giao diện: mục **"🧠 Bản đồ tri thức"** (chỉ đọc) và phần **"Vì sao?"** trong báo cáo kiểm định đề. Kiểm thử: `tests/static_knowledge_graph.test.cjs`, `tests/static_knowledge_rules.test.cjs`.

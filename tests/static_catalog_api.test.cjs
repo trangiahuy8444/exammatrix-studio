@@ -19,14 +19,23 @@ test('catalogs persist per subject with conflict checks and no input mutation',a
  const bad=catalog();bad.indicators.push({...bad.indicators[0]});
  await assert.rejects(api.handle('/api/matrices/catalog/save',{catalog:bad,expected_revision:1},saved.data,env));
 });
-test('browser bridge includes catalogs in cloud writes and account cache',async()=>{
- const h=require('./static_bridge.test.cjs').harness();let remote;
- h.window.store={selectedSubject:'Vật lí'};h.window.FirebaseState.user={uid:'catalog-test',email:'fake@example.invalid'};h.window.FirebaseState.db={};
- h.window.FirebaseState._firestoreHelpers={doc:()=>({}),setDoc:async(ref,data)=>{remote=data;}};
- await h.window.FirebaseClient.handle('/api/matrices/catalog/save',{catalog:catalog(),expected_revision:0});
- assert.equal(remote.bank.competency_catalogs[0].subject_name,'Vật lí');
- assert.equal(JSON.parse(h.values.get('exammatrix_teacher_cache_catalog-test')).bank.competency_catalogs[0].revision,1);
- assert.equal((await h.window.FirebaseClient.handle('/api/matrices/catalog')).catalog.revision,1);
+test('browser bridge lưu danh mục năng lực lên Cloud v2 (Firestore) theo môn',async()=>{
+ const vm=require('node:vm'),fs=require('node:fs'),{webcrypto}=require('node:crypto');
+ const V2=require('../public/cloud-storage-v2.js'),{makeFirestoreMock}=require('./firestore_mock.cjs');
+ const firestore=makeFirestoreMock();const user={uid:'catalog-test',email:'',isAnonymous:false};
+ const seed=fixture();seed.matrices.forEach(m=>{m.subject_name='Vật lí';});
+ await V2.firestoreWriteFullV2(user.uid,firestore.db,firestore.helpers,seed,{ownerEmail:''});
+ const window={location:{hostname:'localhost',protocol:'http:'},BankStaticAPI:api,BankStaticEngine:engine,BankStaticWorkflow:workflow,
+  BankCore:require('../public/core.js'),CloudStorageV2:V2,crypto:webcrypto,store:{selectedSubject:'Vật lí',bank:{}}};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/firebase-bridge.js'),'utf8'),{window,crypto:webcrypto,console:{...console,info(){},log(){}},setTimeout,clearTimeout,
+  document:{querySelector:()=>null,getElementById:()=>null},localStorage:{getItem:()=>null,setItem:()=>{},removeItem:()=>{}}});
+ Object.assign(window.FirebaseState,{provider:'firebase-cloud-v2',user,db:firestore.db,_firestoreHelpers:firestore.helpers});
+ await window.FirebaseClient.loadFromCloudV2(user,{db:firestore.db,helpers:firestore.helpers});
+ await window.FirebaseClient.handle('/api/matrices/catalog/save',{catalog:catalog(),expected_revision:0});
+ const fresh=await V2.firestoreReadWorkspaceV2(user.uid,firestore.db,firestore.helpers);
+ const saved=fresh.data.bank.competency_catalogs.find(c=>c.subject_name==='Vật lí');
+ assert.ok(saved,'Danh mục phải nằm trên Firestore');assert.equal(saved.revision,1);
+ assert.equal((await window.FirebaseClient.handle('/api/matrices/catalog')).catalog.revision,1);
 });
 test('matrix snapshot validates imported competencies and survives library updates',async()=>{
  const d=fixture(),m=d.matrices[0];m.subject_name='Vật lí';m.profile='THPT';m.grade=10;m.requirements[0].competency='VL';

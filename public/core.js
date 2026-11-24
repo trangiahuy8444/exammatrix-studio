@@ -581,7 +581,10 @@ function distributeCounts(cells,total){
     buildStandaloneHtml(sheet,title='Tài liệu',landscape=true){
       const clone=sheet.cloneNode(true);
       clone.querySelectorAll('.fmt-active-cell').forEach(x=>x.classList.remove('fmt-active-cell'));
-      const pageRule=landscape?'size:A4 landscape;margin:1cm 2cm':'size:A4 portrait;margin:1.5cm 2cm';
+      const pageRule=landscape?'size:A4 landscape;margin:1.0cm 1.5cm':'size:A4 portrait;margin:1.5cm 2cm';
+      const wordSectionRule=landscape
+        ?'size:29.7cm 21.0cm;mso-page-orientation:landscape;margin:1.0cm 1.5cm'
+        :'size:21.0cm 29.7cm;mso-page-orientation:portrait;margin:1.5cm 2.0cm';
       const css=`
         body{font-family:"Times New Roman",Times,serif;color:#000;margin:20px auto;max-width:${landscape?'1400px':'960px'};line-height:1.45;font-size:12pt}
         p.mx-doc-heading,.doc-sheet-head h3,h1,h2,h3{text-align:center;font-weight:700;margin:10px 0 4px}
@@ -598,9 +601,12 @@ function distributeCounts(cells,total){
         .answer-cell{border:1px solid #333;padding:6px;text-align:center}
         thead{display:table-header-group}
         @page{${pageRule}}
+        @page WordSection1{${wordSectionRule}}
+        div.WordSection1{page:WordSection1}
         @media print{body{margin:0;max-width:none}tr{break-inside:avoid}}
       `;
-      return `<!doctype html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" lang="vi"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${css}</style></head><body>${clone.innerHTML}</body></html>`;
+      const wordXml='<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->';
+      return `<!doctype html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40" lang="vi"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>${wordXml}<style>${css}</style></head><body><div class="WordSection1">${clone.innerHTML}</div></body></html>`;
     },
     printSheet(sheet,title,landscape=true){
       const html=this.buildStandaloneHtml(sheet,title,landscape);

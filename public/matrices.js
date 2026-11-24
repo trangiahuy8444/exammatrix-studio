@@ -2462,22 +2462,32 @@
       }
       @page {
         size: A4 landscape;
-        margin: 1.2cm 1.5cm;
+        margin: 1.0cm 1.5cm;
+      }
+      @page WordSection1 {
+        size: 29.7cm 21.0cm;
+        mso-page-orientation: landscape;
+        margin: 1.0cm 1.5cm;
+      }
+      div.WordSection1 {
+        page: WordSection1;
       }
       @media print {
         body { margin: 0; max-width: none; }
         tr { break-inside: avoid; }
       }
     `;
+    const wordXml = '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->';
     return `<!doctype html>
 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40" lang="vi">
 <head>
   <meta charset="utf-8">
   <title>${escapeHtml(m?.title || 'Ma trận & đặc tả')}</title>
+  ${wordXml}
   <style>${css}</style>
 </head>
 <body>
-  ${bodyHtml}
+  <div class="WordSection1">${bodyHtml}</div>
 </body>
 </html>`;
   }
@@ -2580,7 +2590,7 @@
               </label>
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
                 <input type="checkbox" id="cmx-sec-spec" checked>
-                <span><strong>Bảng 2: Bản đặc tả chi tiết</strong> (Khổ A4 dọc, chi tiết YCCĐ &amp; số câu)</span>
+                <span><strong>Bảng 2: Bản đặc tả chi tiết</strong> (Khổ A4 ngang, chi tiết YCCĐ &amp; số câu)</span>
               </label>
               ${m.profile === 'THPT' ? `
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -2599,11 +2609,11 @@
               <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
                 <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
                   <input type="radio" name="cmx_bundle_mode" value="single" checked>
-                  <strong>01 tệp Word duy nhất</strong> (Đã tích hợp định dạng trang in)
+                  <strong>01 tệp Word duy nhất</strong> (Khổ A4 ngang toàn bộ)
                 </label>
                 <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
                   <input type="radio" name="cmx_bundle_mode" value="separate">
-                  <strong>Tách riêng từng tệp</strong> (1 file Ma trận ngang + 1 file Đặc tả dọc)
+                  <strong>Tách riêng từng tệp</strong> (Tất cả đều theo khổ A4 ngang)
                 </label>
               </div>
             </div>

@@ -143,6 +143,10 @@ Khối: 9
   const standalone = ui.generateMatrixWordStandaloneHtml(parsed.matrix, 'all');
   assert.ok(standalone.includes('xmlns:w="urn:schemas-microsoft-com:office:word"'));
   assert.ok(standalone.includes('size: A4 landscape'));
+  assert.ok(standalone.includes('@page WordSection1'));
+  assert.ok(standalone.includes('mso-page-orientation: landscape'));
+  assert.ok(standalone.includes('29.7cm 21.0cm'));
+  assert.ok(standalone.includes('class="WordSection1"'));
 
   // Test gộp ô theo Chủ đề (rowspan) khi có nhiều bài trong 1 chủ đề
   const mdSameTopic = `

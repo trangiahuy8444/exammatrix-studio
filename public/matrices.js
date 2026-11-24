@@ -1126,7 +1126,7 @@
     });
     ui.container.querySelectorAll('button:not([data-action])').forEach(b=>b.disabled=false);
   }
-  async function refresh(){const d=await ui.ctx.request('/api/matrices');ui.records=d.matrices||[];}
+  async function refresh(){const d=await ui.ctx.request('/api/matrices');ui.records=d.matrices||[];ui.ctx?.onMatricesChanged?.(ui.records);}
   async function mount(container,context){
     ui.container=container;
     ui.ctx=context;
@@ -3288,7 +3288,9 @@
         message('Đã nhân bản hồ sơ ma trận sang bản nháp mới.');
       }else if(action==='delete-id'){
         const id=b.dataset.id||ui.editing?.id;if(!id)return;
-        if(typeof window!=='undefined'&&window.confirm&&!window.confirm(`Xóa vĩnh viễn hồ sơ ma trận "${id}"?`))return;
+        const target=ui.records.find(x=>x.id===id)||(ui.editing?.id===id?ui.editing:null);
+        const label=target?.title||'Ma trận này';
+        if(typeof window!=='undefined'&&window.confirm&&!window.confirm(`Xóa vĩnh viễn hồ sơ ma trận "${label}"?`))return;
         await ui.ctx.request('/api/matrices/delete',{id});
         if(ui.editing?.id===id){ui.editing=null;ui.dirty=false;}
         if(ui.previewState?.id===id)ui.previewState=null;
@@ -3317,6 +3319,13 @@
         ui.editing=result.matrix;ui.report=result.validation;ui.importing=null;ui.dirty=false;await refresh();render();message('Đã nhận bản nguồn. Hãy đối chiếu PPCT, vị trí câu và các điểm còn thiếu trước khi khóa.');
         await openPreview(ui.editing.id, 'all', 'web');
       }else if(action==='use'){
+        if(typeof ui.ctx?.onOpenInExamCreator==='function'){
+          const chosen=ui.editing;
+          await refresh();
+          ui.editing=null;ui.dirty=false;
+          ui.ctx.onOpenInExamCreator(chosen);
+          return;
+        }
         const data=await ui.ctx.request('/api/matrices/'+encodeURIComponent(ui.editing.id)+'/candidates');
         data.flexibleMode=Boolean(data.bank_diagnostics&&data.bank_diagnostics.strict_empty_slots>0&&data.bank_diagnostics.flexible_empty_slots<data.bank_diagnostics.strict_empty_slots);
         ui.generation=data;ui.editing=null;ui.dirty=false;render();
@@ -3334,7 +3343,16 @@
           try{
             const lockRes=await ui.ctx.request('/api/matrices/lock',{id:ui.editing.id,expected_revision:ui.editing.revision,confirmation});
             ui.editing=lockRes.matrix;
-          }catch(_){}
+          }catch(err){
+            if(typeof ui.ctx?.onOpenInExamCreator==='function')throw err;
+          }
+        }
+        if(typeof ui.ctx?.onOpenInExamCreator==='function'){
+          const chosen=ui.editing;
+          await refresh();
+          ui.editing=null;ui.dirty=false;
+          ui.ctx.onOpenInExamCreator(chosen);
+          return;
         }
         try{
           ui.editingMatrixBackup=ui.editing;

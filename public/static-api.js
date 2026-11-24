@@ -414,6 +414,31 @@
       put(bank, q);
     });
    }
+   else if(p.action==='bulk_approve'){
+    if(p.confirmed!==true)fail('Cần xác nhận trước khi duyệt nhanh hàng loạt.');
+    const at=now();
+    let approved_count=0,already_approved_count=0;
+    const skipped=[];
+    qs.forEach(orig=>{
+     const q=clone(orig);
+     const st=q.review_status||'draft';
+     if(st==='archived'){skipped.push({id:q.id,reason:'Câu đã lưu trữ.'});return;}
+     if(st==='approved'){already_approved_count++;return;}
+     const probs=workflow.technicalProblems?workflow.technicalProblems(q):[];
+     if(probs.length){skipped.push({id:q.id,reason:probs[0]});return;}
+     q.review_status='approved';
+     q.approved_at=at;
+     q.approved_by=actor;
+     q.updated_at=at;
+     delete q.archived_at;
+     delete q.status_before_archive;
+     q.review_history=Array.isArray(q.review_history)?q.review_history:[];
+     q.review_history.push({action:'approve',at,by:actor,from_status:st,reason:'Duyệt nhanh hàng loạt'});
+     put(bank,q);
+     approved_count++;
+    });
+    return result({bank:data.bank,approved_count,already_approved_count,skipped_count:skipped.length,skipped},true);
+   }
    else{
     const action=p.action==='status'?{pending_review:'submit',archived:'archive',restore:'restore'}[p.status]||p.action:p.action;
     if(!action||action==='approve')fail('Muốn duyệt câu phải mở phiếu kiểm định và xác nhận đủ từng mục.');
@@ -791,7 +816,7 @@
      const codes=new Set(revQs.map(q=>normLesson(q.lesson_code)));
      const mSubj=normSubj(genPayload.subject_name||subject);
      const scope=(ppct.lessons||[]).filter(l=>Number(l.grade)===Number(genPayload.grade)&&normSubj(l.subject_name)===mSubj&&codes.has(normLesson(l.lesson_code))).map(l=>({lesson_code:l.lesson_code,title:l.title||l.lesson_name_source||l.lesson_name||l.lesson_code,topic:l.topic||l.topic_source||l.topic_name||''}));
-     createdRev={id:id('REV'),title:genPayload.title.trim()+' — Đề cương',grade:Number(genPayload.grade),subject_name:genPayload.subject_name||subject,exam_type:genPayload.exam_type,lessons:scope,status:'drafting',created_at:now(),updated_at:now(),question_ids:revIds,questions:revQs,question_count:revQs.length};
+     createdRev={id:id('REV'),title:genPayload.title.trim()+' — Đề cương',grade:Number(genPayload.grade),subject_name:genPayload.subject_name||subject,exam_type:genPayload.exam_type,lessons:scope,status:'drafting',similarity_target_percent:genPayload.similarity_percent??90,created_at:now(),updated_at:now(),question_ids:revIds,questions:revQs,question_count:revQs.length};
      revision=createdRev;
     }
     const setId=id('SET'),exams=[];

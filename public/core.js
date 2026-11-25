@@ -124,9 +124,9 @@ function distributeCounts(cells,total){
     const blocks=questionTextBlocks(text),rich=blocks.some(([kind])=>kind!=='text');
     const field=editable?' data-edit-field="question"':'';
     if(!rich)return `<span${field} style="white-space:pre-wrap">${escapeHtml(text)}</span>`;
-    const cellStyle='border:1px solid #8F97A8;padding:6px 8px;white-space:pre-wrap;overflow-wrap:anywhere';
+    const cellStyle='border:1px solid #9aa9b7;padding:6px 8px;white-space:pre-wrap;overflow-wrap:anywhere';
     const html=blocks.map(([kind,content])=>{
-      if(kind==='code')return `<pre style="white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;font-family:Consolas,monospace;padding:10px;border:1px solid #D5D9E4;background:#F3F4F8"><code>${escapeHtml(content.join('\n'))}</code></pre>`;
+      if(kind==='code')return `<pre style="white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;font-family:Consolas,monospace;padding:10px;border:1px solid #d5dde5;background:#f6f8fa"><code>${escapeHtml(content.join('\n'))}</code></pre>`;
       if(kind==='table')return `<table class="question-table" style="width:100%;table-layout:fixed;border-collapse:collapse;white-space:normal;margin:10px 0"><thead><tr>${content[0].map(c=>`<th style="${cellStyle}">${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>${content.slice(1).map(row=>`<tr>${row.map(c=>`<td style="${cellStyle}">${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
       return `<div style="white-space:pre-wrap">${escapeHtml(content.join('\n'))}</div>`;
     }).join('');
@@ -193,7 +193,7 @@ function distributeCounts(cells,total){
       return `<div class="fmt-bar" data-fmt-bar>
         <div class="fmt-row">
           <button type="button" class="fmt-toggle ${editing?'primary':''}" data-fmt-cmd="toggle-edit" title="Bật/tắt chế độ nhấp chuột vào văn bản hoặc ô bảng để sửa nội dung và căn chỉnh trực tiếp">
-            ${editing?'Đang bật sửa trực tiếp (Bấm để khóa)':'Chỉnh sửa nội dung & định dạng'}
+            ${editing?'✏️ Đang bật sửa trực tiếp (Bấm để khóa)':'✏️ Chỉnh sửa nội dung & định dạng'}
           </button>
           ${hasSaved?'<span class="badge approved" data-fmt-saved-badge>Đã lưu bản chỉnh tay</span>':''}
           <div class="fmt-group" ${editing?'':'hidden'} data-fmt-tools>
@@ -203,8 +203,8 @@ function distributeCounts(cells,total){
             <span class="fmt-sep"></span>
             <button type="button" data-fmt-align="left" title="Căn trái ô / đoạn đang chọn">⬅ Trái</button>
             <button type="button" data-fmt-align="center" title="Căn giữa (align center) ô / đoạn đang chọn">↔ Giữa</button>
-            <button type="button" data-fmt-align="right" title="Căn phải ô / đoạn đang chọn">Phải</button>
-            <button type="button" data-fmt-align="justify" title="Căn đều 2 bên">Đều</button>
+            <button type="button" data-fmt-align="right" title="Căn phải ô / đoạn đang chọn">➡ Phải</button>
+            <button type="button" data-fmt-align="justify" title="Căn đều 2 bên">☰ Đều</button>
             <button type="button" data-fmt-cmd="auto-center-table" title="Chuẩn hóa căn giữa tiêu đề, cột TT/STT và các cột điểm/số lượng trong toàn bộ bảng">⊞ Chuẩn căn giữa bảng</button>
             <span class="fmt-sep"></span>
             <button type="button" data-fmt-valign="top" title="Căn lề trên ô bảng">⬆ Trên</button>
@@ -243,16 +243,16 @@ function distributeCounts(cells,total){
               <select data-fmt-bg aria-label="Màu nền ô">
                 <option value="">Đổi màu ô…</option>
                 <option value="#ffffff">Trắng</option>
-                <option value="#F3F4F8">Xanh tiêu đề</option>
-                <option value="#E4E7F0">Vàng nhạt</option>
-                <option value="#F3F4F8">Xanh lá nhạt</option>
+                <option value="#eef4fa">Xanh tiêu đề</option>
+                <option value="#fff9db">Vàng nhạt</option>
+                <option value="#eef8f3">Xanh lá nhạt</option>
               </select>
             </label>
           </div>
           <div class="fmt-actions">
-            <button type="button" class="primary" data-fmt-cmd="save" title="Lưu nội dung và định dạng đã chỉnh sửa">Lưu chỉnh sửa</button>
-            <button type="button" data-fmt-cmd="export-word" title="Tải tệp Word giữ nguyên định dạng và nội dung đang chỉnh trên màn hình">Xuất Word bản đang chỉnh</button>
-            <button type="button" data-fmt-cmd="print" title="Mở cửa sổ In / Lưu PDF đúng theo định dạng đang chỉnh">In / PDF</button>
+            <button type="button" class="primary" data-fmt-cmd="save" title="Lưu nội dung và định dạng đã chỉnh sửa">💾 Lưu chỉnh sửa</button>
+            <button type="button" data-fmt-cmd="export-word" title="Tải tệp Word giữ nguyên định dạng và nội dung đang chỉnh trên màn hình">📄 Xuất Word bản đang chỉnh</button>
+            <button type="button" data-fmt-cmd="print" title="Mở cửa sổ In / Lưu PDF đúng theo định dạng đang chỉnh">🖨️ In / PDF</button>
             <button type="button" class="quiet danger" data-fmt-cmd="reset" title="Khôi phục về nội dung và định dạng mặc định ban đầu">↺ Khôi phục gốc</button>
           </div>
         </div>
@@ -296,7 +296,7 @@ function distributeCounts(cells,total){
         const toggleBtn=hostEl.querySelector('[data-fmt-cmd="toggle-edit"]');
         if(toggleBtn){
           toggleBtn.classList.toggle('primary',isEditing);
-          toggleBtn.innerHTML=isEditing?'Đang bật sửa trực tiếp (Bấm để khóa)':'Chỉnh sửa nội dung & định dạng';
+          toggleBtn.innerHTML=isEditing?'✏️ Đang bật sửa trực tiếp (Bấm để khóa)':'✏️ Chỉnh sửa nội dung & định dạng';
         }
         const tools=hostEl.querySelector('[data-fmt-tools]'),hint=hostEl.querySelector('[data-fmt-hint]');
         if(tools)tools.hidden=!isEditing;
@@ -753,7 +753,7 @@ function syncEditedQuestionsFromSheet(sheet,record){
       steps:['Lọc theo khối, bài học, dạng câu, mức độ, trạng thái hoặc gõ vào ô tìm kiếm (mã câu, nội dung, phương án, YCCĐ).',
         'Bấm "+ Thêm câu hỏi": chọn khối, bài, YCCĐ, mức độ, dạng câu rồi nhập nội dung và đáp án. MC cần đủ 4 phương án kèm giải thích; Đúng/Sai cần đủ 4 ý a–d; Trả lời ngắn cần đáp án; Tự luận cần 4 tiêu chí chấm, tổng 1 điểm.',
         'Bấm "Sửa" trên một câu để chỉnh. Sửa nội dung, đáp án, YCCĐ hoặc mức độ của câu đã duyệt sẽ đưa câu về "Cần sửa lại" và phải duyệt lại.',
-        'Tích chọn nhiều câu rồi dùng "Thao tác hàng loạt": "Gửi duyệt", "Xuất Word LMS", "Tạo đề cương từ lựa chọn" hoặc "Xóa câu đã chọn".',
+        'Tích chọn nhiều câu rồi dùng "Thao tác hàng loạt": "Gửi duyệt", "📤 Xuất Word LMS", "Tạo đề cương từ lựa chọn" hoặc "Xóa câu đã chọn".',
         '"Nhập JSON" để nạp nhiều câu theo lược đồ chuẩn; "Xuất JSON" để sao lưu hoặc chia sẻ.'],
       tips:['Câu mới và câu do AI tạo luôn ở trạng thái nháp, không tự lên "Đã duyệt".',
         'Ứng dụng cảnh báo khi câu trùng nguyên văn với câu đã có.']},
@@ -777,10 +777,10 @@ function syncEditedQuestionsFromSheet(sheet,record){
         'Bấm "Xem toàn bộ đang chọn" để rà lại danh sách.',
         'Đặt "Tên phiên bản" rồi "Lưu phiên bản đề cương". Mỗi lần lưu là một bản chụp cố định, không đổi theo ngân hàng.',
         'Muốn chỉnh bản đã lưu: mở bản đó, sửa, rồi "Cập nhật…" hoặc "Lưu thành bản mới".',
-        '"Import Đề cương (.docx / .json / .md)" để nhập đề cương có sẵn: câu mới được thêm vào Ngân hàng ở trạng thái Nháp, câu đã có thì dùng lại.',
-        'Tạo theo số câu từng dạng: chọn nguồn (ma trận đã khóa, hoặc "Toàn bộ ngân hàng Khối…" khi chưa có ma trận), nhập số câu mỗi dạng (VD 40 trắc nghiệm, 6 tự luận), bấm "Bốc ngẫu nhiên". Số câu được chia theo tỉ lệ bài và mức độ; ô thiếu câu đã duyệt được báo rõ.',
+        '"📥 Import Đề cương (.docx / .json / .md)" để nhập đề cương có sẵn: câu mới được thêm vào Ngân hàng ở trạng thái Nháp, câu đã có thì dùng lại.',
+        'Tạo theo số câu từng dạng: chọn nguồn (ma trận đã khóa, hoặc "Toàn bộ ngân hàng Khối…" khi chưa có ma trận), nhập số câu mỗi dạng (VD 40 trắc nghiệm, 6 tự luận), bấm "🎲 Bốc ngẫu nhiên". Số câu được chia theo tỉ lệ bài và mức độ; ô thiếu câu đã duyệt được báo rõ.',
         '"Tạo đề cương theo ma trận": chọn ma trận, sửa "Số câu đề cương" từng ô (hoặc nhập tổng rồi "Chia theo tỉ lệ"), bấm "Tự chọn…". Cột "Đã chọn" cho biết mỗi ô đang có bao nhiêu câu.',
-        'Mở một đề cương đã lưu: thẻ "Đối chiếu đề thi với đề cương" cho biết đề đã chọn có bao nhiêu câu trong đề cương (theo câu, theo điểm, theo YCCĐ) và liệt kê từng câu chưa có.'],
+        'Mở một đề cương đã lưu: thẻ "📊 Đối chiếu đề thi với đề cương" cho biết đề đã chọn có bao nhiêu câu trong đề cương (theo câu, theo điểm, theo YCCĐ) và liệt kê từng câu chưa có.'],
       tips:['Mục "Giới hạn kiến thức ôn tập" khi xuất có đúng 3 cột: STT, Tên chủ đề, Tên bài.',
         'Muốn tạo luôn đề cương và các đề một lần: dùng "Tạo đề tự động theo ma trận" ở màn hình Tạo đề kiểm tra.']},
     matrices:{title:'Ma trận & đặc tả',purpose:'Lập, nhập, đối chiếu và khóa ma trận – bảng đặc tả; tạo đề theo ma trận.',
@@ -790,7 +790,7 @@ function syncEditedQuestionsFromSheet(sheet,record){
         'Bấm "Báo cáo thiếu câu theo ô" để biết ô nào chưa đủ câu đã duyệt; "Mở duyệt ô này" để sang màn hình duyệt đã lọc sẵn.',
         '"Xác nhận bản đã thống nhất để khóa" rồi "Khóa phiên bản này". Muốn sửa bản đã khóa: "Tạo phiên bản mới".',
         '"Tạo và lưu đề riêng" để sinh đề trực tiếp từ ma trận.',
-        'Ma trận 2D: nhập số câu theo bài × mức độ rồi bấm "Tạo đề thi ngay từ Ma trận 2D". Mỗi ô nhận mọi YCCĐ của bài; YCCĐ và năng lực cụ thể lấy từ đề khi "Trích xuất sang Bảng 2 Đặc tả".'],
+        'Ma trận 2D: nhập số câu theo bài × mức độ rồi bấm "🚀 Tạo đề thi ngay từ Ma trận 2D". Mỗi ô nhận mọi YCCĐ của bài; YCCĐ và năng lực cụ thể lấy từ đề khi "Trích xuất sang Bảng 2 Đặc tả".'],
       tips:['Ma trận cũ muốn chuyển sang cách 2D: ở từng yêu cầu, chọn "Mọi YCCĐ của bài" trong ô YCCĐ nguồn.','Giữ nguyên YCCĐ, số câu, số điểm của ma trận gốc (Khối 8, 10 nhận ma trận của tổ).','Đánh số câu dạng (1, 2, 3) hoặc (1a, 1b), không dùng (C1 - C4).']},
     exams:{title:'Tạo đề kiểm tra',purpose:'Sinh đề từ ngân hàng theo ma trận và đề cương, kiểm định, duyệt – khóa, phát hành và xuất hồ sơ.',
       steps:['Điền tên đề, khối, kì kiểm tra, thời gian; chọn ma trận (ma trận đã khóa ở "Ma trận & đặc tả" hiện bảng từng ô kèm YCCĐ) và đề cương nếu đã có.',
@@ -799,8 +799,8 @@ function syncEditedQuestionsFromSheet(sheet,record){
         '"Tạo đề tự động theo ma trận": chọn số đề (1–6) và đề cương (tự lập, chỉnh số câu từng ô; hoặc bản đã lưu). Mỗi đề lấy 90% câu từ đề cương, 10% còn lại (ưu tiên Vận dụng) để phân hóa.',
         'Mở đề đã lưu, xem kết quả "Kiểm định": tổng 10 điểm, khớp từng ô ma trận, tiêu chí đề cương T ≥ 90%, bao phủ YCCĐ 100%.',
         'Vòng đời: "Gửi duyệt đề" → "Duyệt & khóa" → "Phát hành". Đề đã khóa không sửa được; muốn sửa tạo bản chỉnh sửa mới và duyệt lại.',
-        'Mở đề → "Trộn mã đề": chọn số mã (2–6), tên mã, cách xáo (câu trong từng phần, phương án A–D, ý a–d câu Đúng/Sai, giữ thứ tự tự luận). Ứng dụng hiện bảng đáp án tổng hợp kèm số câu gốc; mỗi mã là bản nháp cần duyệt riêng.',
-        'Mở đề → "Trích xuất sang Bảng 2 Đặc tả": tạo bản "Ma trận & Đặc tả theo đề" với YCCĐ và năng lực thật của từng câu, số câu ghi cuối mỗi YCCĐ.',
+        'Mở đề → "🔀 Trộn mã đề": chọn số mã (2–6), tên mã, cách xáo (câu trong từng phần, phương án A–D, ý a–d câu Đúng/Sai, giữ thứ tự tự luận). Ứng dụng hiện bảng đáp án tổng hợp kèm số câu gốc; mỗi mã là bản nháp cần duyệt riêng.',
+        'Mở đề → "📋 Trích xuất sang Bảng 2 Đặc tả": tạo bản "Ma trận & Đặc tả theo đề" với YCCĐ và năng lực thật của từng câu, số câu ghi cuối mỗi YCCĐ.',
         'Xuất: "Tải trọn bộ Hồ sơ Word" / "PDF" (PDF chuyển từ chính tệp Word), "Tải tệp LMS", hoặc mã nguồn XeLaTeX.'],
       tips:['Đáp án và hướng dẫn chấm chỉ tải được với tài khoản có quyền xem đáp án; mỗi lần tải đều được ghi nhật ký.',
         'Câu đã dùng trong đề phát hành gần đây được cảnh báo (không chặn).']},

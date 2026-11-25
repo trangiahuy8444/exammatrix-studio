@@ -1,3 +1,10 @@
+## 25/11/2026 — Trả lại giao diện cũ; Word ma trận khổ ngang; đề cương nhập số câu tùy ý và đúng 90% nội dung đề
+
+- **Giao diện:** giáo viên thấy bản mới xấu hơn. Gỡ các đợt đổi giao diện (màu tím, phông Be Vietnam Pro, thanh bên sáng, nhóm điều hướng, bỏ emoji, menu "Thêm"); trả lại khung, màu xanh Á Châu #0267B1 (đúng AGENTS.md), emoji và nhãn cũ. Giữ chức năng mới: trang Hồ sơ kiểm tra (trong Tổng quan), thanh 6 bước của kỳ kiểm tra, số câu sẵn có trong ô ma trận 2D; `theme.css` chỉ còn kiểu cho ba thành phần này, theo màu cũ. Django chèn ô chọn môn lại trước `<p class="nav-caption">`.
+- **Word ma trận và đặc tả:** trước là HTML đổi đuôi `.doc`, Word thường bỏ qua khổ ngang. Nay là `.docx` thật: A4 ngang, lề trên/dưới 1,0 cm, vùng chữ 24 cm, Times New Roman, bảng Word gốc (gộp ô, lặp dòng tiêu đề), chân trang "Trang X/Y". Mở được ở Word, Google Docs, Pages.
+- **Đề cương, số câu từng dạng:** lý do không chỉnh được là ô nhập bị chặn tối đa bằng số câu đang có trong ngân hàng khớp các ô ma trận (không phải do tỉ lệ). Tỉ lệ ma trận chỉ dùng để chia số câu cho bài và mức độ. Bỏ giới hạn; thiếu câu thì báo rõ ô thiếu.
+- **Đề cương 90%:** đề tạo theo chế độ "Tối thiểu (≥ 90%)" luôn ưu tiên câu đề cương nên thường ra 100%. Mặc định đổi sang "Bám sát" (90% từ đề cương, 10% ngoài); ngân hàng không đủ câu ngoài đề cương thì tạo theo "Tối thiểu" và báo. Khung đối chiếu đề ↔ đề cương có nút "Bớt N câu để đề cương còn 90% nội dung đề" (`/api/revisions/trim-to-exam`), giữ YCCĐ; đề cương đã khóa thì lưu phiên bản mới.
+
 ## 25/11/2026 — Giao diện mới, đợt 4: màn hình bên trong và thanh trên cùng
 
 - Thanh trên cùng chỉ còn chọn môn, tên màn hình, nút "Nhập đề từ Word" và menu "Thêm" (Sao lưu và khôi phục, Hướng dẫn và quy trình, Tải lại dữ liệu). Menu đóng khi chọn mục, bấm ra ngoài hoặc nhấn Esc.

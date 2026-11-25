@@ -49,7 +49,7 @@ def application(request):
                           '<input type="hidden" name="csrfmiddlewaretoken" value="{}">'
                           '<button type="submit" class="quiet">Đăng xuất</button></form>', request.user.username, token)
     html = html.replace('<span class="teacher">Không gian giáo viên</span>', str(account), 1)
-    html = html.replace('<nav class="nav-groups"', str(selector)+'<nav class="nav-groups"', 1)
+    html = html.replace('<p class="nav-caption">', str(selector)+'<p class="nav-caption">', 1)
     if course is not None:
         html = html.replace('<title>Ngân hàng đề · Tin học Asian School</title>',
                             str(format_html('<title>Ngân hàng đề · {} {}</title>', course.subject.name, course.grade)))

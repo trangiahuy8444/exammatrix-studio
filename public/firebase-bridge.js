@@ -91,10 +91,10 @@
     pill.hidden = false;
     pill.className = `cloud-sync-pill cloud-pill-${state}`;
     pill.textContent = text || ({
-      synced: 'Đã lưu trực tuyến',
+      synced: '☁ Đã lưu trực tuyến',
       syncing: '⏳ Đang lưu dữ liệu…',
-      partial: 'Đã lưu · Cần kết nối lại Drive',
-      error: 'Chưa lưu được',
+      partial: '☁ Đã lưu · Cần kết nối lại Drive',
+      error: '⚠️ Chưa lưu được',
       offline: 'Chưa đăng nhập'
     }[state] || '');
   }
@@ -822,7 +822,7 @@
           const isExam = /MA TRẬN|ĐẶC TẢ|ĐỀ KIỂM TRA|BẢNG ĐẶC TẢ|PHẦN I/i.test(text) || /Câu\s*\d+[:.]/i.test(text);
           if (isExam) {
             issues.push({
-              message: 'Nhận diện: Tệp "' + fn + '" là hồ sơ Ma trận & Đề kiểm tra. Mục này dùng để nạp Bảng Kế hoạch dạy học (PPCT Phụ lục 1). Để nạp các câu hỏi trong đề này vào ngân hàng đề, Thầy/Cô vui lòng bấm nút "AI Nhập đề" ở thanh trên cùng!'
+              message: '⚠️ Nhận diện: Tệp "' + fn + '" là hồ sơ Ma trận & Đề kiểm tra. Mục này dùng để nạp Bảng Kế hoạch dạy học (PPCT Phụ lục 1). Để nạp các câu hỏi trong đề này vào ngân hàng đề, Thầy/Cô vui lòng bấm nút "✨ AI Nhập đề" ở thanh trên cùng!'
             });
           }
           const matches = [...text.matchAll(/(?:Bài)\s*(\d+)[:.]\s*([^\n\r]+)/gi)];
@@ -1336,7 +1336,7 @@
     syncBtn.hidden = !signedIn;
     if (!signedIn) return;
     const hasDriveTok = Boolean(loadRuntimeDriveToken(user.uid));
-    syncBtn.textContent = hasDriveTok ? 'Đồng bộ Drive' : 'Kết nối Drive';
+    syncBtn.textContent = hasDriveTok ? '☁ Đồng bộ Drive' : '🔗 Kết nối Drive';
     syncBtn.title = hasDriveTok
       ? 'Đồng bộ cây thư mục theo từng Khối lên Google Drive riêng'
       : 'Cấp hoặc gia hạn quyền Google Drive để đồng bộ thư mục phân khối';
@@ -1380,7 +1380,7 @@
 
     const wipeCheck = v2.checkAntiWipe(beforeSlices, afterSlices, mutationMeta || {});
     if (!wipeCheck.ok) {
-      setCloudSyncPill('error', 'Đã chặn ghi đè rỗng');
+      setCloudSyncPill('error', '⛔ Đã chặn ghi đè rỗng');
       throw new Error(wipeCheck.message);
     }
 
@@ -1394,14 +1394,14 @@
       });
     } catch (err) {
       if (v2.isConflictError && v2.isConflictError(err)) {
-        setCloudSyncPill('error', 'Dữ liệu đã đổi ở máy khác');
+        setCloudSyncPill('error', '⛔ Dữ liệu đã đổi ở máy khác');
         showCloudConflictNotice(err);
         const conflictErr = new Error(err.message);
         conflictErr.code = err.code;
         conflictErr.conflicts = err.conflicts;
         throw conflictErr;
       }
-      setCloudSyncPill('error', 'Chưa lưu được');
+      setCloudSyncPill('error', '⚠️ Chưa lưu được');
       throw new Error('Chưa lưu được dữ liệu trực tuyến (' + (err?.message || 'lỗi kết nối') + '). Vui lòng kiểm tra mạng và thử lại.');
     }
 
@@ -1422,21 +1422,21 @@
         folderCache: cloudFolderCacheV2
       }).then(() => {
         if (window.FirebaseState.user?.uid === targetUid) {
-          setCloudSyncPill('synced', 'Đã lưu · Drive ✓');
+          setCloudSyncPill('synced', '☁ Đã lưu · Drive ✓');
           updateDriveSyncButton();
         }
       }).catch((drvErr) => {
         if (window.FirebaseState.user?.uid !== targetUid) return;
         if (drvErr && (drvErr.code === 'DRIVE_AUTH_EXPIRED' || drvErr.status === 401)) {
           saveRuntimeDriveToken(targetUid, '', 0);
-          setCloudSyncPill('partial', 'Đã lưu · Cần kết nối lại Drive');
+          setCloudSyncPill('partial', '☁ Đã lưu · Cần kết nối lại Drive');
         } else {
-          setCloudSyncPill('partial', 'Đã lưu · Chờ đồng bộ Drive');
+          setCloudSyncPill('partial', '☁ Đã lưu · Chờ đồng bộ Drive');
         }
         updateDriveSyncButton();
       });
     } else {
-      setCloudSyncPill('synced', 'Đã lưu trực tuyến');
+      setCloudSyncPill('synced', '☁ Đã lưu trực tuyến');
     }
     updateDriveSyncButton();
   }
@@ -1483,7 +1483,7 @@
         installV2(fsV2.data, fsV2.slices, fsV2.revs);
         const driveTok = opts.driveAccessToken || loadRuntimeDriveToken(user.uid)?.accessToken || '';
         if (driveTok && window.GoogleDriveStorage) {
-          setCloudSyncPill('synced', 'Đã lưu · Drive ✓');
+          setCloudSyncPill('synced', '☁ Đã lưu · Drive ✓');
           // Đảm bảo thư mục v2 trên Drive đã có manifest (tự bù nếu lần đầu dùng máy mới)
           v2.driveReadWorkspaceV2(driveTok, window.GoogleDriveStorage, { folderName: driveCfg.folderName }).then(res => {
             if (!res.exists) {
@@ -1495,7 +1495,7 @@
             }
           }).catch(() => {});
         } else {
-          setCloudSyncPill('synced', 'Đã lưu trực tuyến');
+          setCloudSyncPill('synced', '☁ Đã lưu trực tuyến');
         }
         if (status) { status.hidden = true; status.textContent = ''; }
         updateDriveSyncButton();
@@ -1558,7 +1558,7 @@
           ownerEmail: user.email || ''
         });
         installV2(migrated.data, migrated.slices, migrated.knownRevs);
-        setCloudSyncPill('synced', driveTok ? 'Đã lưu · Drive ✓' : 'Đã lưu trực tuyến');
+        setCloudSyncPill('synced', driveTok ? '☁ Đã lưu · Drive ✓' : '☁ Đã lưu trực tuyến');
         if (status) { status.hidden = true; status.textContent = ''; }
         showToast('Đã tự động sắp xếp dữ liệu theo từng Khối trên hệ thống trực tuyến!');
         updateDriveSyncButton();
@@ -1581,15 +1581,15 @@
         initialRevs = written && written.knownRevs ? written.knownRevs : null;
       }
       installV2(initialData, v2.splitWorkspaceIntoSlices(initialData), initialRevs);
-      setCloudSyncPill('synced', driveTok ? 'Đã lưu · Drive ✓' : 'Đã lưu trực tuyến');
+      setCloudSyncPill('synced', driveTok ? '☁ Đã lưu · Drive ✓' : '☁ Đã lưu trực tuyến');
       if (status) {
         status.hidden = false;
-        status.textContent = `Đã kết nối tài khoản ${user.email || ''} (lưu trữ trực tuyến theo từng Khối). Bấm "Đồng bộ Drive" nếu cần nhập dữ liệu từ tệp Google Drive cũ.`;
+        status.textContent = `Đã kết nối tài khoản ${user.email || ''} (lưu trữ trực tuyến theo từng Khối). Bấm "☁ Đồng bộ Drive" nếu cần nhập dữ liệu từ tệp Google Drive cũ.`;
       }
       updateDriveSyncButton();
       return { source: 'empty-v2', data: initialData };
     } catch (err) {
-      setCloudSyncPill('error', 'Lỗi tải dữ liệu');
+      setCloudSyncPill('error', '⚠️ Lỗi tải dữ liệu');
       if (status) {
         status.hidden = false;
         status.textContent = 'Chưa tải được dữ liệu trực tuyến: ' + (err?.message || 'lỗi kết nối');
@@ -1820,7 +1820,7 @@
         lastSyncedSlicesV2 = migrated.slices;
         lastKnownRevsV2 = migrated.knownRevs || null;
         applyWorkspaceToStore();
-        setCloudSyncPill('synced', 'Đã lưu · Drive ✓');
+        setCloudSyncPill('synced', '☁ Đã lưu · Drive ✓');
         showToast(`Đã tải & đồng bộ ${currentWorkspaceData.bank?.questions?.length || 0} câu hỏi từ Google Drive!`);
       } else {
         // Đẩy toàn bộ cấu trúc phân tách theo từng Khối lên Google Drive
@@ -1838,7 +1838,7 @@
           ownerEmail: user.email || '',
           folderCache: cloudFolderCacheV2
         });
-        setCloudSyncPill('synced', 'Đã lưu · Drive ✓');
+        setCloudSyncPill('synced', '☁ Đã lưu · Drive ✓');
         showToast(`Đã đồng bộ cấu trúc thư mục theo từng Khối (${currentWorkspaceData.bank?.questions?.length || 0} câu hỏi) lên Google Drive!`);
       }
       updateDriveSyncButton();
@@ -1846,9 +1846,9 @@
     } catch (err) {
       if (err && (err.code === 'DRIVE_AUTH_EXPIRED' || err.status === 401)) {
         saveRuntimeDriveToken(user.uid, '', 0);
-        setCloudSyncPill('partial', 'Đã lưu · Cần kết nối lại Drive');
+        setCloudSyncPill('partial', '☁ Đã lưu · Cần kết nối lại Drive');
       } else {
-        setCloudSyncPill('partial', 'Đã lưu · Lỗi đồng bộ Drive');
+        setCloudSyncPill('partial', '☁ Đã lưu · Lỗi đồng bộ Drive');
       }
       updateDriveSyncButton();
       throw err;
@@ -1865,35 +1865,35 @@
     const modal = document.createElement('dialog');
     modal.id = 'firebase-login-modal';
     modal.dataset.mode = 'cloud-v2';
-    modal.style.cssText = 'border:1px solid #D5D9E4;border-radius:12px;padding:24px;max-width:450px;width:92%;box-shadow:0 12px 32px rgba(0,0,0,0.18);z-index:9999;';
+    modal.style.cssText = 'border:1px solid #c5d8ea;border-radius:12px;padding:24px;max-width:450px;width:92%;box-shadow:0 12px 32px rgba(0,0,0,0.18);z-index:9999;';
     modal.innerHTML = `
       <form id="fb-login-form" method="dialog" style="display:flex;flex-direction:column;gap:14px;">
         <div style="display:flex;align-items:center;gap:12px;">
-          <div style="width:42px;height:42px;border-radius:10px;background:#F3F4F8;display:flex;align-items:center;justify-content:center;font-size:22px;">
-            
+          <div style="width:42px;height:42px;border-radius:10px;background:#e7f5ff;display:flex;align-items:center;justify-content:center;font-size:22px;">
+            ☁️
           </div>
           <div>
-            <h3 style="margin:0;font-size:16px;font-weight:700;color:#1C2333;">ĐĂNG NHẬP TÀI KHOẢN GIÁO VIÊN</h3>
-            <p style="margin:2px 0 0;font-size:12px;color:#2E3646;">Giữ đăng nhập ổn định &amp; tự động lưu độc lập từng Khối lớp.</p>
+            <h3 style="margin:0;font-size:16px;font-weight:700;color:#102d4a;">ĐĂNG NHẬP TÀI KHOẢN GIÁO VIÊN</h3>
+            <p style="margin:2px 0 0;font-size:12px;color:#4a5568;">Giữ đăng nhập ổn định &amp; tự động lưu độc lập từng Khối lớp.</p>
           </div>
         </div>
 
-        <div style="background:#F7F8FB;border:1px solid #E4E7F0;border-radius:8px;padding:10px 12px;font-size:12px;color:#2E3646;line-height:1.5;">
+        <div style="background:#f8fafc;border:1px solid #dce5ee;border-radius:8px;padding:10px 12px;font-size:12px;color:#334155;line-height:1.5;">
           Dữ liệu được lưu an toàn theo cây thư mục <strong>Năm học → Môn → Khối</strong> trên hệ thống trực tuyến và Google Drive (<code>ExamMatrix Studio/</code>) của riêng Thầy/Cô.
         </div>
 
-        <div id="fb-auth-error" style="color:#C62828;background:#F7F8FB;padding:10px 14px;border-radius:8px;font-size:12px;display:none;line-height:1.45;border:1px solid #F4C7C7;"></div>
+        <div id="fb-auth-error" style="color:#c92a2a;background:#fff5f5;padding:10px 14px;border-radius:8px;font-size:12px;display:none;line-height:1.45;border:1px solid #ffc9c9;"></div>
 
-        <button type="button" id="fb-btn-google" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 16px;background:#ffffff;border:1px solid #4A3AA8;border-radius:8px;font-size:13.5px;font-weight:600;color:#1C2333;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+        <button type="button" id="fb-btn-google" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 16px;background:#ffffff;border:1px solid #0267b1;border-radius:8px;font-size:13.5px;font-weight:600;color:#0f172a;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
           <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.347 2.825.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
           <span>Đăng nhập bằng tài khoản Google</span>
         </button>
 
-        <details style="border:1px solid #E4E7F0;border-radius:8px;padding:8px 12px;font-size:12px;color:#2E3646;">
-          <summary style="cursor:pointer;font-weight:600;color:#1C2333;">Hoặc đăng nhập bằng Email &amp; Mật khẩu giáo viên</summary>
+        <details style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:12px;color:#475569;">
+          <summary style="cursor:pointer;font-weight:600;color:#1e293b;">Hoặc đăng nhập bằng Email &amp; Mật khẩu giáo viên</summary>
           <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
-            <input type="email" id="fb-email" placeholder="thayco@truong.edu.vn" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #D5D9E4;border-radius:6px;font-size:12.5px;">
-            <input type="password" id="fb-password" placeholder="Mật khẩu (tối thiểu 6 ký tự)" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #D5D9E4;border-radius:6px;font-size:12.5px;">
+            <input type="email" id="fb-email" placeholder="thayco@truong.edu.vn" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #c5d8ea;border-radius:6px;font-size:12.5px;">
+            <input type="password" id="fb-password" placeholder="Mật khẩu (tối thiểu 6 ký tự)" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #c5d8ea;border-radius:6px;font-size:12.5px;">
             <div style="display:flex;gap:8px;">
               <button type="submit" id="fb-btn-login-submit" class="button primary" style="flex:1;padding:7px;font-weight:600;font-size:12.5px;">Đăng nhập Email</button>
               <button type="button" id="fb-btn-register-submit" class="button" style="flex:1;padding:7px;font-weight:600;font-size:12.5px;">Tạo tài khoản</button>
@@ -1902,7 +1902,7 @@
         </details>
 
         <div style="text-align:center;margin-top:2px;">
-          <button type="button" id="fb-btn-close-modal" class="button quiet" style="font-size:12px;color:#5B6475;text-decoration:underline;cursor:pointer;">Đóng</button>
+          <button type="button" id="fb-btn-close-modal" class="button quiet" style="font-size:12px;color:#64748b;text-decoration:underline;cursor:pointer;">Đóng</button>
         </div>
       </form>
     `;
@@ -2006,7 +2006,7 @@
       authBox.innerHTML = `
         <span id="cloud-sync-pill" class="cloud-sync-pill cloud-pill-offline" hidden>Chưa kết nối</span>
         <span id="fb-user-badge" class="auth-pill-badge"><span class="auth-offline-dot"></span><span class="auth-status-text">Chưa đăng nhập</span></span>
-        <button id="gdrive-sync-btn" class="topbar-btn auth-login-btn" type="button" hidden title="Đồng bộ cây thư mục theo từng Khối lên Google Drive riêng">Đồng bộ Drive</button>
+        <button id="gdrive-sync-btn" class="topbar-btn auth-login-btn" type="button" hidden title="Đồng bộ cây thư mục theo từng Khối lên Google Drive riêng">☁ Đồng bộ Drive</button>
         <button id="fb-auth-btn" class="topbar-btn topbar-btn-primary auth-login-btn" type="button">Đăng nhập Google</button>
       `;
 
@@ -2187,7 +2187,7 @@
       box.style.cssText = [
         'position: fixed', 'left: 50%', 'bottom: 24px', 'transform: translateX(-50%)', 'z-index: 10001',
         'max-width: 560px', 'width: calc(100% - 32px)', 'padding: 16px 18px', 'border-radius: 10px',
-        'background: #F3F4F8', 'color: #A32020', 'border: 1px solid #E8A3A3',
+        'background: #fff4f2', 'color: #7a1c0c', 'border: 1px solid #f0b6a8',
         'box-shadow: 0 10px 28px rgba(0,0,0,0.18)', 'font-size: 14px', 'line-height: 1.5'
       ].join(';');
       const title = document.createElement('strong');
@@ -2256,10 +2256,10 @@
       document.body.appendChild(toast);
     }
     const isOk = type === 'success';
-    toast.style.background = isOk ? '#F3F4F8' : '#F7F8FB';
-    toast.style.color = isOk ? '#1F6B52' : '#C62828';
-    toast.style.border = isOk ? '1px solid #A9D3C1' : '1px solid #F4C7C7';
-    toast.innerHTML = `<span>${isOk ? '✓ ' : 'Lưu ý: '}</span><span>${escapeHtml(message)}</span>`;
+    toast.style.background = isOk ? '#e6fcf5' : '#fff5f5';
+    toast.style.color = isOk ? '#0ca678' : '#e03131';
+    toast.style.border = isOk ? '1px solid #63e6be' : '1px solid #ffa8a8';
+    toast.innerHTML = `<span>${isOk ? '✅' : '⚠️'}</span> <span>${escapeHtml(message)}</span>`;
     toast.style.opacity = '1';
     toast.style.transform = 'translateY(0)';
     clearTimeout(toast._timer);

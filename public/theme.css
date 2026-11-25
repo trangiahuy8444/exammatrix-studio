@@ -1,66 +1,13 @@
 /*
- * Nhận diện ExamMatrix Studio 2026 (bản mẫu duyệt 25/11/2026: "Thiết kế lại trải nghiệm").
- * Nạp SAU mọi stylesheet khác: đổi biến màu và phông dùng chung, khung điều hướng sáng, bỏ biểu tượng cảm xúc
- * ở khung chung. Mực tím = hành động chính; Bút đỏ = dấu tích hoàn thành và lỗi cần sửa; Xanh bảng = đạt.
+ * Kiểu cho các thành phần mới (trang Hồ sơ kiểm tra, thanh 6 bước của kỳ kiểm tra, số câu sẵn có trong ô ma trận 2D).
+ * Dùng đúng nhận diện Á Châu của giao diện gốc (Trắng – Xanh dương #0267B1, AGENTS.md). Không đổi màu, phông
+ * hay khung chung của styles.css (giáo viên chọn giữ giao diện cũ, 25/11/2026).
  */
 :root{
-  --ink-purple:#4A3AA8;--ink-purple-dark:#2F2478;--ink-purple-soft:#EEEBFA;
-  --red-pen:#C62828;--board-green:#1F6B52;--graphite:#1C2333;--graphite-muted:#5B6475;
-  --paper:#FFFFFF;--rule:#E4E7F0;--rail:#F4F5F9;
-  /* Biến cũ của styles.css trỏ sang bảng màu mới */
-  --blue:var(--ink-purple);--navy:var(--graphite);--red:var(--red-pen);--green:var(--board-green);
-  --ink:var(--graphite);--muted:var(--graphite-muted);--line:var(--rule);--bg:#F7F8FB;--soft:var(--ink-purple-soft);
-  --radius:12px;
+  --ink-purple:#0267B1;--ink-purple-dark:#102D4A;--ink-purple-soft:#EAF3FB;
+  --red-pen:#B91C1C;--board-green:#15803D;--graphite:#1E293B;--graphite-muted:#64748B;
+  --paper:#FFFFFF;--rule:#E2E8F0;
 }
-body{font-family:'Be Vietnam Pro',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:var(--graphite);background:var(--bg)}
-:focus-visible{outline:3px solid var(--ink-purple);outline-offset:2px}
-::selection{background:#D9D3F5;color:var(--graphite)}
-a{color:var(--ink-purple)}
-button.primary,.button.primary{background:var(--ink-purple);border-color:var(--ink-purple)}
-button.primary:hover,.button.primary:hover{background:var(--ink-purple-dark);border-color:var(--ink-purple-dark)}
-button:hover,.button:hover{border-color:var(--ink-purple);background:var(--ink-purple-soft)}
-input[type=checkbox],input[type=radio]{accent-color:var(--ink-purple)}
-
-/* Khung điều hướng sáng, 5 nhóm */
-.sidebar{background:var(--rail);color:var(--graphite);border-right:1px solid var(--rule);padding:24px 16px}
-.brand{color:var(--graphite);letter-spacing:0;font-size:16px;font-weight:700}
-.brand-mark{background:transparent;border:2px solid var(--ink-purple);color:var(--ink-purple);border-radius:8px;width:36px;height:36px;font-size:14px;letter-spacing:0}
-.brand small{color:var(--graphite-muted);font-weight:400;text-transform:none;letter-spacing:0}
-.nav-caption{display:none}
-nav.nav-groups{gap:2px;margin-top:22px}
-.nav-group{display:flex;flex-direction:column;gap:2px;margin:0 0 10px}
-.nav-group-title{display:flex;align-items:center;min-height:40px;padding:0 12px;border-radius:10px;color:var(--graphite);font-weight:600;font-size:15px;text-decoration:none}
-.nav-group-title:hover{background:#E9EBF3;text-decoration:none}
-nav.nav-groups a[data-tab]{display:flex;align-items:center;min-height:38px;padding:0 12px 0 24px;border-radius:8px;color:var(--graphite-muted);font-size:14px;background:transparent;box-shadow:none}
-nav.nav-groups a.nav-group-title[data-tab]{padding-left:12px;color:var(--graphite);font-size:15px;font-weight:600}
-nav.nav-groups a[data-tab]:hover{background:#E9EBF3;color:var(--graphite);text-decoration:none}
-nav.nav-groups a[aria-current=page]{background:var(--paper);color:var(--ink-purple);font-weight:600;box-shadow:inset 3px 0 0 var(--ink-purple)}
-.nav-icon,.btn-icon,.subject-icon{display:none!important}
-.sidebar-grade-box{background:var(--paper);border:1px solid var(--rule);border-radius:12px;margin-top:18px}
-.sidebar-grade-title{color:var(--graphite-muted)!important;letter-spacing:0!important;text-transform:none!important;font-size:12px!important}
-.sidebar-grade-select{background:var(--paper)!important;color:var(--graphite)!important;border:1px solid #D5D9E5!important}
-.sidebar-foot{color:var(--board-green);font-weight:600}
-.sidebar-foot p{color:var(--graphite-muted);font-weight:400}
-.local-dot{background:var(--board-green)}
-
-/* Thanh trên cùng gọn: ô môn học, trạng thái, tài khoản */
-.topbar{background:var(--paper);border-bottom:1px solid var(--rule)}
-.topbar-page-indicator .page-crumb,.topbar-page-indicator .page-sep,.topbar-grade-pill{display:none}
-.topbar-page-indicator .page-current{font-weight:600;color:var(--graphite);font-size:15px}
-.topbar-subject-badge{background:var(--paper)!important;border:1px solid #D5D9E5!important;border-radius:10px!important}
-.topbar-btn{border-radius:10px!important}
-.topbar-btn.topbar-btn-primary{background:var(--paper)!important;color:var(--ink-purple)!important;border:1px solid var(--ink-purple)!important}
-.topbar-divider{display:none}
-
-/* Tiêu đề trang: bỏ nhãn chữ in hoa phía trên */
-.eyebrow{display:none}
-.page-head h1{color:var(--graphite);letter-spacing:-.02em}
-.card{border-color:var(--rule)}
-.callout{border-left-color:var(--ink-purple)}
-.callout.warning,.warning{border-left-color:#B7791F}
-.callout.error,.error{border-left-color:var(--red-pen)}
-th{background:#F8F9FC;color:var(--graphite-muted)}
-
 /* Dấu tích bút đỏ dùng chung (bìa hồ sơ, thanh bước) */
 .pen-tick{display:inline-block;width:34px;height:28px}
 .pen-tick path{fill:none;stroke:var(--red-pen);stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
@@ -116,42 +63,3 @@ th{background:#F8F9FC;color:var(--graphite-muted)}
 .ky-current a{color:var(--graphite);font-weight:600;box-shadow:inset 0 -3px 0 var(--ink-purple)}
 .ky-current .ky-badge{background:var(--ink-purple);border-color:var(--ink-purple);color:#fff}
 .ky-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-
-/* Đè các quy tắc !important cũ của styles.css cho khung chung (thanh bên tối, nút xanh cũ) */
-.sidebar,body .sidebar{background:var(--rail)!important;color:var(--graphite)!important;box-shadow:none!important}
-@media (max-width: 900px){.sidebar{background:var(--rail)!important}}
-.brand,.brand-text{color:var(--graphite)!important}
-.brand-mark{background:transparent!important;box-shadow:none!important;color:var(--ink-purple)!important}
-nav.nav-groups a[data-tab]{color:var(--graphite-muted)!important;background:transparent!important;box-shadow:none!important;font-weight:500!important}
-nav.nav-groups a.nav-group-title[data-tab]{color:var(--graphite)!important;font-weight:600!important}
-nav.nav-groups a[data-tab]:hover{background:#E9EBF3!important;color:var(--graphite)!important}
-nav.nav-groups a[aria-current=page]{background:var(--paper)!important;color:var(--ink-purple)!important;font-weight:600!important;box-shadow:inset 3px 0 0 var(--ink-purple)!important}
-.sidebar-grade-box{background:var(--paper)!important;border:1px solid var(--rule)!important;box-shadow:none!important}
-.sidebar-grade-select{background:var(--paper)!important;color:var(--graphite)!important;border:1px solid #D5D9E5!important}
-.sidebar-grade-title,.sidebar-grade-cfg-btn{color:var(--graphite-muted)!important}
-.sidebar-foot,.sidebar-foot *{color:var(--graphite-muted)!important}
-.topbar-select{color:var(--graphite)!important}
-.topbar-btn{border-color:#D5D9E5!important;color:var(--graphite)!important}
-.topbar-btn:hover{background:var(--ink-purple-soft)!important;border-color:var(--ink-purple)!important;color:var(--ink-purple)!important}
-.topbar-btn-primary,.topbar-btn.topbar-btn-primary{background:var(--paper)!important;color:var(--ink-purple)!important;border-color:var(--ink-purple)!important}
-.topbar-btn-primary:hover{background:var(--ink-purple-soft)!important;color:var(--ink-purple-dark)!important}
-#refresh .btn-icon{display:inline!important}
-.topbar-page-indicator .page-current{white-space:nowrap}
-
-/* Đợt 4: thanh trên cùng gọn, menu "Thêm" */
-.topbar-right{gap:10px}
-.topbar-more{position:relative}
-.topbar-more>summary{list-style:none;cursor:pointer;user-select:none}
-.topbar-more>summary::-webkit-details-marker{display:none}
-.topbar-more>summary::after{content:"";display:inline-block;margin-left:6px;border:4px solid transparent;border-top-color:currentColor;transform:translateY(2px)}
-.topbar-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:60;min-width:220px;background:var(--paper);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(28,35,51,.12);padding:6px;display:flex;flex-direction:column}
-.topbar-menu button{all:unset;box-sizing:border-box;padding:9px 12px;border-radius:6px;font:inherit;font-size:14px;color:var(--graphite);cursor:pointer}
-.topbar-menu button:hover,.topbar-menu button:focus-visible{background:var(--ink-purple-soft);color:var(--ink-purple)}
-.topbar-menu button:focus-visible{outline:2px solid var(--ink-purple);outline-offset:-2px}
-.topbar-menu button:disabled{opacity:.5;cursor:default}
-/* Màn hình bên trong: nút chính dùng mực tím, cảnh báo dùng bút đỏ */
-.button.primary,button.primary{background:var(--ink-purple)!important;border-color:var(--ink-purple)!important;color:#fff!important}
-.button.primary:hover,button.primary:hover{background:var(--ink-purple-dark)!important;border-color:var(--ink-purple-dark)!important}
-button.danger,.button.danger{color:var(--red-pen)!important;border-color:#E8B4B4!important;background:var(--paper)!important}
-.card{border-color:var(--rule)}
-.topbar-btn,.topbar-more>summary,.auth-pill-container button{white-space:nowrap!important}

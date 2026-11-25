@@ -274,7 +274,7 @@ Khối: 9
   draftMatrix.matrix_locked = true;
   draftMatrix.spec_locked = false;
   const gridLockedHtml = ui.matrixGridHtml(draftMatrix, true, false);
-  assert(gridLockedHtml.includes('🔒 Đã chốt Bảng ma trận 2D'), 'Matrix 2D should display locked badge');
+  assert(gridLockedHtml.includes('Đã chốt Bảng ma trận 2D'), 'Matrix 2D should display locked badge');
   assert(gridLockedHtml.includes('data-action="unlock-matrix"'), 'Matrix 2D should have unlock-matrix action');
   assert(gridLockedHtml.includes('disabled'), 'Matrix 2D inputs should be disabled when locked');
   
@@ -285,7 +285,7 @@ Khối: 9
   // Spec locked state
   draftMatrix.spec_locked = true;
   const specLockedHtml = ui.specGridHtml(draftMatrix, true, false);
-  assert(specLockedHtml.includes('🔒 Đã chốt Bảng đặc tả'), 'Spec grid should display locked badge');
+  assert(specLockedHtml.includes('Đã chốt Bảng đặc tả'), 'Spec grid should display locked badge');
   assert(specLockedHtml.includes('data-action="unlock-spec"'), 'Spec grid should have unlock-spec action');
   assert(specLockedHtml.includes('disabled'), 'Spec textareas should be disabled when locked');
   assert(!specLockedHtml.includes('class="mx-spec-refs-input"'), 'Spec question refs input should be disabled/hidden when locked');

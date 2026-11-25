@@ -1,3 +1,11 @@
+## 25/11/2026 — Giao diện mới, đợt 4: màn hình bên trong và thanh trên cùng
+
+- Thanh trên cùng chỉ còn chọn môn, tên màn hình, nút "Nhập đề từ Word" và menu "Thêm" (Sao lưu và khôi phục, Hướng dẫn và quy trình, Tải lại dữ liệu). Menu đóng khi chọn mục, bấm ra ngoài hoặc nhấn Esc.
+- Đổi 678 mã màu cũ (xanh dương, xanh lá, đỏ, xám) trong `app.js`, `matrices.js`, `core.js`, `styles.css`, `matrices.css`, `index.html` sang bảng màu mới (mực tím, xanh bảng, bút đỏ, chì). Giữ màu vàng cảnh báo. Không đụng các tệp xuất Word/PDF (`static-*.js`).
+- Bỏ 381 emoji trang trí trên nút, tiêu đề, thông báo và hướng dẫn. Giữ ✓, ✕ (nút đóng) và ☰ (thu gọn thanh bên). Chỗ emoji là nội dung duy nhất được thay bằng chữ: "· đã chốt", "YCCĐ", "Lưu ý:", "Sửa".
+- Nút chính trong mọi màn hình dùng mực tím; nút xóa dùng bút đỏ.
+- Còn lại: một số màu viết thẳng trong mã (vàng, cam, xanh Excel) và emoji trong `firebase-bridge.js` (thông báo đồng bộ).
+
 ## 25/11/2026 — Giao diện mới, đợt 1–3: nhận diện, điều hướng 5 nhóm, trang Hồ sơ kiểm tra, thanh 6 bước
 
 - Giáo viên duyệt bản mẫu "ExamMatrix Studio — Thiết kế lại trải nghiệm" (3 màn hình). Khảo sát trước đó: 10 mục điều hướng ngang hàng, thanh trên 7 nút, chọn khối lặp 3 chỗ, PPCT 51 nút, khoảng 40% nút có biểu tượng cảm xúc, 42 màu nền.

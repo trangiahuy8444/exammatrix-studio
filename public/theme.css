@@ -137,3 +137,21 @@ nav.nav-groups a[aria-current=page]{background:var(--paper)!important;color:var(
 .topbar-btn-primary:hover{background:var(--ink-purple-soft)!important;color:var(--ink-purple-dark)!important}
 #refresh .btn-icon{display:inline!important}
 .topbar-page-indicator .page-current{white-space:nowrap}
+
+/* Đợt 4: thanh trên cùng gọn, menu "Thêm" */
+.topbar-right{gap:10px}
+.topbar-more{position:relative}
+.topbar-more>summary{list-style:none;cursor:pointer;user-select:none}
+.topbar-more>summary::-webkit-details-marker{display:none}
+.topbar-more>summary::after{content:"";display:inline-block;margin-left:6px;border:4px solid transparent;border-top-color:currentColor;transform:translateY(2px)}
+.topbar-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:60;min-width:220px;background:var(--paper);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(28,35,51,.12);padding:6px;display:flex;flex-direction:column}
+.topbar-menu button{all:unset;box-sizing:border-box;padding:9px 12px;border-radius:6px;font:inherit;font-size:14px;color:var(--graphite);cursor:pointer}
+.topbar-menu button:hover,.topbar-menu button:focus-visible{background:var(--ink-purple-soft);color:var(--ink-purple)}
+.topbar-menu button:focus-visible{outline:2px solid var(--ink-purple);outline-offset:-2px}
+.topbar-menu button:disabled{opacity:.5;cursor:default}
+/* Màn hình bên trong: nút chính dùng mực tím, cảnh báo dùng bút đỏ */
+.button.primary,button.primary{background:var(--ink-purple)!important;border-color:var(--ink-purple)!important;color:#fff!important}
+.button.primary:hover,button.primary:hover{background:var(--ink-purple-dark)!important;border-color:var(--ink-purple-dark)!important}
+button.danger,.button.danger{color:var(--red-pen)!important;border-color:#E8B4B4!important;background:var(--paper)!important}
+.card{border-color:var(--rule)}
+.topbar-btn,.topbar-more>summary,.auth-pill-container button{white-space:nowrap!important}

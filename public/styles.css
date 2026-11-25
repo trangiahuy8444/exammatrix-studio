@@ -632,6 +632,10 @@ nav a[aria-current=page] {
 #notice[hidden] {
   display: none !important;
 }
+#notice[popover] {
+  inset: 74px 22px auto auto !important;
+  margin: 0 !important;
+}
 #notice.is-leaving {
   opacity: 0;
   transform: translateY(-8px) scale(0.98);

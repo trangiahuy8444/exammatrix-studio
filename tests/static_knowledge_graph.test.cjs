@@ -46,11 +46,11 @@ test('Dựng đồ thị: đủ loại nút, cạnh, định danh ổn định, 
   assert.equal(s.nodes.yccd, 4);
   assert.equal(s.nodes.chude, 1);
   assert.ok(g.node('bai:tin-hoc:8:B1'));
-  assert.ok(g.node('yccd:tin-hoc:8:B1:1'));
-  assert.equal(g.match('cau:Q1', 'danh_gia', 'yccd:tin-hoc:8:B1:0').length, 1);
+  assert.ok(g.node('yccd:TIN8-B1-YC2'));
+  assert.equal(g.match('cau:Q1', 'danh_gia', 'yccd:TIN8-B1-YC1').length, 1);
   assert.equal(g.match('cau:Q1', 'nam_trong', 'decuong:REV8').length, 1);
   assert.equal(g.match('bai:tin-hoc:8:B1', 'tien_de', 'bai:tin-hoc:8:B2').length, 1);
-  const comps = g.outgoing('yccd:tin-hoc:8:B1:0', 'phat_trien').map(e => e.o).sort();
+  const comps = g.outgoing('yccd:TIN8-B1-YC1', 'phat_trien').map(e => e.o).sort();
   assert.deepEqual(comps, ['nangluc:NLa', 'nangluc:NLb', 'nangluc:NLc']);
   // Dựng lại cho cùng kết quả (định danh ổn định, không phụ thuộc thứ tự chạy)
   assert.deepEqual(KG.buildGraph(workspace()).toJSON(), g.toJSON());
@@ -69,7 +69,7 @@ test('Kiểm đồ thị: báo câu ngoài PPCT, câu sai YCCĐ, bài không YCC
 
 test('Bảng phủ YCCĐ × mức độ, chỉ đếm câu đã duyệt vào "approved"', () => {
   const rows = KG.coverage(KG.buildGraph(workspace()), { grade: 8 });
-  const r = rows.find(x => x.yccd === 'yccd:tin-hoc:8:B1:0');
+  const r = rows.find(x => x.yccd === 'yccd:TIN8-B1-YC1');
   assert.equal(r.levels['Biết'].approved, 2);
   assert.equal(r.levels['Hiểu'].approved, 0);
   assert.equal(r.levels['Hiểu'].other, 1);

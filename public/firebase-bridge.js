@@ -899,6 +899,14 @@
               notes: normalizeNotesValue(l.notes ?? l.note ?? l.notes_raw ?? l.ghi_chu ?? '', occs)
             };
           });
+          // Mã YCCĐ cố định khi nhập lại PPCT: so với bài cùng mã đang có.
+          if (window.BankCore?.syncOutcomeIds) {
+            newLessons.forEach((nl, i) => {
+              const prev = existing.find(x => (x.subject_name || 'Tin học') === (nl.subject_name || 'Tin học') && Number(x.grade) === grade && String(x.lesson_code).trim().toLowerCase() === String(nl.lesson_code).trim().toLowerCase());
+              const r = window.BankCore.syncOutcomeIds(nl, prev || null, { questions: currentWorkspaceData.bank.questions || [], matrices: currentWorkspaceData.matrices || [] });
+              newLessons[i] = { ...nl, outcome_ids: r.lesson.outcome_ids, outcome_id_next: r.lesson.outcome_id_next };
+            });
+          }
           currentWorkspaceData.bank.ppct.lessons = [...otherLessons, ...newLessons];
           await syncToFirestore(uid, currentWorkspaceData);
 
@@ -955,13 +963,21 @@
         const prereqs = (Array.isArray(prereqSource) ? prereqSource : String(prereqSource || '').split(/[,;\n]/))
           .map(x => String(x || '').trim()).filter(x => x && x.toLowerCase() !== String(l.lesson_code || '').toLowerCase());
         if (prereqs.length) lessonObj.prerequisites = [...new Set(prereqs)];
+        // Mã YCCĐ cố định: giữ mã khi chèn/xóa/sửa nhẹ câu chữ; câu hỏi và ma trận chưa khóa theo mã mới.
+        let outcomeSync = null;
+        if (window.BankCore?.syncOutcomeIds) {
+          outcomeSync = window.BankCore.syncOutcomeIds(lessonObj, prevLesson || null, { questions: currentWorkspaceData.bank.questions || [], matrices: currentWorkspaceData.matrices || [] });
+          lessonObj.outcome_ids = outcomeSync.lesson.outcome_ids;
+          lessonObj.outcome_id_next = outcomeSync.lesson.outcome_id_next;
+        }
         const idx = existing.findIndex(x => ((x.subject_name || 'Tin học') === targetSubject) && Number(x.grade) === grade && x.lesson_code === lessonObj.lesson_code);
         if (idx >= 0) existing[idx] = lessonObj;
         else existing.push(lessonObj);
         currentWorkspaceData.bank.ppct.lessons = existing;
         await syncToFirestore(uid, currentWorkspaceData);
         if (window.store && window.store.bank) window.store.bank.ppct = JSON.parse(JSON.stringify(currentWorkspaceData.bank.ppct));
-        return { bank: currentWorkspaceData.bank, lesson: lessonObj };
+        return { bank: currentWorkspaceData.bank, lesson: lessonObj, matrices: currentWorkspaceData.matrices,
+          outcome_sync: outcomeSync ? { renamed: outcomeSync.renamed, removed: outcomeSync.removed, questions_updated: outcomeSync.questions_updated, matrices_updated: outcomeSync.matrices_updated } : null };
       }
 
       if (path === '/api/ppct/delete-lesson') {
@@ -2246,6 +2262,10 @@
   }
 
   function showToast(message, type = 'success') {
+    if (typeof window !== 'undefined' && typeof window.notify === 'function') {
+      window.notify(message, type !== 'success');
+      return;
+    }
     if (typeof document.createElement !== 'function' || !document.body) return;
     let toast = document.getElementById('fb-toast-notification');
     if (!toast) {

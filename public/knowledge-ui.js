@@ -1,6 +1,6 @@
 /*
  * Màn hình "Bản đồ tri thức" và phần "Vì sao" trong báo cáo kiểm định (docs/KE_HOACH_DO_THI_TRI_THUC.md).
- * Chỉ đọc: gọi các API /api/knowledge/* (static-api.js), không ghi dữ liệu.
+ * Chỉ đọc, trừ thao tác "Chuẩn hóa mã YCCĐ" (giáo viên xem trước rồi bấm áp dụng).
  * Nạp sau app.js; dùng các hàm chung của app.js qua window (request, store, BankCore).
  */
 (function () {
@@ -8,7 +8,7 @@
   const C = window.BankCore;
   const esc = (s) => (C && C.escapeHtml ? C.escapeHtml(s) : String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])));
   const LEVELS = ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'];
-  const state = { grade: null, scopeWeek: '', examId: '', loading: false, data: null, rules: null, examReport: null, error: '' };
+  const state = { grade: null, scopeWeek: '', examId: '', loading: false, data: null, rules: null, examReport: null, error: '', norm: null, normBusy: false, normMsg: '' };
 
   const call = (path, body) => (typeof window.request === 'function' ? window.request(path, body) : Promise.reject(new Error('Ứng dụng chưa sẵn sàng.')));
   const store = () => window.store || {};
@@ -52,6 +52,34 @@
       <p class="muted small">Số câu <strong>đã duyệt</strong> theo từng YCCĐ và mức độ; ô tô đậm là chưa có câu đã duyệt.</p>`;
   }
 
+  // Mã YCCĐ: thống kê câu nối theo mã / theo chữ / không nối được, xem trước và áp dụng chuẩn hóa.
+  function outcomeIdCard(d) {
+    const a = d && d.id_audit;
+    if (!a) return '';
+    const total = a.theo_ma + a.theo_chu + a.khong_noi;
+    const n = state.norm;
+    const preview = n ? `<div class="callout" style="margin-top:10px"><strong>Xem trước:</strong> lưu mã cho YCCĐ của ${n.lessons_updated} bài; ${n.questions_linked} câu khớp chữ sẽ được lưu mã; ${n.matrices_updated} ma trận chưa khóa sẽ lưu mã YCCĐ.${n.outside_ppct ? ` ${n.outside_ppct} câu thuộc bài không có trong PPCT (xử lí ở mục lỗi bên dưới).` : ''}</div>
+      ${n.unmatched.length ? `<h4>${n.unmatched.length} câu có YCCĐ lệch chữ: chọn YCCĐ đúng (để trống nếu chưa chắc)</h4>
+      <div class="table-wrap"><table class="small"><thead><tr><th>Câu</th><th>Bài</th><th>YCCĐ đang ghi</th><th>Chọn YCCĐ trong PPCT</th></tr></thead><tbody>
+      ${n.unmatched.map(u => `<tr><td>${esc(u.question)}</td><td>${esc(u.lesson_code)}</td><td>${esc(u.learning_outcome || '(trống)')}</td><td><select data-norm-map="${esc(u.question_id)}"><option value="">— Để trống —</option>${u.suggestions.map((s, i) => `<option value="${esc(s.id)}" ${i === 0 && s.score >= 0.5 ? 'selected' : ''}>${esc(s.text)} (giống ${Math.round(s.score * 100)}%)</option>`).join('')}</select></td></tr>`).join('')}
+      </tbody></table></div>` : ''}
+      <div class="actions" style="margin-top:8px"><button type="button" class="primary" id="kg-norm-apply" ${state.normBusy || (!n.changed && !n.unmatched.length) ? 'disabled' : ''}>Áp dụng chuẩn hóa</button></div>` : '';
+    return `<div class="card"><h3>Mã yêu cầu cần đạt (YCCĐ)</h3>
+      <p class="muted small">Mỗi YCCĐ trong PPCT có một mã cố định (ví dụ TIN9-B1-YC3). Chèn, xóa, đổi thứ tự hay sửa câu chữ YCCĐ không làm câu hỏi và ma trận trỏ nhầm sang YCCĐ khác. Câu chưa có mã vẫn dùng được nhưng dễ lệch khi sửa PPCT.</p>
+      <div class="kg-stats">${[['Câu nối theo mã', a.theo_ma], ['Câu chỉ khớp theo chữ', a.theo_chu], ['Câu không nối được YCCĐ', a.khong_noi]].map(([t, v]) => `<div class="card kg-stat"><div class="kg-num">${v}</div><div class="muted">${esc(t)}</div></div>`).join('')}</div>
+      ${total && a.theo_ma === total ? '<p class="badge approved">Mọi câu đã nối YCCĐ theo mã.</p>' : `<div class="actions"><button type="button" id="kg-norm-preview" ${state.normBusy ? 'disabled' : ''}>Xem trước chuẩn hóa mã YCCĐ</button></div>`}
+      ${state.normMsg ? `<p class="callout">${esc(state.normMsg)}</p>` : ''}${preview}</div>`;
+  }
+
+  // Ô ma trận (kể cả ô 2D nhận mọi YCCĐ của bài): cần bao nhiêu câu, có bao nhiêu câu đã duyệt.
+  function matrixCellsCard(d) {
+    const list = (d && d.matrix_cells) || [];
+    if (!list.length) return '';
+    const kind = { MC: 'TN', YN: 'Đ/S', SHORT: 'TLN', ES: 'TL' };
+    return `<div class="card"><h3>Ô ma trận và câu đã duyệt</h3>${list.map(m => `<details><summary><strong>${esc(m.title)}</strong> · ${m.cells.filter(c => c.short).length ? `<span style="color:#b91c1c">${m.cells.filter(c => c.short).length} ô thiếu câu</span>` : 'đủ câu'}</summary>
+      <div class="table-wrap"><table class="small"><thead><tr><th>Bài</th><th>Mức độ</th><th>Dạng</th><th>Cần</th><th>Đã duyệt</th><th>Thiếu</th></tr></thead><tbody>${m.cells.map(c => `<tr><td>${esc(c.lesson_code)}</td><td>${esc(c.level)}</td><td>${esc(kind[c.kind] || c.kind)}</td><td>${c.need}</td><td>${c.approved}${c.other ? ` <span class="muted">(+${c.other} chưa duyệt)</span>` : ''}</td><td${c.short ? ' style="color:#b91c1c;font-weight:700"' : ''}>${c.short || '—'}</td></tr>`).join('')}</tbody></table></div></details>`).join('')}</div>`;
+  }
+
   function render() {
     const root = document.getElementById('knowledge');
     if (!root) return;
@@ -78,13 +106,13 @@
     const rules = state.rules ? `<div class="table-wrap"><table><thead><tr><th>Mã</th><th>Loại</th><th>Nội dung</th><th>Căn cứ</th></tr></thead><tbody>${state.rules.map(r => `<tr><td><code>${esc(r.id)}</code></td><td>${({ suy_ra: 'Suy ra', chan: 'Chặn', canh_bao: 'Cảnh báo' })[r.loai] || esc(r.loai)}</td><td>${esc(r.noi_dung)}</td><td class="small">${r.can_cu.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Đang tải danh sách luật…</p>';
 
     root.innerHTML = `<div class="card"><h2 style="margin-top:0">Bản đồ tri thức</h2>
-      <p class="muted">Ứng dụng nối PPCT, yêu cầu cần đạt, năng lực, câu hỏi, đề cương và đề thành một mạng quan hệ để chỉ ra chỗ thiếu, chỗ trùng và kiểm tra đề theo kho luật có giải thích. Màn hình này chỉ đọc, không thay đổi dữ liệu.</p>
+      <p class="muted">Ứng dụng nối PPCT, yêu cầu cần đạt, năng lực, câu hỏi, đề cương và đề thành một mạng quan hệ để chỉ ra chỗ thiếu, chỗ trùng và kiểm tra đề theo kho luật có giải thích. Màn hình này chỉ đọc, trừ nút "Áp dụng chuẩn hóa" mã YCCĐ.</p>
       <div class="filters" style="align-items:flex-end">
         <div class="field"><label for="kg-grade">Khối</label><select id="kg-grade">${gradeOpts}</select></div>
         <div class="field"><label for="kg-week">Kiểm tra đến hết tuần (không bắt buộc)</label><input id="kg-week" type="number" min="1" max="40" value="${esc(state.scopeWeek)}" placeholder="VD: 9"></div>
         <button type="button" class="primary" id="kg-run">${state.loading ? 'Đang phân tích…' : 'Phân tích'}</button></div>
       ${state.error ? `<div class="callout warning">${esc(state.error)}</div>` : ''}${summary}</div>
-      ${d ? `<div class="card"><h3>Lỗi và chỗ thiếu trong dữ liệu</h3>${issues}</div>
+      ${d ? `${outcomeIdCard(d)}<div class="card"><h3>Lỗi và chỗ thiếu trong dữ liệu</h3>${issues}</div>${matrixCellsCard(d)}
       <div class="card"><h3>Bảng phủ yêu cầu cần đạt × mức độ</h3>${coverageTable(d.coverage)}</div>
       <div class="card"><h3>Câu hỏi gần trùng</h3>${dups}</div>
       <div class="card"><h3>Thứ tự ôn tập theo bài tiền đề</h3><p class="muted small">Ghi “Bài tiền đề” cho từng bài trong màn hình Phân phối chương trình để ứng dụng sắp thứ tự ôn và cảnh báo câu thuộc bài chưa học.</p>${order}</div>` : ''}
@@ -96,6 +124,27 @@
     document.getElementById('kg-run').onclick = () => { state.scopeWeek = document.getElementById('kg-week').value; run(); };
     document.getElementById('kg-exam').onchange = (e) => { state.examId = e.target.value; state.examReport = null; render(); };
     document.getElementById('kg-check-exam').onclick = checkExam;
+    const pv = document.getElementById('kg-norm-preview'); if (pv) pv.onclick = () => normalize(false);
+    const ap = document.getElementById('kg-norm-apply'); if (ap) ap.onclick = () => normalize(true);
+  }
+
+  async function normalize(apply) {
+    const mappings = {};
+    if (apply) document.querySelectorAll('[data-norm-map]').forEach(sel => { if (sel.value) mappings[sel.dataset.normMap] = sel.value; });
+    if (apply && !window.confirm(`Lưu mã YCCĐ cho Khối ${state.grade}: PPCT, câu hỏi khớp chữ${Object.keys(mappings).length ? `, ${Object.keys(mappings).length} câu đã chọn YCCĐ` : ''} và ma trận chưa khóa? Câu đã chọn sẽ được đổi chữ YCCĐ theo đúng PPCT.`)) return;
+    state.normBusy = true; state.normMsg = ''; render();
+    try {
+      const res = await call('/api/knowledge/normalize-outcomes', { grade: state.grade, apply, mappings });
+      if (apply) {
+        const r = res.report;
+        state.norm = null;
+        state.normMsg = `Đã lưu mã YCCĐ: ${r.lessons_updated} bài, ${r.questions_linked + r.questions_mapped} câu hỏi, ${r.matrices_updated} ma trận.${r.unmatched.length ? ` Còn ${r.unmatched.length} câu chưa chọn YCCĐ.` : ''}`;
+        if (typeof window.load === 'function') await window.load();
+        state.data = await call('/api/knowledge/overview', { grade: state.grade, scope_week: state.scopeWeek ? Number(state.scopeWeek) : undefined });
+      } else state.norm = res.report;
+    } catch (err) {
+      state.normMsg = err && err.message ? err.message : 'Chưa chuẩn hóa được.';
+    } finally { state.normBusy = false; render(); }
   }
 
   async function run() {

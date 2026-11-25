@@ -21,6 +21,8 @@
   const text = x => (typeof x === 'string' ? x.trim() : '');
   const norm = x => String(x || '').normalize('NFC').trim().toLowerCase().replace(/\s+/g, ' ');
   const isVar = x => typeof x === 'string' && x.startsWith('?');
+  // Nền móng tri thức dùng chung (core.js): một định nghĩa câu trùng, mã YCCĐ cố định.
+  const core = (typeof module === 'object' && module.exports && typeof require === 'function') ? require('./core.js') : (typeof window !== 'undefined' ? window.BankCore : globalThis.BankCore);
 
   const CAN_CU = {
     THANG_DIEM_10: 'TT 22/2021/TT-BGDĐT, Điều 5, khoản 3, điểm b (đánh giá bằng điểm số theo thang điểm 10)',
@@ -71,8 +73,8 @@
       neu: [['?d', 'mon', '?m'], ['?d', 'co_cau', '?c'], ['?c', 'mon', '?mc'], { thu: 'ne', a: '?mc', b: '?m' }, ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n} thuộc môn {?mc}, khác môn của đề ({?m}).' },
     { id: 'R-TRUNG', muc: 'chan', can_cu: CAN_CU.KHONG_TRUNG,
-      neu: [['?c1', 'trung_voi', '?c2'], ['?c1', 'so_thu_tu', '?n1'], ['?c2', 'so_thu_tu', '?n2']],
-      vi_pham: 'Câu {?n1} trùng nội dung với câu {?n2}.' },
+      neu: [['?c1', 'trung_voi', '?c2'], ['?c1', 'muc_trung', '?m'], ['?c1', 'so_thu_tu', '?n1'], ['?c2', 'so_thu_tu', '?n2']],
+      vi_pham: 'Câu {?n1} trùng với câu {?n2} ({?m}).' },
     { id: 'R-NGOAI-PPCT', muc: 'chan', can_cu: CAN_CU.MA_TRAN_YCCD,
       neu: [['?d', 'co_cau', '?c'], { khong: ['?c', 'thuoc_bai_ppct', true] }, ['?c', 'ma_bai', '?b'], ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n}: bài “{?b}” không có trong PPCT của khối.' },
@@ -267,11 +269,8 @@
   // ------------------------------------------------------------------------------------------
   // SỰ KIỆN TỪ MỘT ĐỀ
   // ------------------------------------------------------------------------------------------
-  function contentKey(q) {
-    const opts = list(q?.options).map(norm).sort();
-    const sts = list(q?.statements).map(s => norm(typeof s === 'object' ? s?.text : s)).sort();
-    return [q?.type || '', norm(q?.question), opts.join('\u0001'), sts.join('\u0001')].join('\u0002');
-  }
+  // Khóa nội dung câu: dùng chung với đối chiếu đề cương và tạo đề (core.questionKeys).
+  function contentKey(q) { return core.questionKeys(q).match; }
 
   function ppctLookup(ppct) {
     const lessons = new Map();
@@ -317,7 +316,9 @@
     const lessons = ppctLookup(opts.ppct || e.ppct_snapshot);
     const rev = opts.revision === undefined ? (e.revision_snapshot || null) : opts.revision;
     const revKeys = new Set(list(rev?.questions).map(contentKey));
-    const revOutcomes = new Set(list(rev?.questions).map(q => norm(q.lesson_code) + '|' + norm(q.learning_outcome)));
+    // YCCĐ theo mã cố định khi tra được trong PPCT (đổi câu chữ YCCĐ không làm lệch đối chiếu).
+    const outcomeKey = q => { const l = lessons.get(`${norm(text(q?.subject_name) || subj)}|${Number(q?.grade)}|${norm(q?.lesson_code)}`); const r = l && core.resolveOutcome(l, { id: q?.learning_outcome_id, text: q?.learning_outcome }); return norm(q?.lesson_code) + '|' + (r ? 'id:' + r.id : 't:' + norm(q?.learning_outcome)); };
+    const revOutcomes = new Set(list(rev?.questions).map(outcomeKey));
     F.push([d, 'co_de_cuong', Boolean(rev)]);
     const seenKey = new Map();
     let inRev = 0;
@@ -329,13 +330,14 @@
         [c, 'ma_bai', text(q?.lesson_code) || '(trống)']);
       if (q?.type) F.push([c, 'la_dang', q.type]);
       if (q?.level) F.push([c, 'o_muc_do', q.level]);
-      const key = contentKey(q);
-      if (seenKey.has(key)) F.push([c, 'trung_voi', seenKey.get(key)]);
-      else seenKey.set(key, c);
+      const key = contentKey(q), stem = core.questionKeys(q).stem;
+      const prev = seenKey.get(stem);
+      if (prev && norm(q?.question)) F.push([c, 'trung_voi', prev.c], [c, 'muc_trung', core.RELATION_LABELS[core.questionRelation(prev.q, q)] || 'cùng lời dẫn']);
+      else seenKey.set(stem, { c, q });
       const lesson = lessons.get(`${norm(text(q?.subject_name) || subj)}|${Number(q?.grade)}|${norm(q?.lesson_code)}`);
       if (lesson) {
         F.push([c, 'thuoc_bai_ppct', true]);
-        if (list(lesson.outcomes).some(o => norm(typeof o === 'string' ? o : o?.text) === norm(q?.learning_outcome))) F.push([c, 'danh_gia_yccd_ppct', true]);
+        if (core.resolveOutcome(lesson, { id: q?.learning_outcome_id, text: q?.learning_outcome })) F.push([c, 'danh_gia_yccd_ppct', true]);
         const w = weekOf(lesson);
         if (w !== null) F.push([c, 'tuan_bat_dau', w]);
         for (const code of list(lesson.prerequisites)) {
@@ -351,7 +353,7 @@
         const isIn = revKeys.has(key);
         if (isIn) inRev++;
         F.push([c, 'trong_de_cuong', isIn]);
-        if (revOutcomes.has(norm(q?.lesson_code) + '|' + norm(q?.learning_outcome))) F.push([c, 'yccd_trong_de_cuong', true]);
+        if (revOutcomes.has(outcomeKey(q))) F.push([c, 'yccd_trong_de_cuong', true]);
       }
     });
     if (rev) {

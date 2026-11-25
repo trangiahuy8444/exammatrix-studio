@@ -3,14 +3,19 @@
  * Thuần, không I/O: dựng đồ thị từ dữ liệu sẵn có (PPCT, câu hỏi, ma trận, đề cương, đề),
  * không nhập tay lại và không lưu riêng. Chạy được trong trình duyệt và Node (UMD).
  *
- * Nút:   mon, khoi, chude, bai, yccd, nangluc, mucdo, dang, cau, matran, decuong, de
+ * Nút:   mon, khoi, chude, bai, yccd, nangluc, mucdo, dang, cau, matran, o_ma_tran, decuong, de
  * Cạnh:  thuoc, co_yccd, phat_trien, danh_gia, o_muc_do, la_dang, nam_trong, can_cu, tien_de
+ *
+ * Nền móng (25/11/2026): nút YCCĐ mang MÃ CỐ ĐỊNH (lesson.outcome_ids, vd yccd:TIN9-B1-YC3), không theo
+ * vị trí trong danh sách; câu và ma trận nối theo mã trước, rồi đúng chữ. Ô ma trận 2D (bài × mức độ, nhận
+ * mọi YCCĐ của bài) là nút o_ma_tran (quan hệ nhiều ngôi: ma trận, bài, mức độ, dạng, số câu).
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.BankKnowledgeGraph = factory();
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
+  const core = (typeof module === 'object' && module.exports && typeof require === 'function') ? require('./core.js') : (typeof window !== 'undefined' ? window.BankCore : globalThis.BankCore);
 
   const LEVELS = ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'];
   const KINDS = ['MC', 'YN', 'SHORT', 'ES'];
@@ -63,7 +68,8 @@
     khoi: (s, g) => `khoi:${slug(s)}:${g}`,
     chude: (s, g, t) => `chude:${slug(s)}:${g}:${slug(t)}`,
     bai: (s, g, code) => `bai:${slug(s)}:${g}:${String(code).trim()}`,
-    yccd: (s, g, code, i) => `yccd:${slug(s)}:${g}:${String(code).trim()}:${i}`,
+    yccd: (outcomeId) => `yccd:${outcomeId}`,
+    o_ma_tran: (mid, code, level, kind) => `o2d:${mid}:${String(code).trim()}:${slug(level)}:${kind || 'all'}`,
     nangluc: (c) => `nangluc:${c}`,
     mucdo: (l) => `mucdo:${slug(l)}`,
     dang: (k) => `dang:${k}`,
@@ -124,8 +130,8 @@
     KINDS.forEach(k => g.addNode(ids.dang(k), 'dang', KIND_LABELS[k], { code: k }));
 
     // Chỉ mục tra YCCĐ theo (môn, khối, bài, nội dung chuẩn hoá) để nối câu hỏi.
-    const outcomeIndex = new Map();
     const lessonIndex = new Map();
+    const lessonObj = new Map(); // baiId -> bài trong PPCT (để tra YCCĐ theo mã)
 
     for (const l of list(bank.ppct?.lessons)) {
       if (!l || !text(l.lesson_code) || !keep(l.subject_name)) continue;
@@ -146,15 +152,16 @@
       });
       g.addEdge(baiId, 'thuoc', chudeId);
       lessonIndex.set(`${norm(subj)}|${grade}|${norm(l.lesson_code)}`, baiId);
+      lessonObj.set(baiId, l);
+      const outcomeIds = core.lessonOutcomeIds(l);
       const lessonComps = competencyCodes([...list(l.competencies), ...list(l.digital_competencies)]);
       list(l.outcomes).forEach((o, i) => {
         const t = outcomeText(o);
         if (!t) return;
-        const yId = g.addNode(ids.yccd(subj, grade, l.lesson_code, i), 'yccd', t, {
-          grade, subject_name: subj, lesson_code: String(l.lesson_code).trim(), index: i
+        const yId = g.addNode(ids.yccd(outcomeIds[i]), 'yccd', t, {
+          grade, subject_name: subj, lesson_code: String(l.lesson_code).trim(), index: i, outcome_id: outcomeIds[i]
         }).id;
         g.addEdge(baiId, 'co_yccd', yId);
-        outcomeIndex.set(`${norm(subj)}|${grade}|${norm(l.lesson_code)}|${norm(t)}`, yId);
         lessonComps.forEach(c => {
           g.addNode(ids.nangluc(c), 'nangluc', c);
           g.addEdge(yId, 'phat_trien', ids.nangluc(c), { source: 'ppct' });
@@ -177,14 +184,14 @@
       g.addNode(cId, 'cau', text(q.question).slice(0, 80) || q.id, {
         question_id: q.id, grade, subject_name: subj, lesson_code: text(q.lesson_code),
         level: q.level, type: q.type, review_status: q.review_status || 'draft',
-        learning_outcome: text(q.learning_outcome), competency: text(q.competency)
+        learning_outcome: text(q.learning_outcome), learning_outcome_id: text(q.learning_outcome_id), competency: text(q.competency)
       });
       if (LEVELS.includes(q.level)) g.addEdge(cId, 'o_muc_do', ids.mucdo(q.level));
       if (KINDS.includes(q.type)) g.addEdge(cId, 'la_dang', ids.dang(q.type));
       const baiId = lessonIndex.get(`${norm(subj)}|${grade}|${norm(q.lesson_code)}`);
       if (baiId) g.addEdge(cId, 'thuoc', baiId);
-      const yId = outcomeIndex.get(`${norm(subj)}|${grade}|${norm(q.lesson_code)}|${norm(q.learning_outcome)}`);
-      if (yId) g.addEdge(cId, 'danh_gia', yId);
+      const hit = baiId ? core.resolveOutcome(lessonObj.get(baiId), { id: q.learning_outcome_id, text: q.learning_outcome }) : null;
+      if (hit) g.addEdge(cId, 'danh_gia', ids.yccd(hit.id), { theo: hit.how === 'ma' ? 'ma' : 'chu' });
       for (const c of competencyCodes([q.competency])) {
         g.addNode(ids.nangluc(c), 'nangluc', c);
         g.addEdge(cId, 'phat_trien', ids.nangluc(c));
@@ -199,12 +206,29 @@
       const mId = g.addNode(ids.matran(m.id), 'matran', text(m.title) || m.id, {
         grade: m.grade, subject_name: subj, exam_type: m.exam_type, status: m.status
       }).id;
+      // Ô ma trận: bài × mức độ × dạng, kèm số câu (đọc từ vị trí câu của ma trận).
+      const reqById = new Map(list(m.requirements).map(r => [r.id, r]));
+      const cellNeed = new Map();
+      for (const slot of list(m.slots)) for (const part of list(slot?.parts)) {
+        const r = reqById.get(part?.requirement_id); if (!r) continue;
+        const k = [r.lesson_code, r.level, slot.kind].join('|'); cellNeed.set(k, (cellNeed.get(k) || 0) + 1);
+      }
+      for (const [k, need] of cellNeed) {
+        const [code, level, kind] = k.split('|');
+        const baiId = lessonIndex.get(`${norm(subj)}|${Number(m.grade)}|${norm(code)}`);
+        if (!baiId) continue;
+        const oId = g.addNode(ids.o_ma_tran(m.id, code, level, kind), 'o_ma_tran', `${code} · ${level} · ${kind}`, { matrix_id: m.id, lesson_code: code, level, kind, need }).id;
+        g.addEdge(oId, 'thuoc', mId); g.addEdge(oId, 'can_cu', baiId);
+        if (LEVELS.includes(level)) g.addEdge(oId, 'o_muc_do', ids.mucdo(level));
+        if (KINDS.includes(kind)) g.addEdge(oId, 'la_dang', ids.dang(kind));
+      }
       for (const r of list(m.requirements)) {
         const baiId = lessonIndex.get(`${norm(subj)}|${Number(m.grade)}|${norm(r.lesson_code)}`);
         if (baiId) g.addEdge(mId, 'can_cu', baiId);
-        if (!Number.isInteger(r.ppct_outcome_index)) continue;
-        const yId = ids.yccd(subj, Number(m.grade), r.lesson_code, r.ppct_outcome_index);
-        if (!g.node(yId)) continue;
+        if (r.outcome_mode === 'any' || !baiId) continue;
+        const hit = core.resolveOutcome(lessonObj.get(baiId), { id: r.ppct_outcome_id, index: r.ppct_outcome_index });
+        if (!hit) continue;
+        const yId = ids.yccd(hit.id);
         g.addEdge(mId, 'can_cu', yId, { level: r.level, requirement_id: r.id });
         for (const c of competencyCodes([r.competency])) {
           g.addNode(ids.nangluc(c), 'nangluc', c);
@@ -251,8 +275,11 @@
         issues.push({ code: 'cau_ngoai_ppct', severity: 'loi', node: n.id, question_id: n.props.question_id,
           message: `Câu ${n.props.question_id}: bài “${n.props.lesson_code || '(trống)'}” không có trong PPCT Khối ${n.props.grade}.` });
       } else if (!g.outgoing(n.id, 'danh_gia').length) {
-        issues.push({ code: 'cau_khong_yccd', severity: 'loi', node: n.id, question_id: n.props.question_id,
-          message: `Câu ${n.props.question_id}: YCCĐ “${n.props.learning_outcome || '(trống)'}” không khớp YCCĐ nào của bài ${n.props.lesson_code} trong PPCT.` });
+        const bai = g.outgoing(n.id, 'thuoc').map(e => g.node(e.o)).find(x => x?.type === 'bai');
+        const sugg = bai ? core.suggestOutcomes(lessonOf(g, bai.id), n.props.learning_outcome, 3) : [];
+        issues.push({ code: 'cau_khong_yccd', severity: 'loi', node: n.id, question_id: n.props.question_id, suggestions: sugg,
+          message: `Câu ${n.props.question_id}: YCCĐ “${n.props.learning_outcome || '(trống)'}” không khớp YCCĐ nào của bài ${n.props.lesson_code} trong PPCT.`
+            + (sugg[0] ? ` Gần nhất: “${sugg[0].text}” (${sugg[0].id}).` : '') });
       }
     }
     for (const n of g.ofType('yccd').filter(inScope)) {
@@ -263,6 +290,38 @@
       }
     }
     return issues;
+  }
+
+  // Tình trạng mã YCCĐ của câu hỏi: nối theo mã / chỉ theo câu chữ (cần lưu mã) / không nối được (cần giáo viên chọn).
+  function outcomeIdAudit(g, opts = {}) {
+    const grade = opts.grade !== undefined ? Number(opts.grade) : null;
+    const out = { theo_ma: 0, theo_chu: 0, khong_noi: 0, ngoai_ppct: 0 };
+    for (const n of g.ofType('cau')) {
+      if (grade !== null && Number(n.props.grade) !== grade) continue;
+      if (!g.outgoing(n.id, 'thuoc').some(e => g.node(e.o)?.type === 'bai')) { out.ngoai_ppct++; continue; }
+      const es = g.outgoing(n.id, 'danh_gia');
+      if (!es.length) out.khong_noi++;
+      else if (es.some(e => e.props?.theo === 'ma')) out.theo_ma++;
+      else out.theo_chu++;
+    }
+    return out;
+  }
+
+  // Dựng lại "bài" (YCCĐ + mã) từ đồ thị để tra gợi ý.
+  function lessonOf(g, baiId) {
+    const ys = g.outgoing(baiId, 'co_yccd').map(e => g.node(e.o)).filter(Boolean).sort((a, b) => a.props.index - b.props.index);
+    const b = g.node(baiId);
+    return { subject_name: b?.props.subject_name, grade: b?.props.grade, lesson_code: b?.props.lesson_code, outcomes: ys.map(y => y.label), outcome_ids: ys.map(y => y.props.outcome_id) };
+  }
+
+  // Ô ma trận (kể cả ô 2D nhận mọi YCCĐ của bài): cần bao nhiêu câu, ngân hàng có bao nhiêu câu đã duyệt đúng bài × mức độ × dạng.
+  function matrixCells(g, matrixId) {
+    return g.ofType('o_ma_tran').filter(o => !matrixId || o.props.matrix_id === matrixId).map(o => {
+      const bai = g.outgoing(o.id, 'can_cu').map(e => e.o)[0];
+      const qs = bai ? g.incoming(bai, 'thuoc').map(e => g.node(e.s)).filter(n => n?.type === 'cau' && n.props.level === o.props.level && n.props.type === o.props.kind) : [];
+      const approved = qs.filter(n => n.props.review_status === 'approved').length;
+      return { matrix_id: o.props.matrix_id, lesson_code: o.props.lesson_code, level: o.props.level, kind: o.props.kind, need: o.props.need, approved, other: qs.length - approved, short: Math.max(0, o.props.need - approved) };
+    }).sort((a, b) => String(a.lesson_code).localeCompare(String(b.lesson_code), 'vi', { numeric: true }) || LEVELS.indexOf(a.level) - LEVELS.indexOf(b.level) || KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind));
   }
 
   // ------------------------------------------------------------------------------------------
@@ -429,7 +488,7 @@
 
   return {
     LEVELS, KINDS, KIND_LABELS, ids, slug, norm, firstWeek, competencyCodes,
-    createGraph, buildGraph, validateGraph, coverage, similarQuestions, nearDuplicateGroups,
+    createGraph, buildGraph, validateGraph, coverage, matrixCells, lessonOf, outcomeIdAudit, similarQuestions, nearDuplicateGroups,
     suggestForCell, studyOrder, lessonsAfterWeek, lessonContext, summary
   };
 });

@@ -977,6 +977,167 @@ function syncEditedQuestionsFromSheet(sheet,record){
     }
     return out;
   }
-  const api={kyStepperModel,dossierStatus,permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  // ------------------------------------------------------------------------------------------
+  // NỀN MÓNG TRI THỨC (25/11/2026): mã cố định cho YCCĐ và một định nghĩa "câu trùng" dùng chung.
+  // ------------------------------------------------------------------------------------------
+  const kNorm=x=>String(x??'').normalize('NFC').trim().toLowerCase().replace(/\s+/g,' ');
+  const kPlain=x=>kNorm(x).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d');
+  const kText=o=>typeof o==='string'?o:(o&&typeof o==='object'?String(o.text??o.outcome??o.content??''):'');
+  // Cụm 2 từ (đã bỏ dấu, bỏ từ quá ngắn) để so mức giống nhau của hai câu chữ.
+  function textBigrams(s){const w=kPlain(s).split(/[^a-z0-9]+/).filter(x=>x.length>1);const out=new Set(w);for(let i=0;i+1<w.length;i++)out.add(w[i]+' '+w[i+1]);return out;}
+  function textSimilarity(a,b){const x=textBigrams(a),y=textBigrams(b);if(!x.size||!y.size)return 0;let n=0;for(const t of x)if(y.has(t))n++;return n/(x.size+y.size-n);}
+  // Độ giống khi SỬA câu chữ: lấy thêm tỉ lệ "câu ngắn nằm trong câu dài" (viết thêm/bớt một vế vẫn là YCCĐ cũ), hệ số 0,75.
+  function editSimilarity(a,b){const x=textBigrams(a),y=textBigrams(b);if(!x.size||!y.size)return 0;let n=0;for(const t of x)if(y.has(t))n++;return Math.max(n/(x.size+y.size-n),0.75*n/Math.min(x.size,y.size));}
+
+  // --- Câu trùng: một định nghĩa cho cả kho luật, đối chiếu đề cương, tạo đề ---
+  // Khóa nội dung: dạng + lời dẫn + phương án (kèm đúng/sai, không phụ thuộc thứ tự) + mệnh đề Đ/S + đáp án ngắn.
+  // Không gồm bài, mức độ, YCCĐ, lời giải: đổi các trường đó không làm câu thành câu khác.
+  function questionKeys(q){
+    const type=String(q?.type||'');
+    const stem=kNorm(q?.question);
+    const opts=Array.isArray(q?.options)?q.options.map((o,i)=>[kNorm(kText(o)||o),i===q.correct]).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:Number(a[1])-Number(b[1])):[];
+    const sts=Array.isArray(q?.statements)?q.statements.map(s=>[kNorm(typeof s==='object'?s?.text:s),typeof s==='object'?s?.correct===true:false]).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0):[];
+    const shortAns=type==='SHORT'?kNorm(q?.short_answer??q?.correct_answer??q?.answer):'';
+    return {stem:type+'\u0002'+stem,match:JSON.stringify([type,stem,opts,sts,shortAns])};
+  }
+  // Quan hệ giữa hai câu: 'trung_han' | 'tron_phuong_an' (cùng câu, khác thứ tự phương án/mệnh đề) | 'cung_loi_dan' | null.
+  function questionRelation(a,b){
+    const ka=questionKeys(a),kb=questionKeys(b);
+    if(ka.match===kb.match){
+      const order=q=>JSON.stringify([(q?.options||[]).map(o=>kNorm(kText(o)||o)),q?.correct,(q?.statements||[]).map(s=>kNorm(typeof s==='object'?s?.text:s))]);
+      return order(a)===order(b)?'trung_han':'tron_phuong_an';
+    }
+    return ka.stem===kb.stem&&kNorm(a?.question)?'cung_loi_dan':null;
+  }
+  const RELATION_LABELS={trung_han:'trùng hẳn',tron_phuong_an:'cùng câu (đã trộn phương án)',cung_loi_dan:'cùng lời dẫn'};
+
+  // --- YCCĐ có mã cố định ---
+  // Mã dạng TIN9-B1-YC3: tiền tố môn + khối + mã bài + số thứ tự KHÔNG dùng lại. Lưu ở lesson.outcome_ids (song song lesson.outcomes).
+  function outcomeIdPrefix(subject,grade,lessonCode){
+    const s=kPlain(subject||'Tin học').replace(/[^a-z0-9]+/g,'').toUpperCase();
+    const code=s==='TINHOC'?'TIN':(s.slice(0,4)||'MON');
+    return `${code}${Number(grade)||''}-${String(lessonCode||'').trim().replace(/\s+/g,'')}-YC`;
+  }
+  function lessonOutcomeIds(lesson){
+    const outs=Array.isArray(lesson?.outcomes)?lesson.outcomes:[],ids=Array.isArray(lesson?.outcome_ids)?lesson.outcome_ids:[];
+    const prefix=outcomeIdPrefix(lesson?.subject_name,lesson?.grade,lesson?.lesson_code);
+    return outs.map((o,i)=>(typeof ids[i]==='string'&&ids[i].trim())?ids[i]:(o&&typeof o==='object'&&o.id?String(o.id):prefix+(i+1)));
+  }
+  // Gán mã khi lưu PPCT: giữ mã của YCCĐ cũ khi trùng chữ, hoặc khi sửa nhẹ câu chữ (giống ≥ 0,6); YCCĐ mới nhận số tiếp theo.
+  function assignOutcomeIds(lesson,previous){
+    const outs=(Array.isArray(lesson?.outcomes)?lesson.outcomes:[]).map(kText);
+    const prefix=outcomeIdPrefix(lesson?.subject_name,lesson?.grade,lesson?.lesson_code);
+    const prevTexts=(Array.isArray(previous?.outcomes)?previous.outcomes:[]).map(kText),prevIds=previous?lessonOutcomeIds(previous):[];
+    const numOf=id=>{const m=String(id).match(/YC(\d+)$/);return m?Number(m[1]):0;};
+    let next=Math.max(1,Number(previous?.outcome_id_next)||0,Math.max(0,...prevIds.map(numOf),...(Array.isArray(lesson?.outcome_ids)?lesson.outcome_ids.map(numOf):[]))+1);
+    const used=new Set(),ids=new Array(outs.length).fill(null);
+    // 1) Lần lưu đầu không có bản cũ nhưng biểu mẫu đã gửi mã: giữ nguyên.
+    if(!previous&&Array.isArray(lesson?.outcome_ids))outs.forEach((t,i)=>{const id=lesson.outcome_ids[i];if(typeof id==='string'&&id&&!used.has(id)){ids[i]=id;used.add(id);}});
+    // 2) Trùng chữ.
+    outs.forEach((t,i)=>{if(ids[i])return;const j=prevTexts.findIndex((p,k)=>!used.has(prevIds[k])&&kNorm(p)===kNorm(t));if(j>=0){ids[i]=prevIds[j];used.add(prevIds[j]);}});
+    // 3) Sửa nhẹ câu chữ.
+    outs.forEach((t,i)=>{if(ids[i])return;let best=-1,score=0.6;prevTexts.forEach((p,k)=>{if(used.has(prevIds[k]))return;const s=editSimilarity(p,t);if(s>=score){score=s;best=k;}});if(best>=0){ids[i]=prevIds[best];used.add(prevIds[best]);}});
+    // 4) YCCĐ mới.
+    outs.forEach((t,i)=>{if(!ids[i]){let id;do{id=prefix+(next++);}while(used.has(id));ids[i]=id;used.add(id);}});
+    const renamed=outs.map((t,i)=>{const k=prevIds.indexOf(ids[i]);return k>=0&&kNorm(prevTexts[k])!==kNorm(t)?{id:ids[i],from:prevTexts[k],to:t}:null;}).filter(Boolean);
+    const removed=prevIds.filter(id=>!used.has(id));
+    return {outcome_ids:ids,outcome_id_next:next,renamed,removed};
+  }
+  // Tìm YCCĐ của bài cho một câu/yêu cầu: theo mã trước, rồi đúng chữ, rồi chỉ số cũ.
+  function resolveOutcome(lesson,ref){
+    const outs=(Array.isArray(lesson?.outcomes)?lesson.outcomes:[]).map(kText),ids=lessonOutcomeIds(lesson);
+    const id=ref?.id||ref?.learning_outcome_id||ref?.ppct_outcome_id;
+    if(id){const i=ids.indexOf(String(id));if(i>=0)return {index:i,id:ids[i],text:outs[i],how:'ma'};}
+    const t=ref?.text??ref?.learning_outcome;
+    if(t){const i=outs.findIndex(o=>kNorm(o)===kNorm(t));if(i>=0)return {index:i,id:ids[i],text:outs[i],how:'chu'};}
+    const idx=ref?.index??ref?.ppct_outcome_index;
+    if(Number.isInteger(idx)&&idx>=0&&idx<outs.length)return {index:idx,id:ids[idx],text:outs[idx],how:'chi_so'};
+    return null;
+  }
+  // Gợi ý YCCĐ gần nhất cho câu có YCCĐ lệch chữ (để giáo viên xác nhận một lần).
+  function suggestOutcomes(lesson,textValue,limit=3){
+    const outs=(Array.isArray(lesson?.outcomes)?lesson.outcomes:[]).map(kText),ids=lessonOutcomeIds(lesson);
+    return outs.map((o,i)=>({index:i,id:ids[i],text:o,score:Math.round(100*textSimilarity(o,textValue))/100})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.index-b.index).slice(0,limit);
+  }
+  const kSubj=x=>kNorm(x?.subject_name||'Tin học');
+  const sameLesson=(a,b)=>Number(a?.grade)===Number(b?.grade)&&kSubj(a)===kSubj(b)&&kNorm(a?.lesson_code)===kNorm(b?.lesson_code);
+  const matrixLocked=m=>['locked','published','archived'].includes(m?.status)||m?.matrix_locked===true||m?.spec_locked===true;
+  // Lưu một bài PPCT: gán/giữ mã YCCĐ, rồi cập nhật câu hỏi (mã + chữ YCCĐ mới) và yêu cầu của ma trận chưa khóa (mã + vị trí mới).
+  // Sửa trực tiếp trên mảng questions/matrices truyền vào. Ma trận đã khóa giữ nguyên (bản chụp đã chốt).
+  function syncOutcomeIds(lesson,previous,{questions=[],matrices=[]}={}){
+    const r=assignOutcomeIds(lesson,previous);
+    const next={...lesson,outcome_ids:r.outcome_ids,outcome_id_next:r.outcome_id_next};
+    const outs=(Array.isArray(next.outcomes)?next.outcomes:[]).map(kText);
+    const prevIds=previous?lessonOutcomeIds(previous):[],prevTexts=(Array.isArray(previous?.outcomes)?previous.outcomes:[]).map(kText);
+    let qn=0,mn=0;
+    for(const q of questions){
+      if(!q||q.review_status==='archived'||!sameLesson(q,next))continue;
+      let id=q.learning_outcome_id&&r.outcome_ids.includes(q.learning_outcome_id)?q.learning_outcome_id:null;
+      if(!id){const k=prevTexts.findIndex(t=>kNorm(t)===kNorm(q.learning_outcome));if(k>=0&&r.outcome_ids.includes(prevIds[k]))id=prevIds[k];}
+      if(!id){const i=outs.findIndex(t=>kNorm(t)===kNorm(q.learning_outcome));if(i>=0)id=r.outcome_ids[i];}
+      if(!id)continue;
+      const text=outs[r.outcome_ids.indexOf(id)];
+      if(q.learning_outcome_id!==id||q.learning_outcome!==text){q.learning_outcome_id=id;q.learning_outcome=text;qn++;}
+    }
+    for(const m of matrices){
+      if(!m||matrixLocked(m)||Number(m.grade)!==Number(next.grade)||kSubj(m)!==kSubj(next))continue;
+      let touched=false;
+      for(const req of Array.isArray(m.requirements)?m.requirements:[]){
+        if(!req||req.outcome_mode==='any'||kNorm(req.lesson_code)!==kNorm(next.lesson_code))continue;
+        let id=req.ppct_outcome_id&&r.outcome_ids.includes(req.ppct_outcome_id)?req.ppct_outcome_id:null;
+        if(!id&&Number.isInteger(req.ppct_outcome_index))id=(previous?prevIds:lessonOutcomeIds(next))[req.ppct_outcome_index]||null;
+        if(!id||!r.outcome_ids.includes(id))continue;
+        const idx=r.outcome_ids.indexOf(id);
+        if(req.ppct_outcome_id!==id||req.ppct_outcome_index!==idx){req.ppct_outcome_id=id;req.ppct_outcome_index=idx;touched=true;}
+      }
+      if(touched)mn++;
+    }
+    return {lesson:next,renamed:r.renamed,removed:r.removed,questions_updated:qn,matrices_updated:mn};
+  }
+  // Chuẩn hóa dữ liệu cũ (một lần): lưu mã cho mọi YCCĐ trong PPCT; câu khớp chữ được lưu mã; câu lệch chữ
+  // trả gợi ý để giáo viên chọn (mappings: {mã câu: mã YCCĐ}); ma trận chưa khóa lưu mã theo vị trí hiện tại.
+  function normalizeOutcomeIds(data,{grade=null,subject=null,mappings={},apply=false}={}){
+    const bank=data?.bank||{},ppct=Array.isArray(bank.ppct?.lessons)?bank.ppct.lessons:[];
+    const inScope=x=>(grade===null||Number(x?.grade)===Number(grade))&&(!subject||kSubj(x)===kNorm(subject));
+    const report={lessons_updated:0,questions_linked:0,questions_mapped:0,matrices_updated:0,unmatched:[],outside_ppct:0};
+    const lessonsOut=ppct.map(l=>{
+      if(!l||!inScope(l))return l;
+      const ids=lessonOutcomeIds(l),has=Array.isArray(l.outcome_ids)&&l.outcome_ids.length===ids.length&&l.outcome_ids.every((x,i)=>x===ids[i]);
+      if(has)return l;
+      report.lessons_updated++;
+      const numOf=id=>{const m=String(id).match(/YC(\d+)$/);return m?Number(m[1]):0;};
+      return {...l,outcome_ids:ids,outcome_id_next:Math.max(Number(l.outcome_id_next)||0,Math.max(0,...ids.map(numOf))+1)};
+    });
+    const qs=Array.isArray(bank.questions)?bank.questions:[];
+    const qsOut=qs.map(q=>{
+      if(!q||q.review_status==='archived'||!inScope(q))return q;
+      const l=lessonsOut.find(x=>x&&sameLesson(x,q));
+      if(!l){report.outside_ppct++;return q;}
+      const outs=(Array.isArray(l.outcomes)?l.outcomes:[]).map(kText),ids=lessonOutcomeIds(l);
+      const mapped=mappings&&mappings[q.id];
+      if(mapped&&ids.includes(mapped)){report.questions_mapped++;return {...q,learning_outcome_id:mapped,learning_outcome:outs[ids.indexOf(mapped)]};}
+      const hit=resolveOutcome(l,{id:q.learning_outcome_id,text:q.learning_outcome});
+      if(hit){if(q.learning_outcome_id===hit.id&&q.learning_outcome===hit.text)return q;report.questions_linked++;return {...q,learning_outcome_id:hit.id,learning_outcome:hit.text};}
+      report.unmatched.push({question_id:q.id,grade:q.grade,lesson_code:q.lesson_code,learning_outcome:q.learning_outcome||'',question:String(q.question||'').replace(/\s+/g,' ').slice(0,120),suggestions:suggestOutcomes(l,q.learning_outcome,3)});
+      return q;
+    });
+    const ms=Array.isArray(data?.matrices)?data.matrices:[];
+    const msOut=ms.map(m=>{
+      if(!m||matrixLocked(m)||!inScope(m))return m;
+      let touched=false;
+      const reqs=(Array.isArray(m.requirements)?m.requirements:[]).map(req=>{
+        if(!req||req.outcome_mode==='any')return req;
+        const l=lessonsOut.find(x=>x&&Number(x.grade)===Number(m.grade)&&kSubj(x)===kSubj(m)&&kNorm(x.lesson_code)===kNorm(req.lesson_code));
+        const hit=l&&resolveOutcome(l,{id:req.ppct_outcome_id,index:req.ppct_outcome_index});
+        if(!hit||req.ppct_outcome_id===hit.id)return req;
+        touched=true;return {...req,ppct_outcome_id:hit.id,ppct_outcome_index:hit.index};
+      });
+      if(!touched)return m;report.matrices_updated++;return {...m,requirements:reqs};
+    });
+    report.changed=report.lessons_updated+report.questions_linked+report.questions_mapped+report.matrices_updated>0;
+    if(apply&&report.changed){if(bank.ppct)bank.ppct.lessons=lessonsOut;bank.questions=qsOut;if(Array.isArray(data.matrices))data.matrices=msOut;}
+    return report;
+  }
+  const api={syncOutcomeIds,normalizeOutcomeIds,questionKeys,questionRelation,RELATION_LABELS,textSimilarity,outcomeIdPrefix,lessonOutcomeIds,assignOutcomeIds,resolveOutcome,suggestOutcomes,kyStepperModel,dossierStatus,permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

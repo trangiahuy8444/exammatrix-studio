@@ -541,6 +541,9 @@ function date(v){if(!v)return 'Chưa ghi thời điểm';const d=new Date(v);ret
 function title(k,h,p,actions=''){return `<div class="page-head"><div><p class="eyebrow">${esc(k)}</p><h1>${esc(h)}</h1><p>${esc(p)}</p></div>${actions?`<div class="actions">${actions}</div>`:''}</div>`;}
 function empty(h,p){return `<div class="empty"><h3>${esc(h)}</h3><p>${esc(p)}</p></div>`;}
 let _noticeTimer=null,_noticeHideTimer=null,_noticeShownAt=0,_noticeRemaining=0,_noticeStart=0;
+function hideNoticePopover(el){
+ try{if(el&&typeof el.hidePopover==='function'&&el.matches?.(':popover-open'))el.hidePopover();}catch{}
+}
 function clearNotice(animate=false){
  const el=$('#notice');
  clearTimeout(_noticeTimer);clearTimeout(_noticeHideTimer);
@@ -548,10 +551,11 @@ function clearNotice(animate=false){
  if(!el)return;
  if(animate&&!el.hidden){
   el.classList.add('is-leaving');
-  _noticeHideTimer=setTimeout(()=>{el.hidden=true;el.classList.remove('is-leaving');_noticeHideTimer=null;},200);
+  _noticeHideTimer=setTimeout(()=>{el.hidden=true;el.classList.remove('is-leaving');hideNoticePopover(el);_noticeHideTimer=null;},200);
  }else{
   el.hidden=true;
   el.classList.remove('is-leaving');
+  hideNoticePopover(el);
  }
 }
 function notify(message,error=false){
@@ -584,6 +588,10 @@ function notify(message,error=false){
  el.hidden=false;
  el.className=error?'error':'';
  el.setAttribute('role',error?'alert':'status');
+ if(typeof el.showPopover==='function'){
+  hideNoticePopover(el);
+  try{el.showPopover();}catch{}
+ }
  _noticeShownAt=Date.now();
  _noticeRemaining=duration;
  _noticeStart=Date.now();
@@ -599,6 +607,7 @@ function notify(message,error=false){
   _noticeTimer=setTimeout(()=>clearNotice(true),_noticeRemaining);
  };
 }
+if(typeof window!=='undefined'){window.notify=notify;window.clearNotice=clearNotice;}
 function detailError(e){const details=e.details;if(!details||(typeof details==='object'&&!Array.isArray(details)&&!Object.keys(details).length)||(Array.isArray(details)&&!details.length))return e.message;return e.message+'\n'+(typeof details==='string'?details:JSON.stringify(details,null,2));}
 async function request(path,body){
  if (typeof window !== 'undefined' && window.FirebaseClient && window.FirebaseClient.canHandle(path)) {
@@ -969,10 +978,24 @@ function renderOverview(){
     URL.revokeObjectURL(a.href);
   }
   function copyTextWithFallback(text, okMsg) {
+    const fallbackCopy = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) { notify(okMsg); return; }
+      } catch {}
+      notify('Trình duyệt không cho phép tự động sao chép. Vui lòng thử lại.', true);
+    };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => alert(okMsg)).catch(() => window.prompt('Sao chép Prompt AI dưới đây:', text));
+      navigator.clipboard.writeText(text).then(() => notify(okMsg)).catch(fallbackCopy);
     } else {
-      window.prompt('Sao chép Prompt AI dưới đây:', text);
+      fallbackCopy();
     }
   }
   function qualityWarningsHtml(q) {
@@ -5135,6 +5158,8 @@ async function renderRevisionCoverage(rev){
  box.hidden=false;box.innerHTML=`<h3 style="margin-top:0">📊 Đối chiếu đề thi với đề cương "${esc(rev.title)}"</h3><p class="muted">Đang đối chiếu…</p>`;
  let rep;try{rep=(await request('/api/revisions/coverage',{revision_id:rev.id,exam_id:chosen.id})).reports[0];}catch(err){box.innerHTML=`<div class="callout warning">${esc(detailError(err))}</div>`;return;}
  if(store.activeRevisionViewId&&store.activeRevisionViewId!==rev.id)return;
+ // Kết quả về sau khi màn hình đã vẽ lại hoặc đã chuyển trang: bỏ qua.
+ if(!box.isConnected||$('#revision-coverage')!==box)return;
  const ok=rep.in_revision>=rep.required;
  const missing=rep.items.filter(x=>!x.in_revision),present=rep.items.filter(x=>x.in_revision);
  const row=x=>`<tr><td><strong>${esc(x.label)}</strong></td><td>${esc(x.lesson_code)}</td><td>${esc(x.level)}</td><td style="text-align:right">${esc(String(x.points).replace('.',','))}</td><td>${esc(x.question)}</td><td>${x.in_revision?'✓ có trong đề cương':x.similar_text?'Gần giống (nội dung lời dẫn trùng, phương án/đáp án khác)':x.outcome_in_revision?'Chưa có câu này; YCCĐ đã có trong đề cương':'<strong>Chưa có câu và YCCĐ</strong>'}</td></tr>`;
@@ -5156,7 +5181,8 @@ async function renderRevisionCoverage(rev){
   ${rep.missing_outcomes.length?`<p class="small"><strong>YCCĐ của đề chưa có trong đề cương:</strong> ${rep.missing_outcomes.map(esc).join('; ')}</p>`:''}
   ${present.length?`<details><summary>Câu đã có trong đề cương (${present.length})</summary>${table(present)}</details>`:''}
   <p class="small muted">Chỉ xem, không thay đổi dữ liệu. "Có trong đề cương" nghĩa là trùng nội dung câu hỏi, phương án và đáp án (kể cả khi đã trộn mã đề).</p>`;
- $('#rev-cov-exam').onchange=e=>{store.revCoverageExamId=e.target.value;renderRevisionCoverage(rev);};
+ const covSel=$('#rev-cov-exam');if(!covSel)return;
+ covSel.onchange=e=>{store.revCoverageExamId=e.target.value;renderRevisionCoverage(rev);};
  const covPreview=()=>{const bt=rep.by_type||{},parts=[];let after=0;
   document.querySelectorAll('[data-rev-cov-target]').forEach(inp=>{const t=inp.dataset.revCovTarget,x=bt[t];if(!x)return;const pct=Math.max(0,Math.min(100,Math.round(Number(inp.value)||0)));store.revCovTargets[t]=pct;const want=Math.ceil(x.total*pct/100);after+=want;const d=want-x.in_revision;if(d)parts.push(`${d>0?'thêm':'bớt'} ${Math.abs(d)} câu ${({MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'})[t]||t}`);});
   const overall=rep.total?Math.round(1000*after/rep.total)/10:0,el=$('#rev-align-preview');

@@ -34,7 +34,7 @@ test('Đề hợp lệ: kho luật và verifyExam cùng kết luận đạt', as
 const MUTATIONS = [
   ['tổng điểm khác 10', e => { e.questions[0].points = 3; }, 'R-TONG-10', /Tổng điểm của đề là 8/],
   ['câu chưa duyệt', e => { e.questions[1].review_status = 'draft'; }, 'R-CHUA-DUYET', /Câu 2 chưa được duyệt/],
-  ['câu trùng nội dung', e => { e.questions[1] = { ...e.questions[0], id: 'Q-CHEP', slot_number: 2 }; }, 'R-TRUNG', /Câu 2 trùng nội dung với câu 1/],
+  ['câu trùng nội dung', e => { e.questions[1] = { ...e.questions[0], id: 'Q-CHEP', slot_number: 2 }; }, 'R-TRUNG', /Câu 2 trùng với câu 1/],
   ['câu khác khối', e => { e.questions[0].grade = 8; }, 'R-KHAC-KHOI', /Câu 1 thuộc Khối 8/],
   ['dạng câu không được dùng (Đúng/Sai ở THCS)', e => { e.questions[0].type = 'YN'; }, 'R-DANG-CAU', /Câu 1 là dạng YN/],
   ['bài ngoài PPCT', e => { e.questions[0].lesson_code = 'B99'; }, 'R-NGOAI-PPCT', /bài “B99” không có trong PPCT/],

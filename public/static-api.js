@@ -188,7 +188,9 @@
    const revQs=Array.isArray(opts.revision?.questions)?opts.revision.questions:[];
    const revIds=new Set(revQs.map(q=>q.id).filter(Boolean));
    const revTexts=new Set(revQs.map(q=>normText(q.question)).filter(Boolean));
-   const inRev=q=>(revIds.has(q.id)||(normText(q.question)&&revTexts.has(normText(q.question))))?1:0;
+   // Cùng định nghĩa "có trong đề cương" với khung đối chiếu (core.questionKeys): trùng nội dung, kể cả đã trộn phương án.
+   const mkey=engine.questionMatchKey,revKeys=new Set(revQs.map(q=>mkey?mkey(q):q.id));
+   const inRev=q=>(mkey?revKeys.has(mkey(q)):(revIds.has(q.id)||(normText(q.question)&&revTexts.has(normText(q.question)))))?1:0;
    const isApp=q=>q.review_status==='approved'?1:0;
    const seedStr=String(opts.seed??'');
    const seedKey=q=>String(engine?.jsonDigest?engine.jsonDigest(seedStr+':'+q.id):q.id);
@@ -320,6 +322,10 @@
    const q=p.question||p,existing=q.id?bank.find(x=>x.id===q.id):null;
    if(existing)own(existing);
    const saved=workflow.saveQuestion(existing,{...q,subject_name:subject});if(!saved.id)saved.id=id('Q');
+   // Mã YCCĐ: giáo viên chọn YCCĐ theo câu chữ trong biểu mẫu; lưu kèm mã cố định của YCCĐ đó (không khớp thì bỏ mã cũ).
+   const C=root.BankCore||(typeof require==='function'?require('./core.js'):null);
+   const lessonOfQ=(ppct.lessons||[]).find(l=>Number(l.grade)===Number(saved.grade)&&(l.subject_name||'Tin học')===(saved.subject_name||subject)&&String(l.lesson_code).trim().toLowerCase()===String(saved.lesson_code||'').trim().toLowerCase());
+   if(C&&C.resolveOutcome&&lessonOfQ){const hit=C.resolveOutcome(lessonOfQ,{text:saved.learning_outcome});if(hit)saved.learning_outcome_id=hit.id;else delete saved.learning_outcome_id;}
    put(bank,saved);return result({question:saved,bank:data.bank},true);
   }
   if(path==='/api/bank/import'&&p.mode==='append'){
@@ -607,15 +613,15 @@
    const sameSubject=e=>(e.subject_name||'Tin học')===subject;
    let exams=p.exam_id?[own(find(data.exams,p.exam_id))]:data.exams.filter(e=>sameSubject(e)&&e.revision_id===rev.id);
    if(!p.exam_id&&!exams.length)exams=data.exams.filter(e=>sameSubject(e)&&Number(e.grade)===Number(rev.grade));
-   return result({revision:{id:rev.id,title:rev.title,grade:rev.grade,question_count:(rev.questions||[]).length},reports:exams.map(e=>engine.revisionCoverage(e,rev))});
+   return result({revision:{id:rev.id,title:rev.title,grade:rev.grade,question_count:(rev.questions||[]).length},reports:exams.map(e=>engine.revisionCoverage(e,rev,data.bank.ppct))});
   }
   if(path==='/api/revisions/trim-to-exam'||path==='/api/revisions/align-to-exam'){
    // Cân chỉnh đề cương theo tỉ lệ câu của một đề có trong đề cương, riêng từng dạng (VD: TN 90%, TL 100%).
    // Thiếu thì THÊM câu của đề (lấy câu gốc trong Ngân hàng, kể cả bản đã trộn phương án); dư thì BỚT câu của đề,
    // ưu tiên câu mà YCCĐ vẫn còn câu khác trong đề cương, rồi câu mức cao, tự luận trước.
    const rev=own(find(data.revisions,p.revision_id)),exam=own(find(data.exams,p.exam_id));
-   if(typeof engine.fingerprint!=='function')fail('Bộ xử lý chưa hỗ trợ đối chiếu đề cương. Vui lòng tải lại trang.',503);
-   const fp=engine.fingerprint,eqs=exam.questions||[],total=eqs.length;if(!total)fail('Đề chưa có câu hỏi.');
+   if(typeof engine.questionMatchKey!=='function')fail('Bộ xử lý chưa hỗ trợ đối chiếu đề cương. Vui lòng tải lại trang.',503);
+   const fp=engine.questionMatchKey,eqs=exam.questions||[],total=eqs.length;if(!total)fail('Đề chưa có câu hỏi.');
    const TYPES=['MC','YN','SHORT','ES'],NAME={MC:'trắc nghiệm',YN:'Đúng/Sai',SHORT:'trả lời ngắn',ES:'tự luận'};
    const clampPct=v=>Math.max(0,Math.min(100,Math.round(Number(v))));
    const base=p.percent!=null&&Number.isFinite(Number(p.percent))?clampPct(p.percent):90;
@@ -806,8 +812,8 @@
    };
    // Bản chụp từng câu và cả đề (trước đây đề linh hoạt thiếu nên kiểm định luôn báo "bản chụp sai").
    if(typeof engine.fingerprint==='function'){
-    const revFps=new Set((rev?.questions||[]).map(rq=>engine.fingerprint(rq)));
-    exam.questions.forEach(q=>{q.content_hash=engine.contentHash(q);q.source_content_hash=q.content_hash;q.source_snapshot_hash=engine.fingerprint(q);q.in_revision=Boolean(rev)&&revFps.has(q.source_snapshot_hash);});
+    const mk=engine.questionMatchKey||engine.fingerprint,revFps=new Set((rev?.questions||[]).map(rq=>mk(rq)));
+    exam.questions.forEach(q=>{q.content_hash=engine.contentHash(q);q.source_content_hash=q.content_hash;q.source_snapshot_hash=engine.fingerprint(q);q.in_revision=Boolean(rev)&&revFps.has(mk(q));});
     exam.snapshot_integrity=engine.jsonDigest({questions:exam.questions,matrix:exam.matrix_snapshot||null,blueprint:exam.blueprint,revision:exam.revision_snapshot,ppct:exam.ppct_snapshot});
    }
    exam.verification=verification(exam);
@@ -972,6 +978,14 @@
    const changed=[];for(const e of members)changed.push(await transition(e,p.action));changed.forEach(e=>put(data.exams,e));
    return result({exams:changed,exams_all:data.exams},true);
   }
+  if(path==='/api/knowledge/normalize-outcomes'){
+   // Chuẩn hóa mã YCCĐ (một lần cho dữ liệu cũ). apply=false: chỉ xem trước, không ghi.
+   const C=root.BankCore||(typeof require==='function'?require('./core.js'):null);
+   if(!C||!C.normalizeOutcomeIds)fail('Bộ xử lý chưa hỗ trợ mã YCCĐ. Vui lòng tải lại trang.',503);
+   const g=p.grade===undefined||p.grade===null||p.grade===''?null:Number(p.grade);
+   const report=C.normalizeOutcomeIds(data,{grade:g,subject,mappings:p.mappings||{},apply:p.apply===true});
+   return result({report,bank:p.apply===true?data.bank:undefined,matrices:p.apply===true?data.matrices:undefined},p.apply===true&&report.changed);
+  }
   if(path==='/api/knowledge/overview'||path==='/api/knowledge/lesson-context'||path==='/api/knowledge/rules'||path==='/api/knowledge/check-exam'){
    const {g:KG,r:KR}=knowledgeLibs();if(!KG||!KR)fail('Chưa nạp mô-đun đồ thị tri thức. Vui lòng tải lại trang.',503);
    if(path==='/api/knowledge/rules')return result({rules:KR.describeRules()});
@@ -981,7 +995,7 @@
    const grade=p.grade===undefined||p.grade===null||p.grade===''?undefined:Number(p.grade);
    const opt=grade===undefined?{}:{grade};const qs=bank.filter(q=>q&&(grade===undefined||Number(q.grade)===grade)&&String(q.subject_name||'Tin học').normalize('NFC').trim().toLowerCase()===String(subject).normalize('NFC').trim().toLowerCase());
    const week=Number(p.scope_week);
-   return result({summary:KG.summary(graph),issues:KG.validateGraph(graph,opt),coverage:KG.coverage(graph,opt),duplicates:KG.nearDuplicateGroups(graph,qs,{...opt,threshold:p.threshold??0.8}),study_order:KG.studyOrder(graph,opt),after_week:grade!==undefined&&Number.isInteger(week)&&week>0?KG.lessonsAfterWeek(graph,grade,week,subject):[]});
+   return result({summary:KG.summary(graph),issues:KG.validateGraph(graph,opt),coverage:KG.coverage(graph,opt),duplicates:KG.nearDuplicateGroups(graph,qs,{...opt,threshold:p.threshold??0.8}),study_order:KG.studyOrder(graph,opt),id_audit:KG.outcomeIdAudit?KG.outcomeIdAudit(graph,opt):null,matrix_cells:KG.matrixCells?(data.matrices||[]).filter(m=>m&&m.status!=='archived'&&(grade===undefined||Number(m.grade)===grade)).map(m=>({id:m.id,title:m.title||m.id,cells:KG.matrixCells(graph,m.id)})).filter(x=>x.cells.length):[],after_week:grade!==undefined&&Number.isInteger(week)&&week>0?KG.lessonsAfterWeek(graph,grade,week,subject):[]});
   }
   if(path==='/api/exams/verify'){
    const exam=own(find(data.exams,p.id));workflow.assertEditable(exam);

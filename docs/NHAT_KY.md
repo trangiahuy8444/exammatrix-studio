@@ -1,3 +1,14 @@
+## 25/11/2026 — Nền móng tri thức: mã YCCĐ cố định, một định nghĩa câu trùng, ô ma trận 2D trong đồ thị
+
+Làm theo đánh giá hệ cơ sở tri thức (mục 1–4).
+
+- **Mã YCCĐ cố định** (`core.js`: `assignOutcomeIds`, `syncOutcomeIds`, `resolveOutcome`): mỗi bài PPCT có `outcome_ids` song song `outcomes`, dạng `TIN9-B1-YC3`, số không dùng lại (`outcome_id_next`). Lưu/nhập PPCT giữ mã khi chèn, xóa, đổi thứ tự, sửa nhẹ câu chữ (giống ≥ 0,6 hoặc câu ngắn nằm trong câu dài). Câu hỏi nhận `learning_outcome_id` và chữ YCCĐ mới; yêu cầu ma trận **chưa khóa** nhận `ppct_outcome_id` và vị trí mới; ma trận đã khóa giữ nguyên.
+- **Nối theo mã:** đồ thị (nút `yccd:<mã>`), kho luật, engine (câu khớp ô ma trận, so YCCĐ đề ↔ đề cương) tra theo mã trước, rồi đúng chữ, rồi chỉ số cũ. Lưu câu hỏi tự lưu mã của YCCĐ giáo viên chọn.
+- **Chuẩn hóa dữ liệu cũ** (`/api/knowledge/normalize-outcomes`, khu "Mã yêu cầu cần đạt" ở Bản đồ tri thức): xem trước rồi áp dụng; câu lệch chữ có gợi ý YCCĐ gần nhất để giáo viên chọn một lần. Đồ thị báo câu không khớp YCCĐ kèm gợi ý.
+- **Một định nghĩa câu trùng** (`core.questionKeys`, `questionRelation`): trùng hẳn / cùng câu đã trộn phương án / cùng lời dẫn; khóa chỉ gồm nội dung (dạng, lời dẫn, phương án + đáp án, mệnh đề, đáp án ngắn), không gồm bài, mức độ, YCCĐ, lời giải. Đối chiếu đề cương, cân chỉnh đề cương, tạo đề, luật R-TRUNG (ghi rõ mức trùng) dùng chung. Mã băm toàn vẹn (`fingerprint`) giữ nguyên cho kiểm tra bản chụp.
+- **Ô ma trận 2D trong đồ thị:** nút `o_ma_tran` (ma trận, bài, mức độ, dạng, số câu); `matrixCells` cho biết ô cần bao nhiêu câu, có bao nhiêu câu đã duyệt; hiện ở Bản đồ tri thức.
+- Sửa lỗi khung đối chiếu đề cương khi kết quả về sau lúc đã chuyển trang.
+
 ## 25/11/2026 — Đề cương: tăng/giảm tỉ lệ câu của đề theo từng dạng; ô ma trận đánh số thuần
 
 - Khung "Đối chiếu đề thi với đề cương" có ô tỉ lệ riêng cho từng dạng (Trắc nghiệm, Đúng/Sai, Trả lời ngắn, Tự luận) và nút "Điều chỉnh đề cương theo tỉ lệ" (`/api/revisions/align-to-exam`, thay `trim-to-exam` cũ, vẫn nhận tên cũ). Thiếu thì thêm câu của đề vào đề cương (lấy câu gốc trong Ngân hàng, nhận cả câu đã trộn phương án); dư thì bớt, giữ YCCĐ. Xem trước số câu thêm/bớt và tỉ lệ chung; dưới 90% (quy định tổ) thì cảnh báo nhưng vẫn cho làm. Đề cương đã khóa thì lưu phiên bản mới.

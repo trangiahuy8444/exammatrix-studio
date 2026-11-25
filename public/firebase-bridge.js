@@ -971,6 +971,14 @@
             return x.toLowerCase() !== String(l.lesson_code || '').toLowerCase();
           });
         if (prereqs.length) lessonObj.prerequisites = [...new Set(prereqs)];
+        // Chặn vòng lặp bài tiền đề TRƯỚC mọi thay đổi khác (câu hỏi, ma trận); chỉ chặn vòng lặp đi qua bài đang lưu.
+        if (window.BankCore?.detectPrerequisiteCycle) {
+          const trial = existing.filter(x => !(((x.subject_name || 'Tin học') === targetSubject) && Number(x.grade) === grade && x.lesson_code === lessonObj.lesson_code)).concat([lessonObj]);
+          const cyc = window.BankCore.detectPrerequisiteCycle(trial, targetSubject, { through: `${grade}:${lessonObj.lesson_code}` });
+          if (cyc && cyc.hasCycle) {
+            throw new Error(`Không lưu được bài ${lessonObj.lesson_code}: quan hệ bài tiền đề tạo vòng lặp (${cyc.cycle.join(' → ')}). Hãy bỏ bớt liên kết gây vòng.`);
+          }
+        }
         // Mã YCCĐ cố định: giữ mã khi chèn/xóa/sửa nhẹ câu chữ; câu hỏi và ma trận chưa khóa theo mã mới.
         let outcomeSync = null;
         if (window.BankCore?.syncOutcomeIds) {
@@ -981,12 +989,6 @@
         const idx = existing.findIndex(x => ((x.subject_name || 'Tin học') === targetSubject) && Number(x.grade) === grade && x.lesson_code === lessonObj.lesson_code);
         if (idx >= 0) existing[idx] = lessonObj;
         else existing.push(lessonObj);
-        if (window.BankCore?.detectPrerequisiteCycle) {
-          const cyc = window.BankCore.detectPrerequisiteCycle(existing, targetSubject);
-          if (cyc && cyc.hasCycle) {
-            throw new Error(`Không lưu được bài ${lessonObj.lesson_code}: quan hệ bài tiền đề tạo vòng lặp (${cyc.cycle.join(' → ')}). Hãy bỏ bớt liên kết gây vòng.`);
-          }
-        }
         currentWorkspaceData.bank.ppct.lessons = existing;
         await syncToFirestore(uid, currentWorkspaceData);
         if (window.store && window.store.bank) window.store.bank.ppct = JSON.parse(JSON.stringify(currentWorkspaceData.bank.ppct));

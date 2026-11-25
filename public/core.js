@@ -1000,7 +1000,8 @@ function syncEditedQuestionsFromSheet(sheet,record){
     const g=Number(defaultGrade);
     return {grade:Number.isInteger(g)?g:null,lesson_code:s,cross_grade:false};
   }
-  function detectPrerequisiteCycle(lessons,subject){
+  // opts.through = 'khối:mã bài': chỉ tìm vòng lặp ĐI QUA bài đó (khi lưu một bài, vòng lặp cũ ở chỗ khác không chặn việc lưu).
+  function detectPrerequisiteCycle(lessons,subject,opts={}){
     const subjOf=x=>kNorm(x?.subject_name||'Tin học');
     const wantSubj=subject?kNorm(subject):null;
     const scoped=(Array.isArray(lessons)?lessons:[]).filter(l=>l&&l.lesson_code&&Number.isInteger(Number(l.grade))&&(!wantSubj||subjOf(l)===wantSubj));
@@ -1020,6 +1021,16 @@ function syncEditedQuestionsFromSheet(sheet,record){
         if(!adj.has(from))adj.set(from,[]);
         adj.get(from).push(to);
       }
+    }
+    if(opts&&opts.through){
+      const m=String(opts.through).match(/^(\d+):(.+)$/);const start=m?keyOf(m[1],m[2]):null;
+      if(!start||!adj.has(start))return {hasCycle:false,cycle:[]};
+      const prev=new Map([[start,null]]),queue=[start];
+      while(queue.length){const u=queue.shift();for(const v of (adj.get(u)||[])){
+        if(v===start){const path=[v];for(let x=u;x!==null;x=prev.get(x))path.unshift(x);return {hasCycle:true,cycle:path.map(k=>labelOf.get(k)||k)};}
+        if(!prev.has(v)){prev.set(v,u);queue.push(v);}
+      }}
+      return {hasCycle:false,cycle:[]};
     }
     const state=new Map(),stack=[];
     for(const start of adj.keys()){

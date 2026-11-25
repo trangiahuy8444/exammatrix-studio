@@ -1,3 +1,9 @@
+## 25/11/2026 — Sửa lỗi sau rà soát commit 107ac84 (Antigravity)
+
+- Lưu PPCT: kiểm tra vòng lặp bài tiền đề **trước** khi cập nhật câu hỏi/ma trận (trước đây câu hỏi trong bộ nhớ đã bị đổi dù lần lưu bị từ chối); chỉ chặn vòng lặp đi qua bài đang lưu (`core.detectPrerequisiteCycle(..., { through })`), vòng lặp cũ ở chỗ khác không còn chặn mọi lần lưu.
+- Kho luật: vi phạm R-DE-CUONG-HOP-LE mang mã `revision` như kiểm định cũ, khu đối chiếu không còn báo lệch giả.
+- Báo cáo kho luật: luật có từ 3 vi phạm trở lên (vd 24 câu chưa duyệt) gộp thành một mục, một nút sửa, danh sách đầy đủ mở khi bấm.
+
 ## 25/11/2026 — Hoàn thiện Bản đồ tri thức & Kho luật (6 việc)
 
 Thực hiện trọn vẹn `docs/KE_HOACH_GIAO_ANTIGRAVITY.md` trên nền đồ thị tri thức và kho luật suy diễn tiến:

@@ -33,11 +33,23 @@
     </div>`;
   }
 
+  // Luật có từ 3 vi phạm trở lên (vd 24 câu chưa duyệt) gộp thành một mục: câu đầu, số vi phạm cùng loại, danh sách đầy đủ, một nút sửa.
   function findingList(items, cls, ctx = {}) {
     if (!items || !items.length) return '';
-    return `<ul class="kg-findings">${items.map(f => `<li class="${cls}"><strong>${esc(f.message)}</strong>
+    const groups = [];
+    const byRule = new Map();
+    for (const f of items) {
+      const k = f.rule || f.message;
+      if (!byRule.has(k)) { const g = { rule: k, items: [] }; byRule.set(k, g); groups.push(g); }
+      byRule.get(k).items.push(f);
+    }
+    const one = f => `<li class="${cls}"><strong>${esc(f.message)}</strong>
       ${cls === 'kg-error' ? fixButtonHtml(f, ctx) : ''}
-      <details><summary>Vì sao?</summary><pre class="kg-why">${esc(f.explanation || '')}</pre></details></li>`).join('')}</ul>`;
+      <details><summary>Vì sao?</summary><pre class="kg-why">${esc(f.explanation || '')}</pre></details></li>`;
+    return `<ul class="kg-findings">${groups.map(g => g.items.length < 3 ? g.items.map(one).join('') : `<li class="${cls}"><strong>${esc(g.items[0].message)}</strong> <span class="small muted">và ${g.items.length - 1} vi phạm cùng loại (${esc(g.rule)})</span>
+      ${cls === 'kg-error' ? fixButtonHtml(g.items[0], ctx) : ''}
+      <details><summary>Xem đủ ${g.items.length} vi phạm</summary><ul class="small">${g.items.map(f => `<li>${esc(f.message)}</li>`).join('')}</ul></details>
+      <details><summary>Vì sao?</summary><pre class="kg-why">${esc(g.items[0].explanation || '')}</pre></details></li>`).join('')}</ul>`;
   }
 
   // Dùng trong báo cáo kiểm định đề (app.js, chế độ "verify").

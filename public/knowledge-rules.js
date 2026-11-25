@@ -123,7 +123,7 @@
       ['R-CAN-MA-TRAN', 'matrix_required', CAN_CU.CAN_MA_TRAN, 'goi_y_thay_the', 'Gắn ma trận đã khóa', 'Mở Ma trận & đặc tả để khóa ma trận và tạo đề chính thức từ ma trận đó.'],
       ['R-DE-CUONG-HOP-LE', 'revision_invalid', CAN_CU.DE_CUONG_90, 'mo_doi_chieu_de_cuong', 'Kiểm tra lại đề cương gắn kèm', 'Mở màn Đề cương để rà soát các câu chưa duyệt hoặc sai khối.']
     ].map(([id, code, cc, act, lbl, desc]) => ({
-      id, muc: 'chan', can_cu: cc, ma_cu: code,
+      id, muc: 'chan', can_cu: cc, ma_cu: code === 'revision_invalid' ? 'revision' : code, // cùng mã với kiểm định cũ để đối chiếu không báo lệch giả
       cach_sua: { hanh_dong: act, nhan: lbl, mo_ta: desc },
       neu: [['?d', 'thu_tuc', '?x'], ['?x', 'ma', code], ['?x', 'mo_ta', '?m']], vi_pham: '{?m}'
     })),

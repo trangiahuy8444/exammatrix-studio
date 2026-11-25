@@ -33,7 +33,7 @@ test('index.html preserves required shell, header, toast, and sidebar IDs', () =
   assert(!indexHtml.includes('class="page-crumb"'), 'Redundant breadcrumb should be removed from topbar');
   assert(indexHtml.includes('./styles.css?v=20261125m'));
   assert(indexHtml.includes('./matrices.js?v=20261125n'));
-  assert(indexHtml.includes('./firebase-bridge.js?v=20261125o'));
+  assert(indexHtml.includes('./firebase-bridge.js?v=20261125q'));
   assert(indexHtml.includes('./app.js?v=20261125o'));
 });
 

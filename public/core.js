@@ -984,10 +984,62 @@ function syncEditedQuestionsFromSheet(sheet,record){
   const kPlain=x=>kNorm(x).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d');
   const kText=o=>typeof o==='string'?o:(o&&typeof o==='object'?String(o.text??o.outcome??o.content??''):'');
   // Cụm 2 từ (đã bỏ dấu, bỏ từ quá ngắn) để so mức giống nhau của hai câu chữ.
+  const VI_STOPWORDS=new Set(['la','cua','va','trong','cho','tu','de','cac','mot','nhung','duoc','voi','khi','o','tai','ve','theo','nhu','nay','do','thi','ma','neu','vi','sao','gi','co','nao','hay','hoac','nhieu','it','ra','vao','den','tren','duoi','sau','truoc','da','se','dang','bang','tai','boi']);
   function textBigrams(s){const w=kPlain(s).split(/[^a-z0-9]+/).filter(x=>x.length>1);const out=new Set(w);for(let i=0;i+1<w.length;i++)out.add(w[i]+' '+w[i+1]);return out;}
-  function textSimilarity(a,b){const x=textBigrams(a),y=textBigrams(b);if(!x.size||!y.size)return 0;let n=0;for(const t of x)if(y.has(t))n++;return n/(x.size+y.size-n);}
+  function questionBigrams(s){const w=kPlain(s).split(/[^a-z0-9]+/).filter(x=>x.length>1&&!VI_STOPWORDS.has(x));const out=new Set();for(let i=0;i+1<w.length;i++)out.add(w[i]+' '+w[i+1]);if(!out.size&&w.length===1)out.add(w[0]);return out;}
+  function jaccardSets(x,y){if(!x.size||!y.size)return 0;let n=0;for(const t of x)if(y.has(t))n++;return n/(x.size+y.size-n);}
+  function textSimilarity(a,b){return jaccardSets(questionBigrams(a),questionBigrams(b));}
   // Độ giống khi SỬA câu chữ: lấy thêm tỉ lệ "câu ngắn nằm trong câu dài" (viết thêm/bớt một vế vẫn là YCCĐ cũ), hệ số 0,75.
   function editSimilarity(a,b){const x=textBigrams(a),y=textBigrams(b);if(!x.size||!y.size)return 0;let n=0;for(const t of x)if(y.has(t))n++;return Math.max(n/(x.size+y.size-n),0.75*n/Math.min(x.size,y.size));}
+
+  // Tiền đề liên khối: '8:B12' -> { grade: 8, lesson_code: 'B12', cross_grade: true }; 'B1' -> { grade: defaultGrade, lesson_code: 'B1', cross_grade: false }.
+  function parsePrerequisite(raw,defaultGrade){
+    const s=String(raw||'').trim();if(!s)return null;
+    const m=s.match(/^(\d{1,2})\s*:\s*(.+)$/);
+    if(m){const g=Number(m[1]),code=String(m[2]||'').trim();if(!Number.isInteger(g)||!code)return null;return {grade:g,lesson_code:code,cross_grade:Number(defaultGrade)!==g};}
+    const g=Number(defaultGrade);
+    return {grade:Number.isInteger(g)?g:null,lesson_code:s,cross_grade:false};
+  }
+  function detectPrerequisiteCycle(lessons,subject){
+    const subjOf=x=>kNorm(x?.subject_name||'Tin học');
+    const wantSubj=subject?kNorm(subject):null;
+    const scoped=(Array.isArray(lessons)?lessons:[]).filter(l=>l&&l.lesson_code&&Number.isInteger(Number(l.grade))&&(!wantSubj||subjOf(l)===wantSubj));
+    const keyOf=(g,code)=>`${Number(g)}:${kNorm(code)}`;
+    const byKey=new Map(),labelOf=new Map(),adj=new Map();
+    for(const l of scoped){
+      const k=keyOf(l.grade,l.lesson_code);
+      byKey.set(k,l);labelOf.set(k,`${Number(l.grade)}:${String(l.lesson_code).trim()}`);
+      if(!adj.has(k))adj.set(k,[]);
+    }
+    for(const l of scoped){
+      const to=keyOf(l.grade,l.lesson_code);
+      for(const raw of (Array.isArray(l.prerequisites)?l.prerequisites:[])){
+        const pr=parsePrerequisite(raw,l.grade);if(!pr||pr.grade===null)continue;
+        const from=keyOf(pr.grade,pr.lesson_code);
+        if(!byKey.has(from))continue;
+        if(!adj.has(from))adj.set(from,[]);
+        adj.get(from).push(to);
+      }
+    }
+    const state=new Map(),stack=[];
+    for(const start of adj.keys()){
+      if(state.get(start))continue;
+      const dfs=(u)=>{
+        state.set(u,1);stack.push(u);
+        for(const v of (adj.get(u)||[])){
+          if(state.get(v)===1){
+            const idx=stack.indexOf(v);
+            return [...stack.slice(idx),v].map(k=>labelOf.get(k)||k);
+          }
+          if(!state.get(v)){const cyc=dfs(v);if(cyc)return cyc;}
+        }
+        stack.pop();state.set(u,2);return null;
+      };
+      const cyc=dfs(start);
+      if(cyc)return {hasCycle:true,cycle:cyc};
+    }
+    return {hasCycle:false,cycle:[]};
+  }
 
   // --- Câu trùng: một định nghĩa cho cả kho luật, đối chiếu đề cương, tạo đề ---
   // Khóa nội dung: dạng + lời dẫn + phương án (kèm đúng/sai, không phụ thuộc thứ tự) + mệnh đề Đ/S + đáp án ngắn.
@@ -1057,7 +1109,14 @@ function syncEditedQuestionsFromSheet(sheet,record){
   // Gợi ý YCCĐ gần nhất cho câu có YCCĐ lệch chữ (để giáo viên xác nhận một lần).
   function suggestOutcomes(lesson,textValue,limit=3){
     const outs=(Array.isArray(lesson?.outcomes)?lesson.outcomes:[]).map(kText),ids=lessonOutcomeIds(lesson);
-    return outs.map((o,i)=>({index:i,id:ids[i],text:o,score:Math.round(100*textSimilarity(o,textValue))/100})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.index-b.index).slice(0,limit);
+    const uni=s=>new Set(kPlain(s).split(/[^a-z0-9]+/).filter(x=>x.length>1));
+    const tUni=uni(textValue);
+    return outs.map((o,i)=>{
+      let score=textSimilarity(o,textValue);
+      if(!score)score=Math.round(30*jaccardSets(uni(o),tUni))/100;
+      else score=Math.round(100*score)/100;
+      return {index:i,id:ids[i],text:o,score};
+    }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.index-b.index).slice(0,limit);
   }
   const kSubj=x=>kNorm(x?.subject_name||'Tin học');
   const sameLesson=(a,b)=>Number(a?.grade)===Number(b?.grade)&&kSubj(a)===kSubj(b)&&kNorm(a?.lesson_code)===kNorm(b?.lesson_code);
@@ -1138,6 +1197,6 @@ function syncEditedQuestionsFromSheet(sheet,record){
     if(apply&&report.changed){if(bank.ppct)bank.ppct.lessons=lessonsOut;bank.questions=qsOut;if(Array.isArray(data.matrices))data.matrices=msOut;}
     return report;
   }
-  const api={syncOutcomeIds,normalizeOutcomeIds,questionKeys,questionRelation,RELATION_LABELS,textSimilarity,outcomeIdPrefix,lessonOutcomeIds,assignOutcomeIds,resolveOutcome,suggestOutcomes,kyStepperModel,dossierStatus,permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  const api={syncOutcomeIds,normalizeOutcomeIds,questionKeys,questionRelation,RELATION_LABELS,textSimilarity,questionBigrams,VI_STOPWORDS,parsePrerequisite,detectPrerequisiteCycle,outcomeIdPrefix,lessonOutcomeIds,assignOutcomeIds,resolveOutcome,suggestOutcomes,kyStepperModel,dossierStatus,permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

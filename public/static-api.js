@@ -1138,13 +1138,21 @@
   if(path==='/api/knowledge/overview'||path==='/api/knowledge/lesson-context'||path==='/api/knowledge/rules'||path==='/api/knowledge/check-exam'){
    const {g:KG,r:KR}=knowledgeLibs();if(!KG||!KR)fail('Chưa nạp mô-đun đồ thị tri thức. Vui lòng tải lại trang.',503);
    if(path==='/api/knowledge/rules')return result({rules:KR.describeRules()});
+   if(path==='/api/knowledge/check-exam'){
+    const exam=own(find(data.exams,p.id)),w=Number(p.scope_week);
+    const examGraph=typeof KG.buildGraphForExam==='function'?KG.buildGraphForExam(exam,data):KG.buildGraph(data,{subject:exam.subject_name||subject});
+    const proc=engine.verifyExam(data,exam).errors;
+    const report=KR.checkExam(data,exam,{...(Number.isInteger(w)&&w>0?{scopeWeek:w}:{}),procedural:proc,config:data.profile?.rule_config});
+    return result({report:{...report,snapshot_used:Boolean(exam.ppct_snapshot||exam.matrix_snapshot||exam.revision_snapshot),graph_summary:KG.summary(examGraph)}});
+   }
    const graph=KG.buildGraph(data,{subject});
    if(path==='/api/knowledge/lesson-context'){const ctx=KG.lessonContext(graph,subject,p.grade,p.lesson_code);if(!ctx)fail('Không tìm thấy bài trong PPCT.',404);return result({context:ctx});}
-   if(path==='/api/knowledge/check-exam'){const exam=own(find(data.exams,p.id));const w=Number(p.scope_week);return result({report:KR.checkExam(data,exam,Number.isInteger(w)&&w>0?{scopeWeek:w}:{})});}
    const grade=p.grade===undefined||p.grade===null||p.grade===''?undefined:Number(p.grade);
    const opt=grade===undefined?{}:{grade};const qs=bank.filter(q=>q&&(grade===undefined||Number(q.grade)===grade)&&String(q.subject_name||'Tin học').normalize('NFC').trim().toLowerCase()===String(subject).normalize('NFC').trim().toLowerCase());
    const week=Number(p.scope_week);
-   return result({summary:KG.summary(graph),issues:KG.validateGraph(graph,opt),coverage:KG.coverage(graph,opt),duplicates:KG.nearDuplicateGroups(graph,qs,{...opt,threshold:p.threshold??0.8}),study_order:KG.studyOrder(graph,opt),id_audit:KG.outcomeIdAudit?KG.outcomeIdAudit(graph,opt):null,matrix_cells:KG.matrixCells?(data.matrices||[]).filter(m=>m&&m.status!=='archived'&&(grade===undefined||Number(m.grade)===grade)).map(m=>({id:m.id,title:m.title||m.id,cells:KG.matrixCells(graph,m.id)})).filter(x=>x.cells.length):[],after_week:grade!==undefined&&Number.isInteger(week)&&week>0?KG.lessonsAfterWeek(graph,grade,week,subject):[]});
+   const schemaIssues=typeof KG.checkSchema==='function'?KG.checkSchema(graph):[];
+   const prereqSuggestions=typeof KG.suggestPrerequisites==='function'?KG.suggestPrerequisites(graph,opt):[];
+   return result({summary:KG.summary(graph),issues:KG.validateGraph(graph,opt),schema_issues:schemaIssues,coverage:KG.coverage(graph,opt),duplicates:KG.nearDuplicateGroups(graph,qs,{...opt,threshold:p.threshold??0.8}),study_order:KG.studyOrder(graph,opt),prerequisite_suggestions:prereqSuggestions,id_audit:KG.outcomeIdAudit?KG.outcomeIdAudit(graph,opt):null,matrix_cells:KG.matrixCells?(data.matrices||[]).filter(m=>m&&m.status!=='archived'&&(grade===undefined||Number(m.grade)===grade)).map(m=>({id:m.id,title:m.title||m.id,cells:KG.matrixCells(graph,m.id)})).filter(x=>x.cells.length):[],after_week:grade!==undefined&&Number.isInteger(week)&&week>0?KG.lessonsAfterWeek(graph,grade,week,subject):[]});
   }
   if(path==='/api/exams/verify'){
    const exam=own(find(data.exams,p.id));workflow.assertEditable(exam);

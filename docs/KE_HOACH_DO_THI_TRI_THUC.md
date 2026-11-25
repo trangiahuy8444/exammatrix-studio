@@ -1,6 +1,6 @@
 # Kế hoạch áp dụng đồ thị tri thức và hệ cơ sở tri thức — 24/11/2026
 
-> Trạng thái (24/11/2026): giáo viên yêu cầu triển khai và tự chuyển giai đoạn. **Đã triển khai Giai đoạn 1–5 dạng mô-đun mới, chỉ đọc hoặc chạy song song**, không đổi cách lưu dữ liệu và chưa thay quyết định duyệt đề của mã cũ. Giai đoạn 0 làm một phần (xem bảng dưới).
+> Trạng thái (25/11/2026): Đã hoàn thành Giai đoạn 1–5 và 6 việc nâng cấp trong `docs/KE_HOACH_GIAO_ANTIGRAVITY.md` (lược đồ `SCHEMA` + `checkSchema`, tách năng lực theo YCCĐ/chỉ báo/NLS TT 02/2025/Giáo dục AI QĐ 2422, đồ thị bản chụp `buildGraphForExam`, luật `R-TI-LE-DANG` + `cach_sua` bấm được, bigram thuần & tiền đề liên khối chống chu trình). Giai đoạn 0 còn thử nghiệm đăng nhập Google thật (xem bảng dưới).
 >
 > | Giai đoạn | Trạng thái | Tệp |
 > | :--- | :--- | :--- |
@@ -33,6 +33,7 @@ Một hệ cơ sở tri thức gồm ba phần: **kho tri thức**, **bộ máy 
 | :--- | :--- |
 | Chủ đề, bài, yêu cầu cần đạt môn Tin học | TT 32/2018/TT-BGDĐT |
 | Khung năng lực số | TT 02/2025/TT-BGDĐT; CV 3456/BGDĐT-GDPT |
+| Giáo dục Trí tuệ nhân tạo | QĐ 2422/QĐ-BGDĐT; CV 5588/BGDĐT-GDPT |
 | Kiểm tra, đánh giá; KTTX | TT 22/2021/TT-BGDĐT; CV 7991/BGDĐT-GDTrH |
 | PPCT, kế hoạch kiểm tra đánh giá | CV 5512/BGDĐT-GDTrH (Phụ lục 1, 3) |
 | Quy tắc riêng của trường | `../AGENTS.md`, `../rules/01`–`06` |

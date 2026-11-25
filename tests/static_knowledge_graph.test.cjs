@@ -50,8 +50,13 @@ test('Dựng đồ thị: đủ loại nút, cạnh, định danh ổn định, 
   assert.equal(g.match('cau:Q1', 'danh_gia', 'yccd:TIN8-B1-YC1').length, 1);
   assert.equal(g.match('cau:Q1', 'nam_trong', 'decuong:REV8').length, 1);
   assert.equal(g.match('bai:tin-hoc:8:B1', 'tien_de', 'bai:tin-hoc:8:B2').length, 1);
+  // Việc 3: năng lực chung cả bài gắn vào nút bài; từng YCCĐ chỉ nhận năng lực gắn riêng cho YCCĐ đó (từ ma trận hoặc PPCT).
   const comps = g.outgoing('yccd:TIN8-B1-YC1', 'phat_trien').map(e => e.o).sort();
-  assert.deepEqual(comps, ['nangluc:NLa', 'nangluc:NLb', 'nangluc:NLc']);
+  assert.deepEqual(comps, ['nangluc:NLb']);
+  const comps2 = g.outgoing('yccd:TIN8-B1-YC2', 'phat_trien').map(e => e.o).sort();
+  assert.deepEqual(comps2, []);
+  const lessonComps = g.outgoing('bai:tin-hoc:8:B1', 'phat_trien').map(e => e.o).sort();
+  assert.deepEqual(lessonComps, ['nangluc:NLa', 'nangluc:NLc']);
   // Dựng lại cho cùng kết quả (định danh ổn định, không phụ thuộc thứ tự chạy)
   assert.deepEqual(KG.buildGraph(workspace()).toJSON(), g.toJSON());
 });
@@ -173,4 +178,113 @@ test('AI có căn cứ tri thức: lời nhắc kèm YCCĐ, năng lực, bài ti
     { grade: 8, lesson_code: 'B77', learning_outcome: 'x', type: 'YN' }
   ], data.bank.ppct, { subject: 'Tin học' });
   assert.deepEqual(warns.map(w => w.index + ':' + w.code), ['2:yccd_ngoai_ppct', '3:bai_ngoai_ppct', '3:dang_cau_cap_hoc']);
+});
+
+test('Việc 2: schema chuẩn phát hiện cạnh sai loại nút hoặc nút bài thiếu cạnh bắt buộc', () => {
+  assert.ok(KG.SCHEMA && Array.isArray(KG.SCHEMA.node_types) && KG.SCHEMA.predicates && KG.SCHEMA.required_edges);
+  const g = KG.buildGraph(workspace());
+  assert.deepEqual(KG.checkSchema(g), []);
+  g.addEdge('cau:Q1', 'tien_de', 'yccd:TIN8-B1-YC1');
+  const errs = KG.checkSchema(g);
+  assert.ok(errs.some(e => e.code === 'schema_endpoint_type' && e.edge?.p === 'tien_de'), JSON.stringify(errs));
+  const g2 = KG.createGraph();
+  g2.addNode('bai:tin-hoc:8:BX', 'bai', 'Bài thiếu chủ đề', { lesson_code: 'BX' });
+  const errs2 = KG.checkSchema(g2);
+  assert.ok(errs2.some(e => e.code === 'schema_required_edge' && /thuoc_chu_de/.test(e.message)), JSON.stringify(errs2));
+});
+
+test('Việc 3: tách năng lực/chỉ báo từng YCCĐ, chuẩn Năng lực số (TT 02/2025) và Giáo dục AI (QĐ 2422)', () => {
+  const core = require('../public/core.js');
+  const ws = workspace();
+  ws.bank.ppct.lessons[0].outcome_competencies = ['NLa', 'NLd'];
+  ws.bank.ppct.lessons[0].digital_competencies = ['1.1.TC2a', '8.A1.1', '1.2.TC2b'];
+  ws.matrices[0].requirements[0].indicator = 'CB.1';
+  const g = KG.buildGraph(ws, { grade: 8 });
+  assert.deepEqual(KG.checkSchema(g), []);
+  assert.deepEqual(g.outgoing('yccd:TIN8-B1-YC1', 'phat_trien').map(e => e.o).sort(), ['nangluc:NLa', 'nangluc:NLb']);
+  assert.deepEqual(g.outgoing('yccd:TIN8-B1-YC2', 'phat_trien').map(e => e.o).sort(), ['nangluc:NLd']);
+  assert.ok(g.node('chibao:CB.1'));
+  assert.equal(g.match('yccd:TIN8-B1-YC1', 'dat_chi_bao', 'chibao:CB.1').length, 1);
+  assert.ok(g.node('nls:1.1.TC2a'));
+  assert.ok(g.node('ai:8.A1.1'));
+  assert.equal(g.match('bai:tin-hoc:8:B1', 'phat_trien', 'nls:1.1.TC2a').length, 1);
+  assert.equal(g.match('bai:tin-hoc:8:B1', 'phat_trien', 'ai:8.A1.1').length, 1);
+  const cov = KG.coverage(g, { grade: 8 });
+  const row1 = cov.find(r => r.lesson_code === 'B1' && r.yccd === 'yccd:TIN8-B1-YC1');
+  assert.ok(row1 && row1.competencies.includes('NLa') && row1.indicators.includes('CB.1') && row1.digital_competencies.includes('1.1.TC2a') && row1.ai_codes.includes('8.A1.1'), JSON.stringify(row1));
+  assert.deepEqual(KG.digitalCompetencyCodes(['1.1.TC2a', 'NLa']).map(x => x.code), ['1.1.TC2a']);
+  assert.deepEqual(KG.aiEducationCodes(['8.A1.1', '10.B2.MR1', 'NLa']).map(x => x.code), ['10.B2.MR1', '8.A1.1']);
+  assert.equal(core.textSimilarity('máy tính', 'tính máy'), 0);
+});
+
+test('Việc 4 & 6: đồ thị theo bản chụp đề không đổi khi sửa PPCT; chống đảo từ & chu trình tiền đề liên khối', async () => {
+  const ws = workspace();
+  const exam = {
+    id: 'EX-SNAP', title: 'Đề chụp', grade: 8, subject_name: 'Tin học', exam_type: 'GK1', duration: 45,
+    questions: [{ ...ws.bank.questions[0], points: 10, slot_number: 1 }],
+    ppct_snapshot: JSON.parse(JSON.stringify(ws.bank.ppct))
+  };
+  const beforeG = KG.buildGraphForExam(exam, ws);
+  // Sửa PPCT gốc của ngân hàng (xóa hết YCCĐ của B1): đồ thị từ bản chụp của đề vẫn giữ nguyên nguồn gốc & YCCĐ.
+  ws.bank.ppct.lessons[0].outcomes = [];
+  ws.bank.ppct.lessons[0].outcome_ids = [];
+  const afterG = KG.buildGraphForExam(exam, ws);
+  assert.ok(afterG.node('yccd:TIN8-B1-YC1'));
+  const evalEdge = afterG.outgoing('cau:Q1', 'danh_gia')[0];
+  assert.ok(evalEdge && evalEdge.props && evalEdge.props.nguon && 'phien_ban' in evalEdge.props, JSON.stringify(evalEdge));
+  assert.equal(beforeG.nodes.size, afterG.nodes.size);
+
+  // Chống đảo từ trong nearDuplicateGroups: "máy tính bảng" vs "bảng tính máy" không được gom nhóm trùng.
+  ws.bank.questions.push(
+    { id: 'Q-SWAP-1', grade: 8, subject_name: 'Tin học', lesson_code: 'B1', type: 'MC', level: 'Biết', question: 'Máy tính bảng dùng để làm gì trong học tập', answer: 'A', options: ['A', 'B', 'C', 'D'], review_status: 'approved' },
+    { id: 'Q-SWAP-2', grade: 8, subject_name: 'Tin học', lesson_code: 'B1', type: 'MC', level: 'Biết', question: 'Bảng tính máy học tập làm gì để dùng trong', answer: 'A', options: ['A', 'B', 'C', 'D'], review_status: 'approved' }
+  );
+  const gDup = KG.buildGraph(ws, { grade: 8 });
+  const swapGroup = KG.nearDuplicateGroups(gDup, { grade: 8, threshold: 0.7 }).find(gr => gr.some(x => x.id === 'Q-SWAP-1'));
+  assert.equal(swapGroup, undefined);
+
+  // Tiền đề liên khối 8:B12 + chặn chu trình khi lưu PPCT.
+  ws.bank.ppct.lessons.push(
+    { id: 'L9-1', grade: 9, subject_name: 'Tin học', lesson_code: 'B1', lesson_name_source: 'Bài 1 K9', topic_source: 'CĐ 9', week_raw: 'Tuần 1', outcomes: ['YC9-1'], outcome_ids: ['TIN9-B1-YC1'], prerequisites: ['8:B4'] }
+  );
+  const gCross = KG.buildGraph(ws, {});
+  assert.equal(gCross.match('bai:tin-hoc:8:B4', 'tien_de', 'bai:tin-hoc:9:B1').length, 1);
+  assert.ok(Array.isArray(KG.suggestPrerequisites(gCross, { grade: 8, subject_name: 'Tin học' })));
+
+  const fs = require('node:fs'), vm = require('node:vm');
+  const { webcrypto } = require('node:crypto');
+  const values = new Map();
+  const win = {
+    EXAMMATRIX_TEST_SEED: {
+      bank: {
+        questions: [],
+        ppct: {
+          lessons: [
+            { grade: 8, subject_name: 'Tin học', lesson_code: 'B1', lesson_name_source: 'B1', outcomes: ['YC 1'], prerequisites: ['B2'] },
+            { grade: 8, subject_name: 'Tin học', lesson_code: 'B2', lesson_name_source: 'B2', outcomes: ['YC 2'], prerequisites: [] }
+          ]
+        }
+      },
+      matrices: [], revisions: [], exams: []
+    },
+    location: { hostname: 'localhost', protocol: 'http:' },
+    BankStaticAPI: require('../public/static-api.js'),
+    BankStaticEngine: require('../public/static-exam-engine.js'),
+    BankStaticWorkflow: require('../public/static-exam-workflow.js'),
+    BankCore: require('../public/core.js'),
+    crypto: webcrypto
+  };
+  const context = {
+    window: win, crypto: webcrypto, console: { ...console, info() {}, log() {} },
+    setTimeout, clearTimeout,
+    document: { querySelector: () => null, getElementById: () => null },
+    localStorage: { getItem: k => values.get(k), setItem: (k, v) => values.set(k, v), removeItem: k => values.delete(k) }
+  };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../public/firebase-bridge.js'), 'utf8'), context);
+  await assert.rejects(
+    () => win.FirebaseClient.handle('/api/ppct/save-lesson', { lesson: { grade: 8, subject_name: 'Tin học', lesson_code: 'B2', lesson_name_source: 'B2', outcomes: ['YC 2'], prerequisites: ['B1'] } }),
+    /vòng lặp|chu trình/i
+  );
+  const okCross = await win.FirebaseClient.handle('/api/ppct/save-lesson', { lesson: { grade: 9, subject_name: 'Tin học', lesson_code: 'B1', lesson_name_source: 'B1 K9', outcomes: ['YC 9'], prerequisites: ['8:B1'] } });
+  assert.deepEqual([...okCross.lesson.prerequisites], ['8:B1']);
 });

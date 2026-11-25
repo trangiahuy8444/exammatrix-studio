@@ -31,6 +31,7 @@
     DANG_CAU_THPT: 'CV 7991/BGDĐT-GDTrH, Phụ lục (THPT: nhiều lựa chọn, Đúng – Sai, trả lời ngắn, tự luận)',
     DANG_CAU_THCS: 'Quy ước của tổ: THCS dùng nhiều lựa chọn và tự luận (docs/BOI_CANH.md; danh sách dạng câu THCS còn chờ tổ xác nhận)',
     DE_CUONG_90: 'Quy tắc trường rules/01_phan_cong_va_bien_soan_de.md (90% đề lấy từ hoặc bám sát đề cương ôn tập)',
+    TI_LE_DANG: 'Quyết định giáo viên 25/11/2026: tỉ lệ đề cương theo từng dạng',
     PHU_YCCD: 'Quyết định giáo viên 26/10/2026 (docs/BOI_CANH.md mục 4): tiêu chí đề cương phủ YCCĐ 100%',
     CAU_DA_DUYET: 'Quyết định giáo viên 26/10/2026 (docs/BOI_CANH.md mục 4): đề chính thức chỉ dùng câu đã duyệt',
     KHONG_TRUNG: 'Bất biến nghiệp vụ (docs/THIET_KE.md): đề không có câu trùng',
@@ -62,47 +63,70 @@
 
     // --- Luật vi phạm (chặn) ---
     { id: 'R-TONG-10', muc: 'chan', ma_cu: 'points', can_cu: CAN_CU.THANG_DIEM_10,
+      cach_sua: { hanh_dong: 'mo_de_kiem_tra', nhan: 'Mở đề để chỉnh điểm', mo_ta: 'Điều chỉnh điểm từng câu hoặc tạo lại đề từ ma trận đủ 10 điểm.' },
       neu: [['?d', 'la', 'de'], ['?d', 'tong_diem', '?t'], { thu: 'ne_num', a: '?t', b: 10 }],
       vi_pham: 'Tổng điểm của đề là {?t}, phải đúng 10 điểm.' },
     { id: 'R-DANG-CAU', muc: 'chan', ma_cu: 'matrix_cell', can_cu: [CAN_CU.DANG_CAU_THPT, CAN_CU.DANG_CAU_THCS],
+      cach_sua: { hanh_dong: 'goi_y_thay_the', nhan: 'Xem gợi ý câu đúng dạng / Ma trận', mo_ta: 'Đổi câu sang dạng được phép của cấp học hoặc chỉnh ma trận.' },
       neu: [['?d', 'co_cau', '?c'], ['?c', 'la_dang', '?k'], { khong: ['?d', 'cho_phep_dang', '?k'] }, ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n} là dạng {?k}, không thuộc các dạng câu được dùng cho đề này.' },
     { id: 'R-CHUA-DUYET', muc: 'chan', ma_cu: 'questions_not_approved', can_cu: CAN_CU.CAU_DA_DUYET,
+      cach_sua: { hanh_dong: 'mo_duyet_cau', nhan: 'Mở Duyệt câu hỏi', mo_ta: 'Duyệt các câu còn ở trạng thái Nháp/Chờ duyệt trước khi duyệt đề.' },
       neu: [['?d', 'co_cau', '?c'], ['?c', 'trang_thai', '?s'], { thu: 'ne', a: '?s', b: 'approved' }, ['?c', 'trang_thai_ten', '?ten'], ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n} chưa được duyệt (trạng thái: {?ten}).' },
     { id: 'R-KHAC-KHOI', muc: 'chan', ma_cu: 'scope', can_cu: CAN_CU.MA_TRAN_YCCD,
+      cach_sua: { hanh_dong: 'mo_de_kiem_tra', nhan: 'Mở đề kiểm tra', mo_ta: 'Thay câu khác khối bằng câu thuộc đúng khối lớp của đề.' },
       neu: [['?d', 'khoi', '?k'], ['?d', 'co_cau', '?c'], ['?c', 'khoi', '?kc'], { thu: 'ne_num', a: '?kc', b: '?k' }, ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n} thuộc Khối {?kc}, khác khối của đề (Khối {?k}).' },
     { id: 'R-KHAC-MON', muc: 'chan', ma_cu: 'scope', can_cu: CAN_CU.MA_TRAN_YCCD,
+      cach_sua: { hanh_dong: 'mo_de_kiem_tra', nhan: 'Mở đề kiểm tra', mo_ta: 'Thay câu khác môn bằng câu thuộc đúng môn học của đề.' },
       neu: [['?d', 'mon', '?m'], ['?d', 'co_cau', '?c'], ['?c', 'mon', '?mc'], { thu: 'ne', a: '?mc', b: '?m' }, ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n} thuộc môn {?mc}, khác môn của đề ({?m}).' },
     { id: 'R-TRUNG', muc: 'chan', ma_cu: 'duplicate', can_cu: CAN_CU.KHONG_TRUNG,
+      cach_sua: { hanh_dong: 'mo_de_kiem_tra', nhan: 'Mở đề để thay câu trùng', mo_ta: 'Thay một trong các câu bị trùng bằng câu khác trong ngân hàng.' },
       neu: [['?c1', 'trung_voi', '?c2'], ['?c1', 'muc_trung', '?m'], ['?c1', 'so_thu_tu', '?n1'], ['?c2', 'so_thu_tu', '?n2']],
       vi_pham: 'Câu {?n1} trùng với câu {?n2} ({?m}).' },
     { id: 'R-NGOAI-PPCT', muc: 'chan', ma_cu: 'matrix_cell', can_cu: CAN_CU.MA_TRAN_YCCD,
+      cach_sua: { hanh_dong: 'mo_ppct', nhan: 'Mở PPCT / Chuẩn hóa YCCĐ', mo_ta: 'Kiểm tra mã bài của câu hỏi trong Ngân hàng hoặc bổ sung bài vào PPCT.' },
       neu: [['?d', 'co_cau', '?c'], { khong: ['?c', 'thuoc_bai_ppct', true] }, ['?c', 'ma_bai', '?b'], ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n}: bài “{?b}” không có trong PPCT của khối.' },
     { id: 'R-NGOAI-YCCD', muc: 'chan', ma_cu: 'matrix_cell', can_cu: CAN_CU.MA_TRAN_YCCD,
+      cach_sua: { hanh_dong: 'mo_ppct', nhan: 'Mở PPCT / Chuẩn hóa YCCĐ', mo_ta: 'Chỉnh YCCĐ của câu hỏi hoặc dùng công cụ Chuẩn hóa mã YCCĐ.' },
       neu: [['?d', 'co_cau', '?c'], ['?c', 'thuoc_bai_ppct', true], { khong: ['?c', 'danh_gia_yccd_ppct', true] }, ['?c', 'ma_bai', '?b'], ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n}: YCCĐ của câu không khớp YCCĐ nào của bài {?b} trong PPCT.' },
     { id: 'R-CHUA-DE-CUONG', muc: 'chan', ma_cu: 'revision', can_cu: CAN_CU.DE_CUONG_90,
+      cach_sua: { hanh_dong: 'mo_doi_chieu_de_cuong', nhan: 'Gắn & đối chiếu đề cương', mo_ta: 'Gắn một phiên bản đề cương vào đề thi rồi kiểm định lại.' },
       neu: [['?d', 'la', 'de'], ['?d', 'co_de_cuong', false]],
       vi_pham: 'Đề chưa gắn đề cương ôn tập nên chưa kiểm được tỉ lệ 90%.' },
     { id: 'R-TI-LE-DE-CUONG', muc: 'chan', ma_cu: 'revision_criterion', can_cu: CAN_CU.DE_CUONG_90,
+      cach_sua: { hanh_dong: 'mo_doi_chieu_de_cuong', nhan: 'Điều chỉnh tỉ lệ đề cương', mo_ta: 'Mở khung Đối chiếu & điều chỉnh đề cương để bổ sung câu của đề vào đề cương.' },
       neu: [['?d', 'co_de_cuong', true], ['?d', 'so_cau_trong_de_cuong', '?x'], ['?d', 'so_cau_can_tu_de_cuong', '?y'], { thu: 'lt', a: '?x', b: '?y' }, ['?d', 'so_cau', '?n']],
       vi_pham: 'Mới có {?x}/{?n} câu lấy từ đề cương; cần ít nhất {?y} câu.' },
+    { id: 'R-TI-LE-DANG', muc: 'chan', ma_cu: 'revision_criterion', can_cu: [CAN_CU.TI_LE_DANG, CAN_CU.DE_CUONG_90],
+      cach_sua: { hanh_dong: 'mo_doi_chieu_de_cuong', nhan: 'Điều chỉnh tỉ lệ đề cương theo dạng', mo_ta: 'Mở khung Đối chiếu để bổ sung đủ câu từng dạng vào đề cương.' },
+      neu: [['?d', 'can_tu_de_cuong_dang', '?x'], ['?x', 'dang', '?t'], ['?x', 'dang_ten', '?ten'], ['?x', 'can', '?n'], ['?x', 'co', '?m'], ['?x', 'tong', '?tong'], { thu: 'lt', a: '?m', b: '?n' }],
+      vi_pham: 'Dạng {?ten} mới có {?m}/{?tong} câu lấy từ đề cương; cần ít nhất {?n} câu.' },
     { id: 'R-PHU-YCCD', muc: 'chan', ma_cu: 'revision_criterion', can_cu: CAN_CU.PHU_YCCD,
+      cach_sua: { hanh_dong: 'mo_doi_chieu_de_cuong', nhan: 'Bổ sung YCCĐ vào đề cương', mo_ta: 'Mở màn Đề cương để thêm câu phủ YCCĐ còn thiếu.' },
       neu: [['?d', 'co_de_cuong', true], ['?d', 'co_cau', '?c'], { khong: ['?c', 'yccd_trong_de_cuong', true] }, ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n} kiểm tra YCCĐ không có trong đề cương ôn tập.' },
 
     // --- Kết quả tính bằng thủ tục gắn kèm (procedural attachment): engine tính, kho luật quyết định ---
     ...[
-      ['R-TEN-DE', 'title', CAN_CU.HO_SO], ['R-SO-CAU', 'points', CAN_CU.HO_SO], ['R-TI-LE-KHAI-BAO', 'similarity', CAN_CU.DE_CUONG_90],
-      ['R-KY-THUAT', 'technical', CAN_CU.KY_THUAT], ['R-BAN-CHUP', 'snapshot', CAN_CU.BAN_CHUP],
-      ['R-MA-TRAN', 'matrix', CAN_CU.MA_TRAN_YCCD], ['R-O-MA-TRAN', 'matrix_cell', CAN_CU.MA_TRAN_YCCD], ['R-CAN-MA-TRAN', 'matrix_required', CAN_CU.CAN_MA_TRAN],
-      ['R-DE-CUONG-HOP-LE', 'revision_invalid', CAN_CU.DE_CUONG_90]
-    ].map(([id, code, cc]) => ({ id, muc: 'chan', can_cu: cc, ma_cu: code,
-      neu: [['?d', 'thu_tuc', '?x'], ['?x', 'ma', code], ['?x', 'mo_ta', '?m']], vi_pham: '{?m}' })),
+      ['R-TEN-DE', 'title', CAN_CU.HO_SO, 'mo_de_kiem_tra', 'Đặt tên đề kiểm tra', 'Nhập tên đề kiểm tra trong màn Tạo đề.'],
+      ['R-SO-CAU', 'points', CAN_CU.HO_SO, 'mo_de_kiem_tra', 'Kiểm tra số câu & điểm', 'Đối chiếu lại số câu và điểm tổng của đề.'],
+      ['R-TI-LE-KHAI-BAO', 'similarity', CAN_CU.DE_CUONG_90, 'mo_de_kiem_tra', 'Chỉnh tỉ lệ đề cương (90–100%)', 'Đặt lại tỉ lệ đề cương hợp lệ từ 90% đến 100%.'],
+      ['R-KY-THUAT', 'technical', CAN_CU.KY_THUAT, 'mo_de_kiem_tra', 'Sửa nội dung kỹ thuật câu hỏi', 'Bổ sung phương án, đáp án hoặc hướng dẫn chấm trong Ngân hàng rồi tạo lại đề.'],
+      ['R-BAN-CHUP', 'snapshot', CAN_CU.BAN_CHUP, 'kiem_dinh_lai', 'Kiểm định lại / Tạo lại đề', 'Bấm Kiểm định lại hoặc tạo lại đề để cập nhật bản chụp.'],
+      ['R-MA-TRAN', 'matrix', CAN_CU.MA_TRAN_YCCD, 'goi_y_thay_the', 'Kiểm tra ma trận nguồn', 'Mở Ma trận & đặc tả để đối chiếu cấu trúc đề với ma trận đã khóa.'],
+      ['R-O-MA-TRAN', 'matrix_cell', CAN_CU.MA_TRAN_YCCD, 'goi_y_thay_the', 'Xem gợi ý câu thay thế đúng ô', 'Thay câu lệch ô bằng câu gợi ý đúng bài, YCCĐ, dạng và mức độ.'],
+      ['R-CAN-MA-TRAN', 'matrix_required', CAN_CU.CAN_MA_TRAN, 'goi_y_thay_the', 'Gắn ma trận đã khóa', 'Mở Ma trận & đặc tả để khóa ma trận và tạo đề chính thức từ ma trận đó.'],
+      ['R-DE-CUONG-HOP-LE', 'revision_invalid', CAN_CU.DE_CUONG_90, 'mo_doi_chieu_de_cuong', 'Kiểm tra lại đề cương gắn kèm', 'Mở màn Đề cương để rà soát các câu chưa duyệt hoặc sai khối.']
+    ].map(([id, code, cc, act, lbl, desc]) => ({
+      id, muc: 'chan', can_cu: cc, ma_cu: code,
+      cach_sua: { hanh_dong: act, nhan: lbl, mo_ta: desc },
+      neu: [['?d', 'thu_tuc', '?x'], ['?x', 'ma', code], ['?x', 'mo_ta', '?m']], vi_pham: '{?m}'
+    })),
 
     // --- Cảnh báo (không chặn) ---
     { id: 'W-NGOAI-DE-CUONG', muc: 'canh_bao', can_cu: CAN_CU.DE_CUONG_90,
@@ -328,6 +352,7 @@
   }
 
   const STATUS_LABELS = { draft: 'bản nháp', pending_review: 'chờ duyệt', content_checked: 'chờ duyệt', needs_review: 'cần sửa lại', approved: 'đã duyệt', archived: 'lưu trữ' };
+  const KIND_VN = { MC: 'Trắc nghiệm', YN: 'Đúng/Sai', SHORT: 'Trả lời ngắn', ES: 'Tự luận' };
 
   function weekOf(l) {
     const raws = [l?.week_raw, ...list(l?.occurrences).map(o => (o && typeof o === 'object' ? o.week_raw : o))];
@@ -408,12 +433,19 @@
         const w = weekOf(lesson);
         if (w !== null) F.push([c, 'tuan_bat_dau', w]);
         for (const code of list(lesson.prerequisites)) {
-          const pre = lessons.get(`${norm(lesson.subject_name || subj)}|${Number(lesson.grade)}|${norm(code)}`);
+          const pr = (core && typeof core.parsePrerequisite === 'function')
+            ? core.parsePrerequisite(code, lesson.grade)
+            : { grade: Number(lesson.grade), lesson_code: String(code || '').trim() };
+          if (!pr || !pr.lesson_code) continue;
+          const pre = lessons.get(`${norm(lesson.subject_name || subj)}|${pr.grade}|${norm(pr.lesson_code)}`);
           if (!pre) continue;
-          const p = 'bai:' + norm(code);
-          F.push([c, 'can_bai_tien_de', p], [p, 'ma', String(code)]);
-          const pw = weekOf(pre);
-          if (pw !== null) F.push([p, 'tuan_bat_dau', pw]);
+          const labelCode = pr.grade !== Number(lesson.grade) ? `${pr.grade}:${pr.lesson_code}` : pr.lesson_code;
+          const p = 'bai:' + pr.grade + ':' + norm(pr.lesson_code);
+          F.push([c, 'can_bai_tien_de', p], [p, 'ma', labelCode]);
+          if (pr.grade === Number(lesson.grade)) {
+            const pw = weekOf(pre);
+            if (pw !== null) F.push([p, 'tuan_bat_dau', pw]);
+          }
         }
       }
       if (rev) {
@@ -426,6 +458,20 @@
     if (rev) {
       const threshold = Math.max(cfg.de_cuong_min_percent, Number(opts.threshold ?? e.similarity_target_percent ?? 90) || 0);
       F.push([d, 'so_cau_trong_de_cuong', inRev], [d, 'so_cau_can_tu_de_cuong', Math.ceil(qs.length * threshold / 100)]);
+      const typeTargets = rev?.coverage_targets || e?.coverage_targets || null;
+      if (typeTargets && typeof typeTargets === 'object') {
+        for (const t of ['MC', 'YN', 'SHORT', 'ES']) {
+          const raw = typeTargets[t];
+          if (raw === undefined || raw === null || raw === '' || !Number.isFinite(Number(raw))) continue;
+          const qType = qs.filter(q => q?.type === t);
+          if (!qType.length) continue;
+          const pctT = Math.max(0, Math.min(100, Math.round(Number(raw))));
+          const needT = Math.ceil(qType.length * pctT / 100);
+          const haveT = qType.filter(q => revKeys.has(contentKey(q))).length;
+          const x = 'dang_de_cuong:' + t;
+          F.push([d, 'can_tu_de_cuong_dang', x], [x, 'dang', t], [x, 'dang_ten', KIND_VN[t] || t], [x, 'can', needT], [x, 'co', haveT], [x, 'tong', qType.length]);
+        }
+      }
     }
     return F;
   }
@@ -444,8 +490,13 @@
     const byId = new Map(rules.map(r => [r.id, r]));
     const blocking = result.findings.filter(f => f.muc === 'chan');
     const warnings = result.findings.filter(f => f.muc !== 'chan');
+    const ctxMeta = { exam_id: e.id || '', revision_id: e.revision_id || revision?.id || '', grade: e.grade || '' };
     // code: mã lỗi quen thuộc của báo cáo kiểm định cũ (vd 'snapshot'), để màn hình và luồng duyệt đọc như trước.
-    const shape = f => ({ rule: f.rule, code: byId.get(f.rule)?.ma_cu || f.rule, message: f.message, can_cu: f.can_cu, explanation: explain(f, rules) });
+    const shape = f => {
+      const r = byId.get(f.rule);
+      const fix = r && r.cach_sua ? { ...r.cach_sua, ...ctxMeta } : null;
+      return { rule: f.rule, code: r?.ma_cu || f.rule, message: f.message, can_cu: f.can_cu, explanation: explain(f, rules), ...(fix ? { cach_sua: fix } : {}) };
+    };
     return {
       passed: blocking.length === 0,
       errors: blocking.map(shape),
@@ -461,7 +512,8 @@
   function describeRules(rules = RULES) {
     return rules.map(r => ({
       id: r.id, loai: r.thi ? 'suy_ra' : (r.muc === 'canh_bao' ? 'canh_bao' : 'chan'),
-      noi_dung: r.mo_ta || r.vi_pham, can_cu: Array.isArray(r.can_cu) ? r.can_cu : (r.can_cu ? [r.can_cu] : [])
+      noi_dung: r.mo_ta || r.vi_pham, can_cu: Array.isArray(r.can_cu) ? r.can_cu : (r.can_cu ? [r.can_cu] : []),
+      cach_sua: r.cach_sua || null
     }));
   }
 

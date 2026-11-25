@@ -957,11 +957,19 @@
           digital_competencies: compList,
           notes: notesStr
         };
-        // Bài tiền đề (Bản đồ tri thức, Giai đoạn 3): giữ giá trị cũ nếu biểu mẫu không gửi trường này.
+        // Bài tiền đề (hỗ trợ cả cùng khối 'B1' và liên khối '8:B12'; chặn vòng lặp khi lưu PPCT).
         const prevLesson = existing.find(x => ((x.subject_name || 'Tin học') === targetSubject) && Number(x.grade) === grade && x.lesson_code === l.lesson_code);
         const prereqSource = l.prerequisites !== undefined ? l.prerequisites : prevLesson?.prerequisites;
+        const parsePrereq = window.BankCore?.parsePrerequisite;
         const prereqs = (Array.isArray(prereqSource) ? prereqSource : String(prereqSource || '').split(/[,;\n]/))
-          .map(x => String(x || '').trim()).filter(x => x && x.toLowerCase() !== String(l.lesson_code || '').toLowerCase());
+          .map(x => String(x || '').trim()).filter(x => {
+            if (!x) return false;
+            if (parsePrereq) {
+              const pr = parsePrereq(x, grade);
+              return pr && !(pr.grade === grade && pr.lesson_code.toLowerCase() === String(l.lesson_code || '').toLowerCase());
+            }
+            return x.toLowerCase() !== String(l.lesson_code || '').toLowerCase();
+          });
         if (prereqs.length) lessonObj.prerequisites = [...new Set(prereqs)];
         // Mã YCCĐ cố định: giữ mã khi chèn/xóa/sửa nhẹ câu chữ; câu hỏi và ma trận chưa khóa theo mã mới.
         let outcomeSync = null;
@@ -973,6 +981,12 @@
         const idx = existing.findIndex(x => ((x.subject_name || 'Tin học') === targetSubject) && Number(x.grade) === grade && x.lesson_code === lessonObj.lesson_code);
         if (idx >= 0) existing[idx] = lessonObj;
         else existing.push(lessonObj);
+        if (window.BankCore?.detectPrerequisiteCycle) {
+          const cyc = window.BankCore.detectPrerequisiteCycle(existing, targetSubject);
+          if (cyc && cyc.hasCycle) {
+            throw new Error(`Không lưu được bài ${lessonObj.lesson_code}: quan hệ bài tiền đề tạo vòng lặp (${cyc.cycle.join(' → ')}). Hãy bỏ bớt liên kết gây vòng.`);
+          }
+        }
         currentWorkspaceData.bank.ppct.lessons = existing;
         await syncToFirestore(uid, currentWorkspaceData);
         if (window.store && window.store.bank) window.store.bank.ppct = JSON.parse(JSON.stringify(currentWorkspaceData.bank.ppct));

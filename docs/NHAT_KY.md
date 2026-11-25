@@ -1,3 +1,14 @@
+## 25/11/2026 — Hoàn thiện Bản đồ tri thức & Kho luật (6 việc)
+
+Thực hiện trọn vẹn `docs/KE_HOACH_GIAO_ANTIGRAVITY.md` trên nền đồ thị tri thức và kho luật suy diễn tiến:
+
+- **Việc 1 — Nối kho luật với tỉ lệ đề cương theo từng dạng (`coverage_targets`):** `knowledge-rules.js` (`examFacts`, `R-TI-LE-DANG`, `CAN_CU.TI_LE_DANG`) và `static-exam-engine.js` (`revisionReport`, `type_targets_ok`) cùng tính và chặn khi thiếu tỉ lệ từng dạng (nhiều lựa chọn, Đúng/Sai, trả lời ngắn, tự luận), vẫn giữ sàn chung 90% theo `rules/01` và đạt parity 0 lệch với `verifyExam`.
+- **Việc 2 — Ontology / Schema tường minh & tách vị từ `thuoc`:** `knowledge-graph.js` khai báo `SCHEMA` (`node_types`, `predicates`, `required_edges`), tách cạnh chung `thuoc` thành `thuoc_mon`, `thuoc_khoi`, `thuoc_chu_de`, `kiem_tra_bai`, `thuoc_ma_tran`, bổ sung `checkSchema(g)` và hiển thị cảnh báo lược đồ trong `/api/knowledge/overview` & `knowledge-ui.js`.
+- **Việc 3 — Tách năng lực cấp bài với từng YCCĐ + Chỉ báo / NLS / Giáo dục AI:** Năng lực chung cả bài gắn vào nút `bai`, từng YCCĐ chỉ nhận năng lực/chỉ báo gắn riêng từ PPCT (`outcome_competencies`) hoặc ma trận (`phat_trien`, `dat_chi_bao` → `chibao` → `thuoc_nang_luc`). Bổ sung nút `nangluc_so` (TT 02/2025/TT-BGDĐT, CV 3456) và `giao_duc_ai` (QĐ 2422/QĐ-BGDĐT, CV 5588); bảng phủ `coverageTable` thêm cột **Năng lực / Chỉ báo**.
+- **Việc 4 — Đồ thị theo bản chụp đề & nguồn gốc cạnh:** `KG.buildGraphForExam(exam, fallbackData)` dựng đồ thị từ `ppct_snapshot`/`matrix_snapshot`/`revision_snapshot`, mỗi cạnh ghi `{ nguon, phien_ban }`. `/api/knowledge/check-exam` và `verifyExam` (`e.ppct_snapshot`) bảo đảm sửa PPCT sau khi khóa đề không làm trôi báo cáo.
+- **Việc 5 — Gợi ý cách sửa có thể bấm (`cach_sua`):** Mọi luật chặn trong `KR.RULES` kèm `{ hanh_dong, nhan, mo_ta }`, trả về qua `checkExam`/`describeRules`, và `knowledge-ui.js` dựng nút hành động bấm mở thẳng màn hình/khung xử lý tương ứng.
+- **Việc 6 — Chống đảo từ trong giống chữ, chỉ mục ngược bigram, tiền đề liên khối & chống vòng lặp:** `core.js` thêm `VI_STOPWORDS`, `questionBigrams` (bigram thuần cho `textSimilarity`, `"máy tính"` không khớp `"tính máy"`), chỉ mục ngược bigram trong `KG.nearDuplicateGroups`; hỗ trợ tiền đề liên khối `8:B12` (`parsePrerequisite`), chặn chu trình qua `detectPrerequisiteCycle` tại `/api/ppct/save-lesson`, và `KG.suggestPrerequisites` kèm nút xác nhận ở Bản đồ tri thức.
+
 ## 25/11/2026 — Kho luật nắm quyền chặn duyệt (phần còn lại)
 
 Nửa đầu đã lẫn vào e610494 (`verification()` trong `static-api.js` cho kho luật quyết định, `/api/knowledge/parity`, ô "Kiểm tra đến hết tuần"). Commit này bổ sung nửa còn lại; trước commit này, trên bản chạy thật các lỗi chỉ kiểm định cũ phát hiện (bản chụp bị sửa, câu thiếu nội dung kỹ thuật, câu lệch ô ma trận…) không còn chặn duyệt.

@@ -80,3 +80,43 @@ test('Đối chiếu kho luật với kiểm định cũ trên mọi đề của
   assert.equal(r.response.mismatched, 0);
   assert.deepEqual(r.response.rows[0].only_rules, []);
 });
+
+test('Việc 1, 4, 5: luật R-TI-LE-DANG khớp verifyExam, cach_sua đầy đủ và check-exam không đổi khi PPCT thay đổi', async () => {
+  const { data, exam } = await generated();
+  const blocking = KR.RULES.filter(r => r.muc === 'chan');
+  for (const r of blocking) {
+    assert.ok(r.cach_sua && r.cach_sua.hanh_dong && r.cach_sua.nhan && r.cach_sua.mo_ta, `Luật ${r.id} thiếu cach_sua`);
+  }
+
+  // Gắn coverage_targets yêu cầu 100% cho một dạng có trong đề, nhưng bỏ câu dạng đó khỏi đề cương.
+  const examEsTarget = JSON.parse(JSON.stringify(exam));
+  const revIds = new Set((examEsTarget.revision_snapshot?.questions || []).map(q => q.id));
+  const targetQ = examEsTarget.questions.find(q => revIds.has(q.id));
+  assert.ok(targetQ, 'Cần có ít nhất 1 câu của đề nằm trong đề cương');
+  examEsTarget.revision_snapshot = {
+    ...examEsTarget.revision_snapshot,
+    coverage_targets: { [targetQ.type]: 100 },
+    questions: examEsTarget.revision_snapshot.questions.filter(q => q.id !== targetQ.id)
+  };
+  const krFail = KR.checkExam(data, examEsTarget, { ppct: examEsTarget.ppct_snapshot });
+  assert.equal(krFail.passed, false);
+  const errDang = krFail.errors.find(e => e.rule === 'R-TI-LE-DANG');
+  assert.ok(errDang, JSON.stringify(krFail.errors));
+  assert.ok(errDang.cach_sua && errDang.cach_sua.hanh_dong === 'mo_doi_chieu_de_cuong');
+
+  // Kiểm tra parity: cả engine.verifyExam và KR.checkExam đều chặn với cùng mã revision_criterion.
+  const cloneData = JSON.parse(JSON.stringify(data));
+  cloneData.exams = [examEsTarget];
+  cloneData.revisions = [examEsTarget.revision_snapshot];
+  const parityRes = await api.handle('/api/knowledge/parity', { grade: 9 }, cloneData, env);
+  assert.equal(parityRes.response.mismatched, 0);
+
+  // Việc 4: khóa snapshot, sau đó xóa toàn bộ PPCT của ngân hàng -> /api/knowledge/check-exam vẫn giữ kết quả bất biến.
+  const apiRes1 = await api.handle('/api/knowledge/check-exam', { id: exam.id }, data, env);
+  const brokenData = JSON.parse(JSON.stringify(data));
+  brokenData.bank.ppct.lessons = [];
+  const apiRes2 = await api.handle('/api/knowledge/check-exam', { id: exam.id }, brokenData, env);
+  assert.equal(apiRes1.response.report.passed, apiRes2.response.report.passed);
+  assert.equal(apiRes2.response.report.snapshot_used, true);
+  assert.equal(apiRes2.response.report.errors.length, apiRes1.response.report.errors.length);
+});

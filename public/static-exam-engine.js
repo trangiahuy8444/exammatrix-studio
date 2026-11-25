@@ -316,10 +316,35 @@
     const items=qs.map((q,i)=>{const inRev=fps.has(matchKey(q));return {label:(PART[q.type]||q.type)+' câu '+(q.slot_number??(i+1)),question_id:q.id,type:q.type,lesson_code:q.lesson_code,level:q.level,points:Number(q.points)||0,question:String(q.question||'').replace(/\s+/g,' ').slice(0,160),in_revision:inRev,similar_text:!inRev&&texts.has(stemKey(q)),outcome_in_revision:outcomes.has(ok(q))};});
     const pts=items.reduce((n,x)=>n+x.points,0),inItems=items.filter(x=>x.in_revision);
     const missingOutcomes=[...new Set(items.filter(x=>!x.outcome_in_revision).map(x=>x.lesson_code+' · '+(qs.find(q=>q.id===x.question_id)?.learning_outcome||'')))];
+    const typeTargets=revision?.coverage_targets||exam?.coverage_targets||null;
+    const fallbackPct=Number(exam?.similarity_target_percent??revision?.similarity_target_percent??90);
+    const byType={};
+    ['MC','YN','SHORT','ES'].forEach(t=>{
+      const all=items.filter(x=>x.type===t);
+      if(!all.length)return;
+      const inn=all.filter(x=>x.in_revision).length;
+      const rawTarget=typeTargets&&typeTargets[t]!=null&&Number.isFinite(Number(typeTargets[t]))?Math.max(0,Math.min(100,Math.round(Number(typeTargets[t])))):null;
+      const entry={total:all.length,in_revision:inn,percent:Math.round(1000*inn/all.length)/10};
+      if(rawTarget!==null){
+        const req=Math.ceil(all.length*rawTarget/100);
+        entry.target=rawTarget;
+        entry.required=req;
+        entry.ok=inn>=req;
+      }
+      byType[t]=entry;
+    });
+    const hasAnyTypeTarget=Object.values(byType).some(x=>x.required!=null);
+    const required=hasAnyTypeTarget
+      ?Object.values(byType).reduce((sum,x)=>sum+(x.required!=null?x.required:Math.ceil(x.total*fallbackPct/100)),0)
+      :Math.ceil(items.length*(Number(exam?.similarity_target_percent)||90)/100);
+    const threshold=hasAnyTypeTarget
+      ?(items.length?Math.round(1000*required/items.length)/10:fallbackPct)
+      :(Number(exam?.similarity_target_percent)||90);
+    const typesOk=hasAnyTypeTarget?Object.values(byType).every(x=>x.ok!==false):true;
     return {exam_id:exam?.id||null,exam_title:exam?.title||'',exam_code:exam?.exam_code||'',total:items.length,in_revision:inItems.length,count_percent:items.length?Math.round(1000*inItems.length/items.length)/10:0,
       points_percent:pts?Math.round(1000*inItems.reduce((n,x)=>n+x.points,0)/pts)/10:0,outcome_percent:items.length?Math.round(1000*items.filter(x=>x.outcome_in_revision).length/items.length)/10:0,
-      threshold:Number(exam?.similarity_target_percent)||90,required:Math.ceil(items.length*(Number(exam?.similarity_target_percent)||90)/100),missing_outcomes:missingOutcomes,
-      by_type:Object.fromEntries(['MC','YN','SHORT','ES'].filter(t=>items.some(x=>x.type===t)).map(t=>{const all=items.filter(x=>x.type===t),inn=all.filter(x=>x.in_revision).length;return [t,{total:all.length,in_revision:inn,percent:Math.round(1000*inn/all.length)/10}];})),items};
+      threshold,required,types_ok:typesOk,coverage_targets:typeTargets?clone(typeTargets):null,missing_outcomes:missingOutcomes,
+      by_type:byType,items};
   }
   function proposeRevision(data,payload){if(payload&&'title' in payload&&!text(payload.title))fail('Cần nhập tên đề cương.');const p=plan(data,payload);let revision;
     if(text(payload?.title)){const qs=p.question_ids.map(id=>data.bank.questions.find(q=>q.id===id));revision=freeze({id:ident('REV',data.revisions,payload,qs),title:payload.title.trim(),grade:payload.grade,subject_name:payload.subject_name||payload.subject,exam_type:payload.exam_type,created_at:payload.created_at||null,question_count:qs.length,questions:qs.map(q=>({...clone(q),content_hash:contentHash(q),source_snapshot_hash:fingerprint(q)}))});}

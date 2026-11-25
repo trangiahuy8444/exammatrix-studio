@@ -58,8 +58,15 @@
    const scope=(ppct.lessons||[]).filter(l=>l.grade===grade&&(l.subject_name||'Tin học')===subject&&codes.has(l.lesson_code)).map(l=>({lesson_code:l.lesson_code,title:l.title||l.lesson_name_source||l.lesson_name||l.lesson_code,topic:l.topic||l.topic_source||l.topic_name||''}));
    const simRaw=payload.similarity_target_percent;
    const simPct=simRaw!==undefined&&simRaw!==null&&simRaw!==''&&Number.isFinite(Number(simRaw))?Math.max(0,Math.min(100,Math.round(Number(simRaw)))):(existing?.similarity_target_percent??90);
+   const rawTargets=payload.coverage_targets!==undefined?payload.coverage_targets:existing?.coverage_targets;
+   let coverageTargets=null;
+   if(rawTargets&&typeof rawTargets==='object'&&!Array.isArray(rawTargets)){
+    const cleaned={};
+    ['MC','YN','SHORT','ES'].forEach(t=>{if(rawTargets[t]!=null&&rawTargets[t]!==''&&Number.isFinite(Number(rawTargets[t])))cleaned[t]=Math.max(0,Math.min(100,Math.round(Number(rawTargets[t]))));});
+    if(Object.keys(cleaned).length)coverageTargets=cleaned;
+   }
    return put(data.revisions,{...(existing||{}),id:existing?.id||id('REV'),title:payload.title.trim(),grade,subject_name:subject,lessons:scope,
-    status:existing?.status||'drafting',similarity_target_percent:simPct,created_at:existing?.created_at||now(),updated_at:now(),question_ids:ids,questions,question_count:questions.length});
+    status:existing?.status||'drafting',similarity_target_percent:simPct,...(coverageTargets?{coverage_targets:coverageTargets}:{}),created_at:existing?.created_at||now(),updated_at:now(),question_ids:ids,questions,question_count:questions.length});
   }
   function normalizeMatrixSlots(m){
    if(!m||typeof m!=='object'||m.status==='locked'||m.status==='archived')return m;
@@ -196,19 +203,40 @@
    const seedKey=q=>String(engine?.jsonDigest?engine.jsonDigest(seedStr+':'+q.id):q.id);
    const pct=Number.isFinite(Number(opts.percent))?Math.max(0,Math.min(100,Number(opts.percent))):90;
    const simMode=opts.similarity_mode==='exact'?'exact':'min';
-   const targetInRev=revQs.length?(simMode==='min'?Math.ceil(flexSlots.length*pct/100):Math.round(flexSlots.length*pct/100)):0;
-   const diffCount=revQs.length?Math.max(0,flexSlots.length-targetInRev):0;
+   const typeTargets=opts.type_targets||opts.revision?.coverage_targets||null;
+   const hasTypeTargets=Boolean(typeTargets&&typeof typeTargets==='object'&&['MC','YN','SHORT','ES'].some(t=>typeTargets[t]!=null&&typeTargets[t]!==''&&Number.isFinite(Number(typeTargets[t]))));
    const outsideIdxSet=new Set();
-   if(diffCount>0){
+   if(revQs.length&&hasTypeTargets){
     const lvRank=lv=>({'Vận dụng cao':4,'Vận dụng':3,'Hiểu':2,'Biết':1}[normLevel(lv)]||0);
-    const kindRank=k=>({ES:4,SHORT:3,YN:2,MC:1}[String(k||'').trim().toUpperCase()]||0);
-    const outCandidates=flexSlots.map((entry,idx)=>{
-     const cands=entry.candidates||[];
-     if(!cands.some(q=>!inRev(q)))return null;
-     const srcCell=(entry.requirements&&entry.requirements[0])||entry.cell||{};
-     return {idx,lv:lvRank(srcCell.level),kr:kindRank(entry.slot?.kind)};
-    }).filter(Boolean).sort((a,b)=>(b.lv-a.lv)||(b.kr-a.kr)||(b.idx-a.idx));
-    outCandidates.slice(0,diffCount).forEach(x=>outsideIdxSet.add(x.idx));
+    ['MC','YN','SHORT','ES'].forEach(t=>{
+     const slotsT=flexSlots.map((entry,idx)=>({entry,idx})).filter(x=>String(x.entry.slot?.kind||'').toUpperCase()===t);
+     if(!slotsT.length)return;
+     const pctT=Number.isFinite(Number(typeTargets[t]))?Math.max(0,Math.min(100,Number(typeTargets[t]))):pct;
+     const wantT=Math.ceil(slotsT.length*pctT/100);
+     const diffT=Math.max(0,slotsT.length-wantT);
+     if(!diffT)return;
+     const outCandidatesT=slotsT.map(({entry,idx})=>{
+      const cands=entry.candidates||[];
+      if(!cands.some(q=>!inRev(q)))return null;
+      const srcCell=(entry.requirements&&entry.requirements[0])||entry.cell||{};
+      return {idx,lv:lvRank(srcCell.level)};
+     }).filter(Boolean).sort((a,b)=>(b.lv-a.lv)||(b.idx-a.idx));
+     outCandidatesT.slice(0,diffT).forEach(x=>outsideIdxSet.add(x.idx));
+    });
+   }else{
+    const targetInRev=revQs.length?(simMode==='min'?Math.ceil(flexSlots.length*pct/100):Math.round(flexSlots.length*pct/100)):0;
+    const diffCount=revQs.length?Math.max(0,flexSlots.length-targetInRev):0;
+    if(diffCount>0){
+     const lvRank=lv=>({'Vận dụng cao':4,'Vận dụng':3,'Hiểu':2,'Biết':1}[normLevel(lv)]||0);
+     const kindRank=k=>({ES:4,SHORT:3,YN:2,MC:1}[String(k||'').trim().toUpperCase()]||0);
+     const outCandidates=flexSlots.map((entry,idx)=>{
+      const cands=entry.candidates||[];
+      if(!cands.some(q=>!inRev(q)))return null;
+      const srcCell=(entry.requirements&&entry.requirements[0])||entry.cell||{};
+      return {idx,lv:lvRank(srcCell.level),kr:kindRank(entry.slot?.kind)};
+     }).filter(Boolean).sort((a,b)=>(b.lv-a.lv)||(b.kr-a.kr)||(b.idx-a.idx));
+     outCandidates.slice(0,diffCount).forEach(x=>outsideIdxSet.add(x.idx));
+    }
    }
    const ordered=flexSlots.map((entry,idx)=>({
     idx,
@@ -303,7 +331,20 @@
   function revisionFor(exam){return exam.revision_id?own(find(data.revisions,exam.revision_id)):null;}
   // Kho luật tri thức (Giai đoạn 2) chạy song song mã kiểm định cũ: chỉ bổ sung giải thích, chưa thay quyết định duyệt.
   function knowledgeLibs(){const g=env.knowledgeGraph||root.BankKnowledgeGraph||(typeof require==='function'?require('./knowledge-graph.js'):null);const r=env.knowledgeRules||root.BankKnowledgeRules||(typeof require==='function'?require('./knowledge-rules.js'):null);return {g,r};}
-  function verification(exam){const v=engine.verifyExam(data,exam);const {r}=knowledgeLibs();if(r){try{v.knowledge=r.checkExam(data,exam,{scopeWeek:exam.scope_week});}catch(err){v.knowledge={error:'Chưa chạy được kho luật: '+(err&&err.message||err)};}}return v;}
+  // Kiểm định đề: kho luật QUYẾT ĐỊNH (25/11/2026). Các phép tính khó viết thành luật (mã băm bản chụp, đủ nội dung kỹ thuật,
+  // khớp từng vị trí ma trận) vẫn do engine.verifyExam tính rồi đưa vào kho luật thành sự kiện. Kết quả cũ giữ ở `legacy`
+  // để đối chiếu (`parity`). Kho luật không chạy được thì dùng kiểm định cũ và báo rõ.
+  function verification(exam){
+   // Tuần kiểm tra gửi kèm khi tạo/kiểm định lại đề: ghi vào đề chưa khóa (không thuộc bản chụp nội dung).
+   const w=Number(p.scope_week);if(Number.isInteger(w)&&w>0&&w<=40&&!['locked','published'].includes(exam.status))exam.scope_week=w;
+   const legacy=engine.verifyExam(data,exam);const {r}=knowledgeLibs();
+   if(!r)return {...legacy,decision:'kiem_dinh_cu'};
+   let k;
+   try{k=r.checkExam(data,exam,{scopeWeek:exam.scope_week,procedural:legacy.errors,config:data.profile?.rule_config});}
+   catch(err){return {...legacy,decision:'kiem_dinh_cu',knowledge:{error:'Chưa chạy được kho luật, dùng kiểm định cũ: '+(err&&err.message||err)}};}
+   return {...legacy,passed:k.passed,valid:k.passed,errors:k.errors,warnings:[...(legacy.warnings||[]),...k.warnings],knowledge:k,decision:'kho_luat',
+    legacy:{passed:legacy.passed,errors:legacy.errors},parity:legacy.passed===k.passed};
+  }
   async function refreshIntegrity(exam){exam.snapshot_integrity=await workflow.contentHash({questions:exam.questions,matrix:exam.matrix_snapshot||null,blueprint:exam.blueprint,revision:exam.revision_snapshot,ppct:exam.ppct_snapshot});}
   async function transition(exam,action){
    own(exam);
@@ -616,21 +657,116 @@
    return result({revision:{id:rev.id,title:rev.title,grade:rev.grade,question_count:(rev.questions||[]).length},reports:exams.map(e=>engine.revisionCoverage(e,rev,data.bank.ppct))});
   }
   if(path==='/api/revisions/trim-to-exam'||path==='/api/revisions/align-to-exam'){
-   // Cân chỉnh đề cương theo tỉ lệ câu của một đề có trong đề cương, riêng từng dạng (VD: TN 90%, TL 100%).
+   // Cân chỉnh đề cương theo tỉ lệ câu của một đề hoặc toàn bộ các đề liên kết với đề cương, riêng từng dạng (VD: TN 85%, TL 100%).
    // Thiếu thì THÊM câu của đề (lấy câu gốc trong Ngân hàng, kể cả bản đã trộn phương án); dư thì BỚT câu của đề,
-   // ưu tiên câu mà YCCĐ vẫn còn câu khác trong đề cương, rồi câu mức cao, tự luận trước.
-   const rev=own(find(data.revisions,p.revision_id)),exam=own(find(data.exams,p.exam_id));
+   // ưu tiên câu mà YCCĐ vẫn còn câu khác trong đề cương, và không làm tụt đề liên kết khác xuống dưới tỉ lệ mục tiêu.
+   const rev=own(find(data.revisions,p.revision_id));
    if(typeof engine.questionMatchKey!=='function')fail('Bộ xử lý chưa hỗ trợ đối chiếu đề cương. Vui lòng tải lại trang.',503);
-   const fp=engine.questionMatchKey,eqs=exam.questions||[],total=eqs.length;if(!total)fail('Đề chưa có câu hỏi.');
-   const TYPES=['MC','YN','SHORT','ES'],NAME={MC:'trắc nghiệm',YN:'Đúng/Sai',SHORT:'trả lời ngắn',ES:'tự luận'};
+   const fp=engine.questionMatchKey,TYPES=['MC','YN','SHORT','ES'],NAME={MC:'trắc nghiệm',YN:'Đúng/Sai',SHORT:'trả lời ngắn',ES:'tự luận'};
    const clampPct=v=>Math.max(0,Math.min(100,Math.round(Number(v))));
    const base=p.percent!=null&&Number.isFinite(Number(p.percent))?clampPct(p.percent):90;
    const targets={};TYPES.forEach(t=>{const v=p.targets&&p.targets[t];targets[t]=v!=null&&v!==''&&Number.isFinite(Number(v))?clampPct(v):base;});
-   const revQs=rev.questions||[],revFps=new Map(revQs.map(q=>[fp(q),q]));
+   const revQs=rev.questions||[];
    const okey=q=>q.lesson_code+'|'+q.learning_outcome,count=new Map();revQs.forEach(q=>count.set(okey(q),(count.get(okey(q))||0)+1));
    const lv={'Vận dụng cao':4,'Vận dụng':3,'Hiểu':2,'Biết':1},kd={ES:4,SHORT:3,YN:2,MC:1};
    const bankByFp=new Map();bank.forEach(q=>{if(q.review_status!=='archived'&&Number(q.grade)===Number(rev.grade)){const k=fp(q);if(!bankByFp.has(k))bankByFp.set(k,q);}});
-   const removed=[],added=[],missingInBank=[],byType={};
+   const removed=[],added=[],missingInBank=[],byType={},warnings=[];
+
+   if(p.apply_to_linked===true){
+    const sameSubj=e=>(e.subject_name||'Tin học')===subject;
+    const linkedExams=data.exams.filter(e=>sameSubj(e)&&e.revision_id===rev.id&&(e.questions||[]).length);
+    const primaryExam=p.exam_id?own(find(data.exams,p.exam_id)):(linkedExams[0]||fail('Chưa có đề thi nào để đối chiếu.'));
+    const targetExams=linkedExams.length?(linkedExams.some(e=>e.id===primaryExam.id)?linkedExams:[primaryExam,...linkedExams]):[primaryExam];
+    const primaryEqs=primaryExam.questions||[],total=primaryEqs.length;if(!total)fail('Đề chưa có câu hỏi.');
+    const curMap=new Map(revQs.map(q=>[fp(q),q]));
+    const presentTypes=new Set();
+    targetExams.forEach(ex=>(ex.questions||[]).forEach(q=>{if(TYPES.includes(q.type))presentTypes.add(q.type);}));
+    const savedTargets={};
+    if(p.targets)TYPES.forEach(t=>{if(presentTypes.has(t))savedTargets[t]=targets[t];});
+    let sharedTrimBlocked=false;
+    for(const t of TYPES){
+     const exList=targetExams.map(ex=>{
+      const eT=(ex.questions||[]).filter(q=>q.type===t);
+      return {ex,eT,want:Math.ceil(eT.length*targets[t]/100)};
+     }).filter(x=>x.eT.length>0);
+     if(!exList.length)continue;
+     const inCount=it=>it.eT.filter(q=>curMap.has(fp(q))).length;
+     while(exList.some(it=>inCount(it)<it.want)){
+      const candMap=new Map();
+      for(const it of exList){
+       if(inCount(it)>=it.want)continue;
+       for(const q of it.eT){
+        const k=fp(q);if(curMap.has(k)||candMap.has(k))continue;
+        const src=bankByFp.get(k)||bank.find(b=>b.id===q.id&&b.review_status!=='archived'&&Number(b.grade)===Number(rev.grade));
+        if(!src){if(!missingInBank.some(m=>fp(m)===k))missingInBank.push(q);continue;}
+        let deficitHits=0,overOrExactHits=0;
+        exList.forEach(other=>{if(other.eT.some(x=>fp(x)===k)){if(inCount(other)<other.want)deficitHits++;else overOrExactHits++;}});
+        candMap.set(k,{src,score:100*deficitHits-25*overOrExactHits});
+       }
+      }
+      if(!candMap.size)break;
+      const best=[...candMap.values()].sort((a,b)=>(b.score-a.score)||String(a.src.id).localeCompare(String(b.src.id)))[0];
+      curMap.set(fp(best.src),best.src);
+      added.push(best.src);
+      count.set(okey(best.src),(count.get(okey(best.src))||0)+1);
+     }
+     while(exList.some(it=>inCount(it)>it.want)){
+      const curTypeQs=[...curMap.values()].filter(q=>q.type===t);
+      const removable=curTypeQs.filter(q=>{
+       const k=fp(q);
+       const inOver=exList.some(it=>inCount(it)>it.want&&it.eT.some(x=>fp(x)===k));
+       if(!inOver)return false;
+       return exList.every(it=>!it.eT.some(x=>fp(x)===k)||inCount(it)>it.want);
+      });
+      if(!removable.length){sharedTrimBlocked=true;break;}
+      const overHitsOf=q=>{const k=fp(q);return exList.filter(it=>inCount(it)>it.want&&it.eT.some(x=>fp(x)===k)).length;};
+      removable.sort((a,b)=>Number((count.get(okey(b))||0)>1)-Number((count.get(okey(a))||0)>1)||(overHitsOf(b)-overHitsOf(a))||(lv[b.level]||0)-(lv[a.level]||0)||(kd[b.type]||0)-(kd[a.type]||0)||String(a.id).localeCompare(String(b.id)));
+      const drop=removable[0];
+      curMap.delete(fp(drop));
+      removed.push(drop);
+      count.set(okey(drop),(count.get(okey(drop))||0)-1);
+     }
+     const primItem=exList.find(it=>it.ex.id===primaryExam.id);
+     if(primItem){
+      const before=primItem.eT.filter(q=>revQs.some(rq=>fp(rq)===fp(q))).length;
+      const afterT=inCount(primItem);
+      byType[t]={total:primItem.eT.length,target:targets[t],wanted:primItem.want,before,after:afterT};
+     }
+    }
+    const removedIds=new Set(removed.map(q=>q.id)),ids=[...revQs.filter(q=>!removedIds.has(q.id)).map(q=>q.id),...added.map(q=>q.id)];
+    let locked=false;try{checkRevision(rev);}catch(e){locked=true;}
+    const after=Object.values(byType).reduce((n,x)=>n+x.after,0),overall=Math.round(1000*after/total)/10;
+    const label=Object.keys(savedTargets).length?Object.entries(savedTargets).map(([t,v])=>`${NAME[t]||t} ${v}%`).join(', '):`${base}% đề`;
+    const revPayload={
+     title:(locked&&(removed.length||added.length))?(rev.title+` (${label})`):rev.title,
+     grade:rev.grade,
+     question_ids:ids,
+     similarity_target_percent:Math.round(overall),
+     ...(Object.keys(savedTargets).length?{coverage_targets:savedTargets}:{})
+    };
+    const revision=(locked&&(removed.length||added.length))
+     ?saveRevision(revPayload)
+     :(locked?put(data.revisions,{...rev,similarity_target_percent:Math.round(overall),...(Object.keys(savedTargets).length?{coverage_targets:savedTargets}:{}),updated_at:now()}):saveRevision(revPayload,rev));
+    if(Object.keys(savedTargets).length){
+     targetExams.forEach(ex=>{
+      ex.coverage_targets=clone(savedTargets);
+      ex.similarity_target_percent=Math.round(overall);
+      if(revision.id&&ex.revision_id===rev.id&&revision.id!==rev.id)ex.revision_id=revision.id;
+     });
+    }
+    const examReports=targetExams.map(ex=>engine.revisionCoverage(ex,revision,data.bank.ppct));
+    const brief=q=>({id:q.id,type:q.type,lesson_code:q.lesson_code,level:q.level,question:String(q.question||'').replace(/\s+/g,' ').slice(0,120)});
+    if(overall<90)warnings.push(`Tỉ lệ chung còn ${String(overall).replace('.',',')}% câu của đề có trong đề cương, dưới mức 90% theo quy định của tổ.`);
+    if(sharedTrimBlocked)warnings.push('Một số câu dùng chung giữa các đề liên kết được giữ lại để không làm đề khác bị thiếu.');
+    if(missingInBank.length)warnings.push(`${missingInBank.length} câu của đề không còn trong Ngân hàng nên không thêm được vào đề cương.`);
+    return result({revision,revisions:data.revisions,exams:data.exams,new_version:Boolean(locked&&(removed.length||added.length)),total,kept:after,overall_percent:overall,by_type:byType,
+     coverage_targets:Object.keys(savedTargets).length?savedTargets:null,linked_count:targetExams.length,exam_reports:examReports,
+     added:added.map(brief),removed:removed.map(q=>({...brief(q),outcome_still_covered:(count.get(okey(q))||0)>0})),warnings},true);
+   }
+
+   const exam=own(find(data.exams,p.exam_id));
+   const eqs=exam.questions||[],total=eqs.length;if(!total)fail('Đề chưa có câu hỏi.');
+   const revFps=new Map(revQs.map(q=>[fp(q),q]));
    // Chỉ một tỉ lệ chung: tổng số câu cần có = làm tròn lên của cả đề, chia cho các dạng theo phần lẻ lớn nhất (không dư câu).
    const sharedWant={};
    if(!p.targets){
@@ -667,11 +803,12 @@
    let locked=false;try{checkRevision(rev);}catch(e){locked=true;}
    const after=Object.values(byType).reduce((n,x)=>n+x.after,0),overall=Math.round(1000*after/total)/10;
    const label=p.targets?Object.entries(byType).map(([t,x])=>`${NAME[t]} ${x.target}%`).join(', '):`${base}% đề`;
+   const savedTargets=p.targets?Object.fromEntries(Object.entries(byType).map(([t,x])=>[t,x.target])):undefined;
    const revision=locked
-    ?saveRevision({title:rev.title+` (${label})`,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent})
-    :saveRevision({title:rev.title,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent},rev);
+    ?saveRevision({title:rev.title+` (${label})`,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent,...(savedTargets?{coverage_targets:savedTargets}:{})})
+    :saveRevision({title:rev.title,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent,...(savedTargets?{coverage_targets:savedTargets}:{})},rev);
    const brief=q=>({id:q.id,type:q.type,lesson_code:q.lesson_code,level:q.level,question:String(q.question||'').replace(/\s+/g,' ').slice(0,120)});
-   const warnings=[];if(overall<90)warnings.push(`Tỉ lệ chung còn ${String(overall).replace('.',',')}% câu của đề có trong đề cương, dưới mức 90% theo quy định của tổ (AGENTS.md, rules/01).`);
+   if(overall<90)warnings.push(`Tỉ lệ chung còn ${String(overall).replace('.',',')}% câu của đề có trong đề cương, dưới mức 90% theo quy định của tổ (AGENTS.md, rules/01).`);
    if(missingInBank.length)warnings.push(`${missingInBank.length} câu của đề không còn trong Ngân hàng nên không thêm được vào đề cương.`);
    return result({revision,revisions:data.revisions,new_version:locked,total,kept:after,overall_percent:overall,by_type:byType,
     added:added.map(brief),removed:removed.map(q=>({...brief(q),outcome_still_covered:(count.get(okey(q))||0)>0})),warnings},true);
@@ -804,6 +941,7 @@
     revision_id:rev?.id||null,
     revision_snapshot:rev?clone(rev):null,
     revision_match_count:revMatched,
+    ...(rev?.coverage_targets?{coverage_targets:clone(rev.coverage_targets)}:{}),
     similarity_target_percent:Number(genPayload.similarity_percent??90),
     similarity_mode:genPayload.similarity_mode||'exact',
     scoring_policy:clone(targetMatrix?.scoring_policy||{yn_table:{'0':'0','1':'0.1','2':'0.25','3':'0.5','4':'1'},rounding:mType==='TX'?'half_up_integer':'half_up_1dp',blank_counts_as:'wrong'}),
@@ -883,7 +1021,7 @@
     const flexSlots=resolveFlexSource(genPayload,p,targetMatrix);
     const rev=genPayload.revision_id?own(find(data.revisions,genPayload.revision_id)):null;
     if(rev&&Number(rev.grade)!==Number(genPayload.grade))fail('Đề cương phải cùng khối, môn và kì kiểm tra.');
-    const pickedQuestions=assignFlexibleSlots(flexSlots,{revision:rev,seed:genPayload.seed,percent:genPayload.similarity_percent??rev?.similarity_target_percent??90,similarity_mode:genPayload.similarity_mode||'exact'});
+    const pickedQuestions=assignFlexibleSlots(flexSlots,{revision:rev,seed:genPayload.seed,percent:genPayload.similarity_percent??rev?.similarity_target_percent??90,type_targets:genPayload.type_targets||rev?.coverage_targets||null,similarity_mode:genPayload.similarity_mode||'exact'});
     const dup=findRecentDuplicateExam(data.exams,genPayload,targetMatrix,pickedQuestions.map(q=>q.id));
     if(dup)return result({exam:dup,exams:data.exams},false);
     const exam=assembleFlexibleExam({targetMatrix,blueprint:p.blueprint,flexSlots,pickedQuestions,genPayload,rev});
@@ -941,7 +1079,7 @@
     const setId=id('SET'),exams=[];
     for(let n=0;n<count;n++){
      const examSeed=String(genPayload.seed??'')+':'+n;
-     const pickedQuestions=assignFlexibleSlots(flexSlots,{revision,seed:examSeed,percent:genPayload.similarity_percent??revision?.similarity_target_percent??90,similarity_mode:genPayload.similarity_mode||'exact'});
+     const pickedQuestions=assignFlexibleSlots(flexSlots,{revision,seed:examSeed,percent:genPayload.similarity_percent??revision?.similarity_target_percent??90,type_targets:genPayload.type_targets||revision?.coverage_targets||null,similarity_mode:genPayload.similarity_mode||'exact'});
      const exam=assembleFlexibleExam({targetMatrix,blueprint:p.blueprint,flexSlots,pickedQuestions,genPayload:{...genPayload,title:genPayload.title.trim()+` — Đề ${n+1}`,exam_code:String(101+n),seed:examSeed},rev:revision});
      exam.exam_set={id:setId,index:n+1,count};
      exams.push(exam);
@@ -977,6 +1115,17 @@
    if(members.length!==members[0].exam_set.count)fail('Bộ đề thiếu thành viên; không chuyển trạng thái một phần.',409);
    const changed=[];for(const e of members)changed.push(await transition(e,p.action));changed.forEach(e=>put(data.exams,e));
    return result({exams:changed,exams_all:data.exams},true);
+  }
+  if(path==='/api/knowledge/parity'){
+   // Đối chiếu kho luật với kiểm định cũ trên mọi đề (chỉ đọc): đề nào hai bên kết luận khác nhau, lỗi nào chỉ một bên thấy.
+   const g=p.grade===undefined||p.grade===null||p.grade===''?null:Number(p.grade);
+   const rows=data.exams.filter(e=>(e.subject_name||'Tin học')===subject&&(g===null||Number(e.grade)===g)).map(e=>{
+    const v=verification(clone(e)),codes=x=>[...new Set((x||[]).map(er=>er.code))];
+    const lc=codes(v.legacy?.errors||v.errors),rc=v.decision==='kho_luat'?codes(v.errors):lc;
+    return {id:e.id,title:e.title||e.id,exam_code:e.exam_code||'',status:e.status||'drafting',decision:v.decision,legacy_passed:v.legacy?v.legacy.passed:v.passed,rules_passed:v.passed,
+     same:(v.legacy?v.legacy.passed:v.passed)===v.passed,only_legacy:lc.filter(c=>!rc.includes(c)),only_rules:rc.filter(c=>!lc.includes(c))};
+   });
+   return result({rows,total:rows.length,mismatched:rows.filter(r=>!r.same).length});
   }
   if(path==='/api/knowledge/normalize-outcomes'){
    // Chuẩn hóa mã YCCĐ (một lần cho dữ liệu cũ). apply=false: chỉ xem trước, không ghi.

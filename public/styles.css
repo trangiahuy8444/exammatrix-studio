@@ -1148,3 +1148,156 @@ nav a[aria-current=page] {
 .kg-why{white-space:pre-wrap;font-size:.85rem;margin:6px 0 0;background:#fff;border:1px solid var(--line,#e2e8f0);padding:8px;border-radius:4px}
 .kg-coverage td.kg-zero{background:#fde2e1;font-weight:700}
 .kg-order li{margin:2px 0}
+
+/* Đối chiếu & điều chỉnh tỉ lệ đề cương gọn đa đề */
+.rev-cov-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.rev-cov-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+.rev-cov-title-group h3 {
+  margin: 0;
+  font-size: 15.5px;
+  color: var(--navy);
+}
+.rev-cov-title-group select {
+  width: auto;
+  min-height: 34px;
+  padding: 4px 10px;
+  max-width: 380px;
+  font-size: 13px;
+}
+.rev-cov-kpis {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.rev-cov-kpi {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  background: #f1f5f9;
+  border: 1px solid #dbe4ef;
+  color: #1e293b;
+  white-space: nowrap;
+}
+.rev-cov-kpi.is-ok {
+  background: #ecfdf5;
+  border-color: #86efac;
+  color: #166534;
+}
+.rev-cov-kpi.is-warn {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+.rev-cov-linked-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+.rev-cov-exam-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px !important;
+  padding: 3px 10px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  font-weight: 600;
+  background: #f8fafc;
+  border: 1px solid #d5e0ec;
+  color: #334155;
+  white-space: nowrap;
+}
+.rev-cov-exam-pill:hover {
+  border-color: #0267b1;
+  color: #0267b1;
+}
+.rev-cov-exam-pill.is-active {
+  background: #eaf3fb;
+  border-color: #0267b1;
+  color: #0267b1;
+}
+.rev-cov-ratio-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: #f8fbff;
+  border: 1px solid #d5e4f3;
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+.rev-cov-ratio-inputs {
+  display: flex;
+  align-items: center;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+}
+.rev-cov-type-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #102d4a;
+  white-space: nowrap;
+}
+.rev-cov-type-item input {
+  width: 62px !important;
+  min-width: 62px !important;
+  min-height: 32px !important;
+  height: 32px;
+  padding: 4px 6px !important;
+  text-align: center;
+  font-weight: 700;
+}
+.rev-cov-ratio-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.rev-cov-ratio-actions button.primary {
+  min-height: 34px;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+.rev-cov-details {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 7px 12px;
+  margin-top: 8px;
+  background: #ffffff;
+}
+.rev-cov-details > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #102d4a;
+}
+.rev-cov-details[open] > summary {
+  margin-bottom: 8px;
+}

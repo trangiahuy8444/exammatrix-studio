@@ -702,6 +702,11 @@ function switchTab(tab){
  if(store.bank)renderCurrent();
 }
 // Thanh 6 bước của kỳ kiểm tra (thiết kế duyệt 25/11/2026), hiện ở màn hình Ma trận, Đề cương, Đề.
+// "Kiểm tra đến hết tuần" theo khối × kỳ (lưu trên máy): kho luật cảnh báo câu thuộc bài chưa học tới (W-NGOAI-PHAM-VI, W-THIEU-TIEN-DE).
+function scopeWeekKey(){return `${subject()}|${store.activeGrade}|${store.dossierPeriod||store.examDraft?.exam_type||'GK1'}`;}
+function currentScopeWeek(){try{const all=JSON.parse(localStorage.getItem('examScopeWeeks')||'{}');const n=Number(all[scopeWeekKey()]);return Number.isInteger(n)&&n>0?n:undefined;}catch{return undefined;}}
+function setScopeWeek(v){try{const all=JSON.parse(localStorage.getItem('examScopeWeeks')||'{}');const n=Number(v);if(Number.isInteger(n)&&n>0&&n<=40)all[scopeWeekKey()]=n;else delete all[scopeWeekKey()];localStorage.setItem('examScopeWeeks',JSON.stringify(all));}catch{}}
+window.currentScopeWeek=currentScopeWeek;
 function renderKyStepper(){
  const el=document.getElementById('ky-stepper');if(!el)return;
  const show=['matrices','revisions','exams'].includes(store.tab)&&store.bank&&typeof store.activeGrade==='number';
@@ -709,9 +714,10 @@ function renderKyStepper(){
  const period=store.dossierPeriod||store.examDraft?.exam_type||'GK1';
  const model=C.kyStepperModel({matrices:store.matrixRecords||[],exams:store.exams||[],revisions:store.revisions||[],ppct:store.bank?.ppct},{grade:store.activeGrade,subject:subject(),period,tab:store.tab});
  const periods=[['GK1','Giữa học kì I'],['CK1','Cuối học kì I'],['GK2','Giữa học kì II'],['CK2','Cuối học kì II']];
- el.innerHTML=`<div class="ky-stepper-head"><label for="ky-period">Kỳ kiểm tra</label><select id="ky-period">${periods.map(([c,l])=>`<option value="${c}"${c===model.period?' selected':''}>${l}, ${esc(subject())} ${store.activeGrade}</option>`).join('')}</select></div>
+ el.innerHTML=`<div class="ky-stepper-head"><label for="ky-period">Kỳ kiểm tra</label><select id="ky-period">${periods.map(([c,l])=>`<option value="${c}"${c===model.period?' selected':''}>${l}, ${esc(subject())} ${store.activeGrade}</option>`).join('')}</select><label for="ky-week">Kiểm tra đến hết tuần</label><input id="ky-week" type="number" min="1" max="40" step="1" value="${esc(currentScopeWeek()??'')}" placeholder="VD: 9" style="width:90px" title="Kho luật cảnh báo câu thuộc bài chưa học tới tuần này"></div>
   <ol>${model.steps.map(s=>`<li class="ky-step ky-${s.state}${s.current?' ky-current':''}"><a href="#${s.tab}"${s.current?' aria-current="step"':''}><span class="ky-badge" aria-hidden="true">${s.state==='done'?'✓':s.n}</span><span>${esc(s.label)}</span><span class="ky-sr">${s.state==='done'?' (đã xong)':s.state==='fix'?' (cần sửa)':s.state==='doing'?' (đang làm)':''}</span></a></li>`).join('')}</ol>`;
  const sel=document.getElementById('ky-period');
+ const wk=document.getElementById('ky-week');if(wk)wk.onchange=()=>{setScopeWeek(wk.value);};
  if(sel)sel.onchange=()=>{store.dossierPeriod=sel.value;if(store.examDraft)store.examDraft.exam_type=sel.value;if(store.tab==='exams'&&typeof chooseExamTemplate==='function')chooseExamTemplate();renderCurrent();renderKyStepper();};
 }
 function render(){switchTab(location.hash.slice(1)||store.tab);}
@@ -5055,7 +5061,7 @@ function renderRevisions(){
    <button type="button" class="button quiet" id="rev-download-md-sample" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📝 Tải mẫu Đề cương (Markdown)</button>
    <button type="button" class="button quiet" id="rev-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI tạo Đề cương</button>
  </div>`+
- `<div class="card"><div class="list-toolbar" style="margin-top:0"><h2 style="margin:0">Các phiên bản đề cương đã lưu (${shownRevs.length} / ${store.revisions.length})</h2><div class="actions" style="display:flex;align-items:center;gap:8px"><label for="rev-list-grade-filter" class="small muted" style="font-weight:600">Khối lớp:</label><select id="rev-list-grade-filter" style="min-width:150px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff">${opt('all',`Tất cả khối (${store.revisions.length})`,revFilterG==='all')}${revGrades.map(gr=>opt(gr,`Khối ${gr} (${store.revisions.filter(x=>Number(x.grade)===gr).length})`,String(revFilterG)===String(gr))).join('')}</select></div></div>${shownRevs.length?[...shownRevs].reverse().map(r=>`<article class="saved-item"><div><h3>${esc(r.title)}</h3><p><strong>Khối ${r.grade}</strong> · ${countRecord(r)} câu hỏi (${revSummaryText(r)})${r.similarity_target_percent!=null?` · Tương đồng đề thi: <strong>${r.similarity_target_percent}%</strong>`:''} · ${esc(date(r.updated_at||r.created_at))}</p>${r.source_file?`<p class="q-id">Nguồn: ${esc(r.source_file)}</p>`:''}</div><div class="actions">${revisionLinks(r)}</div></article>`).join(''):empty('Chưa có phiên bản đề cương','Chọn câu ở ngân hàng hoặc Import tệp .docx đề cương.')}</div>`+
+ `<div class="card"><div class="list-toolbar" style="margin-top:0"><h2 style="margin:0">Các phiên bản đề cương đã lưu (${shownRevs.length} / ${store.revisions.length})</h2><div class="actions" style="display:flex;align-items:center;gap:8px"><label for="rev-list-grade-filter" class="small muted" style="font-weight:600">Khối lớp:</label><select id="rev-list-grade-filter" style="min-width:150px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff">${opt('all',`Tất cả khối (${store.revisions.length})`,revFilterG==='all')}${revGrades.map(gr=>opt(gr,`Khối ${gr} (${store.revisions.filter(x=>Number(x.grade)===gr).length})`,String(revFilterG)===String(gr))).join('')}</select></div></div>${shownRevs.length?[...shownRevs].reverse().map(r=>{const ctTxt=r.coverage_targets?Object.entries(r.coverage_targets).map(([t,v])=>`${({MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'})[t]||t} ${v}%`).join(', '):'';return `<article class="saved-item"><div><h3>${esc(r.title)}</h3><p><strong>Khối ${r.grade}</strong> · ${countRecord(r)} câu hỏi (${revSummaryText(r)})${ctTxt?` · Tỉ lệ chung: <strong>${esc(ctTxt)}</strong>`:(r.similarity_target_percent!=null?` · Tương đồng đề thi: <strong>${r.similarity_target_percent}%</strong>`:'')} · ${esc(date(r.updated_at||r.created_at))}</p>${r.source_file?`<p class="q-id">Nguồn: ${esc(r.source_file)}</p>`:''}</div><div class="actions">${revisionLinks(r)}</div></article>`;}).join(''):empty('Chưa có phiên bản đề cương','Chọn câu ở ngân hàng hoặc Import tệp .docx đề cương.')}</div>`+
  `<div id="revision-coverage" class="card" hidden></div>`+`<div id="revision-inline-viewer" class="card" hidden></div>`+
  `<div class="two-col"><div class="card"><h2>${editingRev?`Sửa phiên bản đề cương: ${esc(editingRev.title||'')}`:'Lưu đề cương mới từ Ngân hàng'}</h2><form id="revision-form"><div class="form-grid"><div class="field"><label for="revision-grade">Khối lớp</label><select id="revision-grade">${gradeOptions(g)}</select></div><div class="field span2"><label for="revision-title">Tên phiên bản</label><input id="revision-title" value="${esc(store.revisionTitleDraft||(editingRev?.title||''))}" placeholder="Ví dụ: Đề cương Giữa HK1 · Khối ${g} · bản 1" required></div></div><div class="callout" style="margin:10px 0;background:#f8fafc;border-color:var(--line)"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px"><label for="revision-sim-pct" style="font-weight:650;color:var(--navy);margin:0">🎯 Mức độ tương đồng mục tiêu với Đề thi (%)</label><div class="actions" style="gap:4px">${[70,80,90,100].map(v=>`<button type="button" class="export-link${revSimPct===v?' primary':''}" data-rev-sim-preset="${v}">${v}%</button>`).join('')}</div></div><div class="sim-slider-wrap"><input id="revision-sim-pct" type="range" min="0" max="100" step="5" value="${esc(revSimPct)}"><input id="revision-sim-pct-num" type="number" min="0" max="100" step="1" value="${esc(revSimPct)}" style="width:74px"><span>%</span><span id="revision-sim-desc" class="small muted">(${revSimPct}% trong đề cương · ${100-revSimPct}% câu mới)</span></div></div><div class="selection-tray"><span><strong>${ids.length}</strong> câu khối ${g} đang được chọn</span><a href="#bank">Điều chỉnh lựa chọn</a></div>${electiveQs.length?`<div class="callout warning" style="margin-bottom:10px">⚠️ Đang có <strong>${electiveQs.length}</strong> câu thuộc <strong>Chuyên đề học tập (Mục II.2)</strong>. Theo Thông tư 22/2021/TT-BGDĐT Điều 7.1, câu Chuyên đề không dùng trong Đề cương ôn tập kiểm tra định kì. <button type="button" class="export-link" id="revision-remove-elective">Loại câu Chuyên đề khỏi lựa chọn</button></div>`:''}${revisionMatrixPanel(g,qs)}<div class="actions"><button type="button" id="revision-add-filter">Thêm câu đang lọc của khối ${g}</button><button type="button" id="revision-preview-draft"${!ids.length?' disabled':''}>Xem toàn bộ đang chọn</button><button type="button" id="revision-clear" class="quiet">Bỏ chọn khối ${g}</button></div><div class="revision-ids">${qs.length?qs.map(q=>`${isTechId(q.id)?'':`${esc(q.id)} · `}${esc(q.lesson_code)} · ${esc(q.level)} · ${esc(statusNames[q.review_status])}${questionSectionOf(q)==='elective_topic'?' · [CĐHT]':''}`).join('<br>'):'Chưa chọn câu. Dùng khung bốc ngẫu nhiên theo ma trận ở trên hoặc chọn thêm từ Ngân hàng.'}</div><div class="actions"><button type="submit" id="save-revision" class="primary"${!ids.length?' disabled':''}>${editingRev?'Cập nhật đề cương đang sửa':'Lưu phiên bản đề cương'}</button>${editingRev?`<button type="button" id="save-revision-as-new"${!ids.length?' disabled':''}>Lưu thành bản mới</button><button type="button" class="quiet" id="cancel-edit-revision">Hủy sửa</button>`:''}</div></form></div><div class="card"><h2>Giữ đúng nội dung đã chuẩn bị</h2><p class="muted">Phiên bản lưu giữ nội dung câu hỏi tại thời điểm tạo. Nếu sửa một câu trong ngân hàng sau đó, phiên bản cũ vẫn giữ nguyên.</p><div class="callout">Thầy/Cô có thể chọn số câu từng dạng (Trắc nghiệm, Đúng/Sai, Trả lời ngắn, Tự luận), bấm <strong>🎲 Bốc ngẫu nhiên</strong> đúng tỉ lệ ma trận rồi thiết lập <strong>mức tương đồng (%)</strong> mong muốn trước khi lưu. ${Number(g)>=10?'Đề cương định kì THPT chỉ lấy câu từ Nội dung cốt lõi (Mục II.1), không đưa bài Chuyên đề học tập.':''}</div><p class="small muted">Bấm <strong>👁 Xem toàn bộ</strong> ở bất kì đề cương nào phía trên để xem đầy đủ bảng giới hạn kiến thức, toàn bộ câu hỏi và chỉnh sửa trực tiếp ngay trên trang web.</p></div></div>`;
  const btnRevJson = $('#rev-download-json-sample');
@@ -5152,61 +5158,117 @@ function renderRevisions(){
 async function renderRevisionCoverage(rev){
  const box=$('#revision-coverage');if(!box)return;
  const exams=store.exams.filter(e=>(e.subject_name||'Tin học')===subject()&&Number(e.grade)===Number(rev.grade)&&(e.questions||[]).length);
- if(!exams.length){box.hidden=false;box.innerHTML=`<h3 style="margin-top:0">📊 Đối chiếu đề thi với đề cương "${esc(rev.title)}"</h3><p class="muted">Khối ${esc(rev.grade)} chưa có đề thi nào để đối chiếu. Tạo đề ở màn hình "Tạo đề kiểm tra" rồi quay lại đây.</p>`;return;}
+ if(!exams.length){box.hidden=false;box.innerHTML=`<div class="rev-cov-head"><div class="rev-cov-title-group"><h3>📊 Đối chiếu đề cương "${esc(rev.title)}"</h3></div></div><p class="muted" style="margin:0">Khối ${esc(rev.grade)} chưa có đề thi nào để đối chiếu. Tạo đề ở màn hình "Tạo đề kiểm tra" rồi quay lại đây.</p>`;return;}
  const linked=exams.filter(e=>e.revision_id===rev.id);
  const chosen=exams.find(e=>e.id===store.revCoverageExamId)||linked[0]||exams[0];
- box.hidden=false;box.innerHTML=`<h3 style="margin-top:0">📊 Đối chiếu đề thi với đề cương "${esc(rev.title)}"</h3><p class="muted">Đang đối chiếu…</p>`;
- let rep;try{rep=(await request('/api/revisions/coverage',{revision_id:rev.id,exam_id:chosen.id})).reports[0];}catch(err){box.innerHTML=`<div class="callout warning">${esc(detailError(err))}</div>`;return;}
+ box.hidden=false;box.innerHTML=`<div class="rev-cov-head"><div class="rev-cov-title-group"><h3>📊 Đối chiếu đề cương "${esc(rev.title)}"</h3></div></div><p class="muted" style="margin:0">Đang đối chiếu…</p>`;
+ let allReports=[];
+ try{
+  const listRes=await request('/api/revisions/coverage',{revision_id:rev.id});
+  allReports=Array.isArray(listRes.reports)?listRes.reports:[];
+  if(!allReports.some(r=>r.exam_id===chosen.id)){
+   const oneRes=await request('/api/revisions/coverage',{revision_id:rev.id,exam_id:chosen.id});
+   if(Array.isArray(oneRes.reports)&&oneRes.reports[0])allReports.push(oneRes.reports[0]);
+  }
+ }catch(err){box.innerHTML=`<div class="callout warning">${esc(detailError(err))}</div>`;return;}
+ const rep=allReports.find(r=>r.exam_id===chosen.id)||allReports[0];
+ if(!rep){box.innerHTML=`<div class="callout warning">Không đọc được dữ liệu đối chiếu.</div>`;return;}
  if(store.activeRevisionViewId&&store.activeRevisionViewId!==rev.id)return;
- // Kết quả về sau khi màn hình đã vẽ lại hoặc đã chuyển trang: bỏ qua.
  if(!box.isConnected||$('#revision-coverage')!==box)return;
- const ok=rep.in_revision>=rep.required;
+ const ok=(rep.in_revision>=rep.required)&&(rep.types_ok!==false);
  const missing=rep.items.filter(x=>!x.in_revision),present=rep.items.filter(x=>x.in_revision);
- const row=x=>`<tr><td><strong>${esc(x.label)}</strong></td><td>${esc(x.lesson_code)}</td><td>${esc(x.level)}</td><td style="text-align:right">${esc(String(x.points).replace('.',','))}</td><td>${esc(x.question)}</td><td>${x.in_revision?'✓ có trong đề cương':x.similar_text?'Gần giống (nội dung lời dẫn trùng, phương án/đáp án khác)':x.outcome_in_revision?'Chưa có câu này; YCCĐ đã có trong đề cương':'<strong>Chưa có câu và YCCĐ</strong>'}</td></tr>`;
+ const row=x=>`<tr><td><strong>${esc(x.label)}</strong></td><td>${esc(x.lesson_code)}</td><td>${esc(x.level)}</td><td style="text-align:right">${esc(String(x.points).replace('.',','))}</td><td>${esc(x.question)}</td><td>${x.in_revision?'✓ có trong đề cương':x.similar_text?'Gần giống (lời dẫn trùng, phương án khác)':x.outcome_in_revision?'Chưa có câu này (đã có YCCĐ)':'<strong>Chưa có câu và YCCĐ</strong>'}</td></tr>`;
  const table=list=>`<div class="table-wrap"><table class="small"><thead><tr><th>Câu</th><th>Bài</th><th>Mức độ</th><th>Điểm</th><th>Nội dung</th><th>Đề cương</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table></div>`;
- box.innerHTML=`<h3 style="margin-top:0">📊 Đối chiếu đề thi với đề cương "${esc(rev.title)}"</h3>
-  <div class="field" style="max-width:520px"><label for="rev-cov-exam">Đề thi</label><select id="rev-cov-exam">${exams.map(e=>`<option value="${esc(e.id)}"${e.id===chosen.id?' selected':''}>${esc(e.title||e.id)}${e.exam_code?' · Mã '+esc(e.exam_code):''}${e.revision_id===rev.id?' (gắn với đề cương này)':''}</option>`).join('')}</select></div>
-  <div class="kg-stats" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0">
-   <div class="callout ${ok?'':'warning'}" style="margin:0"><strong>${rep.in_revision}/${rep.total} câu</strong> có trong đề cương (${String(rep.count_percent).replace('.',',')}%) · cần ít nhất ${rep.required} câu (${rep.threshold}%)</div>
-   <div class="callout" style="margin:0">Theo điểm: <strong>${String(rep.points_percent).replace('.',',')}%</strong></div>
-   <div class="callout ${rep.outcome_percent<100?'warning':''}" style="margin:0">Câu có YCCĐ trong đề cương: <strong>${String(rep.outcome_percent).replace('.',',')}%</strong></div>
+ const linkedReports=linked.map(e=>allReports.find(r=>r.exam_id===e.id)).filter(Boolean);
+ store.revCovTargetsByRev=store.revCovTargetsByRev||{};
+ const savedByRev=store.revCovTargetsByRev[rev.id]||(rev.coverage_targets&&typeof rev.coverage_targets==='object'?rev.coverage_targets:null);
+ const SHORT_NAME={MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'};
+ const FULL_NAME={MC:'Trắc nghiệm',YN:'Đúng/Sai',SHORT:'Trả lời ngắn',ES:'Tự luận'};
+ const bt=rep.by_type||{},keys=Object.keys(bt);
+ const applyLabel=linked.length>1?`Áp dụng cho đề cương & ${linked.length} đề liên kết`:(linked.length===1?'Áp dụng cho đề cương & đề liên kết':'Áp dụng tỉ lệ');
+ const ratioBarHtml=keys.length?`<div class="rev-cov-ratio-bar" title="Thiếu câu sẽ tự lấy câu gốc trong Ngân hàng đưa vào đề cương; dư sẽ bớt nhưng vẫn giữ YCCĐ. Tỉ lệ này được lưu cho đề cương và mọi đề liên kết.">
+   <div class="rev-cov-ratio-inputs">
+     ${keys.map(t=>{
+       const val=(savedByRev&&savedByRev[t]!=null)?savedByRev[t]:(bt[t].target!=null?bt[t].target:rep.threshold);
+       return `<label class="rev-cov-type-item" for="rev-cov-target-${t}" title="${FULL_NAME[t]||t}: đang có ${bt[t].in_revision}/${bt[t].total} câu (${String(bt[t].percent).replace('.',',')}%)">${SHORT_NAME[t]||t}<input id="rev-cov-target-${t}" data-rev-cov-target="${t}" type="number" min="0" max="100" step="1" value="${esc(val)}"><span>%</span><span class="small muted" id="rev-cov-frac-${t}">(${bt[t].in_revision}/${bt[t].total})</span></label>`;
+     }).join('')}
+     <span class="small muted" id="rev-align-preview"></span>
+   </div>
+   <div class="rev-cov-ratio-actions">
+     <button type="button" class="primary" id="rev-align-to-exam">${esc(applyLabel)}</button>
+   </div>
+ </div>`:'';
+ const linkedStripHtml=linkedReports.length>1?`<div class="rev-cov-linked-bar">
+   <span class="muted"><strong>${linkedReports.length} đề liên kết:</strong></span>
+   ${linkedReports.map(lr=>{
+     const lOk=(lr.in_revision>=lr.required)&&(lr.types_ok!==false);
+     const shortTitle=String(lr.exam_title||lr.exam_id).split('—').pop().trim();
+     return `<button type="button" class="rev-cov-exam-pill${lr.exam_id===chosen.id?' is-active':''}" data-rev-cov-pick="${esc(lr.exam_id)}">${esc(lr.exam_code?`Mã ${lr.exam_code}`:shortTitle)} · ${lr.in_revision}/${lr.total} ${lOk?'✓':'⚠'}</button>`;
+   }).join('')}
+ </div>`:'';
+ box.innerHTML=`<div class="rev-cov-head">
+   <div class="rev-cov-title-group">
+     <h3>📊 Đối chiếu đề cương</h3>
+     <select id="rev-cov-exam" aria-label="Chọn đề thi đối chiếu">${exams.map(e=>`<option value="${esc(e.id)}"${e.id===chosen.id?' selected':''}>${esc(e.title||e.id)}${e.exam_code?' · Mã '+esc(e.exam_code):''}${e.revision_id===rev.id?' ★':''}</option>`).join('')}</select>
+   </div>
+   <div class="rev-cov-kpis">
+     <span class="rev-cov-kpi ${ok?'is-ok':'is-warn'}">Trong đề cương: <strong>${rep.in_revision}/${rep.total}</strong> (${String(rep.count_percent).replace('.',',')}%)</span>
+     <span class="rev-cov-kpi">Điểm: <strong>${String(rep.points_percent).replace('.',',')}%</strong></span>
+     <span class="rev-cov-kpi ${rep.outcome_percent<100?'is-warn':'is-ok'}">YCCĐ: <strong>${String(rep.outcome_percent).replace('.',',')}%</strong></span>
+   </div>
   </div>
-  ${(()=>{const NAME={MC:'Trắc nghiệm',YN:'Đúng/Sai',SHORT:'Trả lời ngắn',ES:'Tự luận'},bt=rep.by_type||{},keys=Object.keys(bt);if(!keys.length)return '';
-   store.revCovTargets=store.revCovTargets||{};
-   return `<div class="callout" style="margin:10px 0"><strong>Điều chỉnh tỉ lệ câu của đề có trong đề cương</strong>
-   <p class="small muted" style="margin:4px 0 8px">Đặt tỉ lệ cho từng dạng rồi bấm "Điều chỉnh đề cương". Thiếu thì ứng dụng THÊM câu của đề (lấy câu gốc trong Ngân hàng, kể cả câu đã trộn phương án); dư thì BỚT câu của đề, giữ YCCĐ. Quy định của tổ: tỉ lệ chung ít nhất 90% (AGENTS.md).</p>
-   <div class="form-grid" style="margin-bottom:8px">${keys.map(t=>`<div class="field"><label for="rev-cov-target-${t}">${NAME[t]||t} <span class="muted">(đang có ${bt[t].in_revision}/${bt[t].total} câu · ${String(bt[t].percent).replace('.',',')}%)</span></label><div style="display:flex;align-items:center;gap:6px"><input id="rev-cov-target-${t}" data-rev-cov-target="${t}" type="number" min="0" max="100" step="5" value="${esc(store.revCovTargets[t]??rep.threshold)}" style="width:90px"><span>%</span></div></div>`).join('')}</div>
-   <div class="actions"><button type="button" class="primary" id="rev-align-to-exam">Điều chỉnh đề cương theo tỉ lệ</button><span class="small muted" id="rev-align-preview"></span></div></div>`;})()}
-  ${missing.length?`<h4>Câu của đề CHƯA có trong đề cương (${missing.length})</h4>${table(missing)}`:'<p class="badge approved">Mọi câu của đề đều có trong đề cương.</p>'}
-  ${rep.missing_outcomes.length?`<p class="small"><strong>YCCĐ của đề chưa có trong đề cương:</strong> ${rep.missing_outcomes.map(esc).join('; ')}</p>`:''}
-  ${present.length?`<details><summary>Câu đã có trong đề cương (${present.length})</summary>${table(present)}</details>`:''}
-  <p class="small muted">Chỉ xem, không thay đổi dữ liệu. "Có trong đề cương" nghĩa là trùng nội dung câu hỏi, phương án và đáp án (kể cả khi đã trộn mã đề).</p>`;
+  ${linkedStripHtml}
+  ${ratioBarHtml}
+  ${missing.length?`<details class="rev-cov-details"><summary>Câu của đề chưa có trong đề cương (${missing.length})</summary>${table(missing)}</details>`:'<span class="badge approved">✓ Mọi câu của đề đều có trong đề cương</span>'}
+  ${rep.missing_outcomes.length?`<p class="small" style="margin:8px 0 0;color:#991b1b"><strong>YCCĐ chưa có:</strong> ${rep.missing_outcomes.map(esc).join('; ')}</p>`:''}
+  ${present.length?`<details class="rev-cov-details"><summary>Câu đã có trong đề cương (${present.length})</summary>${table(present)}</details>`:''}`;
  const covSel=$('#rev-cov-exam');if(!covSel)return;
  covSel.onchange=e=>{store.revCoverageExamId=e.target.value;renderRevisionCoverage(rev);};
- const covPreview=()=>{const bt=rep.by_type||{},parts=[];let after=0;
-  document.querySelectorAll('[data-rev-cov-target]').forEach(inp=>{const t=inp.dataset.revCovTarget,x=bt[t];if(!x)return;const pct=Math.max(0,Math.min(100,Math.round(Number(inp.value)||0)));store.revCovTargets[t]=pct;const want=Math.ceil(x.total*pct/100);after+=want;const d=want-x.in_revision;if(d)parts.push(`${d>0?'thêm':'bớt'} ${Math.abs(d)} câu ${({MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'})[t]||t}`);});
+ box.querySelectorAll('[data-rev-cov-pick]').forEach(b=>{b.onclick=()=>{store.revCoverageExamId=b.dataset.revCovPick;renderRevisionCoverage(rev);};});
+ const readTargets=()=>{
+  const cur={};
+  store.revCovTargetsByRev[rev.id]=store.revCovTargetsByRev[rev.id]||{};
+  document.querySelectorAll('[data-rev-cov-target]').forEach(inp=>{
+   const t=inp.dataset.revCovTarget;
+   const pct=Math.max(0,Math.min(100,Math.round(Number(inp.value)||0)));
+   store.revCovTargetsByRev[rev.id][t]=pct;
+   cur[t]=pct;
+  });
+  return cur;
+ };
+ const covPreview=()=>{
+  const cur=readTargets();
+  const parts=[];let after=0;
+  keys.forEach(t=>{
+   const x=bt[t];if(!x)return;
+   const pct=cur[t]??rep.threshold;
+   const want=Math.ceil(x.total*pct/100);
+   after+=want;
+   const fEl=$(`#rev-cov-frac-${t}`);
+   if(fEl)fEl.textContent=`(${want}/${x.total})`;
+   const d=want-x.in_revision;
+   if(d)parts.push(`${d>0?'+':'-'}${Math.abs(d)} ${SHORT_NAME[t]||t}`);
+  });
   const overall=rep.total?Math.round(1000*after/rep.total)/10:0,el=$('#rev-align-preview');
-  if(el)el.innerHTML=(parts.length?`Sẽ ${parts.join(', ')}. `:'Đề cương đã đúng tỉ lệ đặt ra. ')+`Tỉ lệ chung sau điều chỉnh: <strong${overall<90?' style="color:#b91c1c"':''}>${after}/${rep.total} câu (${String(overall).replace('.',',')}%)</strong>${overall<90?' — dưới 90%':''}.`;
-  return {parts,overall};};
+  if(el)el.innerHTML=`Tổng mục tiêu: <strong${overall<90?' style="color:#b45309"':''}>${after}/${rep.total} (${String(overall).replace('.',',')}%)</strong>${parts.length?` · ${parts.join(', ')}`:''}`;
+  return {parts,overall,targets:cur};
+ };
  document.querySelectorAll('[data-rev-cov-target]').forEach(inp=>{inp.oninput=covPreview;});
  covPreview();
  if($('#rev-align-to-exam'))$('#rev-align-to-exam').onclick=async()=>{
-  const {parts,overall}=covPreview();
-  if(!parts.length){notify('Đề cương đã đúng tỉ lệ đặt ra; không cần thay đổi.');return;}
-  if(!confirm(`Điều chỉnh đề cương "${rev.title}" theo đề "${chosen.title||chosen.id}": ${parts.join(', ')}.\nTỉ lệ chung sau điều chỉnh: ${String(overall).replace('.',',')}%${overall<90?' (dưới mức 90% của tổ)':''}.\nCâu bị bớt vẫn còn trong Ngân hàng.`))return;
-  const targets={};Object.keys(rep.by_type||{}).forEach(t=>{targets[t]=store.revCovTargets[t]??rep.threshold;});
-  await mutate('/api/revisions/align-to-exam',{revision_id:rev.id,exam_id:chosen.id,targets},res=>{
+  const {targets}=covPreview();
+  await mutate('/api/revisions/align-to-exam',{revision_id:rev.id,exam_id:chosen.id,targets,apply_to_linked:true},res=>{
    if(res.revisions)store.revisions=res.revisions;
+   if(res.exams)store.exams=res.exams;
+   store.revCovTargetsByRev[rev.id]={...targets};
    store.activeRevisionViewId=res.revision.id;store.revCoverageExamId=chosen.id;
    renderRevisions();
-   const line=q=>`- ${q.lesson_code} · ${q.level} · ${q.question}`;
-   notify(`${res.new_version?`Đề cương cũ đã khóa nên đã lưu phiên bản mới "${res.revision.title}". `:''}Đề cương giờ chứa ${res.kept}/${res.total} câu của đề (${String(res.overall_percent).replace('.',',')}%).`
-    +(res.added?.length?`\nĐã thêm ${res.added.length} câu:\n${res.added.map(line).join('\n')}`:'')
-    +(res.removed?.length?`\nĐã bớt ${res.removed.length} câu:\n${res.removed.map(line).join('\n')}`:'')
+   const ratioTxt=Object.entries(res.coverage_targets||targets).map(([t,v])=>`${SHORT_NAME[t]||t} ${v}%`).join(', ');
+   const examRes=(res.exam_reports||[]).map(er=>`${er.exam_code?`Mã ${er.exam_code}`:(er.exam_title||'Đề')}: ${er.in_revision}/${er.total}`).join(' · ');
+   notify(`${res.new_version?`Đã lưu phiên bản mới "${res.revision.title}". `:''}Đã áp dụng tỉ lệ chung (${ratioTxt}) cho đề cương${res.linked_count>1?` và ${res.linked_count} đề liên kết`:''}${examRes?` (${examRes})`:` (${res.kept}/${res.total} câu)`}.`
     +(res.warnings?.length?`\nLưu ý: ${res.warnings.join(' ')}`:''),Boolean(res.warnings?.length));
   });
  };
-
 }
 function startEditRevision(id){
  const r=store.revisions.find(x=>x.id===id);if(!r)return;
@@ -5487,6 +5549,7 @@ function renderExams(){
       `<div class="field span2"><label for="exam-sim-pct">Tỉ lệ câu trùng Đề cương (%)</label><div class="sim-slider-wrap"><input id="exam-sim-pct" type="range" min="0" max="100" step="5" value="${esc(simVal)}"><input id="exam-sim-pct-num" type="number" min="0" max="100" step="1" value="${esc(simVal)}" style="width:74px"><span>%</span><span id="exam-sim-desc" class="small muted">(${simVal}% từ đề cương · ${100-simVal}% câu mới)</span></div></div>`+
       `<div class="field"><label for="exam-sim-mode">Chế độ áp dụng</label><select id="exam-sim-mode"><option value="exact"${(d.similarity_mode||'exact')==='exact'?' selected':''}>Bám sát (${simVal}% đề cương, ${100-simVal}% ngoài)</option><option value="min"${d.similarity_mode==='min'?' selected':''}>Tối thiểu (≥ ${simVal}%, thường ra 100%)</option></select></div>`+
      `</div>`+
+     (()=>{const revSel=currentRevisions().find(r=>r.id===d.revision_id);const ct=revSel?.coverage_targets;if(!ct||!Object.keys(ct).length)return '';const lbl={MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'};return `<p class="small" style="margin:8px 0 0;color:#0267b1">✓ Áp dụng tỉ lệ theo dạng của đề cương: <strong>${esc(Object.entries(ct).map(([t,v])=>`${lbl[t]||t} ${v}%`).join(', '))}</strong></p>`;})()+
      `<p id="exam-sim-note" class="small" style="margin:8px 0 0;color:#b45309"${simVal>=90?' hidden':''}>💡 Lưu ý: Quy chuẩn kiểm định chính thức khuyến nghị ≥ 90%. Mức dưới 90% vẫn tạo đề bình thường ở chế độ linh hoạt.</p>`+
     `</div>`+
     `<details class="sim-details-toggle" style="grid-column:1/-1;margin-top:2px"><summary>⚙️ Tùy chọn nâng cao (Mã xáo trộn)</summary>`+
@@ -5801,7 +5864,7 @@ function bindExamSetCard(){if(!$('#exam-set-card'))return;const d=examSetDefault
  if($('#generate-set'))$('#generate-set').disabled=store.busy||Boolean(p.length);
  if($('#set-warning')){$('#set-warning').hidden=!p.length;$('#set-warning').textContent=p.join('\n');}
  if($('#generate-set'))$('#generate-set').onclick=generateExamSet;}
-async function generateExamSet(){readExamInputs();const d=examSetDefaults(),p=examSetProblems();if(p.length){notify(p.join('\n'),true);return;}const name=d.title.trim()||`${periodNames[d.exam_type]} · ${subject()} ${d.grade}`,cells=setPlan().data.cells;const simPct=Math.max(0,Math.min(100,Math.round(Number(d.similarity_percent??90))));const payload={title:name,grade:Number(d.grade),exam_type:d.exam_type,duration:Number(d.duration),...examSourcePayload(),seed:d.seed,exam_count:Number(d.set_count),similarity_percent:simPct,similarity_mode:d.similarity_mode||'exact',flexible:Boolean(d.flexible_mode||simPct<90),...(d.set_rev==='auto'?{revision_counts:setCounts(cells)}:{revision_id:d.set_rev})};
+async function generateExamSet(){readExamInputs();const d=examSetDefaults(),p=examSetProblems();if(p.length){notify(p.join('\n'),true);return;}const name=d.title.trim()||`${periodNames[d.exam_type]} · ${subject()} ${d.grade}`,cells=setPlan().data.cells;const simPct=Math.max(0,Math.min(100,Math.round(Number(d.similarity_percent??90))));const payload={title:name,grade:Number(d.grade),exam_type:d.exam_type,duration:Number(d.duration),...examSourcePayload(),seed:d.seed,exam_count:Number(d.set_count),scope_week:currentScopeWeek(),similarity_percent:simPct,similarity_mode:d.similarity_mode||'exact',flexible:Boolean(d.flexible_mode||simPct<90),...(d.set_rev==='auto'?{revision_counts:setCounts(cells)}:{revision_id:d.set_rev})};
  await mutate('/api/exams/generate-set',payload,res=>{store.exams=res.exams_all||store.exams;store.revisions=res.revisions||store.revisions;store.activeExamViewId=res.exams?.[0]?.id;store.examSubTab='saved';renderExams();notify(`Đã tạo ${res.exams.length} đề${d.set_rev==='auto'?` và đề cương "${res.revision.title}" (${res.revision_size} câu)`:''}. Mỗi đề để ${res.outside_per_exam} câu ngoài đề cương.`+(res.warnings?.length?'\nLưu ý: '+res.warnings.join(' '):''),Boolean(res.warnings?.length));});}
 function matrixRow(r,i,locked){const d=store.examDraft;const key=`data-row="${i}"`,disabled=locked?' disabled':'';const count=d.flexible_mode?flexCountForCell(d.grade,r.lesson_code,r.type,r.level):questions().filter(q=>q.grade===Number(d.grade)&&q.lesson_code===r.lesson_code&&q.type===r.type&&q.level===r.level&&q.review_status==='approved').length;const optsList=instructionalLessons(d.grade,undefined,{includeElective:d.exam_type==='TX'});const shownOpts=r.lesson_code&&!optsList.some(l=>l.lesson_code===r.lesson_code)?[...optsList,...lessons(d.grade).filter(l=>l.lesson_code===r.lesson_code)]:optsList;const allowedTypes=Number(d.grade)>=10?['MC','SHORT','ES']:['MC','ES'];const typeOpts=allowedTypes.includes(r.type)?allowedTypes:[...allowedTypes,r.type];return `<tr><td><select aria-label="Bài học dòng ${i+1}" ${key} data-key="lesson_code"${disabled}>${shownOpts.map(l=>opt(l.lesson_code,lessonOptionLabel(l),l.lesson_code===r.lesson_code)).join('')}</select></td><td><select aria-label="Dạng câu dòng ${i+1}" ${key} data-key="type"${disabled}>${typeOpts.map(v=>opt(v,examTypeLabel(v),v===r.type)).join('')}</select></td><td><select aria-label="Mức độ dòng ${i+1}" ${key} data-key="level"${disabled}>${C.levelOptions(r.level)}</select></td><td><input aria-label="Số câu dòng ${i+1}" ${key} data-key="count" type="number" min="1" step="1" value="${esc(r.count)}"${disabled}></td><td><input aria-label="Điểm mỗi câu dòng ${i+1}" ${key} data-key="points_per_question" type="number" min="0.01" step="0.01" value="${esc(r.points_per_question)}"${disabled}></td><td><span class="badge${count<r.count?' draft':(d.flexible_mode?' approved':'')}">${count} câu</span></td>${!locked?`<td><button type="button" class="quiet danger" data-remove-row="${i}" aria-label="Bỏ dòng ${i+1}">Bỏ</button></td>`:''}</tr>`;}
 function readExamInputs(){const d=store.examDraft;if(!$('#exam-title'))return;d.title=$('#exam-title').value;d.duration=Number($('#exam-duration').value);d.seed=$('#exam-seed').value;d.revision_id=$('#exam-revision').value;if($('#exam-sim-pct-num'))d.similarity_percent=Number($('#exam-sim-pct-num').value);if($('#exam-sim-mode'))d.similarity_mode=$('#exam-sim-mode').value;}
@@ -5812,7 +5875,7 @@ async function generateExam(event){
  const d=store.examDraft,p=generationProblems();
  if(p.length){notify(p.join('\n'),true);return;}
  const simPct=Math.max(0,Math.min(100,Math.round(Number(d.similarity_percent??90))));
- const payload={title:d.title.trim(),grade:Number(d.grade),exam_type:d.exam_type,duration:Number(d.duration),...examSourcePayload(),revision_id:d.revision_id||null,seed:d.seed,similarity_percent:simPct,similarity_mode:d.similarity_mode||'min',flexible:Boolean(d.flexible_mode||simPct<90)};
+ const payload={title:d.title.trim(),grade:Number(d.grade),exam_type:d.exam_type,duration:Number(d.duration),...examSourcePayload(),revision_id:d.revision_id||null,seed:d.seed,similarity_percent:simPct,similarity_mode:d.similarity_mode||'exact',scope_week:currentScopeWeek(),flexible:Boolean(d.flexible_mode||simPct<90)};
  if(!payload.title){notify('Nhập tên đề kiểm tra trước khi tạo.',true);return;}
  const genBtn=$('#generate-exam'),origTxt=genBtn?.textContent;
  if(genBtn){genBtn.disabled=true;genBtn.textContent='⏳ Đang tạo đề…';}

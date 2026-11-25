@@ -31,10 +31,10 @@ test('index.html preserves required shell, header, toast, and sidebar IDs', () =
   }
   assert(indexHtml.includes('id="notice" popover="manual"'), '#notice must use popover="manual" for top-layer visibility');
   assert(!indexHtml.includes('class="page-crumb"'), 'Redundant breadcrumb should be removed from topbar');
-  assert(indexHtml.includes('./styles.css?v=20261125l'));
+  assert(indexHtml.includes('./styles.css?v=20261125m'));
   assert(indexHtml.includes('./matrices.js?v=20261125l'));
   assert(indexHtml.includes('./firebase-bridge.js?v=20261125l'));
-  assert(indexHtml.includes('./app.js?v=20261125l'));
+  assert(indexHtml.includes('./app.js?v=20261125m'));
 });
 
 test('styles.css styles #notice as floating fixed toast, full nav collapse, and single-line topbar', () => {

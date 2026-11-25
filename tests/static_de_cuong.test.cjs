@@ -172,3 +172,87 @@ test('Tăng tỉ lệ đề cương: thêm câu của đề (kể cả bản đ�
   assert.equal(r.response.reports[0].in_revision, 10);
   assert.equal(r.response.reports[0].by_type.MC.in_revision, 9);
 });
+
+test('Áp dụng tỉ lệ chung (VD: 27/31 câu · TN 85%, TL 100%) cho tất cả các đề liên kết và đồng bộ kiểm tra đối chiếu', async () => {
+  let data = workspace({ mcB1: 40, mcB2: 20, es: 6 });
+  const q = id => ({ ...data.bank.questions.find(x => x.id === id) });
+  // Tạo đề cương ban đầu chỉ có ít câu để kiểm tra bước tự bổ sung đồng loạt
+  let r = await api.handle('/api/revisions/save', { title: 'ĐC chung', grade: 9, question_ids: ['B1-0', 'ES-0'] }, data, env);
+  data = r.data; const rev = r.response.revision;
+  // Hai đề liên kết cùng có 28 MC + 3 ES = 31 câu
+  const makeExam = (id, code, mcOffset) => ({
+    id, title: `Đề ${code}`, grade: 9, subject_name: 'Tin học', exam_code: code,
+    revision_id: rev.id, status: 'drafting', similarity_target_percent: 90,
+    questions: [
+      ...Array.from({ length: 28 }, (_, i) => ({ ...q('B1-' + (mcOffset + i)), slot_number: i + 1, points: 0.25 })),
+      ...Array.from({ length: 3 }, (_, i) => ({ ...q('ES-' + i), slot_number: i + 1, points: 1 }))
+    ]
+  });
+  data.exams = [makeExam('E1', '101', 0), makeExam('E2', '102', 10)];
+
+  r = await api.handle('/api/revisions/align-to-exam', {
+    revision_id: rev.id, exam_id: 'E1', targets: { MC: 85, ES: 100 }, apply_to_linked: true
+  }, data, env);
+  data = r.data;
+  assert.deepEqual(r.response.coverage_targets, { MC: 85, ES: 100 });
+  assert.deepEqual(r.response.revision.coverage_targets, { MC: 85, ES: 100 });
+  assert.equal(r.response.linked_count, 2);
+  assert.equal(r.response.exam_reports.length, 2);
+  for (const rep of r.response.exam_reports) {
+    assert.equal(rep.total, 31);
+    assert.equal(rep.in_revision, 27);
+    assert.equal(rep.required, 27);
+    assert.equal(rep.types_ok, true);
+    assert.equal(rep.by_type.MC.in_revision, 24);
+    assert.equal(rep.by_type.ES.in_revision, 3);
+    assert.equal(rep.by_type.ES.percent, 100);
+  }
+
+  const cov = await api.handle('/api/revisions/coverage', { revision_id: r.response.revision.id }, data, env);
+  assert.equal(cov.response.reports.length, 2);
+  for (const rep of cov.response.reports) {
+    assert.equal(rep.in_revision, 27);
+    assert.equal(rep.required, 27);
+    assert.equal(rep.types_ok, true);
+  }
+});
+
+test('Tạo bộ đề mới kế thừa tỉ lệ từng dạng (coverage_targets) từ đề cương liên kết (100% TL, 85% TN)', async () => {
+  let data = workspace({ mcB1: 35, mcB2: 20, es: 6 });
+  const m = {
+    id: 'M-SHARED', family_id: 'F-SHARED', title: 'Ma trận 31 câu', grade: 9, subject_name: 'Tin học', exam_type: 'CK1',
+    status: 'draft', revision: 1, version: 1, mode: 'authored', profile: 'THCS', school_year: '2026-2027',
+    owner_name: 'Tổ', campus: 'CT', duration: 45, total_points: 10, indicator_catalog: [],
+    reconciliation: { confirmed: true, issues: [] },
+    lessons: LESSONS.map(l => ({ lesson_code: l.lesson_code, title: l.lesson_name_source, topic: 'Chủ đề' })),
+    requirements: [
+      { id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'B1', competency: 'NLa', outcome_mode: 'any', ppct_outcome_index: null },
+      { id: 'R2', lesson_code: 'B3', level: 'Vận dụng', text: 'B3', competency: 'NLa', outcome_mode: 'any', ppct_outcome_index: null }
+    ],
+    slots: [
+      ...Array.from({ length: 28 }, (_, i) => ({ id: 'MC' + i, kind: 'MC', number: i + 1, scoring: { mode: 'sum_parts' }, parts: [{ id: 'PMC' + i, requirement_id: 'R1', points: 0.25 }] })),
+      ...Array.from({ length: 3 }, (_, i) => ({ id: 'ES' + i, kind: 'ES', number: i + 1, scoring: { mode: 'sum_parts' }, parts: [{ id: 'PES' + i, requirement_id: 'R2', points: 1 }] }))
+    ]
+  };
+  data.matrices = [m];
+  data = (await api.handle('/api/matrices/lock', { id: 'M-SHARED', expected_revision: 1, confirmation: { confirmed_by: 'GV', confirmed_at: '2026-11-25', external_agreement: true } }, data, env)).data;
+  const revIds = [...Array.from({ length: 24 }, (_, i) => 'B1-' + i), 'ES-0', 'ES-1', 'ES-2'];
+  const savedRevRes = await api.handle('/api/revisions/save', {
+    title: 'ĐC chuẩn 27/31', grade: 9, question_ids: revIds, similarity_target_percent: 87, coverage_targets: { MC: 85, ES: 100 }
+  }, data, env);
+  data = savedRevRes.data;
+  const rev = savedRevRes.response.revision;
+
+  const setRes = await api.handle('/api/exams/generate-set', {
+    title: 'CK1 Tin 9', grade: 9, exam_type: 'CK1', matrix_id: 'M-SHARED',
+    revision_id: rev.id, exam_count: 2, flexible: true, similarity_percent: 87, similarity_mode: 'exact', seed: 'ck1'
+  }, data, env);
+  assert.equal(setRes.response.exams.length, 2);
+  for (const ex of setRes.response.exams) {
+    assert.deepEqual(ex.coverage_targets, { MC: 85, ES: 100 });
+    const cov = engine.revisionCoverage(ex, rev, data.bank.ppct);
+    assert.equal(cov.by_type.ES.in_revision, 3, '100% câu Tự luận nằm trong đề cương');
+    assert.equal(cov.by_type.ES.percent, 100);
+    assert.equal(cov.in_revision, 27, 'Tổng 27/31 câu nằm trong đề cương');
+  }
+});

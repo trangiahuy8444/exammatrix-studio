@@ -1,3 +1,8 @@
+## 26/11/2026 — Gợi ý 90% không ép bù & chỉnh trực tiếp số câu từng dạng trên khung Đối chiếu đề cương
+
+- **Mở khóa chỉnh tay (`core.js`, `app.js`, `static-api.js`, `static-exam-engine.js`):** giữ quy chuẩn `rules/01` tối thiểu `90%` làm tròn lên (`31` câu → `28`) khi kiểm định duyệt đề chính thức (`verifyExam`, `KR.checkExam`), nhưng bỏ cơ chế ép bù ngược trong `computeRevisionPlan`.
+- Ô **`Gợi ý tổng (%)`** ở khung Đối chiếu đề cương tính gợi ý nhanh (VD `90%` → `25/28 TN + 3/3 TL = 28/31`), còn các ô từng dạng chuyển sang **số câu trực tiếp** (`TN [24]/28 (85,7%)`, `TL [3]/3 (100%)`) để giáo viên chỉnh tự do trên toàn bộ đề liên kết (`type_counts` / `coverage_counts`); dưới `90%` hệ thống hiển thị cảnh báo màu cam để giáo viên biết trước khi duyệt.
+
 ## 25/11/2026 — Tỉ lệ đề cương trở lại tối thiểu 90% (làm tròn lên)
 
 Giáo viên chốt giữ đúng `rules/01_phan_cong_va_bien_soan_de.md` ("90% đề thi phải được lấy từ hoặc bám sát bộ câu hỏi trong Đề cương ôn tập"), bỏ cách làm tròn xuống của 9486b10 (31 câu chỉ cần 27 = 87,1%).

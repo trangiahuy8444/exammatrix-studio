@@ -5175,28 +5175,42 @@ async function renderRevisionCoverage(rev){
  if(!rep){box.innerHTML=`<div class="callout warning">Không đọc được dữ liệu đối chiếu.</div>`;return;}
  if(store.activeRevisionViewId&&store.activeRevisionViewId!==rev.id)return;
  if(!box.isConnected||$('#revision-coverage')!==box)return;
- const ok=(rep.in_revision>=rep.required)&&(rep.types_ok!==false);
+ const minReq90=window.BankCore?.requiredRevisionCount?window.BankCore.requiredRevisionCount(rep.total,90):Math.ceil(rep.total*0.9-1e-9);
+ const ok=(rep.in_revision>=minReq90)&&(rep.in_revision>=rep.required)&&(rep.types_ok!==false);
  const missing=rep.items.filter(x=>!x.in_revision),present=rep.items.filter(x=>x.in_revision);
  const row=x=>`<tr><td><strong>${esc(x.label)}</strong></td><td>${esc(x.lesson_code)}</td><td>${esc(x.level)}</td><td style="text-align:right">${esc(String(x.points).replace('.',','))}</td><td>${esc(x.question)}</td><td>${x.in_revision?'✓ có trong đề cương':x.similar_text?'Gần giống (lời dẫn trùng, phương án khác)':x.outcome_in_revision?'Chưa có câu này (đã có YCCĐ)':'<strong>Chưa có câu và YCCĐ</strong>'}</td></tr>`;
  const table=list=>`<div class="table-wrap"><table class="small"><thead><tr><th>Câu</th><th>Bài</th><th>Mức độ</th><th>Điểm</th><th>Nội dung</th><th>Đề cương</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table></div>`;
  const linkedReports=linked.map(e=>allReports.find(r=>r.exam_id===e.id)).filter(Boolean);
  store.revCovTargetsByRev=store.revCovTargetsByRev||{};
- const savedByRev=store.revCovTargetsByRev[rev.id]||(rev.coverage_targets&&typeof rev.coverage_targets==='object'?rev.coverage_targets:null);
+ store.revCovCountsByRev=store.revCovCountsByRev||{};
  store.revCovOverallByRev=store.revCovOverallByRev||{};
+ const savedByRev=store.revCovTargetsByRev[rev.id]||(rev.coverage_targets&&typeof rev.coverage_targets==='object'?rev.coverage_targets:null);
+ const savedCountsByRev=store.revCovCountsByRev[rev.id]||(rev.coverage_counts&&typeof rev.coverage_counts==='object'?rev.coverage_counts:(chosen.coverage_counts&&typeof chosen.coverage_counts==='object'?chosen.coverage_counts:null));
  const savedOverall=store.revCovOverallByRev[rev.id]??rev.overall_target_percent??chosen.overall_target_percent??rev.similarity_target_percent??90;
- let overallMode=store.revCovOverallByRev[rev.id]!==null&&(rev.overall_target_percent!=null||!savedByRev);
+ let suggestMode=!savedCountsByRev&&(store.revCovOverallByRev[rev.id]!==null)&&(rev.overall_target_percent!=null||!savedByRev);
  const SHORT_NAME={MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'};
  const FULL_NAME={MC:'Trắc nghiệm',YN:'Đúng/Sai',SHORT:'Trả lời ngắn',ES:'Tự luận'};
  const bt=rep.by_type||{},keys=Object.keys(bt);
  const countsByType={};keys.forEach(t=>{if(bt[t]?.total)countsByType[t]=bt[t].total;});
- const applyLabel=linked.length>1?`Áp dụng cho đề cương & ${linked.length} đề liên kết`:(linked.length===1?'Áp dụng cho đề cương & đề liên kết':'Áp dụng tỉ lệ');
- const ratioBarHtml=keys.length?`<div class="rev-cov-ratio-bar" title="Tổng tối thiểu ≥ % (làm tròn lên, không dưới 90%: VD 90% của 31 câu = 28/31) và giữ nguyên các dạng đã ghim (như TL 100%). Tỉ lệ này áp dụng chung cho đề cương và mọi đề liên kết.">
+ const computePlan=window.BankCore?.computeRevisionPlan;
+ let initCounts={};
+ if(savedCountsByRev){
+  keys.forEach(t=>{initCounts[t]=Math.max(0,Math.min(bt[t].total,Math.floor(Number(savedCountsByRev[t]??bt[t].required??bt[t].in_revision)||0)));});
+ }else if(typeof computePlan==='function'){
+  const baseTargets={};keys.forEach(t=>{if(savedByRev&&savedByRev[t]!=null)baseTargets[t]=savedByRev[t];else if(t==='ES')baseTargets[t]=100;});
+  const initPlan=computePlan(countsByType,{overallPercent:suggestMode?savedOverall:(rev.overall_target_percent??null),typeTargets:Object.keys(baseTargets).length?baseTargets:null});
+  keys.forEach(t=>{initCounts[t]=initPlan?.by_type?.[t]?.want??bt[t].required??bt[t].in_revision;});
+ }else{
+  keys.forEach(t=>{initCounts[t]=bt[t].required??bt[t].in_revision;});
+ }
+ const applyLabel=linked.length>1?`Áp dụng cho đề cương & ${linked.length} đề liên kết`:(linked.length===1?'Áp dụng cho đề cương & đề liên kết':'Áp dụng số câu');
+ const ratioBarHtml=keys.length?`<div class="rev-cov-ratio-bar" title="Nhập % ở ô Gợi ý tổng (VD 90%) để máy gợi ý số câu theo quy định, rồi tự chỉnh trực tiếp số câu từng dạng (TN, TL…) theo ý muốn.">
    <div class="rev-cov-ratio-inputs">
-     <label class="rev-cov-type-item" for="rev-cov-overall" title="Tỉ lệ chung tối thiểu cả đề (làm tròn lên, không dưới 90%: 90% của 31 câu = 28/31)">Tổng ≥<input id="rev-cov-overall" type="number" min="90" max="100" step="1" value="${esc(savedOverall)}"><span>%</span></label>
+     <label class="rev-cov-type-item" for="rev-cov-overall" title="Nhập % để gợi ý nhanh số câu từng dạng (chỉ mang tính gợi ý; bạn có thể sửa số câu bên cạnh)">Gợi ý tổng<input id="rev-cov-overall" type="number" min="0" max="100" step="1" value="${esc(savedOverall)}"><span>%</span></label>
      ${keys.map(t=>{
-       const defVal=t==='ES'?100:(savedByRev&&savedByRev[t]!=null?savedByRev[t]:(bt[t].target!=null?bt[t].target:rep.threshold));
-       const val=(savedByRev&&savedByRev[t]!=null)?savedByRev[t]:defVal;
-       return `<label class="rev-cov-type-item" for="rev-cov-target-${t}" title="${FULL_NAME[t]||t}: đang có ${bt[t].in_revision}/${bt[t].total} câu (${String(bt[t].percent).replace('.',',')}%)">${SHORT_NAME[t]||t}<input id="rev-cov-target-${t}" data-rev-cov-target="${t}" type="number" min="0" max="100" step="1" value="${esc(val)}"><span>%</span><span class="small muted" id="rev-cov-frac-${t}">(${bt[t].in_revision}/${bt[t].total})</span></label>`;
+       const val=initCounts[t]??bt[t].in_revision;
+       const pctNow=bt[t].total?Math.round(1000*val/bt[t].total)/10:0;
+       return `<label class="rev-cov-type-item" for="rev-cov-count-${t}" title="${FULL_NAME[t]||t}: đang có ${bt[t].in_revision}/${bt[t].total} câu trong đề cương">${SHORT_NAME[t]||t}<input id="rev-cov-count-${t}" data-rev-cov-count="${t}" type="number" min="0" max="${bt[t].total}" step="1" value="${esc(val)}"><span>/${bt[t].total}</span><span class="small muted" id="rev-cov-pct-${t}">(${String(pctNow).replace('.',',')}%)</span></label>`;
      }).join('')}
      <span class="small muted" id="rev-align-preview"></span>
    </div>
@@ -5231,71 +5245,83 @@ async function renderRevisionCoverage(rev){
  const covSel=$('#rev-cov-exam');if(!covSel)return;
  covSel.onchange=e=>{store.revCoverageExamId=e.target.value;renderRevisionCoverage(rev);};
  box.querySelectorAll('[data-rev-cov-pick]').forEach(b=>{b.onclick=()=>{store.revCoverageExamId=b.dataset.revCovPick;renderRevisionCoverage(rev);};});
- const readTargets=()=>{
+ const readCounts=()=>{
   const cur={};
-  store.revCovTargetsByRev[rev.id]=store.revCovTargetsByRev[rev.id]||{};
-  document.querySelectorAll('[data-rev-cov-target]').forEach(inp=>{
-   const t=inp.dataset.revCovTarget;
-   const pct=Math.max(0,Math.min(100,Math.round(Number(inp.value)||0)));
-   store.revCovTargetsByRev[rev.id][t]=pct;
-   cur[t]=pct;
+  store.revCovCountsByRev[rev.id]=store.revCovCountsByRev[rev.id]||{};
+  document.querySelectorAll('[data-rev-cov-count]').forEach(inp=>{
+   const t=inp.dataset.revCovCount;
+   const maxN=bt[t]?.total||0;
+   const cnt=Math.max(0,Math.min(maxN,Math.floor(Number(inp.value)||0)));
+   if(String(inp.value)!==String(cnt)&&document.activeElement!==inp)inp.value=cnt;
+   store.revCovCountsByRev[rev.id][t]=cnt;
+   cur[t]=cnt;
   });
   return cur;
  };
  const covPreview=(source)=>{
-  const cur=readTargets();
+  let cur=readCounts();
   const overallInp=$('#rev-cov-overall');
   const overallPct=overallInp?Math.max(0,Math.min(100,Math.round(Number(overallInp.value)||0))):90;
-  if(source==='overall'||source==='pinned')overallMode=true;
-  else if(source==='flex')overallMode=false;
-  const computePlan=window.BankCore?.computeRevisionPlan;
-  let plan=null;
-  if(typeof computePlan==='function'){
-   plan=overallMode
-    ?computePlan(countsByType,{overallPercent:overallPct,typeTargets:cur})
-    :computePlan(countsByType,{typeTargets:cur});
+  if(source==='overall'){
+   suggestMode=true;
+   if(typeof computePlan==='function'){
+    const pinned={};
+    keys.forEach(t=>{if(t!=='MC'&&bt[t]?.total){pinned[t]=Math.round(100*cur[t]/bt[t].total);}});
+    if(keys.includes('ES')&&pinned.ES==null)pinned.ES=100;
+    const plan=computePlan(countsByType,{overallPercent:overallPct,typeTargets:pinned});
+    keys.forEach(t=>{
+     const want=plan?.by_type?.[t]?.want;
+     if(want!=null){
+      cur[t]=want;
+      store.revCovCountsByRev[rev.id][t]=want;
+      const inp=$(`#rev-cov-count-${t}`);
+      if(inp)inp.value=want;
+     }
+    });
+   }
+  }else if(source==='count'){
+   suggestMode=false;
   }
+  const derivedTargets={};
+  store.revCovTargetsByRev[rev.id]=store.revCovTargetsByRev[rev.id]||{};
   const parts=[];let after=0;
   keys.forEach(t=>{
    const x=bt[t];if(!x)return;
-   const pt=plan?.by_type?.[t];
-   const want=pt?pt.want:Math.round(x.total*(cur[t]??rep.threshold)/100);
-   if(overallMode&&pt&&t==='MC'){
-    const inp=$(`#rev-cov-target-${t}`);
-    if(inp){inp.value=pt.target_percent;cur[t]=pt.target_percent;store.revCovTargetsByRev[rev.id][t]=pt.target_percent;}
-   }
+   const want=cur[t]??0;
+   const pctNow=x.total?Math.round(1000*want/x.total)/10:0;
+   const pctInt=x.total?Math.round(100*want/x.total):0;
+   derivedTargets[t]=pctInt;
+   store.revCovTargetsByRev[rev.id][t]=pctInt;
    after+=want;
-   const fEl=$(`#rev-cov-frac-${t}`);
-   if(fEl)fEl.textContent=`(${want}/${x.total})`;
+   const pEl=$(`#rev-cov-pct-${t}`);
+   if(pEl)pEl.textContent=`(${String(pctNow).replace('.',',')}%)`;
    const d=want-x.in_revision;
    if(d)parts.push(`${d>0?'+':'-'}${Math.abs(d)} ${SHORT_NAME[t]||t}`);
   });
-  if(overallInp){
-   if(overallMode)store.revCovOverallByRev[rev.id]=overallPct;
-   else store.revCovOverallByRev[rev.id]=null;
-  }
+  store.revCovOverallByRev[rev.id]=suggestMode?overallPct:null;
   const overall=rep.total?Math.round(1000*after/rep.total)/10:0,el=$('#rev-align-preview');
-  const minReq=window.BankCore?.requiredRevisionCount?window.BankCore.requiredRevisionCount(rep.total,90):Math.ceil(rep.total*0.9-1e-9);
-  if(el)el.innerHTML=`Tổng mục tiêu: <strong${after<minReq?' style="color:#b45309"':''}>${after}/${rep.total} (${String(overall).replace('.',',')}%)</strong>${parts.length?` · ${parts.join(', ')}`:''}`;
-  return {parts,overall,overallPct,overallMode,targets:cur};
+  const below90=after<minReq90;
+  if(el)el.innerHTML=`Tổng mục tiêu: <strong${below90?' style="color:#b45309"':''}>${after}/${rep.total} (${String(overall).replace('.',',')}%)</strong>${below90?` <span style="color:#b45309">(dưới chuẩn duyệt ${minReq90}/${rep.total})</span>`:''}${parts.length?` · ${parts.join(', ')}`:''}`;
+  return {parts,overall,overallPct,suggestMode,typeCounts:cur,targets:derivedTargets};
  };
  if($('#rev-cov-overall'))$('#rev-cov-overall').oninput=()=>covPreview('overall');
- document.querySelectorAll('[data-rev-cov-target]').forEach(inp=>{
-  inp.oninput=()=>covPreview(inp.dataset.revCovTarget==='MC'?'flex':'pinned');
+ document.querySelectorAll('[data-rev-cov-count]').forEach(inp=>{
+  inp.oninput=()=>covPreview('count');
  });
- covPreview(overallMode?'overall':'init');
+ covPreview('init');
  if($('#rev-align-to-exam'))$('#rev-align-to-exam').onclick=async()=>{
-  const {targets,overallPct,overallMode:useOverall}=covPreview();
-  await mutate('/api/revisions/align-to-exam',{revision_id:rev.id,exam_id:chosen.id,...(useOverall?{overall_percent:overallPct}:{}),targets,apply_to_linked:true},res=>{
+  const {typeCounts,targets,overallPct,suggestMode:usedSuggest}=covPreview();
+  await mutate('/api/revisions/align-to-exam',{revision_id:rev.id,exam_id:chosen.id,type_counts:typeCounts,targets,...(usedSuggest?{overall_percent:overallPct}:{}),apply_to_linked:true},res=>{
    if(res.revisions)store.revisions=res.revisions;
    if(res.exams)store.exams=res.exams;
+   store.revCovCountsByRev[res.revision.id]={...(res.coverage_counts||typeCounts)};
    store.revCovTargetsByRev[res.revision.id]={...(res.coverage_targets||targets)};
-   store.revCovOverallByRev[res.revision.id]=res.overall_target_percent??(useOverall?overallPct:null);
+   store.revCovOverallByRev[res.revision.id]=res.overall_target_percent??(usedSuggest?overallPct:null);
    store.activeRevisionViewId=res.revision.id;store.revCoverageExamId=chosen.id;
    renderRevisions();
-   const ratioTxt=Object.entries(res.coverage_targets||targets).map(([t,v])=>`${SHORT_NAME[t]||t} ${v}%`).join(', ');
+   const cntTxt=Object.entries(res.coverage_counts||typeCounts).map(([t,v])=>`${SHORT_NAME[t]||t} ${v}/${bt[t]?.total||v}`).join(', ');
    const examRes=(res.exam_reports||[]).map(er=>`${er.exam_code?`Mã ${er.exam_code}`:(er.exam_title||'Đề')}: ${er.in_revision}/${er.total}`).join(' · ');
-   notify(`${res.new_version?`Đã lưu phiên bản mới "${res.revision.title}". `:''}Đã áp dụng tỉ lệ chung (${ratioTxt}) cho đề cương${res.linked_count>1?` và ${res.linked_count} đề liên kết`:''}${examRes?` (${examRes})`:` (${res.kept}/${res.total} câu)`}.`
+   notify(`${res.new_version?`Đã lưu phiên bản mới "${res.revision.title}". `:''}Đã áp dụng mục tiêu (${cntTxt}) cho đề cương${res.linked_count>1?` và ${res.linked_count} đề liên kết`:''}${examRes?` (${examRes})`:` (${res.kept}/${res.total} câu)`}.`
     +(res.warnings?.length?`\nLưu ý: ${res.warnings.join(' ')}`:''),Boolean(res.warnings?.length));
   });
  };

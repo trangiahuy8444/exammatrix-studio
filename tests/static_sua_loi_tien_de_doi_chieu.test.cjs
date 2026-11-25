@@ -24,15 +24,20 @@ test('Đề cương không hợp lệ: vi phạm kho luật mang cùng mã với
   assert.equal(f.code, 'revision');
 });
 
-test('Tỉ lệ đề cương tối thiểu 90%, làm tròn lên (rules/01): 31 câu cần 28; mọi cách đặt tỉ lệ đều không xuống dưới 90%', () => {
+test('Gợi ý 90% (làm tròn lên: 31 câu → 28) nhưng KHÔNG ép bù khi giáo viên chủ động chỉnh số câu/tỉ lệ thấp hơn', () => {
   assert.equal(C.requiredRevisionCount(31, 90), 28);
   assert.equal(C.requiredRevisionCount(20, 90), 18);
   assert.equal(C.requiredRevisionCount(12, 90), 11);
   assert.equal(C.requiredRevisionCount(10, 100), 10);
-  const a = C.computeRevisionPlan({ MC: 28, ES: 3 }, { overallPercent: 80, typeTargets: { MC: 80, ES: 100 } });
-  assert.equal(a.required_total, 28, 'Tỉ lệ chung đặt 80% vẫn được nâng lên 90%');
-  const b = C.computeRevisionPlan({ MC: 28, ES: 3 }, { typeTargets: { MC: 85, ES: 100 } });
-  assert.deepEqual([b.required_total, b.by_type.MC.want, b.by_type.ES.want], [28, 25, 3], 'TN 85% + TL 100% = 27 < 28: bù 1 câu trắc nghiệm');
+  // Gợi ý theo tổng 90% + ghim TL 100% -> 25/28 TN + 3/3 TL = 28/31.
+  const sugg = C.computeRevisionPlan({ MC: 28, ES: 3 }, { overallPercent: 90, typeTargets: { ES: 100 } });
+  assert.deepEqual([sugg.required_total, sugg.by_type.MC.want, sugg.by_type.ES.want, sugg.below_min_90], [28, 25, 3, false]);
+  // Chỉnh trực tiếp số câu: 24/28 TN + 3/3 TL = 27/31 — giữ đúng ý giáo viên, báo below_min_90: true để cảnh báo.
+  const customCnt = C.computeRevisionPlan({ MC: 28, ES: 3 }, { typeCounts: { MC: 24, ES: 3 } });
+  assert.deepEqual([customCnt.required_total, customCnt.by_type.MC.want, customCnt.by_type.ES.want, customCnt.below_min_90], [27, 24, 3, true]);
+  // Chỉnh theo % từng dạng: TN 85% + TL 100% -> 24 + 3 = 27/31, không ép nhảy về 28.
+  const customPct = C.computeRevisionPlan({ MC: 28, ES: 3 }, { typeTargets: { MC: 85, ES: 100 } });
+  assert.deepEqual([customPct.required_total, customPct.by_type.MC.want, customPct.by_type.ES.want, customPct.below_min_90], [27, 24, 3, true]);
   const c = C.computeRevisionPlan({ MC: 28, ES: 3 });
   assert.equal(c.required_total, 28);
   assert.ok(c.actual_percent >= 90);

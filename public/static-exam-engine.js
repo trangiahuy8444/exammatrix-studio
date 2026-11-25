@@ -323,11 +323,13 @@
     const pts=items.reduce((n,x)=>n+x.points,0),inItems=items.filter(x=>x.in_revision);
     const missingOutcomes=[...new Set(items.filter(x=>!x.outcome_in_revision).map(x=>x.lesson_code+' · '+(qs.find(q=>q.id===x.question_id)?.learning_outcome||'')))];
     const typeTargets=revision?.coverage_targets||exam?.coverage_targets||null;
+    const rawCounts=revision?.coverage_counts||exam?.coverage_counts||null;
     const rawOverall=revision?.overall_target_percent??exam?.overall_target_percent??null;
     const fallbackPct=Number(exam?.similarity_target_percent??revision?.similarity_target_percent??90);
     const countsByType={};
     ['MC','YN','SHORT','ES'].forEach(t=>{const n=items.filter(x=>x.type===t).length;if(n)countsByType[t]=n;});
-    const plan=(typeTargets||rawOverall!=null)?revisionPlanFor(countsByType,{overallPercent:rawOverall,typeTargets}):null;
+    const usableCounts=(rawCounts&&typeof rawCounts==='object'&&Object.keys(countsByType).some(t=>rawCounts[t]!=null&&Number.isFinite(Number(rawCounts[t]))&&Number(rawCounts[t])<=countsByType[t]))?rawCounts:null;
+    const plan=(usableCounts||typeTargets||rawOverall!=null)?revisionPlanFor(countsByType,{typeCounts:usableCounts,overallPercent:rawOverall,typeTargets}):null;
     const byType={};
     ['MC','YN','SHORT','ES'].forEach(t=>{
       const all=items.filter(x=>x.type===t);

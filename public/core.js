@@ -1224,6 +1224,8 @@ function syncEditedQuestionsFromSheet(sheet,record){
     const counts={};let total=0;
     TYPES.forEach(t=>{const n=Math.max(0,Math.floor(Number(countsByType?.[t])||0));if(n>0){counts[t]=n;total+=n;}});
     const present=TYPES.filter(t=>counts[t]>0);
+    const typeCounts=opts.typeCounts&&typeof opts.typeCounts==='object'?opts.typeCounts:null;
+    const hasTypeCounts=Boolean(typeCounts&&present.some(t=>typeCounts[t]!=null&&typeCounts[t]!==''&&Number.isFinite(Number(typeCounts[t]))));
     const typeTargets=opts.typeTargets&&typeof opts.typeTargets==='object'?opts.typeTargets:null;
     const hasOverall=opts.overallPercent!=null&&opts.overallPercent!==''&&Number.isFinite(Number(opts.overallPercent));
     const want={};
@@ -1241,8 +1243,21 @@ function syncEditedQuestionsFromSheet(sheet,record){
     };
     let requiredTotal=0;
     let overallPercentOut=0;
-    if(hasOverall){
-      const overallPct=Math.max(REVISION_MIN_PERCENT,clamp(opts.overallPercent)); // tỉ lệ chung không dưới 90%
+    if(hasTypeCounts&&present.length){
+      present.forEach(t=>{
+        const rawC=typeCounts[t];
+        if(rawC!=null&&rawC!==''&&Number.isFinite(Number(rawC))){
+          want[t]=Math.max(0,Math.min(counts[t],Math.floor(Number(rawC))));
+        }else{
+          const rawP=typeTargets?.[t];
+          const pctT=(rawP!=null&&rawP!==''&&Number.isFinite(Number(rawP)))?clamp(rawP):REVISION_MIN_PERCENT;
+          want[t]=pctT<=0?0:(pctT>=100?counts[t]:Math.min(counts[t],Math.round(counts[t]*pctT/100)));
+        }
+        requiredTotal+=want[t];
+      });
+      overallPercentOut=total?Math.round(1000*requiredTotal/total)/10:0;
+    }else if(hasOverall){
+      const overallPct=clamp(opts.overallPercent);
       overallPercentOut=overallPct;
       requiredTotal=requiredRevisionCount(total,overallPct);
       if(typeTargets&&present.length){
@@ -1281,26 +1296,18 @@ function syncEditedQuestionsFromSheet(sheet,record){
     }else if(typeTargets&&present.length){
       present.forEach(t=>{
         const raw=typeTargets[t];
-        const pctT=(raw!=null&&raw!==''&&Number.isFinite(Number(raw)))?clamp(raw):90;
+        const pctT=(raw!=null&&raw!==''&&Number.isFinite(Number(raw)))?clamp(raw):REVISION_MIN_PERCENT;
         const w=pctT<=0?0:(pctT>=100?counts[t]:Math.min(counts[t],Math.round(counts[t]*pctT/100)));
         want[t]=w;requiredTotal+=w;
       });
       overallPercentOut=total?Math.round(1000*requiredTotal/total)/10:0;
     }else{
-      overallPercentOut=90;
-      requiredTotal=requiredRevisionCount(total,90);
+      overallPercentOut=REVISION_MIN_PERCENT;
+      requiredTotal=requiredRevisionCount(total,REVISION_MIN_PERCENT);
       apportionRem(requiredTotal,present);
       requiredTotal=present.reduce((s,t)=>s+(want[t]||0),0);
     }
-    // Chặn cuối: tổng không dưới mức tối thiểu 90% (làm tròn lên); thiếu thì bù vào dạng còn câu, ưu tiên trắc nghiệm.
-    const floorReq=requiredRevisionCount(total,REVISION_MIN_PERCENT);
-    if(requiredTotal<floorReq){
-      let need=floorReq-requiredTotal;
-      const order=present.slice().sort((a,b)=>(a==='MC'?-1:b==='MC'?1:0)||(counts[b]-(want[b]||0))-(counts[a]-(want[a]||0)));
-      for(const t of order){if(need<=0)break;const room=counts[t]-(want[t]||0);const add=Math.min(room,need);if(add>0){want[t]=(want[t]||0)+add;need-=add;}}
-      requiredTotal=present.reduce((s,t)=>s+(want[t]||0),0);
-      if(overallPercentOut<REVISION_MIN_PERCENT)overallPercentOut=REVISION_MIN_PERCENT;
-    }
+    const min90Req=requiredRevisionCount(total,REVISION_MIN_PERCENT);
     const by_type={};
     present.forEach(t=>{
       const n=counts[t],w=want[t]||0;
@@ -1309,6 +1316,8 @@ function syncEditedQuestionsFromSheet(sheet,record){
     return {
       total,
       required_total:requiredTotal,
+      min_90_required:min90Req,
+      below_min_90:requiredTotal<min90Req,
       overall_percent:overallPercentOut,
       actual_percent:total?Math.round(1000*requiredTotal/total)/10:0,
       by_type

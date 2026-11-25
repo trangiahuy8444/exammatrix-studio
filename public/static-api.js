@@ -67,8 +67,19 @@
     ['MC','YN','SHORT','ES'].forEach(t=>{if(rawTargets[t]!=null&&rawTargets[t]!==''&&Number.isFinite(Number(rawTargets[t])))cleaned[t]=Math.max(0,Math.min(100,Math.round(Number(rawTargets[t]))));});
     if(Object.keys(cleaned).length)coverageTargets=cleaned;
    }
-   return put(data.revisions,{...(existing||{}),id:existing?.id||id('REV'),title:payload.title.trim(),grade,subject_name:subject,lessons:scope,
-    status:existing?.status||'drafting',similarity_target_percent:simPct,...(overallTarget!=null?{overall_target_percent:overallTarget}:{}),...(coverageTargets?{coverage_targets:coverageTargets}:{}),created_at:existing?.created_at||now(),updated_at:now(),question_ids:ids,questions,question_count:questions.length});
+   const rawCovCounts=payload.coverage_counts!==undefined?payload.coverage_counts:existing?.coverage_counts;
+   let coverageCounts=null;
+   if(rawCovCounts&&typeof rawCovCounts==='object'&&!Array.isArray(rawCovCounts)){
+    const cleanedC={};
+    ['MC','YN','SHORT','ES'].forEach(t=>{if(rawCovCounts[t]!=null&&rawCovCounts[t]!==''&&Number.isFinite(Number(rawCovCounts[t])))cleanedC[t]=Math.max(0,Math.floor(Number(rawCovCounts[t])));});
+    if(Object.keys(cleanedC).length)coverageCounts=cleanedC;
+   }
+   const nextRev={...(existing||{}),id:existing?.id||id('REV'),title:payload.title.trim(),grade,subject_name:subject,lessons:scope,
+    status:existing?.status||'drafting',similarity_target_percent:simPct,created_at:existing?.created_at||now(),updated_at:now(),question_ids:ids,questions,question_count:questions.length};
+   if(overallTarget!=null)nextRev.overall_target_percent=overallTarget;else delete nextRev.overall_target_percent;
+   if(coverageTargets)nextRev.coverage_targets=coverageTargets;else delete nextRev.coverage_targets;
+   if(coverageCounts)nextRev.coverage_counts=coverageCounts;else delete nextRev.coverage_counts;
+   return put(data.revisions,nextRev);
   }
   function normalizeMatrixSlots(m){
    if(!m||typeof m!=='object'||m.status==='locked'||m.status==='archived')return m;
@@ -206,15 +217,17 @@
    const pct=Number.isFinite(Number(opts.percent))?Math.max(0,Math.min(100,Number(opts.percent))):90;
    const simMode=opts.similarity_mode==='exact'?'exact':'min';
    const typeTargets=opts.type_targets||opts.revision?.coverage_targets||null;
+   const typeCounts=opts.type_counts||opts.revision?.coverage_counts||null;
    const overallOpt=opts.revision?.overall_target_percent??null;
    const hasTypeTargets=Boolean(typeTargets&&typeof typeTargets==='object'&&['MC','YN','SHORT','ES'].some(t=>typeTargets[t]!=null&&typeTargets[t]!==''&&Number.isFinite(Number(typeTargets[t]))));
+   const countsByType={};
+   ['MC','YN','SHORT','ES'].forEach(t=>{const n=flexSlots.filter(e=>String(e.slot?.kind||'').toUpperCase()===t).length;if(n)countsByType[t]=n;});
+   const usableTypeCounts=(typeCounts&&typeof typeCounts==='object'&&Object.keys(countsByType).some(t=>typeCounts[t]!=null&&Number.isFinite(Number(typeCounts[t]))&&Number(typeCounts[t])<=countsByType[t]))?typeCounts:null;
    const outsideIdxSet=new Set();
    const coreLib=root.BankCore||(typeof require==='function'?require('./core.js'):null);
-   if(revQs.length&&(hasTypeTargets||overallOpt!=null)&&coreLib&&typeof coreLib.computeRevisionPlan==='function'){
+   if(revQs.length&&(usableTypeCounts||hasTypeTargets||overallOpt!=null)&&coreLib&&typeof coreLib.computeRevisionPlan==='function'){
     const lvRank=lv=>({'Vận dụng cao':4,'Vận dụng':3,'Hiểu':2,'Biết':1}[normLevel(lv)]||0);
-    const countsByType={};
-    ['MC','YN','SHORT','ES'].forEach(t=>{const n=flexSlots.filter(e=>String(e.slot?.kind||'').toUpperCase()===t).length;if(n)countsByType[t]=n;});
-    const plan=coreLib.computeRevisionPlan(countsByType,{overallPercent:overallOpt!=null?overallOpt:(hasTypeTargets?null:pct),typeTargets});
+    const plan=coreLib.computeRevisionPlan(countsByType,{typeCounts:usableTypeCounts,overallPercent:overallOpt!=null?overallOpt:(hasTypeTargets||usableTypeCounts?null:pct),typeTargets});
     ['MC','YN','SHORT','ES'].forEach(t=>{
      const slotsT=flexSlots.map((entry,idx)=>({entry,idx})).filter(x=>String(x.entry.slot?.kind||'').toUpperCase()===t);
      if(!slotsT.length)return;
@@ -687,6 +700,8 @@
     ?coreLib.requiredRevisionCount(n,pct)
     :(n<=0||pct<=0?0:(pct>=100?n:Math.min(n,Math.ceil(n*pct/100-1e-9))));
    const rawOverall=p.overall_percent!==undefined&&p.overall_percent!==null&&p.overall_percent!==''&&Number.isFinite(Number(p.overall_percent))?clampPct(p.overall_percent):null;
+   const rawTypeCounts=(p.type_counts&&typeof p.type_counts==='object'&&!Array.isArray(p.type_counts))?p.type_counts:null;
+   const hasRawCounts=Boolean(rawTypeCounts&&TYPES.some(t=>rawTypeCounts[t]!=null&&rawTypeCounts[t]!==''&&Number.isFinite(Number(rawTypeCounts[t]))));
 
    if(p.apply_to_linked===true){
     const sameSubj=e=>(e.subject_name||'Tin học')===subject;
@@ -694,19 +709,35 @@
     const primaryExam=p.exam_id?own(find(data.exams,p.exam_id)):(linkedExams[0]||fail('Chưa có đề thi nào để đối chiếu.'));
     const targetExams=linkedExams.length?(linkedExams.some(e=>e.id===primaryExam.id)?linkedExams:[primaryExam,...linkedExams]):[primaryExam];
     const primaryEqs=primaryExam.questions||[],total=primaryEqs.length;if(!total)fail('Đề chưa có câu hỏi.');
+    const primaryCounts={};
+    TYPES.forEach(t=>{const n=primaryEqs.filter(q=>q.type===t).length;if(n)primaryCounts[t]=n;});
     const curMap=new Map(revQs.map(q=>[fp(q),q]));
     const planByExam=new Map();
     targetExams.forEach(ex=>{
      const countsByType={};
      TYPES.forEach(t=>{const n=(ex.questions||[]).filter(q=>q.type===t).length;if(n)countsByType[t]=n;});
-     const plan=computePlan(countsByType,{overallPercent:rawOverall,typeTargets:p.targets||(rawOverall==null?targets:null)});
+     let exTypeCounts=null;
+     if(hasRawCounts){
+      exTypeCounts={};
+      TYPES.forEach(t=>{
+       const nEx=countsByType[t]||0;
+       if(!nEx||rawTypeCounts[t]==null||rawTypeCounts[t]===''||!Number.isFinite(Number(rawTypeCounts[t])))return;
+       const cRaw=Math.max(0,Math.floor(Number(rawTypeCounts[t])));
+       const nPrim=primaryCounts[t]||0;
+       exTypeCounts[t]=nPrim===nEx?Math.min(nEx,cRaw):(nPrim>0?Math.min(nEx,Math.round(nEx*cRaw/nPrim)):Math.min(nEx,cRaw));
+      });
+     }
+     const plan=computePlan(countsByType,{typeCounts:exTypeCounts,overallPercent:exTypeCounts?null:rawOverall,typeTargets:p.targets||(rawOverall==null?targets:null)});
      planByExam.set(ex.id,plan);
     });
     const primaryPlan=planByExam.get(primaryExam.id);
     const savedTargets={};
+    const savedCounts={};
     TYPES.forEach(t=>{
-     if(primaryPlan?.by_type?.[t])savedTargets[t]=primaryPlan.by_type[t].target_percent;
-     else if(p.targets&&p.targets[t]!=null&&targetExams.some(ex=>(ex.questions||[]).some(q=>q.type===t)))savedTargets[t]=targets[t];
+     if(primaryPlan?.by_type?.[t]){
+      savedTargets[t]=primaryPlan.by_type[t].target_percent;
+      if(hasRawCounts)savedCounts[t]=primaryPlan.by_type[t].want;
+     }else if(p.targets&&p.targets[t]!=null&&targetExams.some(ex=>(ex.questions||[]).some(q=>q.type===t)))savedTargets[t]=targets[t];
     });
     let sharedTrimBlocked=false;
     const solveLinkedType=(t,exList)=>{
@@ -860,36 +891,39 @@
     let locked=false;try{checkRevision(rev);}catch(e){locked=true;}
     const after=Object.values(byType).reduce((n,x)=>n+x.after,0),overall=Math.round(1000*after/total)/10;
     const savedSimPct=rawOverall!=null?rawOverall:(rev.similarity_target_percent??90);
-    const label=Object.keys(savedTargets).length?Object.entries(savedTargets).map(([t,v])=>`${NAME[t]||t} ${v}%`).join(', '):`${savedSimPct}% đề`;
+    const label=hasRawCounts?Object.entries(savedCounts).map(([t,v])=>`${NAME[t]||t} ${v}/${primaryCounts[t]||v}`).join(', '):(Object.keys(savedTargets).length?Object.entries(savedTargets).map(([t,v])=>`${NAME[t]||t} ${v}%`).join(', '):`${savedSimPct}% đề`);
     const revPayload={
      title:(locked&&(removed.length||added.length))?(rev.title+` (${label})`):rev.title,
      grade:rev.grade,
      question_ids:ids,
      similarity_target_percent:savedSimPct,
-     overall_target_percent:rawOverall,
+     overall_target_percent:hasRawCounts?null:rawOverall,
+     coverage_counts:Object.keys(savedCounts).length?savedCounts:null,
      ...(Object.keys(savedTargets).length?{coverage_targets:savedTargets}:{})
     };
     const nextLockedRev={...rev,similarity_target_percent:savedSimPct,...(Object.keys(savedTargets).length?{coverage_targets:savedTargets}:{}),updated_at:now()};
-    if(rawOverall!=null)nextLockedRev.overall_target_percent=rawOverall;else delete nextLockedRev.overall_target_percent;
+    if(!hasRawCounts&&rawOverall!=null)nextLockedRev.overall_target_percent=rawOverall;else delete nextLockedRev.overall_target_percent;
+    if(Object.keys(savedCounts).length)nextLockedRev.coverage_counts=savedCounts;else delete nextLockedRev.coverage_counts;
     const revision=(locked&&(removed.length||added.length))
      ?saveRevision(revPayload)
      :(locked?put(data.revisions,nextLockedRev):saveRevision(revPayload,rev));
-    if(Object.keys(savedTargets).length||rawOverall!=null){
+    if(Object.keys(savedTargets).length||Object.keys(savedCounts).length||rawOverall!=null){
      targetExams.forEach(ex=>{
       if(Object.keys(savedTargets).length)ex.coverage_targets=clone(savedTargets);
-      if(rawOverall!=null)ex.overall_target_percent=rawOverall;else delete ex.overall_target_percent;
+      if(!hasRawCounts&&rawOverall!=null)ex.overall_target_percent=rawOverall;else delete ex.overall_target_percent;
+      if(Object.keys(savedCounts).length)ex.coverage_counts=clone(savedCounts);else delete ex.coverage_counts;
       ex.similarity_target_percent=savedSimPct;
       if(revision.id&&ex.revision_id===rev.id&&revision.id!==rev.id)ex.revision_id=revision.id;
      });
     }
     const examReports=targetExams.map(ex=>engine.revisionCoverage(ex,revision,data.bank.ppct));
     const brief=q=>({id:q.id,type:q.type,lesson_code:q.lesson_code,level:q.level,question:String(q.question||'').replace(/\s+/g,' ').slice(0,120)});
-    const underFloor=rawOverall!=null?(after<reqRevCount(total,90)):(overall<90);
-    if(underFloor)warnings.push(`Tỉ lệ chung còn ${String(overall).replace('.',',')}% câu của đề có trong đề cương, dưới ngưỡng tối thiểu 90% (${reqRevCount(total,90)}/${total} câu).`);
+    const underFloor=after<reqRevCount(total,90);
+    if(underFloor)warnings.push(`Tỉ lệ chung còn ${String(overall).replace('.',',')}% (${after}/${total} câu), dưới mức quy định tối thiểu 90% (${reqRevCount(total,90)}/${total} câu) khi duyệt đề chính thức.`);
     if(sharedTrimBlocked)warnings.push('Một số câu dùng chung giữa các đề liên kết được giữ lại để không làm đề khác bị thiếu.');
     if(missingInBank.length)warnings.push(`${missingInBank.length} câu của đề không còn trong Ngân hàng nên không thêm được vào đề cương.`);
-    return result({revision,revisions:data.revisions,exams:data.exams,new_version:Boolean(locked&&(removed.length||added.length)),total,kept:after,overall_percent:overall,overall_target_percent:rawOverall,by_type:byType,
-     coverage_targets:Object.keys(savedTargets).length?savedTargets:null,linked_count:targetExams.length,exam_reports:examReports,
+    return result({revision,revisions:data.revisions,exams:data.exams,new_version:Boolean(locked&&(removed.length||added.length)),total,kept:after,overall_percent:overall,overall_target_percent:hasRawCounts?null:rawOverall,by_type:byType,
+     coverage_counts:Object.keys(savedCounts).length?savedCounts:null,coverage_targets:Object.keys(savedTargets).length?savedTargets:null,linked_count:targetExams.length,exam_reports:examReports,
      added:added.map(brief),removed:removed.map(q=>({...brief(q),outcome_still_covered:(count.get(okey(q))||0)>0})),warnings},true);
    }
 
@@ -899,8 +933,8 @@
    const singleCounts={};
    TYPES.forEach(t=>{const n=eqs.filter(q=>q.type===t).length;if(n)singleCounts[t]=n;});
    const sharedWant={};
-   if(rawOverall!=null||p.targets){
-    const singlePlan=computePlan(singleCounts,{overallPercent:rawOverall,typeTargets:p.targets||null});
+   const singlePlan=(hasRawCounts||rawOverall!=null||p.targets)?computePlan(singleCounts,{typeCounts:hasRawCounts?rawTypeCounts:null,overallPercent:hasRawCounts?null:rawOverall,typeTargets:p.targets||null}):null;
+   if(singlePlan){
     TYPES.forEach(t=>{if(singlePlan?.by_type?.[t])sharedWant[t]=singlePlan.by_type[t].want;});
    }else{
     const present=TYPES.filter(t=>eqs.some(q=>q.type===t)),need=Math.ceil(total*base/100);
@@ -909,7 +943,6 @@
     present.map((t,i)=>({i,f:exact[i]-fl[i]})).sort((a,b)=>b.f-a.f||a.i-b.i).forEach(x=>{if(extra>0){fl[x.i]++;extra--;}});
     present.forEach((t,i)=>{sharedWant[t]=fl[i];});
    }
-   const singlePlan=rawOverall!=null||p.targets?computePlan(singleCounts,{overallPercent:rawOverall,typeTargets:p.targets||null}):null;
    for(const t of TYPES){
     const eT=eqs.filter(q=>q.type===t);if(!eT.length)continue;
     const want=sharedWant[t]??Math.ceil(eT.length*targets[t]/100);
@@ -938,11 +971,12 @@
    const after=Object.values(byType).reduce((n,x)=>n+x.after,0),overall=Math.round(1000*after/total)/10;
    const label=p.targets?Object.entries(byType).map(([t,x])=>`${NAME[t]} ${x.target}%`).join(', '):`${base}% đề`;
    const savedTargets=p.targets?Object.fromEntries(Object.entries(byType).map(([t,x])=>[t,x.target])):undefined;
+   const savedSingleCounts=hasRawCounts?Object.fromEntries(Object.entries(byType).map(([t,x])=>[t,x.wanted])):null;
    const revision=locked
-    ?saveRevision({title:rev.title+` (${label})`,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent,...(rawOverall!=null?{overall_target_percent:rawOverall}:{}),...(savedTargets?{coverage_targets:savedTargets}:{})})
-    :saveRevision({title:rev.title,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent,...(rawOverall!=null?{overall_target_percent:rawOverall}:{}),...(savedTargets?{coverage_targets:savedTargets}:{})},rev);
+    ?saveRevision({title:rev.title+` (${label})`,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent,overall_target_percent:hasRawCounts?null:rawOverall,coverage_counts:savedSingleCounts,...(savedTargets?{coverage_targets:savedTargets}:{})})
+    :saveRevision({title:rev.title,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent,overall_target_percent:hasRawCounts?null:rawOverall,coverage_counts:savedSingleCounts,...(savedTargets?{coverage_targets:savedTargets}:{})},rev);
    const brief=q=>({id:q.id,type:q.type,lesson_code:q.lesson_code,level:q.level,question:String(q.question||'').replace(/\s+/g,' ').slice(0,120)});
-   const singleUnderFloor=rawOverall!=null?(after<reqRevCount(total,90)):(overall<90);
+   const singleUnderFloor=after<reqRevCount(total,90);
    if(singleUnderFloor)warnings.push(`Tỉ lệ chung còn ${String(overall).replace('.',',')}% câu của đề có trong đề cương, dưới mức 90% theo quy định của tổ (AGENTS.md, rules/01).`);
    if(missingInBank.length)warnings.push(`${missingInBank.length} câu của đề không còn trong Ngân hàng nên không thêm được vào đề cương.`);
    return result({revision,revisions:data.revisions,new_version:locked,total,kept:after,overall_percent:overall,by_type:byType,
@@ -1077,6 +1111,7 @@
     revision_snapshot:rev?clone(rev):null,
     revision_match_count:revMatched,
     ...(rev?.overall_target_percent!=null?{overall_target_percent:Number(rev.overall_target_percent)}:{}),
+    ...(rev?.coverage_counts?{coverage_counts:clone(rev.coverage_counts)}:{}),
     ...(rev?.coverage_targets?{coverage_targets:clone(rev.coverage_targets)}:{}),
     similarity_target_percent:Number(genPayload.similarity_percent??rev?.overall_target_percent??90),
     similarity_mode:genPayload.similarity_mode||'exact',

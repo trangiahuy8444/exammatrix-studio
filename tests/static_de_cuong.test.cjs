@@ -256,3 +256,42 @@ test('Tạo bộ đề mới kế thừa tỉ lệ từng dạng (coverage_targe
     assert.equal(cov.in_revision, 27, 'Tổng 27/31 câu nằm trong đề cương');
   }
 });
+
+test('3 đề liên kết giao nhau (Mã 101, 102, 103 · 31 câu): giải chính xác về 27/31 (TN 24/28, TL 3/3) và đạt kiểm định', async () => {
+  const KR = require('../public/knowledge-rules.js');
+  let data = workspace({ mcB1: 42, mcB2: 0, es: 4 });
+  const q = id => ({ ...data.bank.questions.find(x => x.id === id) });
+  // Tạo đề cương ban đầu chứa tất cả câu (31+) để tái hiện tình huống phải CẮT bớt đồng bộ trên 3 đề giao nhau.
+  const allIds = data.bank.questions.map(x => x.id);
+  let r = await api.handle('/api/revisions/save', { title: 'ĐC CK1 K9', grade: 9, question_ids: allIds }, data, env);
+  data = r.data; const rev = r.response.revision;
+  const pick28 = (offset) => Array.from({ length: 28 }, (_, i) => ({ ...q('B1-' + ((offset + i) % 42)), slot_number: i + 1, points: 0.25 }));
+  const threeEs = () => Array.from({ length: 3 }, (_, i) => ({ ...q('ES-' + i), slot_number: i + 1, points: 1 }));
+  data.exams = [
+    { id: 'EX101', title: 'CK1 · Mã 101', grade: 9, subject_name: 'Tin học', exam_code: '101', revision_id: rev.id, status: 'drafting', similarity_target_percent: 90, questions: [...pick28(0), ...threeEs()] },
+    { id: 'EX102', title: 'CK1 · Mã 102', grade: 9, subject_name: 'Tin học', exam_code: '102', revision_id: rev.id, status: 'drafting', similarity_target_percent: 90, questions: [...pick28(7), ...threeEs()] },
+    { id: 'EX103', title: 'CK1 · Mã 103', grade: 9, subject_name: 'Tin học', exam_code: '103', revision_id: rev.id, status: 'drafting', similarity_target_percent: 90, questions: [...pick28(14), ...threeEs()] }
+  ];
+
+  r = await api.handle('/api/revisions/align-to-exam', {
+    revision_id: rev.id, exam_id: 'EX101', overall_percent: 90, targets: { MC: 90, ES: 100 }, apply_to_linked: true
+  }, data, env);
+  data = r.data;
+  assert.equal(r.response.warnings.length, 0, JSON.stringify(r.response.warnings));
+  assert.equal(r.response.revision.similarity_target_percent, 90);
+  assert.equal(r.response.revision.overall_target_percent, 90);
+  assert.equal(r.response.exam_reports.length, 3);
+  for (const rep of r.response.exam_reports) {
+    assert.equal(rep.total, 31);
+    assert.equal(rep.in_revision, 27, `${rep.exam_code} phải đúng 27/31`);
+    assert.equal(rep.required, 27);
+    assert.equal(rep.by_type.MC.in_revision, 24, `${rep.exam_code} TN phải đúng 24/28`);
+    assert.equal(rep.by_type.ES.in_revision, 3, `${rep.exam_code} TL phải đủ 3/3`);
+    assert.equal(rep.types_ok, true);
+  }
+  const verify = await api.handle('/api/exams/verify', { id: 'EX101' }, data, env);
+  const revErrors = verify.response.verification.errors.filter(e => ['revision', 'revision_criterion', 'similarity'].includes(e.code));
+  assert.deepEqual(revErrors, []);
+  const krRes = KR.checkExam(data, data.exams[0]);
+  assert.deepEqual(krRes.errors.filter(e => e.code === 'revision_criterion'), []);
+});

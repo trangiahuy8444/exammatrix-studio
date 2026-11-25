@@ -457,16 +457,27 @@
     });
     if (rev) {
       const threshold = Math.max(cfg.de_cuong_min_percent, Number(opts.threshold ?? e.similarity_target_percent ?? 90) || 0);
-      F.push([d, 'so_cau_trong_de_cuong', inRev], [d, 'so_cau_can_tu_de_cuong', Math.ceil(qs.length * threshold / 100)]);
+      const rawOverall = rev?.overall_target_percent ?? e?.overall_target_percent ?? null;
+      const reqTotal = rawOverall != null
+        ? (core && typeof core.requiredRevisionCount === 'function'
+          ? core.requiredRevisionCount(qs.length, threshold)
+          : (qs.length <= 0 || threshold <= 0 ? 0 : (threshold >= 100 ? qs.length : Math.max(1, Math.floor(qs.length * threshold / 100 + 1e-9)))))
+        : Math.ceil(qs.length * threshold / 100);
+      F.push([d, 'so_cau_trong_de_cuong', inRev], [d, 'so_cau_can_tu_de_cuong', reqTotal]);
       const typeTargets = rev?.coverage_targets || e?.coverage_targets || null;
       if (typeTargets && typeof typeTargets === 'object') {
+        const countsByType = {};
         for (const t of ['MC', 'YN', 'SHORT', 'ES']) {
-          const raw = typeTargets[t];
-          if (raw === undefined || raw === null || raw === '' || !Number.isFinite(Number(raw))) continue;
+          const cnt = qs.filter(q => q?.type === t).length;
+          if (cnt) countsByType[t] = cnt;
+        }
+        const plan = core && typeof core.computeRevisionPlan === 'function'
+          ? core.computeRevisionPlan(countsByType, { overallPercent: rawOverall, typeTargets })
+          : null;
+        for (const t of Object.keys(plan?.by_type || {})) {
           const qType = qs.filter(q => q?.type === t);
           if (!qType.length) continue;
-          const pctT = Math.max(0, Math.min(100, Math.round(Number(raw))));
-          const needT = Math.ceil(qType.length * pctT / 100);
+          const needT = plan.by_type[t].want;
           const haveT = qType.filter(q => revKeys.has(contentKey(q))).length;
           const x = 'dang_de_cuong:' + t;
           F.push([d, 'can_tu_de_cuong_dang', x], [x, 'dang', t], [x, 'dang_ten', KIND_VN[t] || t], [x, 'can', needT], [x, 'co', haveT], [x, 'tong', qType.length]);

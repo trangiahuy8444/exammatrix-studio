@@ -5182,14 +5182,20 @@ async function renderRevisionCoverage(rev){
  const linkedReports=linked.map(e=>allReports.find(r=>r.exam_id===e.id)).filter(Boolean);
  store.revCovTargetsByRev=store.revCovTargetsByRev||{};
  const savedByRev=store.revCovTargetsByRev[rev.id]||(rev.coverage_targets&&typeof rev.coverage_targets==='object'?rev.coverage_targets:null);
+ store.revCovOverallByRev=store.revCovOverallByRev||{};
+ const savedOverall=store.revCovOverallByRev[rev.id]??rev.overall_target_percent??chosen.overall_target_percent??rev.similarity_target_percent??90;
+ let overallMode=store.revCovOverallByRev[rev.id]!==null&&(rev.overall_target_percent!=null||!savedByRev);
  const SHORT_NAME={MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'};
  const FULL_NAME={MC:'Trắc nghiệm',YN:'Đúng/Sai',SHORT:'Trả lời ngắn',ES:'Tự luận'};
  const bt=rep.by_type||{},keys=Object.keys(bt);
+ const countsByType={};keys.forEach(t=>{if(bt[t]?.total)countsByType[t]=bt[t].total;});
  const applyLabel=linked.length>1?`Áp dụng cho đề cương & ${linked.length} đề liên kết`:(linked.length===1?'Áp dụng cho đề cương & đề liên kết':'Áp dụng tỉ lệ');
- const ratioBarHtml=keys.length?`<div class="rev-cov-ratio-bar" title="Thiếu câu sẽ tự lấy câu gốc trong Ngân hàng đưa vào đề cương; dư sẽ bớt nhưng vẫn giữ YCCĐ. Tỉ lệ này được lưu cho đề cương và mọi đề liên kết.">
+ const ratioBarHtml=keys.length?`<div class="rev-cov-ratio-bar" title="Ưu tiên làm tròn xuống trên Tổng ≤ % (VD 90% của 31 câu = 27/31) và giữ nguyên các dạng đã ghim (như TL 100%). Tỉ lệ này áp dụng chung cho đề cương và mọi đề liên kết.">
    <div class="rev-cov-ratio-inputs">
+     <label class="rev-cov-type-item" for="rev-cov-overall" title="Giới hạn tỉ lệ chung cả đề (làm tròn xuống: 90% của 31 câu = 27/31)">Tổng ≤<input id="rev-cov-overall" type="number" min="0" max="100" step="1" value="${esc(savedOverall)}"><span>%</span></label>
      ${keys.map(t=>{
-       const val=(savedByRev&&savedByRev[t]!=null)?savedByRev[t]:(bt[t].target!=null?bt[t].target:rep.threshold);
+       const defVal=t==='ES'?100:(savedByRev&&savedByRev[t]!=null?savedByRev[t]:(bt[t].target!=null?bt[t].target:rep.threshold));
+       const val=(savedByRev&&savedByRev[t]!=null)?savedByRev[t]:defVal;
        return `<label class="rev-cov-type-item" for="rev-cov-target-${t}" title="${FULL_NAME[t]||t}: đang có ${bt[t].in_revision}/${bt[t].total} câu (${String(bt[t].percent).replace('.',',')}%)">${SHORT_NAME[t]||t}<input id="rev-cov-target-${t}" data-rev-cov-target="${t}" type="number" min="0" max="100" step="1" value="${esc(val)}"><span>%</span><span class="small muted" id="rev-cov-frac-${t}">(${bt[t].in_revision}/${bt[t].total})</span></label>`;
      }).join('')}
      <span class="small muted" id="rev-align-preview"></span>
@@ -5236,31 +5242,55 @@ async function renderRevisionCoverage(rev){
   });
   return cur;
  };
- const covPreview=()=>{
+ const covPreview=(source)=>{
   const cur=readTargets();
+  const overallInp=$('#rev-cov-overall');
+  const overallPct=overallInp?Math.max(0,Math.min(100,Math.round(Number(overallInp.value)||0))):90;
+  if(source==='overall'||source==='pinned')overallMode=true;
+  else if(source==='flex')overallMode=false;
+  const computePlan=window.BankCore?.computeRevisionPlan;
+  let plan=null;
+  if(typeof computePlan==='function'){
+   plan=overallMode
+    ?computePlan(countsByType,{overallPercent:overallPct,typeTargets:cur})
+    :computePlan(countsByType,{typeTargets:cur});
+  }
   const parts=[];let after=0;
   keys.forEach(t=>{
    const x=bt[t];if(!x)return;
-   const pct=cur[t]??rep.threshold;
-   const want=Math.ceil(x.total*pct/100);
+   const pt=plan?.by_type?.[t];
+   const want=pt?pt.want:Math.round(x.total*(cur[t]??rep.threshold)/100);
+   if(overallMode&&pt&&t==='MC'){
+    const inp=$(`#rev-cov-target-${t}`);
+    if(inp){inp.value=pt.target_percent;cur[t]=pt.target_percent;store.revCovTargetsByRev[rev.id][t]=pt.target_percent;}
+   }
    after+=want;
    const fEl=$(`#rev-cov-frac-${t}`);
    if(fEl)fEl.textContent=`(${want}/${x.total})`;
    const d=want-x.in_revision;
    if(d)parts.push(`${d>0?'+':'-'}${Math.abs(d)} ${SHORT_NAME[t]||t}`);
   });
+  if(overallInp){
+   if(overallMode)store.revCovOverallByRev[rev.id]=overallPct;
+   else store.revCovOverallByRev[rev.id]=null;
+  }
   const overall=rep.total?Math.round(1000*after/rep.total)/10:0,el=$('#rev-align-preview');
-  if(el)el.innerHTML=`Tổng mục tiêu: <strong${overall<90?' style="color:#b45309"':''}>${after}/${rep.total} (${String(overall).replace('.',',')}%)</strong>${parts.length?` · ${parts.join(', ')}`:''}`;
-  return {parts,overall,targets:cur};
+  const minReq=window.BankCore?.requiredRevisionCount?window.BankCore.requiredRevisionCount(rep.total,90):Math.floor(rep.total*0.9+1e-9);
+  if(el)el.innerHTML=`Tổng mục tiêu: <strong${after<minReq?' style="color:#b45309"':''}>${after}/${rep.total} (${String(overall).replace('.',',')}%)</strong>${parts.length?` · ${parts.join(', ')}`:''}`;
+  return {parts,overall,overallPct,overallMode,targets:cur};
  };
- document.querySelectorAll('[data-rev-cov-target]').forEach(inp=>{inp.oninput=covPreview;});
- covPreview();
+ if($('#rev-cov-overall'))$('#rev-cov-overall').oninput=()=>covPreview('overall');
+ document.querySelectorAll('[data-rev-cov-target]').forEach(inp=>{
+  inp.oninput=()=>covPreview(inp.dataset.revCovTarget==='MC'?'flex':'pinned');
+ });
+ covPreview(overallMode?'overall':'init');
  if($('#rev-align-to-exam'))$('#rev-align-to-exam').onclick=async()=>{
-  const {targets}=covPreview();
-  await mutate('/api/revisions/align-to-exam',{revision_id:rev.id,exam_id:chosen.id,targets,apply_to_linked:true},res=>{
+  const {targets,overallPct,overallMode:useOverall}=covPreview();
+  await mutate('/api/revisions/align-to-exam',{revision_id:rev.id,exam_id:chosen.id,...(useOverall?{overall_percent:overallPct}:{}),targets,apply_to_linked:true},res=>{
    if(res.revisions)store.revisions=res.revisions;
    if(res.exams)store.exams=res.exams;
-   store.revCovTargetsByRev[rev.id]={...targets};
+   store.revCovTargetsByRev[res.revision.id]={...(res.coverage_targets||targets)};
+   store.revCovOverallByRev[res.revision.id]=res.overall_target_percent??(useOverall?overallPct:null);
    store.activeRevisionViewId=res.revision.id;store.revCoverageExamId=chosen.id;
    renderRevisions();
    const ratioTxt=Object.entries(res.coverage_targets||targets).map(([t,v])=>`${SHORT_NAME[t]||t} ${v}%`).join(', ');

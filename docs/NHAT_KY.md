@@ -5,6 +5,12 @@
 - Báo cáo kho luật: luật có từ 3 vi phạm trở lên (vd 24 câu chưa duyệt) gộp thành một mục, một nút sửa, danh sách đầy đủ mở khi bấm.
 
 ## 25/11/2026 — Hoàn thiện Bản đồ tri thức & Kho luật (6 việc)
+## 25/11/2026 — Làm tròn xuống tỉ lệ đề cương (≤ 90%) & giải đồng bộ chính xác các đề liên kết
+
+- **Quy chuẩn làm tròn xuống (`core.js`: `requiredRevisionCount`, `computeRevisionPlan`):** với tỉ lệ 90% trên đề 31 câu (28 TN + 3 TL), tổng mục tiêu là `floor(31 × 90%) = 27/31` (`87,1% ≤ 90%`), ghim TL `100%` (`3/3`) và chia `24/28` cho TN (`85,7%`). Quy tắc này áp dụng thống nhất giữa giao diện (`app.js`), `static-exam-engine.js`, `static-exam-workflow.js` và kho luật `knowledge-rules.js` (không chặn duyệt `27/31`).
+- **Bộ giải chính xác cho nhiều đề liên kết (`static-api.js` `/api/revisions/align-to-exam`):** nhóm câu dùng chung theo tập đề tham gia và tìm phân bổ bớt câu đạt chính xác mục tiêu từng dạng trên toàn bộ các mã đề liên kết (VD: Mã 101, 102, 103 cùng đạt `27/31`, không còn lệch `29/31 · 29/31 · 30/31` và giữ nguyên `similarity_target_percent = 90`).
+
+## 25/11/2026 — Hoàn thiện Bản đồ tri thức & Kho luật (6 việc)
 
 Thực hiện trọn vẹn `docs/KE_HOACH_GIAO_ANTIGRAVITY.md` trên nền đồ thị tri thức và kho luật suy diễn tiến:
 

@@ -1208,6 +1208,101 @@ function syncEditedQuestionsFromSheet(sheet,record){
     if(apply&&report.changed){if(bank.ppct)bank.ppct.lessons=lessonsOut;bank.questions=qsOut;if(Array.isArray(data.matrices))data.matrices=msOut;}
     return report;
   }
-  const api={syncOutcomeIds,normalizeOutcomeIds,questionKeys,questionRelation,RELATION_LABELS,textSimilarity,questionBigrams,VI_STOPWORDS,parsePrerequisite,detectPrerequisiteCycle,outcomeIdPrefix,lessonOutcomeIds,assignOutcomeIds,resolveOutcome,suggestOutcomes,kyStepperModel,dossierStatus,permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  // Quy chuẩn làm tròn xuống trên tổng số câu (VD: 90% của 31 câu = floor(27,9) = 27 câu, ≤ 90% và ưu tiên giữ dạng tự luận 100%).
+  function requiredRevisionCount(total,percent){
+    const n=Number(total)||0;
+    const pct=Number.isFinite(Number(percent))?Math.max(0,Math.min(100,Number(percent))):90;
+    if(n<=0||pct<=0)return 0;
+    if(pct>=100)return n;
+    return Math.max(1,Math.floor(n*pct/100+1e-9));
+  }
+  function computeRevisionPlan(countsByType,opts={}){
+    const TYPES=['MC','YN','SHORT','ES'];
+    const clamp=v=>Math.max(0,Math.min(100,Math.round(Number(v))));
+    const counts={};let total=0;
+    TYPES.forEach(t=>{const n=Math.max(0,Math.floor(Number(countsByType?.[t])||0));if(n>0){counts[t]=n;total+=n;}});
+    const present=TYPES.filter(t=>counts[t]>0);
+    const typeTargets=opts.typeTargets&&typeof opts.typeTargets==='object'?opts.typeTargets:null;
+    const hasOverall=opts.overallPercent!=null&&opts.overallPercent!==''&&Number.isFinite(Number(opts.overallPercent));
+    const want={};
+    const apportionRem=(rem,flex)=>{
+      if(!flex.length)return;
+      if(flex.length===1){want[flex[0]]=Math.min(counts[flex[0]],Math.max(0,rem));return;}
+      const weights=flex.map(t=>counts[t]),sumW=weights.reduce((a,b)=>a+b,0);
+      if(!sumW||rem<=0){flex.forEach(t=>{want[t]=0;});return;}
+      const base=flex.map((t,i)=>Math.min(counts[t],Math.floor(rem*weights[i]/sumW)));
+      let left=rem-base.reduce((a,b)=>a+b,0);
+      const order=flex.map((t,i)=>({i,f:(rem*weights[i]/sumW)-base[i]})).sort((a,b)=>b.f-a.f||a.i-b.i);
+      for(const o of order){if(left<=0)break;if(base[o.i]<counts[flex[o.i]]){base[o.i]++;left--;}}
+      while(left>0){let moved=false;for(const i of flex.map((_,idx)=>idx)){if(left>0&&base[i]<counts[flex[i]]){base[i]++;left--;moved=true;}}if(!moved)break;}
+      flex.forEach((t,i)=>{want[t]=base[i];});
+    };
+    let requiredTotal=0;
+    let overallPercentOut=0;
+    if(hasOverall){
+      const overallPct=clamp(opts.overallPercent);
+      overallPercentOut=overallPct;
+      requiredTotal=requiredRevisionCount(total,overallPct);
+      if(typeTargets&&present.length){
+        let pinned=[];
+        if(Array.isArray(opts.pinnedTypes)){
+          pinned=present.filter(t=>opts.pinnedTypes.includes(t)&&typeTargets[t]!=null&&typeTargets[t]!==''&&Number.isFinite(Number(typeTargets[t])));
+        }else{
+          const candidates=present.filter(t=>{
+            const raw=typeTargets[t];if(raw==null||raw===''||!Number.isFinite(Number(raw)))return false;
+            return t!=='MC'||(overallPct<100&&clamp(raw)===100);
+          });
+          pinned=candidates.length<present.length?candidates:candidates.filter(t=>t!=='MC');
+        }
+        let sumPinned=0;
+        pinned.forEach(t=>{
+          const pctT=clamp(typeTargets[t]);
+          const w=pctT>=100?counts[t]:(pctT<=0?0:Math.min(counts[t],Math.floor(counts[t]*pctT/100+1e-9)));
+          want[t]=w;sumPinned+=w;
+        });
+        if(sumPinned>requiredTotal){
+          let over=sumPinned-requiredTotal;
+          for(const t of TYPES){
+            if(over<=0)break;
+            if(want[t]>0){const cut=Math.min(want[t],over);want[t]-=cut;over-=cut;}
+          }
+          sumPinned=requiredTotal;
+        }
+        const flex=present.filter(t=>!pinned.includes(t));
+        apportionRem(Math.max(0,requiredTotal-sumPinned),flex);
+        present.forEach(t=>{if(want[t]==null)want[t]=0;});
+        requiredTotal=present.reduce((s,t)=>s+(want[t]||0),0);
+      }else{
+        apportionRem(requiredTotal,present);
+        requiredTotal=present.reduce((s,t)=>s+(want[t]||0),0);
+      }
+    }else if(typeTargets&&present.length){
+      present.forEach(t=>{
+        const raw=typeTargets[t];
+        const pctT=(raw!=null&&raw!==''&&Number.isFinite(Number(raw)))?clamp(raw):90;
+        const w=pctT<=0?0:(pctT>=100?counts[t]:Math.min(counts[t],Math.round(counts[t]*pctT/100)));
+        want[t]=w;requiredTotal+=w;
+      });
+      overallPercentOut=total?Math.round(1000*requiredTotal/total)/10:0;
+    }else{
+      overallPercentOut=90;
+      requiredTotal=requiredRevisionCount(total,90);
+      apportionRem(requiredTotal,present);
+      requiredTotal=present.reduce((s,t)=>s+(want[t]||0),0);
+    }
+    const by_type={};
+    present.forEach(t=>{
+      const n=counts[t],w=want[t]||0;
+      by_type[t]={total:n,want:w,percent:Math.round(1000*w/n)/10,target_percent:Math.floor(100*w/n)};
+    });
+    return {
+      total,
+      required_total:requiredTotal,
+      overall_percent:overallPercentOut,
+      actual_percent:total?Math.round(1000*requiredTotal/total)/10:0,
+      by_type
+    };
+  }
+  const api={syncOutcomeIds,normalizeOutcomeIds,questionKeys,questionRelation,RELATION_LABELS,textSimilarity,questionBigrams,VI_STOPWORDS,parsePrerequisite,detectPrerequisiteCycle,requiredRevisionCount,computeRevisionPlan,outcomeIdPrefix,lessonOutcomeIds,assignOutcomeIds,resolveOutcome,suggestOutcomes,kyStepperModel,dossierStatus,permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

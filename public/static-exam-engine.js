@@ -309,6 +309,12 @@
     const byType={};for(const c of cells){const t=byType[c.type]||(byType[c.type]={requested:0,selected:0,available:0});t.requested+=c.requested;t.selected+=c.revision_count;t.available+=c.available;}
     return clone({cells,question_ids:[...chosen],total:chosen.size,exam_question_count:fromBank?0:per,source:fromBank?'bank':'matrix',by_type:byType,warnings});
   }
+  const requiredRevCount = (n, pct) => core && typeof core.requiredRevisionCount === 'function'
+    ? core.requiredRevisionCount(n, pct)
+    : (n <= 0 || pct <= 0 ? 0 : (pct >= 100 ? n : Math.max(1, Math.floor(n * pct / 100 + 1e-9))));
+  const revisionPlanFor = (counts, opts) => core && typeof core.computeRevisionPlan === 'function'
+    ? core.computeRevisionPlan(counts, opts)
+    : null;
   // Đối chiếu một đề với đề cương: câu nào có trong đề cương (trùng nội dung), câu nào chưa; tỉ lệ theo số câu, theo điểm; phủ YCCĐ.
   function revisionCoverage(exam,revision,ppct) {
     const PART={MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'},qs=list(exam?.questions),rs=list(revision?.questions);
@@ -317,33 +323,33 @@
     const pts=items.reduce((n,x)=>n+x.points,0),inItems=items.filter(x=>x.in_revision);
     const missingOutcomes=[...new Set(items.filter(x=>!x.outcome_in_revision).map(x=>x.lesson_code+' · '+(qs.find(q=>q.id===x.question_id)?.learning_outcome||'')))];
     const typeTargets=revision?.coverage_targets||exam?.coverage_targets||null;
+    const rawOverall=revision?.overall_target_percent??exam?.overall_target_percent??null;
     const fallbackPct=Number(exam?.similarity_target_percent??revision?.similarity_target_percent??90);
+    const countsByType={};
+    ['MC','YN','SHORT','ES'].forEach(t=>{const n=items.filter(x=>x.type===t).length;if(n)countsByType[t]=n;});
+    const plan=(typeTargets||rawOverall!=null)?revisionPlanFor(countsByType,{overallPercent:rawOverall,typeTargets}):null;
     const byType={};
     ['MC','YN','SHORT','ES'].forEach(t=>{
       const all=items.filter(x=>x.type===t);
       if(!all.length)return;
       const inn=all.filter(x=>x.in_revision).length;
-      const rawTarget=typeTargets&&typeTargets[t]!=null&&Number.isFinite(Number(typeTargets[t]))?Math.max(0,Math.min(100,Math.round(Number(typeTargets[t])))):null;
       const entry={total:all.length,in_revision:inn,percent:Math.round(1000*inn/all.length)/10};
-      if(rawTarget!==null){
-        const req=Math.ceil(all.length*rawTarget/100);
-        entry.target=rawTarget;
-        entry.required=req;
-        entry.ok=inn>=req;
+      const pt=plan?.by_type?.[t];
+      const rawTarget=typeTargets&&typeTargets[t]!=null&&Number.isFinite(Number(typeTargets[t]))?Math.max(0,Math.min(100,Math.round(Number(typeTargets[t])))):null;
+      if(pt){
+        entry.target=rawTarget!=null?rawTarget:pt.target_percent;
+        entry.required=pt.want;
+        entry.ok=inn>=pt.want;
       }
       byType[t]=entry;
     });
-    const hasAnyTypeTarget=Object.values(byType).some(x=>x.required!=null);
-    const required=hasAnyTypeTarget
-      ?Object.values(byType).reduce((sum,x)=>sum+(x.required!=null?x.required:Math.ceil(x.total*fallbackPct/100)),0)
-      :Math.ceil(items.length*(Number(exam?.similarity_target_percent)||90)/100);
-    const threshold=hasAnyTypeTarget
-      ?(items.length?Math.round(1000*required/items.length)/10:fallbackPct)
-      :(Number(exam?.similarity_target_percent)||90);
-    const typesOk=hasAnyTypeTarget?Object.values(byType).every(x=>x.ok!==false):true;
+    const hasPlan=Boolean(plan&&Object.keys(byType).length);
+    const required=hasPlan?plan.required_total:(rawOverall!=null?requiredRevCount(items.length,fallbackPct):Math.ceil(items.length*fallbackPct/100));
+    const threshold=rawOverall!=null?Number(rawOverall):(hasPlan?(items.length?Math.round(1000*required/items.length)/10:fallbackPct):fallbackPct);
+    const typesOk=hasPlan?Object.values(byType).every(x=>x.ok!==false):true;
     return {exam_id:exam?.id||null,exam_title:exam?.title||'',exam_code:exam?.exam_code||'',total:items.length,in_revision:inItems.length,count_percent:items.length?Math.round(1000*inItems.length/items.length)/10:0,
       points_percent:pts?Math.round(1000*inItems.reduce((n,x)=>n+x.points,0)/pts)/10:0,outcome_percent:items.length?Math.round(1000*items.filter(x=>x.outcome_in_revision).length/items.length)/10:0,
-      threshold,required,types_ok:typesOk,coverage_targets:typeTargets?clone(typeTargets):null,missing_outcomes:missingOutcomes,
+      threshold,required,types_ok:typesOk,overall_target_percent:rawOverall!=null?Number(rawOverall):null,coverage_targets:typeTargets?clone(typeTargets):null,missing_outcomes:missingOutcomes,
       by_type:byType,items};
   }
   function proposeRevision(data,payload){if(payload&&'title' in payload&&!text(payload.title))fail('Cần nhập tên đề cương.');const p=plan(data,payload);let revision;
@@ -356,7 +362,7 @@
   function assign(slots,opts) {
     if(slots.length>500)fail('Vượt giới hạn 500 vị trí câu hỏi.');
     const ok=outcomeKeyFn(opts.ppct),hashes=new Set(list(opts.revision?.questions).map(matchKey)),coverage=new Set(list(opts.revision?.questions).map(ok));
-    const need=opts.revision?Math.ceil(slots.length*(opts.percent||90)/100):0;
+    const need=opts.revision?(opts.revision?.overall_target_percent!=null?requiredRevCount(slots.length,opts.percent||90):Math.ceil(slots.length*(opts.percent||90)/100)):0;
     const ordered=slots.map((s,i)=>({i,slot:s.slot,pool:s.candidates.filter(q=>!opts.revision||coverage.has(ok(q))).sort((a,b)=>Number(hashes.has(matchKey(b)))-Number(hashes.has(matchKey(a)))||sha256(String(opts.seed||'')+a.id).localeCompare(sha256(String(opts.seed||'')+b.id)))})).sort((a,b)=>a.pool.length-b.pool.length);
     const ids=new Set(),texts=new Set(),result=[];let attempts=0;
     function search(index,matched){const remaining=ordered.slice(index);const available=remaining.flatMap(s=>s.pool).filter(q=>!ids.has(q.id)&&!texts.has(norm(q.question)));if(new Set(available.map(q=>q.id)).size<remaining.length||new Set(available.map(q=>norm(q.question))).size<remaining.length||matched+new Set(available.filter(q=>hashes.has(matchKey(q))).map(q=>q.id)).size<need)return false;if(++attempts>200000)fail('Không thể hoàn tất ghép câu trong giới hạn; hãy chọn câu cụ thể theo từng vị trí.');if(matched+ordered.length-index<need)return false;if(index===ordered.length)return matched>=need&&(!opts.exact||matched===need);
@@ -374,14 +380,16 @@
   function revisionReport(exam,rev,ppct) {
     const ok=outcomeKeyFn(ppct||exam?.ppct_snapshot),qs=list(exam.questions),rs=list(rev?.questions),hashes=new Set(rs.map(matchKey)),outcomes=new Set(rs.map(ok));const exact=[],outside=[],missing=[];let matchedPoints=0,coveredPoints=0,total=0;
     qs.forEach(q=>{const points=Number(q.points)||0;total+=points;if(outcomes.has(ok(q)))coveredPoints+=points;else missing.push({question_id:q.id,lesson_code:q.lesson_code,learning_outcome:q.learning_outcome});if(hashes.has(matchKey(q))){exact.push(q.id);matchedPoints+=points;}else outside.push(q.id);});
-    const threshold=exam.similarity_target_percent||90,required=Math.ceil(qs.length*threshold/100),count=exact.length,coverage={ok:!!qs.length&&!missing.length,percent:total?100*coveredPoints/total:0,missing};
+    const rawOverall=rev?.overall_target_percent??exam?.overall_target_percent??null;
+    const threshold=exam.similarity_target_percent||90,required=rawOverall!=null?requiredRevCount(qs.length,threshold):Math.ceil(qs.length*threshold/100),count=exact.length,coverage={ok:!!qs.length&&!missing.length,percent:total?100*coveredPoints/total:0,missing};
     const typeTargets=rev?.coverage_targets||exam?.coverage_targets||null;
     let typeTargetsOk=true;
     if(typeTargets&&typeof typeTargets==='object'){
-      for(const t of ['MC','YN','SHORT','ES']){
-        const raw=typeTargets[t];if(raw===undefined||raw===null||raw===''||!Number.isFinite(Number(raw)))continue;
+      const countsByType={};['MC','YN','SHORT','ES'].forEach(t=>{const n=qs.filter(q=>q.type===t).length;if(n)countsByType[t]=n;});
+      const plan=revisionPlanFor(countsByType,{overallPercent:rawOverall,typeTargets});
+      for(const t of Object.keys(plan?.by_type||{})){
         const qt=qs.filter(q=>q.type===t);if(!qt.length)continue;
-        const reqT=Math.ceil(qt.length*Math.max(0,Math.min(100,Math.round(Number(raw))))/100);
+        const reqT=plan.by_type[t].want;
         const haveT=qt.filter(q=>hashes.has(matchKey(q))).length;
         if(haveT<reqT){typeTargetsOk=false;break;}
       }

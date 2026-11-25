@@ -58,6 +58,8 @@
    const scope=(ppct.lessons||[]).filter(l=>l.grade===grade&&(l.subject_name||'Tin học')===subject&&codes.has(l.lesson_code)).map(l=>({lesson_code:l.lesson_code,title:l.title||l.lesson_name_source||l.lesson_name||l.lesson_code,topic:l.topic||l.topic_source||l.topic_name||''}));
    const simRaw=payload.similarity_target_percent;
    const simPct=simRaw!==undefined&&simRaw!==null&&simRaw!==''&&Number.isFinite(Number(simRaw))?Math.max(0,Math.min(100,Math.round(Number(simRaw)))):(existing?.similarity_target_percent??90);
+   const rawOverall=payload.overall_target_percent!==undefined?payload.overall_target_percent:existing?.overall_target_percent;
+   const overallTarget=(rawOverall!==undefined&&rawOverall!==null&&rawOverall!==''&&Number.isFinite(Number(rawOverall)))?Math.max(0,Math.min(100,Math.round(Number(rawOverall)))):null;
    const rawTargets=payload.coverage_targets!==undefined?payload.coverage_targets:existing?.coverage_targets;
    let coverageTargets=null;
    if(rawTargets&&typeof rawTargets==='object'&&!Array.isArray(rawTargets)){
@@ -66,7 +68,7 @@
     if(Object.keys(cleaned).length)coverageTargets=cleaned;
    }
    return put(data.revisions,{...(existing||{}),id:existing?.id||id('REV'),title:payload.title.trim(),grade,subject_name:subject,lessons:scope,
-    status:existing?.status||'drafting',similarity_target_percent:simPct,...(coverageTargets?{coverage_targets:coverageTargets}:{}),created_at:existing?.created_at||now(),updated_at:now(),question_ids:ids,questions,question_count:questions.length});
+    status:existing?.status||'drafting',similarity_target_percent:simPct,...(overallTarget!=null?{overall_target_percent:overallTarget}:{}),...(coverageTargets?{coverage_targets:coverageTargets}:{}),created_at:existing?.created_at||now(),updated_at:now(),question_ids:ids,questions,question_count:questions.length});
   }
   function normalizeMatrixSlots(m){
    if(!m||typeof m!=='object'||m.status==='locked'||m.status==='archived')return m;
@@ -204,15 +206,19 @@
    const pct=Number.isFinite(Number(opts.percent))?Math.max(0,Math.min(100,Number(opts.percent))):90;
    const simMode=opts.similarity_mode==='exact'?'exact':'min';
    const typeTargets=opts.type_targets||opts.revision?.coverage_targets||null;
+   const overallOpt=opts.revision?.overall_target_percent??null;
    const hasTypeTargets=Boolean(typeTargets&&typeof typeTargets==='object'&&['MC','YN','SHORT','ES'].some(t=>typeTargets[t]!=null&&typeTargets[t]!==''&&Number.isFinite(Number(typeTargets[t]))));
    const outsideIdxSet=new Set();
-   if(revQs.length&&hasTypeTargets){
+   const coreLib=root.BankCore||(typeof require==='function'?require('./core.js'):null);
+   if(revQs.length&&(hasTypeTargets||overallOpt!=null)&&coreLib&&typeof coreLib.computeRevisionPlan==='function'){
     const lvRank=lv=>({'Vận dụng cao':4,'Vận dụng':3,'Hiểu':2,'Biết':1}[normLevel(lv)]||0);
+    const countsByType={};
+    ['MC','YN','SHORT','ES'].forEach(t=>{const n=flexSlots.filter(e=>String(e.slot?.kind||'').toUpperCase()===t).length;if(n)countsByType[t]=n;});
+    const plan=coreLib.computeRevisionPlan(countsByType,{overallPercent:overallOpt!=null?overallOpt:(hasTypeTargets?null:pct),typeTargets});
     ['MC','YN','SHORT','ES'].forEach(t=>{
      const slotsT=flexSlots.map((entry,idx)=>({entry,idx})).filter(x=>String(x.entry.slot?.kind||'').toUpperCase()===t);
      if(!slotsT.length)return;
-     const pctT=Number.isFinite(Number(typeTargets[t]))?Math.max(0,Math.min(100,Number(typeTargets[t]))):pct;
-     const wantT=Math.ceil(slotsT.length*pctT/100);
+     const wantT=plan.by_type[t]?.want??slotsT.length;
      const diffT=Math.max(0,slotsT.length-wantT);
      if(!diffT)return;
      const outCandidatesT=slotsT.map(({entry,idx})=>{
@@ -672,6 +678,16 @@
    const bankByFp=new Map();bank.forEach(q=>{if(q.review_status!=='archived'&&Number(q.grade)===Number(rev.grade)){const k=fp(q);if(!bankByFp.has(k))bankByFp.set(k,q);}});
    const removed=[],added=[],missingInBank=[],byType={},warnings=[];
 
+   const coreLib=root.BankCore||(typeof require==='function'?require('./core.js'):null);
+   const computePlan=(countsByType,opts)=>{
+    if(coreLib&&typeof coreLib.computeRevisionPlan==='function')return coreLib.computeRevisionPlan(countsByType,opts);
+    return null;
+   };
+   const reqRevCount=(n,pct)=>coreLib&&typeof coreLib.requiredRevisionCount==='function'
+    ?coreLib.requiredRevisionCount(n,pct)
+    :(n<=0||pct<=0?0:(pct>=100?n:Math.max(1,Math.floor(n*pct/100+1e-9))));
+   const rawOverall=p.overall_percent!==undefined&&p.overall_percent!==null&&p.overall_percent!==''&&Number.isFinite(Number(p.overall_percent))?clampPct(p.overall_percent):null;
+
    if(p.apply_to_linked===true){
     const sameSubj=e=>(e.subject_name||'Tin học')===subject;
     const linkedExams=data.exams.filter(e=>sameSubj(e)&&e.revision_id===rev.id&&(e.questions||[]).length);
@@ -679,87 +695,200 @@
     const targetExams=linkedExams.length?(linkedExams.some(e=>e.id===primaryExam.id)?linkedExams:[primaryExam,...linkedExams]):[primaryExam];
     const primaryEqs=primaryExam.questions||[],total=primaryEqs.length;if(!total)fail('Đề chưa có câu hỏi.');
     const curMap=new Map(revQs.map(q=>[fp(q),q]));
-    const presentTypes=new Set();
-    targetExams.forEach(ex=>(ex.questions||[]).forEach(q=>{if(TYPES.includes(q.type))presentTypes.add(q.type);}));
+    const planByExam=new Map();
+    targetExams.forEach(ex=>{
+     const countsByType={};
+     TYPES.forEach(t=>{const n=(ex.questions||[]).filter(q=>q.type===t).length;if(n)countsByType[t]=n;});
+     const plan=computePlan(countsByType,{overallPercent:rawOverall,typeTargets:p.targets||(rawOverall==null?targets:null)});
+     planByExam.set(ex.id,plan);
+    });
+    const primaryPlan=planByExam.get(primaryExam.id);
     const savedTargets={};
-    if(p.targets)TYPES.forEach(t=>{if(presentTypes.has(t))savedTargets[t]=targets[t];});
+    TYPES.forEach(t=>{
+     if(primaryPlan?.by_type?.[t])savedTargets[t]=primaryPlan.by_type[t].target_percent;
+     else if(p.targets&&p.targets[t]!=null&&targetExams.some(ex=>(ex.questions||[]).some(q=>q.type===t)))savedTargets[t]=targets[t];
+    });
     let sharedTrimBlocked=false;
+    const solveLinkedType=(t,exList)=>{
+     const m=exList.length;
+     const fixedOut=new Array(m).fill(0);
+     const selectableByKey=new Map();
+     exList.forEach((it,ei)=>{
+      const seenInEx=new Set();
+      for(const q of it.eT){
+       const k=fp(q);
+       if(seenInEx.has(k))continue;
+       seenInEx.add(k);
+       const inCur=curMap.has(k);
+       const src=inCur?curMap.get(k):(bankByFp.get(k)||bank.find(b=>b.id===q.id&&b.review_status!=='archived'&&Number(b.grade)===Number(rev.grade)));
+       if(!src){
+        fixedOut[ei]++;
+        if(!missingInBank.some(mQ=>fp(mQ)===k))missingInBank.push(q);
+        continue;
+       }
+       if(!selectableByKey.has(k))selectableByKey.set(k,{k,src,inCur,exams:[]});
+       selectableByKey.get(k).exams.push(ei);
+      }
+     });
+     const outNeed=exList.map((it,i)=>{
+      const selectableCount=selectableByKey.size?exList[i].eT.length-fixedOut[i]:0;
+      return Math.max(0,selectableCount-it.want);
+     });
+     const bucketMap=new Map();
+     for(const item of selectableByKey.values()){
+      const bKey=item.exams.join(',');
+      if(!bucketMap.has(bKey))bucketMap.set(bKey,{exams:item.exams,items:[]});
+      bucketMap.get(bKey).items.push(item);
+     }
+     const buckets=[...bucketMap.values()].sort((a,b)=>(b.exams.length-a.exams.length)||(b.items.length-a.items.length));
+     const B=buckets.length;
+     const curOut=buckets.map(b=>b.items.filter(it=>!it.inCur).length);
+     const remCap=Array.from({length:B+1},()=>new Array(m).fill(0));
+     for(let b=B-1;b>=0;b--){
+      for(let i=0;i<m;i++)remCap[b][i]=remCap[b+1][i];
+      for(const ei of buckets[b].exams)remCap[b][ei]+=buckets[b].items.length;
+     }
+     let bestX=null,bestCost=Infinity,steps=0;
+     const curX=new Array(B).fill(0),need=[...outNeed];
+     function dfs(b,cost){
+      if(cost>=bestCost||++steps>40000)return;
+      if(b===B){
+       if(need.every(v=>v===0)){bestCost=cost;bestX=curX.slice();}
+       return;
+      }
+      const bkt=buckets[b],N=bkt.items.length,inB=new Set(bkt.exams);
+      for(let i=0;i<m;i++){if(!inB.has(i)&&need[i]>remCap[b+1][i])return;}
+      let minX=0,maxX=N;
+      for(const ei of bkt.exams){
+       maxX=Math.min(maxX,need[ei]);
+       minX=Math.max(minX,need[ei]-remCap[b+1][ei]);
+      }
+      if(minX>maxX)return;
+      const cands=[];
+      for(let x=minX;x<=maxX;x++)cands.push(x);
+      cands.sort((a,b2)=>Math.abs(a-curOut[b])-Math.abs(b2-curOut[b])||a-b2);
+      for(const x of cands){
+       if(cost+Math.abs(x-curOut[b])>=bestCost)continue;
+       curX[b]=x;
+       for(const ei of bkt.exams)need[ei]-=x;
+       dfs(b+1,cost+Math.abs(x-curOut[b]));
+       for(const ei of bkt.exams)need[ei]+=x;
+       if(bestCost===0)return;
+      }
+     }
+     dfs(0,0);
+     if(!bestX)return false;
+     for(let b=0;b<B;b++){
+      const x=bestX[b],items=buckets[b].items;
+      const outNow=items.filter(it=>!it.inCur);
+      const inNow=items.filter(it=>it.inCur);
+      if(x<outNow.length){
+       const addNeeded=outNow.length-x;
+       outNow.sort((a,b2)=>(count.get(okey(a.src))||0)-(count.get(okey(b2.src))||0)||(lv[a.src.level]||0)-(lv[b2.src.level]||0)||String(a.src.id).localeCompare(String(b2.src.id)));
+       for(const it of outNow.slice(0,addNeeded)){
+        curMap.set(it.k,it.src);added.push(it.src);count.set(okey(it.src),(count.get(okey(it.src))||0)+1);
+       }
+      }else if(x>outNow.length){
+       let dropCount=x-outNow.length;
+       const pool=inNow.slice();
+       while(dropCount>0&&pool.length){
+        pool.sort((a,b2)=>Number((count.get(okey(b2.src))||0)>1)-Number((count.get(okey(a.src))||0)>1)||(lv[b2.src.level]||0)-(lv[a.src.level]||0)||(kd[b2.src.type]||0)-(kd[a.src.type]||0)||String(a.src.id).localeCompare(String(b2.src.id)));
+        const it=pool.shift();
+        curMap.delete(it.k);removed.push(it.src);count.set(okey(it.src),(count.get(okey(it.src))||0)-1);
+        dropCount--;
+       }
+      }
+     }
+     return true;
+    };
+
     for(const t of TYPES){
      const exList=targetExams.map(ex=>{
       const eT=(ex.questions||[]).filter(q=>q.type===t);
-      return {ex,eT,want:Math.ceil(eT.length*targets[t]/100)};
+      const plan=planByExam.get(ex.id);
+      const want=plan?.by_type?.[t]?.want??Math.ceil(eT.length*targets[t]/100);
+      return {ex,eT,want};
      }).filter(x=>x.eT.length>0);
      if(!exList.length)continue;
      const inCount=it=>it.eT.filter(q=>curMap.has(fp(q))).length;
-     while(exList.some(it=>inCount(it)<it.want)){
-      const candMap=new Map();
-      for(const it of exList){
-       if(inCount(it)>=it.want)continue;
-       for(const q of it.eT){
-        const k=fp(q);if(curMap.has(k)||candMap.has(k))continue;
-        const src=bankByFp.get(k)||bank.find(b=>b.id===q.id&&b.review_status!=='archived'&&Number(b.grade)===Number(rev.grade));
-        if(!src){if(!missingInBank.some(m=>fp(m)===k))missingInBank.push(q);continue;}
-        let deficitHits=0,overOrExactHits=0;
-        exList.forEach(other=>{if(other.eT.some(x=>fp(x)===k)){if(inCount(other)<other.want)deficitHits++;else overOrExactHits++;}});
-        candMap.set(k,{src,score:100*deficitHits-25*overOrExactHits});
+     const solvedExact=solveLinkedType(t,exList);
+     if(!solvedExact){
+      while(exList.some(it=>inCount(it)<it.want)){
+       const candMap=new Map();
+       for(const it of exList){
+        if(inCount(it)>=it.want)continue;
+        for(const q of it.eT){
+         const k=fp(q);if(curMap.has(k)||candMap.has(k))continue;
+         const src=bankByFp.get(k)||bank.find(b=>b.id===q.id&&b.review_status!=='archived'&&Number(b.grade)===Number(rev.grade));
+         if(!src){if(!missingInBank.some(m=>fp(m)===k))missingInBank.push(q);continue;}
+         let deficitHits=0,overOrExactHits=0;
+         exList.forEach(other=>{if(other.eT.some(x=>fp(x)===k)){if(inCount(other)<other.want)deficitHits++;else overOrExactHits++;}});
+         candMap.set(k,{src,score:100*deficitHits-25*overOrExactHits});
+        }
        }
+       if(!candMap.size)break;
+       const best=[...candMap.values()].sort((a,b)=>(b.score-a.score)||String(a.src.id).localeCompare(String(b.src.id)))[0];
+       curMap.set(fp(best.src),best.src);
+       added.push(best.src);
+       count.set(okey(best.src),(count.get(okey(best.src))||0)+1);
       }
-      if(!candMap.size)break;
-      const best=[...candMap.values()].sort((a,b)=>(b.score-a.score)||String(a.src.id).localeCompare(String(b.src.id)))[0];
-      curMap.set(fp(best.src),best.src);
-      added.push(best.src);
-      count.set(okey(best.src),(count.get(okey(best.src))||0)+1);
-     }
-     while(exList.some(it=>inCount(it)>it.want)){
-      const curTypeQs=[...curMap.values()].filter(q=>q.type===t);
-      const removable=curTypeQs.filter(q=>{
-       const k=fp(q);
-       const inOver=exList.some(it=>inCount(it)>it.want&&it.eT.some(x=>fp(x)===k));
-       if(!inOver)return false;
-       return exList.every(it=>!it.eT.some(x=>fp(x)===k)||inCount(it)>it.want);
-      });
-      if(!removable.length){sharedTrimBlocked=true;break;}
-      const overHitsOf=q=>{const k=fp(q);return exList.filter(it=>inCount(it)>it.want&&it.eT.some(x=>fp(x)===k)).length;};
-      removable.sort((a,b)=>Number((count.get(okey(b))||0)>1)-Number((count.get(okey(a))||0)>1)||(overHitsOf(b)-overHitsOf(a))||(lv[b.level]||0)-(lv[a.level]||0)||(kd[b.type]||0)-(kd[a.type]||0)||String(a.id).localeCompare(String(b.id)));
-      const drop=removable[0];
-      curMap.delete(fp(drop));
-      removed.push(drop);
-      count.set(okey(drop),(count.get(okey(drop))||0)-1);
+      while(exList.some(it=>inCount(it)>it.want)){
+       const curTypeQs=[...curMap.values()].filter(q=>q.type===t);
+       const removable=curTypeQs.filter(q=>{
+        const k=fp(q);
+        const inOver=exList.some(it=>inCount(it)>it.want&&it.eT.some(x=>fp(x)===k));
+        if(!inOver)return false;
+        return exList.every(it=>!it.eT.some(x=>fp(x)===k)||inCount(it)>it.want);
+       });
+       if(!removable.length){sharedTrimBlocked=true;break;}
+       const overHitsOf=q=>{const k=fp(q);return exList.filter(it=>inCount(it)>it.want&&it.eT.some(x=>fp(x)===k)).length;};
+       removable.sort((a,b)=>Number((count.get(okey(b))||0)>1)-Number((count.get(okey(a))||0)>1)||(overHitsOf(b)-overHitsOf(a))||(lv[b.level]||0)-(lv[a.level]||0)||(kd[b.type]||0)-(kd[a.type]||0)||String(a.id).localeCompare(String(b.id)));
+       const drop=removable[0];
+       curMap.delete(fp(drop));
+       removed.push(drop);
+       count.set(okey(drop),(count.get(okey(drop))||0)-1);
+      }
      }
      const primItem=exList.find(it=>it.ex.id===primaryExam.id);
      if(primItem){
       const before=primItem.eT.filter(q=>revQs.some(rq=>fp(rq)===fp(q))).length;
       const afterT=inCount(primItem);
-      byType[t]={total:primItem.eT.length,target:targets[t],wanted:primItem.want,before,after:afterT};
+      byType[t]={total:primItem.eT.length,target:savedTargets[t]??targets[t],wanted:primItem.want,before,after:afterT};
      }
     }
     const removedIds=new Set(removed.map(q=>q.id)),ids=[...revQs.filter(q=>!removedIds.has(q.id)).map(q=>q.id),...added.map(q=>q.id)];
     let locked=false;try{checkRevision(rev);}catch(e){locked=true;}
     const after=Object.values(byType).reduce((n,x)=>n+x.after,0),overall=Math.round(1000*after/total)/10;
-    const label=Object.keys(savedTargets).length?Object.entries(savedTargets).map(([t,v])=>`${NAME[t]||t} ${v}%`).join(', '):`${base}% đề`;
+    const savedSimPct=rawOverall!=null?rawOverall:(rev.similarity_target_percent??90);
+    const label=Object.keys(savedTargets).length?Object.entries(savedTargets).map(([t,v])=>`${NAME[t]||t} ${v}%`).join(', '):`${savedSimPct}% đề`;
     const revPayload={
      title:(locked&&(removed.length||added.length))?(rev.title+` (${label})`):rev.title,
      grade:rev.grade,
      question_ids:ids,
-     similarity_target_percent:Math.round(overall),
+     similarity_target_percent:savedSimPct,
+     overall_target_percent:rawOverall,
      ...(Object.keys(savedTargets).length?{coverage_targets:savedTargets}:{})
     };
+    const nextLockedRev={...rev,similarity_target_percent:savedSimPct,...(Object.keys(savedTargets).length?{coverage_targets:savedTargets}:{}),updated_at:now()};
+    if(rawOverall!=null)nextLockedRev.overall_target_percent=rawOverall;else delete nextLockedRev.overall_target_percent;
     const revision=(locked&&(removed.length||added.length))
      ?saveRevision(revPayload)
-     :(locked?put(data.revisions,{...rev,similarity_target_percent:Math.round(overall),...(Object.keys(savedTargets).length?{coverage_targets:savedTargets}:{}),updated_at:now()}):saveRevision(revPayload,rev));
-    if(Object.keys(savedTargets).length){
+     :(locked?put(data.revisions,nextLockedRev):saveRevision(revPayload,rev));
+    if(Object.keys(savedTargets).length||rawOverall!=null){
      targetExams.forEach(ex=>{
-      ex.coverage_targets=clone(savedTargets);
-      ex.similarity_target_percent=Math.round(overall);
+      if(Object.keys(savedTargets).length)ex.coverage_targets=clone(savedTargets);
+      if(rawOverall!=null)ex.overall_target_percent=rawOverall;else delete ex.overall_target_percent;
+      ex.similarity_target_percent=savedSimPct;
       if(revision.id&&ex.revision_id===rev.id&&revision.id!==rev.id)ex.revision_id=revision.id;
      });
     }
     const examReports=targetExams.map(ex=>engine.revisionCoverage(ex,revision,data.bank.ppct));
     const brief=q=>({id:q.id,type:q.type,lesson_code:q.lesson_code,level:q.level,question:String(q.question||'').replace(/\s+/g,' ').slice(0,120)});
-    if(overall<90)warnings.push(`Tỉ lệ chung còn ${String(overall).replace('.',',')}% câu của đề có trong đề cương, dưới mức 90% theo quy định của tổ.`);
+    const underFloor=rawOverall!=null?(after<reqRevCount(total,90)):(overall<90);
+    if(underFloor)warnings.push(`Tỉ lệ chung còn ${String(overall).replace('.',',')}% câu của đề có trong đề cương, dưới ngưỡng tối thiểu 90% (${reqRevCount(total,90)}/${total} câu).`);
     if(sharedTrimBlocked)warnings.push('Một số câu dùng chung giữa các đề liên kết được giữ lại để không làm đề khác bị thiếu.');
     if(missingInBank.length)warnings.push(`${missingInBank.length} câu của đề không còn trong Ngân hàng nên không thêm được vào đề cương.`);
-    return result({revision,revisions:data.revisions,exams:data.exams,new_version:Boolean(locked&&(removed.length||added.length)),total,kept:after,overall_percent:overall,by_type:byType,
+    return result({revision,revisions:data.revisions,exams:data.exams,new_version:Boolean(locked&&(removed.length||added.length)),total,kept:after,overall_percent:overall,overall_target_percent:rawOverall,by_type:byType,
      coverage_targets:Object.keys(savedTargets).length?savedTargets:null,linked_count:targetExams.length,exam_reports:examReports,
      added:added.map(brief),removed:removed.map(q=>({...brief(q),outcome_still_covered:(count.get(okey(q))||0)>0})),warnings},true);
    }
@@ -767,15 +896,20 @@
    const exam=own(find(data.exams,p.exam_id));
    const eqs=exam.questions||[],total=eqs.length;if(!total)fail('Đề chưa có câu hỏi.');
    const revFps=new Map(revQs.map(q=>[fp(q),q]));
-   // Chỉ một tỉ lệ chung: tổng số câu cần có = làm tròn lên của cả đề, chia cho các dạng theo phần lẻ lớn nhất (không dư câu).
+   const singleCounts={};
+   TYPES.forEach(t=>{const n=eqs.filter(q=>q.type===t).length;if(n)singleCounts[t]=n;});
    const sharedWant={};
-   if(!p.targets){
+   if(rawOverall!=null||p.targets){
+    const singlePlan=computePlan(singleCounts,{overallPercent:rawOverall,typeTargets:p.targets||null});
+    TYPES.forEach(t=>{if(singlePlan?.by_type?.[t])sharedWant[t]=singlePlan.by_type[t].want;});
+   }else{
     const present=TYPES.filter(t=>eqs.some(q=>q.type===t)),need=Math.ceil(total*base/100);
     const exact=present.map(t=>eqs.filter(q=>q.type===t).length*base/100),fl=exact.map(Math.floor);
     let extra=need-fl.reduce((a,b)=>a+b,0);
     present.map((t,i)=>({i,f:exact[i]-fl[i]})).sort((a,b)=>b.f-a.f||a.i-b.i).forEach(x=>{if(extra>0){fl[x.i]++;extra--;}});
     present.forEach((t,i)=>{sharedWant[t]=fl[i];});
    }
+   const singlePlan=rawOverall!=null||p.targets?computePlan(singleCounts,{overallPercent:rawOverall,typeTargets:p.targets||null}):null;
    for(const t of TYPES){
     const eT=eqs.filter(q=>q.type===t);if(!eT.length)continue;
     const want=sharedWant[t]??Math.ceil(eT.length*targets[t]/100);
@@ -796,7 +930,7 @@
      }
     }
     const now=inside.length-removed.filter(q=>q.type===t).length+added.filter(q=>q.type===t).length;
-    byType[t]={total:eT.length,target:targets[t],wanted:want,before:inside.length,after:now};
+    byType[t]={total:eT.length,target:singlePlan?.by_type?.[t]?.target_percent??targets[t],wanted:want,before:inside.length,after:now};
    }
    if(!removed.length&&!added.length)fail(missingInBank.length?`Không thêm được: ${missingInBank.length} câu của đề không còn trong Ngân hàng (đã xóa hoặc lưu trữ).`:'Đề cương đã đúng tỉ lệ đặt ra; không cần thay đổi.');
    const gone=new Set(removed.map(q=>q.id)),ids=[...revQs.filter(q=>!gone.has(q.id)).map(q=>q.id),...added.map(q=>q.id)];
@@ -805,10 +939,11 @@
    const label=p.targets?Object.entries(byType).map(([t,x])=>`${NAME[t]} ${x.target}%`).join(', '):`${base}% đề`;
    const savedTargets=p.targets?Object.fromEntries(Object.entries(byType).map(([t,x])=>[t,x.target])):undefined;
    const revision=locked
-    ?saveRevision({title:rev.title+` (${label})`,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent,...(savedTargets?{coverage_targets:savedTargets}:{})})
-    :saveRevision({title:rev.title,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent,...(savedTargets?{coverage_targets:savedTargets}:{})},rev);
+    ?saveRevision({title:rev.title+` (${label})`,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent,...(rawOverall!=null?{overall_target_percent:rawOverall}:{}),...(savedTargets?{coverage_targets:savedTargets}:{})})
+    :saveRevision({title:rev.title,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent,...(rawOverall!=null?{overall_target_percent:rawOverall}:{}),...(savedTargets?{coverage_targets:savedTargets}:{})},rev);
    const brief=q=>({id:q.id,type:q.type,lesson_code:q.lesson_code,level:q.level,question:String(q.question||'').replace(/\s+/g,' ').slice(0,120)});
-   if(overall<90)warnings.push(`Tỉ lệ chung còn ${String(overall).replace('.',',')}% câu của đề có trong đề cương, dưới mức 90% theo quy định của tổ (AGENTS.md, rules/01).`);
+   const singleUnderFloor=rawOverall!=null?(after<reqRevCount(total,90)):(overall<90);
+   if(singleUnderFloor)warnings.push(`Tỉ lệ chung còn ${String(overall).replace('.',',')}% câu của đề có trong đề cương, dưới mức 90% theo quy định của tổ (AGENTS.md, rules/01).`);
    if(missingInBank.length)warnings.push(`${missingInBank.length} câu của đề không còn trong Ngân hàng nên không thêm được vào đề cương.`);
    return result({revision,revisions:data.revisions,new_version:locked,total,kept:after,overall_percent:overall,by_type:byType,
     added:added.map(brief),removed:removed.map(q=>({...brief(q),outcome_still_covered:(count.get(okey(q))||0)>0})),warnings},true);
@@ -941,8 +1076,9 @@
     revision_id:rev?.id||null,
     revision_snapshot:rev?clone(rev):null,
     revision_match_count:revMatched,
+    ...(rev?.overall_target_percent!=null?{overall_target_percent:Number(rev.overall_target_percent)}:{}),
     ...(rev?.coverage_targets?{coverage_targets:clone(rev.coverage_targets)}:{}),
-    similarity_target_percent:Number(genPayload.similarity_percent??90),
+    similarity_target_percent:Number(genPayload.similarity_percent??rev?.overall_target_percent??90),
     similarity_mode:genPayload.similarity_mode||'exact',
     scoring_policy:clone(targetMatrix?.scoring_policy||{yn_table:{'0':'0','1':'0.1','2':'0.25','3':'0.5','4':'1'},rounding:mType==='TX'?'half_up_integer':'half_up_1dp',blank_counts_as:'wrong'}),
     allowed_kinds:clone(targetMatrix?.allowed_kinds||[...new Set(selectedQuestions.map(q=>q.type))]),

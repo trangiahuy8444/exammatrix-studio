@@ -206,7 +206,9 @@
     const outcomes = new Set(revision.questions.map(q => canonical([q.lesson_code,q.learning_outcome])));
     if (exam.questions.some(q => !outcomes.has(canonical([q.lesson_code,q.learning_outcome])))) fail('Đề cương chưa bao phủ 100% YCCĐ của đề.');
     const exact = new Set(revision.questions.map(exactContent));
-    if (exam.questions.filter(q => exact.has(exactContent(q))).length < Math.ceil(exam.questions.length*0.9)) fail('Đề phải có ít nhất 90% câu trùng nội dung thực tế với đề cương.');
+    const hasOverall = revision?.overall_target_percent != null || exam?.overall_target_percent != null;
+    const req = hasOverall ? (exam.questions.length ? Math.max(1, Math.floor(exam.questions.length * 0.9 + 1e-9)) : 0) : Math.ceil(exam.questions.length * 0.9);
+    if (exam.questions.filter(q => exact.has(exactContent(q))).length < req) fail('Đề phải có ít nhất 90% câu trùng nội dung thực tế với đề cương.');
   }
   function revisionContent(revision) {
     return canonical(Object.fromEntries(Object.entries(revision).filter(([k]) => !ADMIN.has(k) && !['published_by','locked_by'].includes(k))));

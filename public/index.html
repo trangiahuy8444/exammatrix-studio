@@ -10,12 +10,12 @@
   <meta property="og:description" content="Hệ thống quản lý Ma trận, Bảng đặc tả, Đề cương và Đề thi chuẩn Thông tư Bộ GD&ĐT">
   <meta property="og:type" content="website">
   <title>ExamMatrix Studio · Khảo thí & Đánh giá</title>
-  <link rel="stylesheet" href="./styles.css?v=20261125g">
+  <link rel="stylesheet" href="./styles.css?v=20261125h">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-  <script src="./core.js?v=20261125g" defer></script>
+  <script src="./core.js?v=20261125h" defer></script>
   <script src="./exam-comparison.js?v=20261124h" defer></script>
   <script src="./competency-catalog.js?v=20261124h" defer></script>
-  <script src="./competency-catalog-ui.js?v=20261124h" defer></script>
+  <script src="./competency-catalog-ui.js?v=20261125h" defer></script>
   <script src="./static-exam-engine.js?v=20261125c" defer></script>
   <script src="./static-exam-workflow.js?v=20261125b" defer></script>
   <script src="./static-exam-export.js?v=20261124h" defer></script>
@@ -23,24 +23,24 @@
   <script src="./knowledge-rules.js?v=20261124k" defer></script>
   <script src="./static-api.js?v=20261125c" defer></script>
   <script src="./static-download.js?v=20261124h" defer></script>
-  <link rel="stylesheet" href="./matrices.css?v=20261125g">
+  <link rel="stylesheet" href="./matrices.css?v=20261125h">
   <script src="./assessment-plan-model.js?v=20261124h" defer></script>
   <script src="./table-file-helper.js?v=20261124k" defer></script>
-  <script src="./matrices.js?v=20261125g" defer></script>
+  <script src="./matrices.js?v=20261125h" defer></script>
   <script src="./curricula.js?v=20261124h" defer></script>
   <script src="./firebase-config.js?v=20261124h" defer></script>
   <script src="./google-drive-config.js?v=20261124h" defer></script>
   <script src="./google-drive-storage.js?v=20261124h" defer></script>
   <script src="./cloud-storage-v2.js?v=20261124h" defer></script>
-  <script src="./firebase-bridge.js?v=20261124n" defer></script>
+  <script src="./firebase-bridge.js?v=20261125h" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" defer></script>
-  <script src="./app.js?v=20261125g" defer></script>
+  <script src="./app.js?v=20261125h" defer></script>
   <script src="./knowledge-ui.js?v=20261124k" defer></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="./theme.css?v=20261125g">
+  <link rel="stylesheet" href="./theme.css?v=20261125h">
 </head>
 <body>
 <a class="skip" href="#main">Đến nội dung chính</a>
@@ -125,7 +125,7 @@
   </div>
 </header>
 <main id="main" tabindex="-1">
-  <div id="offline-banner" hidden role="status" style="background:#eef6fd;border:1px solid #D6D1F2;border-radius:8px;color:#24364a;padding:12px 18px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px">
+  <div id="offline-banner" hidden role="status" style="background:#F3F4F8;border:1px solid #D6D1F2;border-radius:8px;color:#1C2333;padding:12px 18px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px">
     <div style="min-width:240px;flex:1">
       <strong style="font-size:14px">Chưa đăng nhập tài khoản Google</strong>
       <p style="margin:2px 0 0;font-size:12px">Đăng nhập tài khoản Google để tự động lưu và đồng bộ dữ liệu theo từng Khối lớp (không lưu vào bộ nhớ tạm trình duyệt).</p>
@@ -263,7 +263,7 @@
             Nội dung câu hỏi (chấp nhận công thức toán LaTeX dạng $...$):
           </label>
           <div style="display:flex;gap:8px">
-            <button type="button" id="btn-fill-sample-raw" class="button" style="padding:4px 10px;font-size:12px;font-weight:600;color:#4A3AA8;border-color:#b8d6f0;background:#F2F0FB">
+            <button type="button" id="btn-fill-sample-raw" class="button" style="padding:4px 10px;font-size:12px;font-weight:600;color:#4A3AA8;border-color:#D6D1F2;background:#F2F0FB">
               Dán thử câu hỏi mẫu
             </button>
             <button type="button" id="btn-clear-raw-text" class="button quiet" style="padding:4px 8px;font-size:12px;color:#5B6475">
@@ -322,7 +322,7 @@
       </div>
 
       <!-- 3 bước hướng dẫn siêu dễ cho mọi người -->
-      <div style="background:#F2F0FB;border:1px solid #bcdbf4;border-radius:10px;padding:16px 18px;color:#1e3a5f;line-height:1.6;font-size:13px">
+      <div style="background:#F2F0FB;border:1px solid #D6D1F2;border-radius:10px;padding:16px 18px;color:#1C2333;line-height:1.6;font-size:13px">
         <strong style="font-size:14px;color:#4A3AA8">Hướng dẫn nhận chìa khóa Google AI miễn phí (chỉ mất 1 phút làm theo 3 bước):</strong>
         <ol style="margin:8px 0 0;padding-left:22px;line-height:1.8">
           <li>
@@ -347,7 +347,7 @@
   <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:1px solid #E4E7F0;padding-bottom:12px">
     <div>
       <span class="badge" style="background:#4A3AA8;color:#fff;font-weight:700">SOẠN ĐỀ THEO BÀI &amp; YCCĐ (GDPT 2018)</span>
-      <h2 id="ai-prompt-lesson-title" style="margin:4px 0 2px;color:var(--navy,#1e3a8a);font-size:1.35rem">Hướng dẫn &amp; Chép Prompt AI theo bài học</h2>
+      <h2 id="ai-prompt-lesson-title" style="margin:4px 0 2px;color:var(--navy,#4A3AA8);font-size:1.35rem">Hướng dẫn &amp; Chép Prompt AI theo bài học</h2>
       <p class="muted small" style="margin:0">Tự động trích xuất Yêu cầu cần đạt từ PPCT để tạo câu lệnh cho ChatGPT / Gemini / Claude. Hỗ trợ tạo và nạp theo từng phần (Ưu tiên Excel #1).</p>
     </div>
     <button type="button" data-close="ai-prompt-lesson-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer;color:#5B6475">✕</button>
@@ -362,7 +362,7 @@
   <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:1px solid #E4E7F0;padding-bottom:10px">
     <div>
       <span class="badge" style="background:#4A3AA8;color:#fff;font-weight:700">TÙY BIẾN XUẤT HỒ SƠ KHẢO THÍ</span>
-      <h2 id="custom-export-title" style="margin:4px 0 2px;color:var(--navy,#1e3a8a);font-size:1.3rem">Tùy biến xuất Đề thi, Đáp án &amp; Hồ sơ</h2>
+      <h2 id="custom-export-title" style="margin:4px 0 2px;color:var(--navy,#4A3AA8);font-size:1.3rem">Tùy biến xuất Đề thi, Đáp án &amp; Hồ sơ</h2>
       <p class="muted small" style="margin:0">Tích chọn các thành phần, số lượng mã đề và định dạng trang in phù hợp với yêu cầu thực tế của Thầy/Cô.</p>
     </div>
     <button type="button" data-close="custom-export-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer;color:#5B6475">✕</button>
@@ -377,7 +377,7 @@
   <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:1px solid #E4E7F0;padding-bottom:10px">
     <div>
       <span class="badge" style="background:#4A3AA8;color:#fff;font-weight:700">TÙY BIẾN ĐỀ CƯƠNG ÔN TẬP</span>
-      <h2 id="custom-rev-export-title" style="margin:4px 0 2px;color:var(--navy,#1e3a8a);font-size:1.3rem">Tùy biến xuất Đề cương ôn tập</h2>
+      <h2 id="custom-rev-export-title" style="margin:4px 0 2px;color:var(--navy,#4A3AA8);font-size:1.3rem">Tùy biến xuất Đề cương ôn tập</h2>
       <p class="muted small" style="margin:0">Tích chọn cấu trúc hiển thị, giới hạn kiến thức Bảng A và đối tượng xuất (Học sinh vs Giáo viên).</p>
     </div>
     <button type="button" data-close="custom-rev-export-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer;color:#5B6475">✕</button>
@@ -392,7 +392,7 @@
   <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:1px solid #E4E7F0;padding-bottom:10px">
     <div>
       <span class="badge" style="background:#4A3AA8;color:#fff;font-weight:700">TÙY BIẾN MA TRẬN &amp; ĐẶC TẢ</span>
-      <h2 id="custom-matrix-export-title" style="margin:4px 0 2px;color:var(--navy,#1e3a8a);font-size:1.3rem">Tùy biến xuất Ma trận &amp; Bản đặc tả</h2>
+      <h2 id="custom-matrix-export-title" style="margin:4px 0 2px;color:var(--navy,#4A3AA8);font-size:1.3rem">Tùy biến xuất Ma trận &amp; Bản đặc tả</h2>
       <p class="muted small" style="margin:0">Tích chọn xuất gộp hoặc tách riêng 2 bảng, khổ giấy ngang/dọc, và ẩn/hiện cột năng lực số.</p>
     </div>
     <button type="button" data-close="custom-matrix-export-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer;color:#5B6475">✕</button>
@@ -407,7 +407,7 @@
   <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:1px solid #E4E7F0;padding-bottom:10px">
     <div>
       <span class="badge" style="background:#4A3AA8;color:#fff;font-weight:700">TÙY BIẾN XUẤT NGÂN HÀNG CÂU HỎI</span>
-      <h2 id="custom-bank-export-title" style="margin:4px 0 2px;color:var(--navy,#1e3a8a);font-size:1.3rem">Tùy biến xuất Ngân hàng câu hỏi</h2>
+      <h2 id="custom-bank-export-title" style="margin:4px 0 2px;color:var(--navy,#4A3AA8);font-size:1.3rem">Tùy biến xuất Ngân hàng câu hỏi</h2>
       <p class="muted small" style="margin:0">Tích chọn các trường dữ liệu, dạng câu hỏi và trạng thái kiểm duyệt cần xuất ra Excel / JSON / Markdown.</p>
     </div>
     <button type="button" data-close="custom-bank-export-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer;color:#5B6475">✕</button>
@@ -422,7 +422,7 @@
   <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:1px solid #E4E7F0;padding-bottom:10px">
     <div>
       <span class="badge" style="background:#4A3AA8;color:#fff;font-weight:700">ĐỐI CHIẾU &amp; PHÁT HIỆN TRÙNG LẶP</span>
-      <h2 id="import-dedup-title" style="margin:4px 0 2px;color:var(--navy,#1e3a8a);font-size:1.3rem">Xem trước câu hỏi &amp; Kiểm soát trùng lặp</h2>
+      <h2 id="import-dedup-title" style="margin:4px 0 2px;color:var(--navy,#4A3AA8);font-size:1.3rem">Xem trước câu hỏi &amp; Kiểm soát trùng lặp</h2>
       <p class="muted small" style="margin:0">Kiểm tra danh sách câu mới, phát hiện câu trùng lặp với Ngân hàng đề và lựa chọn phương thức nạp dữ liệu an toàn.</p>
     </div>
     <button type="button" data-close="import-dedup-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer;color:#5B6475">✕</button>
@@ -447,9 +447,9 @@
   
   <div style="display:flex;flex-direction:column;gap:16px;">
     <!-- Phần 1: Sao lưu -->
-    <div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:16px;">
-      <h3 style="margin:0 0 6px;font-size:14px;color:#212529;">1. Tải bản sao lưu về máy (Để cất lên Google Drive)</h3>
-      <p style="margin:0 0 12px;font-size:12px;color:#6c757d;line-height:1.45;">
+    <div style="background:#F7F8FB;border:1px solid #E4E7F0;border-radius:8px;padding:16px;">
+      <h3 style="margin:0 0 6px;font-size:14px;color:#1C2333;">1. Tải bản sao lưu về máy (Để cất lên Google Drive)</h3>
+      <p style="margin:0 0 12px;font-size:12px;color:#5B6475;line-height:1.45;">
         Xuất toàn bộ ngân hàng câu hỏi, đề cương ôn tập, bộ đề thi và ma trận thành một tệp <code>.json</code> hoàn chỉnh. Thầy/Cô có thể lưu vào máy tính hoặc cất giữ trên Google Drive cá nhân để đảm bảo an toàn tuyệt đối.
       </p>
       <button type="button" id="btn-export-full-backup" class="button primary" style="width:100%;padding:10px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
@@ -458,16 +458,16 @@
     </div>
 
     <!-- Phần 2: Khôi phục -->
-    <div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:16px;">
-      <h3 style="margin:0 0 6px;font-size:14px;color:#212529;">2. Khôi phục từ tệp sao lưu (Từ máy hoặc Google Drive)</h3>
-      <p style="margin:0 0 12px;font-size:12px;color:#6c757d;line-height:1.45;">
+    <div style="background:#F7F8FB;border:1px solid #E4E7F0;border-radius:8px;padding:16px;">
+      <h3 style="margin:0 0 6px;font-size:14px;color:#1C2333;">2. Khôi phục từ tệp sao lưu (Từ máy hoặc Google Drive)</h3>
+      <p style="margin:0 0 12px;font-size:12px;color:#5B6475;line-height:1.45;">
         Chọn tệp sao lưu <code>.json</code> đã tải về trước đó để nạp lại đầy đủ dữ liệu vào tài khoản của Thầy/Cô.
       </p>
       <input type="file" id="input-restore-backup" accept=".json" style="display:none;">
-      <button type="button" id="btn-trigger-restore" class="button" style="width:100%;padding:10px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;background:#fff;border:1px solid #ced4da;">
+      <button type="button" id="btn-trigger-restore" class="button" style="width:100%;padding:10px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;background:#fff;border:1px solid #D5D9E4;">
         <span></span> Chọn tệp JSON để khôi phục
       </button>
-      <div id="restore-status" style="margin-top:10px;font-size:12px;color:#2b8a3e;display:none;"></div>
+      <div id="restore-status" style="margin-top:10px;font-size:12px;color:#1F6B52;display:none;"></div>
     </div>
   </div>
 </dialog>
@@ -480,11 +480,11 @@
     <button type="button" data-close="help-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer">✕</button>
   </div>
   <div class="help-tabs" style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--line,#eee);padding-bottom:8px">
-    <button type="button" class="tab-pill" data-help-tab="current" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer;font-weight:600">Màn hình đang mở</button>
+    <button type="button" class="tab-pill" data-help-tab="current" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#F3F4F8;cursor:pointer;font-weight:600">Màn hình đang mở</button>
     <button type="button" class="tab-pill active" data-help-tab="workflows" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:var(--navy,#1C2333);color:#fff;cursor:pointer;font-weight:600">1. Cẩm nang 7 luồng công tác</button>
-    <button type="button" class="tab-pill" data-help-tab="schema" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer;font-weight:600">2. Quy chuẩn dữ liệu & Mẫu đề thô</button>
-    <button type="button" class="tab-pill" data-help-tab="math-code" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer;font-weight:600">3. Công thức LaTeX & Mã Code</button>
-    <button type="button" class="tab-pill" data-help-tab="sop" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#f5f5f5;cursor:pointer;font-weight:600">4. Quy trình SOP Chuẩn Á Châu</button>
+    <button type="button" class="tab-pill" data-help-tab="schema" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#F3F4F8;cursor:pointer;font-weight:600">2. Quy chuẩn dữ liệu & Mẫu đề thô</button>
+    <button type="button" class="tab-pill" data-help-tab="math-code" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#F3F4F8;cursor:pointer;font-weight:600">3. Công thức LaTeX & Mã Code</button>
+    <button type="button" class="tab-pill" data-help-tab="sop" style="padding:7px 16px;border-radius:6px;border:1px solid var(--line,#ccc);background:#F3F4F8;cursor:pointer;font-weight:600">4. Quy trình SOP Chuẩn Á Châu</button>
   </div>
   <div id="help-tab-content" style="max-height:68vh;overflow-y:auto;padding-right:6px">
     <!-- Hướng dẫn theo màn hình đang mở (app.js điền nội dung) -->
@@ -568,7 +568,7 @@
         <button type="button" class="primary" id="btn-copy-sample-raw" style="padding:6px 14px;font-size:12px;cursor:pointer">Sao chép mẫu đề thô chuẩn</button>
       </div>
       <p style="font-size:13px;color:var(--muted,#555);margin-top:0">Dán đề thô theo định dạng chuẩn dưới đây để Trợ lý AI nhận diện và trích xuất chính xác 100%:</p>
-      <pre id="sample-raw-text-block" style="background:#F7F8FB;padding:14px;border:1px solid #d0dbe5;border-radius:8px;font-family:monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;overflow-x:auto">Câu 1: Thiết bị nào sau đây là thiết bị vào của máy tính?
+      <pre id="sample-raw-text-block" style="background:#F7F8FB;padding:14px;border:1px solid #D5D9E4;border-radius:8px;font-family:monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;overflow-x:auto">Câu 1: Thiết bị nào sau đây là thiết bị vào của máy tính?
 A. Màn hình
 B. Máy in
 C. Bàn phím
@@ -620,25 +620,25 @@ Barem:
     <div id="help-pane-math-code" class="help-pane" hidden>
       <h3 style="color:var(--navy,#1C2333);margin-top:0">1. Quy chuẩn Công thức Toán học & Ký hiệu Khoa học ($\LaTeX$)</h3>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
-        <div style="background:#F7F8FB;padding:12px;border:1px solid #d0dbe5;border-radius:6px">
+        <div style="background:#F7F8FB;padding:12px;border:1px solid #D5D9E4;border-radius:6px">
           <strong style="color:var(--blue,#4A3AA8)">Công thức cùng dòng (Inline math):</strong>
           <p style="font-size:13px;margin:6px 0">Đặt giữa cặp dấu dollar đơn <code>$ ... $</code>:</p>
-          <code style="display:block;background:#fff;padding:8px;border:1px solid #e0e8f0;border-radius:4px;font-size:12px;white-space:pre-wrap">Cho tam giác ABC có $BC = a\sqrt{3}$ và $\widehat{A} = 60^\circ$.
+          <code style="display:block;background:#fff;padding:8px;border:1px solid #E4E7F0;border-radius:4px;font-size:12px;white-space:pre-wrap">Cho tam giác ABC có $BC = a\sqrt{3}$ và $\widehat{A} = 60^\circ$.
 Phương trình bậc hai: $ax^2 + bx + c = 0$ ($a \ne 0$).</code>
         </div>
-        <div style="background:#F7F8FB;padding:12px;border:1px solid #d0dbe5;border-radius:6px">
+        <div style="background:#F7F8FB;padding:12px;border:1px solid #D5D9E4;border-radius:6px">
           <strong style="color:var(--blue,#4A3AA8)">Công thức khối biệt lập (Display math):</strong>
           <p style="font-size:13px;margin:6px 0">Đặt giữa cặp dấu dollar kép <code>$$ ... $$</code>:</p>
-          <code style="display:block;background:#fff;padding:8px;border:1px solid #e0e8f0;border-radius:4px;font-size:12px;white-space:pre-wrap">$$x = \frac{-b \pm \sqrt{\Delta}}{2a}$$</code>
+          <code style="display:block;background:#fff;padding:8px;border:1px solid #E4E7F0;border-radius:4px;font-size:12px;white-space:pre-wrap">$$x = \frac{-b \pm \sqrt{\Delta}}{2a}$$</code>
         </div>
       </div>
-      <div style="background:#fff7e6;border-left:4px solid #c58919;padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;color:#725017;margin-bottom:20px">
+      <div style="background:#F3F4F8;border-left:4px solid #8A5A00;padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;color:#6B4600;margin-bottom:20px">
         <strong>Lưu ý về dấu dollar ($) trong văn bản thường:</strong> Khi viết giá tiền hoặc ký hiệu tiền tệ, hãy gõ <code>\$</code> (ví dụ: <code>Giá bán là \$150</code>) để hệ thống không hiểu nhầm là mở thẻ công thức toán.
       </div>
 
       <h3 style="color:var(--navy,#1C2333);margin-top:10px">2. Quy chuẩn Khối Mã Nguồn Lập trình (Code Snippets)</h3>
       <p style="font-size:13px;color:var(--muted,#555);margin-top:0">Dành cho môn Tin học (Python, C++, Scratch, Pascal, SQL, HTML/CSS). Hệ thống bảo toàn 100% thụt lề (indentation):</p>
-      <pre style="background:#24364a;color:#f0f6fc;padding:14px;border-radius:8px;font-family:monospace;font-size:13px;line-height:1.5;overflow-x:auto">```python
+      <pre style="background:#1C2333;color:#F3F4F8;padding:14px;border-radius:8px;font-family:monospace;font-size:13px;line-height:1.5;overflow-x:auto">```python
 def kiem_tra_so_nguyen_to(n):
     if n &lt; 2:
         return False
@@ -702,9 +702,9 @@ def kiem_tra_so_nguyen_to(n):
         </div>
       </div>
 
-      <div style="background:#fffdf5;border:1px solid #fde047;border-radius:8px;padding:16px">
-        <h4 style="margin:0 0 10px;color:#854d0e;font-size:14px">Bảng Kiểm Định 7 Tiêu Chí Chất Lượng Học Vụ (Bắt buộc trước khi in đề)</h4>
-        <ul style="margin:0;padding-left:20px;font-size:12.5px;line-height:1.8;color:#713f12">
+      <div style="background:#F7F8FB;border:1px solid #D4A84A;border-radius:8px;padding:16px">
+        <h4 style="margin:0 0 10px;color:#8A5A00;font-size:14px">Bảng Kiểm Định 7 Tiêu Chí Chất Lượng Học Vụ (Bắt buộc trước khi in đề)</h4>
+        <ul style="margin:0;padding-left:20px;font-size:12.5px;line-height:1.8;color:#6B4600">
           <li><strong>Điểm số định kỳ:</strong> Làm tròn đúng $0.1$ điểm (Thông tư 22). Điểm kiểm tra thường xuyên làm tròn số nguyên.</li>
           <li><strong>Câu Đúng/Sai:</strong> Bắt buộc đủ 4 ý khẳng định $a, b, c, d$ và tính điểm bậc thang ($0.1 - 0.25 - 0.5 - 1.0$ điểm).</li>
           <li><strong>Barem tự luận:</strong> Chia nhỏ đến $0.25$ hoặc $0.5$ điểm cho từng bước suy luận/thao tác.</li>

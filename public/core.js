@@ -124,9 +124,9 @@ function distributeCounts(cells,total){
     const blocks=questionTextBlocks(text),rich=blocks.some(([kind])=>kind!=='text');
     const field=editable?' data-edit-field="question"':'';
     if(!rich)return `<span${field} style="white-space:pre-wrap">${escapeHtml(text)}</span>`;
-    const cellStyle='border:1px solid #9aa9b7;padding:6px 8px;white-space:pre-wrap;overflow-wrap:anywhere';
+    const cellStyle='border:1px solid #8F97A8;padding:6px 8px;white-space:pre-wrap;overflow-wrap:anywhere';
     const html=blocks.map(([kind,content])=>{
-      if(kind==='code')return `<pre style="white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;font-family:Consolas,monospace;padding:10px;border:1px solid #d5dde5;background:#f6f8fa"><code>${escapeHtml(content.join('\n'))}</code></pre>`;
+      if(kind==='code')return `<pre style="white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;font-family:Consolas,monospace;padding:10px;border:1px solid #D5D9E4;background:#F3F4F8"><code>${escapeHtml(content.join('\n'))}</code></pre>`;
       if(kind==='table')return `<table class="question-table" style="width:100%;table-layout:fixed;border-collapse:collapse;white-space:normal;margin:10px 0"><thead><tr>${content[0].map(c=>`<th style="${cellStyle}">${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>${content.slice(1).map(row=>`<tr>${row.map(c=>`<td style="${cellStyle}">${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
       return `<div style="white-space:pre-wrap">${escapeHtml(content.join('\n'))}</div>`;
     }).join('');
@@ -243,9 +243,9 @@ function distributeCounts(cells,total){
               <select data-fmt-bg aria-label="Màu nền ô">
                 <option value="">Đổi màu ô…</option>
                 <option value="#ffffff">Trắng</option>
-                <option value="#eef4fa">Xanh tiêu đề</option>
-                <option value="#fff9db">Vàng nhạt</option>
-                <option value="#eef8f3">Xanh lá nhạt</option>
+                <option value="#F3F4F8">Xanh tiêu đề</option>
+                <option value="#E4E7F0">Vàng nhạt</option>
+                <option value="#F3F4F8">Xanh lá nhạt</option>
               </select>
             </label>
           </div>

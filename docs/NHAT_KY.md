@@ -4,7 +4,8 @@
 - Đổi 678 mã màu cũ (xanh dương, xanh lá, đỏ, xám) trong `app.js`, `matrices.js`, `core.js`, `styles.css`, `matrices.css`, `index.html` sang bảng màu mới (mực tím, xanh bảng, bút đỏ, chì). Giữ màu vàng cảnh báo. Không đụng các tệp xuất Word/PDF (`static-*.js`).
 - Bỏ 381 emoji trang trí trên nút, tiêu đề, thông báo và hướng dẫn. Giữ ✓, ✕ (nút đóng) và ☰ (thu gọn thanh bên). Chỗ emoji là nội dung duy nhất được thay bằng chữ: "· đã chốt", "YCCĐ", "Lưu ý:", "Sửa".
 - Nút chính trong mọi màn hình dùng mực tím; nút xóa dùng bút đỏ.
-- Còn lại: một số màu viết thẳng trong mã (vàng, cam, xanh Excel) và emoji trong `firebase-bridge.js` (thông báo đồng bộ).
+- Bổ sung (cùng ngày): đổi nốt 365 màu còn lại theo họ màu: xanh dương → mực tím, xanh lá → xanh bảng, đỏ/hồng → bút đỏ, vàng/cam → vàng đất (#8A5A00, nền #FBF4E4), xám ánh xanh → chì. Giữ màu logo Google. Bỏ nốt emoji trong `firebase-bridge.js`, `competency-catalog-ui.js` và các thông báo.
+- Mẫu tài liệu ma trận (xem trước, Word, in) trong `matrices.js` giữ nguyên màu gốc (nền tiêu đề bảng #f0f4f8) để tệp xuất không đổi.
 
 ## 25/11/2026 — Giao diện mới, đợt 1–3: nhận diện, điều hướng 5 nhóm, trang Hồ sơ kiểm tra, thanh 6 bước
 

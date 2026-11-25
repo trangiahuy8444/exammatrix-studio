@@ -342,7 +342,7 @@
     });
 
     return `
-      <div class="card" style="border:1px solid #D6D1F2;background:#fafdff;margin-bottom:20px;padding:20px">
+      <div class="card" style="border:1px solid #D6D1F2;background:#F7F8FB;margin-bottom:20px;padding:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px">
           <div>
             <h3 style="margin:0 0 4px;color:var(--navy);font-size:17px">Bảng ma trận 2D trực quan (Chỉnh sửa số câu trực tiếp trên web)</h3>
@@ -365,7 +365,7 @@
           </ol>
         </details>
         ${!(locked || received) ? `
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#f1f7fd;border:1px solid #d5e6f7;border-radius:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#F3F4F8;border:1px solid #E4E7F0;border-radius:8px">
           <label for="mx-grid-add-lesson" style="font-weight:600;font-size:13px;color:var(--navy)">Chọn bài đưa vào ma trận:</label>
           <select id="mx-grid-add-lesson" style="min-height:34px;padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;flex:1;min-width:220px">
             ${allPpctLessons.length
@@ -391,7 +391,7 @@
                 <th rowspan="2" style="width:80px;padding:8px;border:1px solid #A99FE0">Tổng câu</th>
                 <th rowspan="2" style="width:80px;padding:8px;border:1px solid #A99FE0">Điểm số</th>
               </tr>
-              <tr style="background:#005896;color:white;text-align:center">
+              <tr style="background:#1C2333;color:white;text-align:center">
                 <th style="width:75px;padding:6px;border:1px solid #A99FE0">Biết</th>
                 <th style="width:75px;padding:6px;border:1px solid #A99FE0">Hiểu</th>
                 <th style="width:75px;padding:6px;border:1px solid #A99FE0">Vận dụng</th>
@@ -410,7 +410,7 @@
                 <td style="text-align:center;color:var(--navy)">${tot_es_vd} câu<br><small style="font-weight:400;color:var(--muted)">${(tot_es_vd * (isTHPT ? 0.75 : 1.0)).toFixed(2)}đ</small></td>
                 <td style="text-align:center;color:var(--navy)">${tot_es_vdc} câu<br><small style="font-weight:400;color:var(--muted)">${(tot_es_vdc * (isTHPT ? 0.75 : 1.0)).toFixed(2)}đ</small></td>
                 <td style="text-align:center;font-size:14px;color:var(--navy)">${totalQuestions} câu</td>
-                <td style="text-align:center;font-size:15px;color:${isPerfect10 ? '#1d7058' : '#bd2336'}">${totalScore}đ</td>
+                <td style="text-align:center;font-size:15px;color:${isPerfect10 ? '#1F6B52' : '#C62828'}">${totalScore}đ</td>
               </tr>
             </tfoot>
           </table>
@@ -418,8 +418,8 @@
         <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
           <div style="font-size:13px;color:var(--ink)">
             ${isPerfect10
-              ? `<span style="display:inline-flex;align-items:center;gap:6px;background:#e6f4ea;color:#1F6B52;padding:5px 12px;border-radius:20px;font-weight:700">✓ Ma trận đã cân đối chính xác 10.0 / 10.0 điểm</span>`
-              : `<span style="display:inline-flex;align-items:center;gap:6px;background:#fce8e6;color:#c5221f;padding:5px 12px;border-radius:20px;font-weight:700">Tổng điểm hiện tại: ${totalScore} / 10.0 điểm (${totalScore < 10 ? 'Thiếu ' + (10 - totalScore).toFixed(2) + 'đ' : 'Vượt ' + (totalScore - 10).toFixed(2) + 'đ'})</span>`
+              ? `<span style="display:inline-flex;align-items:center;gap:6px;background:#E4E7F0;color:#1F6B52;padding:5px 12px;border-radius:20px;font-weight:700">✓ Ma trận đã cân đối chính xác 10.0 / 10.0 điểm</span>`
+              : `<span style="display:inline-flex;align-items:center;gap:6px;background:#F3F4F8;color:#C62828;padding:5px 12px;border-radius:20px;font-weight:700">Tổng điểm hiện tại: ${totalScore} / 10.0 điểm (${totalScore < 10 ? 'Thiếu ' + (10 - totalScore).toFixed(2) + 'đ' : 'Vượt ' + (totalScore - 10).toFixed(2) + 'đ'})</span>`
             }
           </div>
           <div style="font-size:12px;color:var(--muted);text-align:right">
@@ -431,7 +431,7 @@
           <div class="actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <button type="button" class="button" data-action="create-exam-from-matrix" style="background:#4A3AA8;color:#fff;border-color:#4A3AA8;font-weight:700" title="Dựa vào ma trận 2D này để chọn câu hỏi từ ngân hàng và tạo đề thi ngay">Tạo đề thi ngay từ Ma trận 2D này</button>
             ${(locked || m.matrix_locked)
-              ? `<span style="display:inline-flex;align-items:center;gap:6px;background:#e6f4ea;color:#1F6B52;padding:6px 14px;border-radius:8px;font-weight:700;border:1px solid #a8dab5;font-size:13px">Đã chốt Bảng ma trận 2D</span>
+              ? `<span style="display:inline-flex;align-items:center;gap:6px;background:#E4E7F0;color:#1F6B52;padding:6px 14px;border-radius:8px;font-weight:700;border:1px solid #A9D3C1;font-size:13px">Đã chốt Bảng ma trận 2D</span>
                  <button type="button" class="quiet" data-action="unlock-matrix" style="font-size:12px;padding:5px 10px;border:1px solid #D5D9E4;border-radius:6px">Mở khóa sửa ma trận</button>`
               : `<button type="button" class="primary" data-action="lock-matrix" style="background:#1F6B52;border-color:#1F6B52;font-weight:700">Lưu & Chốt Bảng ma trận</button>`
             }
@@ -812,8 +812,8 @@
                               style="font-size:11px;padding:2px 6px;border:1px solid #D5D9E4;border-radius:4px;color:#4A3AA8;font-weight:700;min-width:130px;background:#fff">
                        ${customRefs ? `<button type="button" class="quiet" data-action="reset-spec-refs" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" title="Khôi phục câu tự động từ ma trận" style="padding:1px 4px;font-size:10px;color:#5B6475;line-height:1">↺</button>` : ''}
                      </div>` : `<span class="badge" style="font-size:10.5px;background:#ECE9F9;color:#4A3AA8;font-weight:700">${rs.length} mục tiêu câu hỏi</span>${!(locked || received) ? `<button type="button" class="quiet" data-action="merge-level-question-reqs" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" title="Gom ${rs.length} mục tiêu câu hỏi này thành 1 mục tiêu chung (gộp câu hỏi)" style="font-size:10.5px;padding:2px 8px;background:#F2F0FB;color:#4A3AA8;border:1px solid #D6D1F2;border-radius:4px;font-weight:700">Gom vào 1 mục tiêu chung</button>` : ''}`}
-                     <div style="display:inline-flex;align-items:center;gap:3px;background:#fefce8;border:1px solid #fef08a;padding:2px 6px;border-radius:5px" title="Thành phần năng lực cho mức ${LEVEL_NAMES[lvl]}">
-                       <span style="font-size:10.5px;font-weight:700;color:#854d0e">NL:</span>
+                     <div style="display:inline-flex;align-items:center;gap:3px;background:#F3F4F8;border:1px solid #EBD7A6;padding:2px 6px;border-radius:5px" title="Thành phần năng lực cho mức ${LEVEL_NAMES[lvl]}">
+                       <span style="font-size:10.5px;font-weight:700;color:#8A5A00">NL:</span>
                        <input type="text"
                               list="mx-competency-datalist"
                               class="mx-spec-comp-input"
@@ -822,10 +822,10 @@
                               value="${E(lvlComp)}"
                               placeholder="Mã năng lực"
                               title="Chọn mã trong danh mục năng lực đã nạp"
-                              style="font-size:11px;font-weight:700;padding:2px 4px;border:1px solid #D5D9E4;border-radius:4px;color:#854d0e;width:55px;background:#fff;text-align:center">
+                              style="font-size:11px;font-weight:700;padding:2px 4px;border:1px solid #D5D9E4;border-radius:4px;color:#8A5A00;width:55px;background:#fff;text-align:center">
                      </div>`
                   : `<span class="badge" style="font-size:11px;background:#ECE9F9;color:#4A3AA8;font-weight:600">${E(displayRefs)}</span>
-                     <span class="badge" style="font-size:11px;background:#fef9c3;color:#854d0e;font-weight:700;border:1px solid #fde047">(${E(lvlComp)})</span>`
+                     <span class="badge" style="font-size:11px;background:#FBF4E4;color:#8A5A00;font-weight:700;border:1px solid #D4A84A">(${E(lvlComp)})</span>`
                 }
               </div>
             </div>`;
@@ -891,7 +891,7 @@
           const rLvl = lessonReqs.find(r => r.level === lvl);
           const comp = rLvl?.competency || m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa;
           const lvlAbbr = lvl === 'Biết' ? 'B' : lvl === 'Hiểu' ? 'H' : 'VD';
-          return `<div style="padding:2px 0;font-size:12px;white-space:nowrap"><strong>${c.count} MC (${lvlAbbr})</strong> <span class="badge" style="background:#fef9c3;color:#854d0e;font-size:11px;font-weight:700;border:1px solid #fde047;padding:1px 5px;border-radius:4px" title="Thành phần năng lực của mức ${LEVEL_NAMES[lvl]} (chỉnh sửa ở ô NL bên trái)">(${E(comp)})</span></div>`;
+          return `<div style="padding:2px 0;font-size:12px;white-space:nowrap"><strong>${c.count} MC (${lvlAbbr})</strong> <span class="badge" style="background:#FBF4E4;color:#8A5A00;font-size:11px;font-weight:700;border:1px solid #D4A84A;padding:1px 5px;border-radius:4px" title="Thành phần năng lực của mức ${LEVEL_NAMES[lvl]} (chỉnh sửa ở ô NL bên trái)">(${E(comp)})</span></div>`;
         }).filter(Boolean).join('') || '0';
 
         const cellYN = isTHPT ? (['Biết', 'Hiểu', 'Vận dụng'].map(lvl => {
@@ -909,14 +909,14 @@
           if (!c || !c.count) return '';
           const rLvl = lessonReqs.find(r => r.level === lvl);
           const comp = rLvl?.competency || m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa;
-          return `<div style="padding:2px 0;font-size:12px;white-space:nowrap"><strong>${c.count} ES</strong> <span class="badge" style="background:#fef9c3;color:#854d0e;font-size:11px;font-weight:700;border:1px solid #fde047;padding:1px 5px;border-radius:4px" title="Thành phần năng lực của mức ${LEVEL_NAMES[lvl]} (chỉnh sửa ở ô NL bên trái)">(${E(comp)})</span></div>`;
+          return `<div style="padding:2px 0;font-size:12px;white-space:nowrap"><strong>${c.count} ES</strong> <span class="badge" style="background:#FBF4E4;color:#8A5A00;font-size:11px;font-weight:700;border:1px solid #D4A84A;padding:1px 5px;border-radius:4px" title="Thành phần năng lực của mức ${LEVEL_NAMES[lvl]} (chỉnh sửa ở ô NL bên trái)">(${E(comp)})</span></div>`;
         }).filter(Boolean).join('') || '0';
 
         const isPlanLesson = Boolean(m.assessment_plan?.scope_lessons?.includes(lesson.lesson_code));
         tableRows += `<tr>`;
         if (rowInGrp === 0) {
           tableRows += `<td rowspan="${grp.length}" style="text-align:center;font-weight:600;vertical-align:middle">${topicIdx}</td>`;
-          tableRows += `<td rowspan="${grp.length}" style="vertical-align:middle;font-weight:600;color:var(--navy);background:#fbfdff">${E(grp[0].topic)}</td>`;
+          tableRows += `<td rowspan="${grp.length}" style="vertical-align:middle;font-weight:600;color:var(--navy);background:#F7F8FB">${E(grp[0].topic)}</td>`;
         }
         tableRows += `
           <td style="vertical-align:middle;font-weight:600">
@@ -974,7 +974,7 @@
                 </button>
               </div>
             ` : ''}
-            ${!(locked || received) ? `<button type="button" class="primary" data-action="split-all-question-reqs" style="background:#0f766e;border-color:#0f766e;font-weight:700" title="Tách riêng mỗi câu hỏi (Câu 1, Câu 2...) thành một dòng mục tiêu đánh giá độc lập để đặc tả theo mục tiêu từng câu hỏi">Tách mục tiêu theo từng câu hỏi</button>` : ''}
+            ${!(locked || received) ? `<button type="button" class="primary" data-action="split-all-question-reqs" style="background:#1C2333;border-color:#1C2333;font-weight:700" title="Tách riêng mỗi câu hỏi (Câu 1, Câu 2...) thành một dòng mục tiêu đánh giá độc lập để đặc tả theo mục tiêu từng câu hỏi">Tách mục tiêu theo từng câu hỏi</button>` : ''}
             ${!(locked || received) ? `<button type="button" class="button" data-action="merge-all-question-reqs" style="background:#F2F0FB;border-color:#4A3AA8;color:#4A3AA8;font-weight:700" title="Gom các câu có cùng yêu cầu cần đạt / mức độ nhận thức vào 1 mục tiêu chung">Gom câu cùng YCCĐ (Toàn bảng)</button>` : ''}
             ${!(locked || received) ? `<button type="button" class="primary" data-action="auto-fill-all-ppct-reqs" style="background:#4A3AA8;font-weight:700" title="Tự động lấy câu chữ YCCĐ từ Phân phối chương trình điền gợi ý vào các dòng">Tự điền toàn bộ YCCĐ từ PPCT</button>` : ''}
             <button type="button" data-action="preview">Xem bảng chuẩn Word</button>
@@ -993,11 +993,11 @@
                 <th rowspan="3" style="padding:8px;border:1px solid #A99FE0;text-align:left">Yêu cầu cần đạt (Đặc tả theo mục tiêu từng câu hỏi)</th>
                 <th colspan="4" style="padding:6px;border:1px solid #A99FE0">Số câu hỏi theo mức độ đánh giá</th>
               </tr>
-              <tr style="background:#005896;color:white;text-align:center">
+              <tr style="background:#1C2333;color:white;text-align:center">
                 <th colspan="3" style="padding:6px;border:1px solid #A99FE0">Trắc nghiệm khách quan</th>
                 <th rowspan="2" style="width:95px;padding:6px;border:1px solid #A99FE0;vertical-align:middle">Thực hành /<br>Tự luận</th>
               </tr>
-              <tr style="background:#004b80;color:white;text-align:center">
+              <tr style="background:#1C2333;color:white;text-align:center">
                 <th style="width:115px;padding:4px;border:1px solid #A99FE0;font-size:11px">Nhiều lựa chọn<br>(MC 4-1)</th>
                 <th style="width:75px;padding:4px;border:1px solid #A99FE0;font-size:11px">Đúng / Sai<br>(YN 4-4)</th>
                 <th style="width:75px;padding:4px;border:1px solid #A99FE0;font-size:11px">Trả lời ngắn<br>(Short)</th>
@@ -1023,7 +1023,7 @@
               <tr style="background:#F7F8FB;font-weight:700">
                 <td colspan="4" style="text-align:center;padding:8px">Tỉ lệ chung</td>
                 <td colspan="3" style="text-align:center;color:#1F6B52;font-size:12.5px">Trắc nghiệm (B + H): ${tnkqPct}%</td>
-                <td style="text-align:center;color:#b45309;font-size:12.5px">Tự luận (VD + VDC): ${tlPct}%</td>
+                <td style="text-align:center;color:#8A5A00;font-size:12.5px">Tự luận (VD + VDC): ${tlPct}%</td>
               </tr>
             </tfoot>
           </table>
@@ -1252,7 +1252,7 @@
           ${plans.map(p => opt(p.id, `${p.name} · ${p.week || ''} (${p.period || ''}) · ${p.duration || 45}p · Hệ số ${p.coefficient || (['CK1','CK2'].includes(p.exam_type)?3:2)}`, p.id === currentId)).join('')}
         </select>
         ${currentPlan ? `
-          <div style="margin-top:8px; font-size:12px; color:#1e3a8a; display:flex; gap:14px; flex-wrap:wrap; align-items:center; line-height:1.5;">
+          <div style="margin-top:8px; font-size:12px; color:#4A3AA8; display:flex; gap:14px; flex-wrap:wrap; align-items:center; line-height:1.5;">
             <span><strong>Thời điểm:</strong> ${E(currentPlan.week || '—')}</span>
             <span><strong>Tiết PPCT:</strong> ${E(currentPlan.period || '—')}</span>
             <span><strong>Thời lượng:</strong> ${E(currentPlan.duration || 45)} phút</span>
@@ -1344,7 +1344,7 @@
       </div>
     </details>
     <div id="mx-output"><h3>3. Xuất file Word, Đối chiếu & Chốt phiên bản</h3><p class="muted">Xem trực tiếp bảng Ma trận & Đặc tả chuẩn Word (có gộp ô tự động), tải file Word/PDF hoặc chốt phiên bản để tạo đề kiểm tra.</p><div id="mx-report"></div><div id="mx-shortfall"></div><div id="mx-export-links" style="margin-bottom:12px"></div>
-    ${m.status!=='locked'?`<div class="card" style="background:#EEF6F2;border:1px solid #CFE5DB;padding:16px;margin-bottom:14px"><h4 style="margin:0 0 8px;color:#17503D">Xác nhận & Chốt phiên bản Ma trận</h4><p class="small muted" style="margin:0 0 12px">Sau khi chốt (khóa phiên bản), ma trận này sẽ sẵn sàng để chọn trong mục <strong>Tạo đề kiểm tra</strong> và <strong>Đề cương ôn tập</strong>.</p><div class="form-grid"><div class="field"><label for="mx-confirm-name">Người xác nhận</label><input id="mx-confirm-name" value="${E(m.owner_name||'Trần Gia Huy')}"></div><div class="field"><label for="mx-confirm-date">Ngày xác nhận</label><input id="mx-confirm-date" type="date" value="${new Date().toLocaleDateString('sv-SE')}"></div><div class="field full"><label for="mx-confirm-basis">Ghi chú xác nhận (tùy chọn)</label><input id="mx-confirm-basis" value="Đã thống nhất ma trận và đặc tả"></div></div><label class="mx-checkbox" style="margin:8px 0"><input id="mx-confirm-agreement" type="checkbox" checked> Tôi xác nhận chốt phiên bản ma trận & đặc tả này.</label><div class="actions"><button class="primary" data-action="save-and-lock" style="background:#1F6B52;border-color:#1F6B52;font-weight:700">Lưu & Chốt phiên bản này</button><button data-action="save" class="primary">Chỉ lưu bản nháp</button><button data-action="preview">Xem toàn bộ bảng chuẩn Word</button></div></div>`:`<div class="callout" style="background:#e6f4ea;border-color:#a8dab5;color:#1F6B52"><strong>Phiên bản ma trận này đã được chốt và khóa thành công!</strong><p style="margin:6px 0 0">Bạn có thể dùng ma trận này để tạo đề kiểm tra ngay hoặc mở khóa nếu cần chỉnh sửa lại.</p><div class="actions" style="margin-top:10px"><button class="primary" data-action="use">Dùng tạo đề kiểm tra ngay</button><button data-action="unlock">Mở khóa về bản nháp để sửa</button><button data-action="new-version">Tạo phiên bản V${(m.version||1)+1}</button></div></div>`}
+    ${m.status!=='locked'?`<div class="card" style="background:#EEF6F2;border:1px solid #CFE5DB;padding:16px;margin-bottom:14px"><h4 style="margin:0 0 8px;color:#17503D">Xác nhận & Chốt phiên bản Ma trận</h4><p class="small muted" style="margin:0 0 12px">Sau khi chốt (khóa phiên bản), ma trận này sẽ sẵn sàng để chọn trong mục <strong>Tạo đề kiểm tra</strong> và <strong>Đề cương ôn tập</strong>.</p><div class="form-grid"><div class="field"><label for="mx-confirm-name">Người xác nhận</label><input id="mx-confirm-name" value="${E(m.owner_name||'Trần Gia Huy')}"></div><div class="field"><label for="mx-confirm-date">Ngày xác nhận</label><input id="mx-confirm-date" type="date" value="${new Date().toLocaleDateString('sv-SE')}"></div><div class="field full"><label for="mx-confirm-basis">Ghi chú xác nhận (tùy chọn)</label><input id="mx-confirm-basis" value="Đã thống nhất ma trận và đặc tả"></div></div><label class="mx-checkbox" style="margin:8px 0"><input id="mx-confirm-agreement" type="checkbox" checked> Tôi xác nhận chốt phiên bản ma trận & đặc tả này.</label><div class="actions"><button class="primary" data-action="save-and-lock" style="background:#1F6B52;border-color:#1F6B52;font-weight:700">Lưu & Chốt phiên bản này</button><button data-action="save" class="primary">Chỉ lưu bản nháp</button><button data-action="preview">Xem toàn bộ bảng chuẩn Word</button></div></div>`:`<div class="callout" style="background:#E4E7F0;border-color:#A9D3C1;color:#1F6B52"><strong>Phiên bản ma trận này đã được chốt và khóa thành công!</strong><p style="margin:6px 0 0">Bạn có thể dùng ma trận này để tạo đề kiểm tra ngay hoặc mở khóa nếu cần chỉnh sửa lại.</p><div class="actions" style="margin-top:10px"><button class="primary" data-action="use">Dùng tạo đề kiểm tra ngay</button><button data-action="unlock">Mở khóa về bản nháp để sửa</button><button data-action="new-version">Tạo phiên bản V${(m.version||1)+1}</button></div></div>`}
     <details style="margin-top:10px"><summary style="cursor:pointer;color:var(--muted);font-size:13px">Lịch sử thao tác & Lưu trữ hồ sơ</summary><ul style="font-size:13px">${(m.audit||[]).map(a=>`<li>${E(a.at)} · ${E(({save:'Lưu nháp',lock:'Khóa bản thống nhất',archive:'Lưu trữ',new_version:'Tạo phiên bản tiếp theo',import_source:'Nhập nguồn',unlock:'Mở khóa về nháp',duplicate:'Nhân bản hồ sơ'})[a.action]||a.action)}</li>`).join('')}</ul><div class="actions"><input id="mx-archive-reason" placeholder="Lý do lưu trữ (nếu không dùng nữa)" style="max-width:280px"><button class="quiet" data-action="archive">Lưu trữ hồ sơ</button><button data-action="shortfall" class="quiet">Báo cáo thiếu câu theo ô</button></div></details></div></section>`;
     ui.container.querySelectorAll('#mx-work details').forEach((d,i)=>{if(openSections[i])d.open=true;});
     updateSummary();renderReport();renderLinks();restoreButtons();
@@ -1363,7 +1363,7 @@
     const heading=incomplete?'Chưa thể kết luận đủ câu':r.ok?'Đủ câu đã duyệt cho mọi ô':`Còn thiếu ${E(r.total_shortfall)} câu đã duyệt`;
     const known=incomplete&&r.total_shortfall>0?`<p>Đã xác định thiếu ${E(r.total_shortfall)} câu ở các ô đã đối chiếu; các vị trí bên dưới chưa được tính đủ.</p>`:'';
     const issues=(r.issues||[]).length?`<ul>${r.issues.map(i=>`<li>${E(i.message)}</li>`).join('')}</ul>`:'';
-    const rows=(r.cells||[]).map((c,i)=>`<tr${c.shortfall?' style="background:#fff7e6"':''}><td>${E(c.lesson_code)}</td><td>${E(c.outcome)}</td><td>${E(NAMEShort(c.kind))}</td><td>${E(c.level)}</td><td>${E(c.needed)}</td><td>${E(c.approved)}</td><td>${E(c.pending_review)}</td><td>${E(c.needs_review)}</td><td>${E(c.draft)}</td><td><strong>${E(c.shortfall||'—')}</strong></td><td>${c.shortfall&&allowReview?`<button type="button" class="export-link" data-open-review="${i}">Mở duyệt ô này</button>`:''}</td></tr>${c.shortfall&&(c.suggestions||[]).length?`<tr class="mx-suggest-row"><td colspan="11" style="background:#F7F8FB;font-size:13px"><strong>Gợi ý từ Bản đồ tri thức:</strong> có ${E(c.suggestions.length)} câu đúng ô này nhưng chưa duyệt, duyệt xong sẽ bù được chỗ thiếu.<ul style="margin:4px 0 0">${c.suggestions.map(s=>`<li><code>${E(s.question_id)}</code> (${E(({draft:'bản nháp',pending_review:'chờ duyệt',content_checked:'chờ duyệt',needs_review:'cần sửa lại'})[s.review_status]||s.review_status)}): ${E(s.question||'')}</li>`).join('')}</ul></td></tr>`:''}`).join('');
+    const rows=(r.cells||[]).map((c,i)=>`<tr${c.shortfall?' style="background:#F3F4F8"':''}><td>${E(c.lesson_code)}</td><td>${E(c.outcome)}</td><td>${E(NAMEShort(c.kind))}</td><td>${E(c.level)}</td><td>${E(c.needed)}</td><td>${E(c.approved)}</td><td>${E(c.pending_review)}</td><td>${E(c.needs_review)}</td><td>${E(c.draft)}</td><td><strong>${E(c.shortfall||'—')}</strong></td><td>${c.shortfall&&allowReview?`<button type="button" class="export-link" data-open-review="${i}">Mở duyệt ô này</button>`:''}</td></tr>${c.shortfall&&(c.suggestions||[]).length?`<tr class="mx-suggest-row"><td colspan="11" style="background:#F7F8FB;font-size:13px"><strong>Gợi ý từ Bản đồ tri thức:</strong> có ${E(c.suggestions.length)} câu đúng ô này nhưng chưa duyệt, duyệt xong sẽ bù được chỗ thiếu.<ul style="margin:4px 0 0">${c.suggestions.map(s=>`<li><code>${E(s.question_id)}</code> (${E(({draft:'bản nháp',pending_review:'chờ duyệt',content_checked:'chờ duyệt',needs_review:'cần sửa lại'})[s.review_status]||s.review_status)}): ${E(s.question||'')}</li>`).join('')}</ul></td></tr>`:''}`).join('');
     const cells=rows?`<div class="table-wrap"><table><thead><tr><th>Bài</th><th>YCCĐ</th><th>Dạng</th><th>Mức độ</th><th>Cần</th><th>Đã duyệt</th><th>Chờ duyệt</th><th>Cần sửa</th><th>Nháp</th><th>Thiếu</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'';
     const unresolved=(r.unresolved_slots||[]).length?`<h4>Vị trí cần đối chiếu từng ý</h4><p>Thông tin của cả câu ngân hàng chưa đủ để xác nhận từng ý khớp bài, YCCĐ và mức độ. Chưa tính các vị trí này là đủ hoặc cộng vào số thiếu đã xác định.</p><div class="table-wrap"><table><thead><tr><th>Câu / ý</th><th>Bài</th><th>YCCĐ</th><th>Mức độ</th><th>Điểm</th><th>Cần đối chiếu</th></tr></thead><tbody>${r.unresolved_slots.flatMap(slot=>(slot.parts?.length?slot.parts:[{}]).map(part=>`<tr><td>${E(NAMEShort(slot.kind)||slot.kind)} ${E(slot.number??'')}${E(part.label||'')}</td><td>${E(part.lesson_code||'Chưa ánh xạ')}</td><td>${E(part.outcome||'Chưa ánh xạ')}</td><td>${E(part.level||'Chưa xác định')}</td><td>${E(part.points??'—')}</td><td>${E(slot.reason||'Cần đối chiếu với nguồn.')}</td></tr>`)).join('')}</tbody></table></div>`:'';
     return `<div class="${!incomplete&&r.ok?'callout':'callout warning'}"><strong>${heading}</strong>${known}${issues}${cells}${unresolved}<p class="small muted">Chỉ câu đã duyệt được dùng cho đề chính thức. Không bù câu sang bài, YCCĐ hoặc mức độ khác. Báo cáo chưa đủ căn cứ cần được đối chiếu trước khi kết luận.</p></div>`;
@@ -2112,27 +2112,27 @@
       out += `<table style="border-collapse:collapse;width:100%;table-layout:fixed;margin:10px auto 26px;font-family:'Times New Roman',Times,serif;font-size:11pt;">`;
       out += `<thead>`;
       out += `<tr>
-        <th rowspan="3" style="width:40px;border:1px solid #333;text-align:center;vertical-align:middle;background:#F7F8FB;">TT</th>
-        <th rowspan="3" style="width:140px;border:1px solid #333;text-align:center;vertical-align:middle;background:#F7F8FB;">Chương / Chủ đề</th>
-        <th rowspan="3" style="width:190px;border:1px solid #333;text-align:center;vertical-align:middle;background:#F7F8FB;">Nội dung / Đơn vị kiến thức</th>
-        <th colspan="${kinds.length * levels.length}" style="border:1px solid #333;text-align:center;background:#F7F8FB;">Mức độ đánh giá</th>
-        <th colspan="${levels.length}" style="border:1px solid #333;text-align:center;background:#F7F8FB;">Tổng</th>
-        <th rowspan="3" style="width:70px;border:1px solid #333;text-align:center;vertical-align:middle;background:#F7F8FB;">Tỉ lệ % điểm</th>
+        <th rowspan="3" style="width:40px;border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">TT</th>
+        <th rowspan="3" style="width:140px;border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Chương / Chủ đề</th>
+        <th rowspan="3" style="width:190px;border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Nội dung / Đơn vị kiến thức</th>
+        <th colspan="${kinds.length * levels.length}" style="border:1px solid #333;text-align:center;background:#f0f4f8;">Mức độ đánh giá</th>
+        <th colspan="${levels.length}" style="border:1px solid #333;text-align:center;background:#f0f4f8;">Tổng</th>
+        <th rowspan="3" style="width:70px;border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Tỉ lệ % điểm</th>
       </tr>`;
       out += `<tr>`;
       kinds.forEach(k => {
-        out += `<th colspan="${levels.length}" style="border:1px solid #333;text-align:center;background:#F7F8FB;">${kindNames[k] || k}</th>`;
+        out += `<th colspan="${levels.length}" style="border:1px solid #333;text-align:center;background:#f0f4f8;">${kindNames[k] || k}</th>`;
       });
-      out += `<th colspan="${levels.length}" style="border:1px solid #333;text-align:center;background:#F7F8FB;">Số câu</th>`;
+      out += `<th colspan="${levels.length}" style="border:1px solid #333;text-align:center;background:#f0f4f8;">Số câu</th>`;
       out += `</tr>`;
       out += `<tr>`;
       kinds.forEach(() => {
         levels.forEach(l => {
-          out += `<th style="border:1px solid #333;text-align:center;font-size:10pt;background:#F7F8FB;">${levelAbbr[l] || l}</th>`;
+          out += `<th style="border:1px solid #333;text-align:center;font-size:10pt;background:#f0f4f8;">${levelAbbr[l] || l}</th>`;
         });
       });
       levels.forEach(l => {
-        out += `<th style="border:1px solid #333;text-align:center;font-size:10pt;background:#F7F8FB;">${levelAbbr[l] || l}</th>`;
+        out += `<th style="border:1px solid #333;text-align:center;font-size:10pt;background:#f0f4f8;">${levelAbbr[l] || l}</th>`;
       });
       out += `</tr>`;
       out += `</thead><tbody>`;
@@ -2256,20 +2256,20 @@
       </colgroup>`;
       out += `<thead>`;
       out += `<tr>
-        <th rowspan="3" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#F7F8FB;">TT</th>
-        <th rowspan="3" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#F7F8FB;">Chương / Chủ đề</th>
-        <th rowspan="3" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#F7F8FB;">Nội dung / Đơn vị kiến thức</th>
-        <th rowspan="3" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#F7F8FB;">Yêu cầu cần đạt</th>
-        <th colspan="4" style="border:1px solid #333;text-align:center;background:#F7F8FB;">Số câu hỏi theo mức độ đánh giá</th>
+        <th rowspan="3" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">TT</th>
+        <th rowspan="3" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Chương / Chủ đề</th>
+        <th rowspan="3" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Nội dung / Đơn vị kiến thức</th>
+        <th rowspan="3" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Yêu cầu cần đạt</th>
+        <th colspan="4" style="border:1px solid #333;text-align:center;background:#f0f4f8;">Số câu hỏi theo mức độ đánh giá</th>
       </tr>`;
       out += `<tr>
-        <th colspan="3" style="border:1px solid #333;text-align:center;background:#F7F8FB;">Trắc nghiệm khách quan</th>
-        <th rowspan="2" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#F7F8FB;">Thực hành /<br>Tự luận</th>
+        <th colspan="3" style="border:1px solid #333;text-align:center;background:#f0f4f8;">Trắc nghiệm khách quan</th>
+        <th rowspan="2" style="border:1px solid #333;text-align:center;vertical-align:middle;background:#f0f4f8;">Thực hành /<br>Tự luận</th>
       </tr>`;
       out += `<tr>
-        <th style="border:1px solid #333;text-align:center;background:#F7F8FB;font-size:10pt;">Nhiều lựa chọn<br>(MC)</th>
-        <th style="border:1px solid #333;text-align:center;background:#F7F8FB;font-size:10pt;">Đúng / Sai<br>(YN)</th>
-        <th style="border:1px solid #333;text-align:center;background:#F7F8FB;font-size:10pt;">Trả lời ngắn<br>(Short)</th>
+        <th style="border:1px solid #333;text-align:center;background:#f0f4f8;font-size:10pt;">Nhiều lựa chọn<br>(MC)</th>
+        <th style="border:1px solid #333;text-align:center;background:#f0f4f8;font-size:10pt;">Đúng / Sai<br>(YN)</th>
+        <th style="border:1px solid #333;text-align:center;background:#f0f4f8;font-size:10pt;">Trả lời ngắn<br>(Short)</th>
       </tr>`;
       out += `</thead><tbody>`;
 
@@ -2410,12 +2410,12 @@
       out += headerHtml(`MA TRẬN PHÂN BỐ THEO DẠNG THỨC CÂU HỎI VÀ CẤP ĐỘ TƯ DUY`);
       out += `<table style="border-collapse:collapse;width:100%;table-layout:fixed;margin:10px auto 26px;font-family:'Times New Roman',Times,serif;font-size:11pt;">`;
       out += `<thead><tr>
-        <th style="border:1px solid #333;width:120px;text-align:center;background:#F7F8FB;">Dạng thức</th>
-        <th style="border:1px solid #333;width:90px;text-align:center;background:#F7F8FB;">Câu hỏi</th>
-        <th style="border:1px solid #333;width:60px;text-align:center;background:#F7F8FB;">Ý</th>
-        <th style="border:1px solid #333;width:100px;text-align:center;background:#F7F8FB;">Cấp độ tư duy</th>
-        <th style="border:1px solid #333;width:120px;text-align:center;background:#F7F8FB;">Năng lực</th>
-        <th style="border:1px solid #333;text-align:center;background:#F7F8FB;">Mã chỉ báo</th>
+        <th style="border:1px solid #333;width:120px;text-align:center;background:#f0f4f8;">Dạng thức</th>
+        <th style="border:1px solid #333;width:90px;text-align:center;background:#f0f4f8;">Câu hỏi</th>
+        <th style="border:1px solid #333;width:60px;text-align:center;background:#f0f4f8;">Ý</th>
+        <th style="border:1px solid #333;width:100px;text-align:center;background:#f0f4f8;">Cấp độ tư duy</th>
+        <th style="border:1px solid #333;width:120px;text-align:center;background:#f0f4f8;">Năng lực</th>
+        <th style="border:1px solid #333;text-align:center;background:#f0f4f8;">Mã chỉ báo</th>
       </tr></thead><tbody>`;
       v.competencies.forEach(c => {
         out += `<tr>
@@ -2476,7 +2476,7 @@
         line-height: 1.4;
       }
       th {
-        background-color: #F7F8FB;
+        background-color: #f0f4f8;
         font-weight: bold;
         text-align: center;
       }
@@ -2828,7 +2828,7 @@
       (c.leftMode==='pages'&&pages.length?visiblePages.map(p=>`<figure class="mx-page-figure"><figcaption>Trang ${p.page} / ${pages.length} — Bản gốc Word (${E(m.source?.name||'')})</figcaption><img src="${E(apiUrl(p.url))}" alt="Trang ${p.page} bản gốc ${E(m.title)}" loading="lazy"></figure>`).join(''):c.raw_html?`<div class="mx-sheet-body">${c.raw_html}</div>`:'<p class="muted">Hồ sơ này được biên soạn trực tiếp trên web, không có tệp Word nguồn đính kèm.</p>')+
       `</div></section>`+
       `<section class="mx-compare-pane" id="mx-cmp-right-pane"><div class="mx-pane-bar"><div><strong>CỘT PHẢI · BẢN TRÊN WEB (CHUẨN HÓA)</strong><span class="small muted"> · Ma trận: (1, 2, 3) · Đặc tả: (Câu 1, Câu 2).</span></div></div>`+
-      ((root.DocFormatter||root.BankCore?.DocFormatter)?`<div style="padding:10px 14px 0;background:#eef2f7">${(root.DocFormatter||root.BankCore?.DocFormatter).toolbarHtml(`matrix:${m.id}:all:web`,false)}</div>`:'')+
+      ((root.DocFormatter||root.BankCore?.DocFormatter)?`<div style="padding:10px 14px 0;background:#F3F4F8">${(root.DocFormatter||root.BankCore?.DocFormatter).toolbarHtml(`matrix:${m.id}:all:web`,false)}</div>`:'')+
       `<div class="mx-pane-body"><div class="mx-sheet-body">${c.web_html}</div></div></section>`+
     `</div>`;
     enhanceSheetTables(preview);
@@ -4135,7 +4135,7 @@ Quy ước:
     const revisions=(ui.ctx.revisions||[]).filter(r=>r.grade===m.grade);
     const strictMatched=Array.isArray(g.slots)?g.slots.filter(s=>(s.candidates||[]).length>0).length:0;
     const flexMatched=Array.isArray(g.flexible_slots)?g.flexible_slots.filter(s=>(s.candidates||[]).length>0).length:strictMatched;
-    const diagBanner=(diag||Array.isArray(g.flexible_slots))?`<div class="callout ${g.flexibleMode?'':'warning'}" style="margin:10px 0 12px;padding:12px 14px;background:${g.flexibleMode?'#F2F0FB':'#fffbeb'};border:1px solid ${g.flexibleMode?'#B9B0EA':'#fcd34d'};border-radius:8px"><div style="font-size:13px;margin-bottom:6px"><strong>Ngân hàng Khối ${E(m.grade)}:</strong> ${diag?`${diag.total_in_grade} câu (${diag.approved_in_grade} đã duyệt · ${diag.unapproved_in_grade} nháp/chờ duyệt) · `:''}Khớp chặt (YCCĐ nguồn &amp; đã duyệt): <strong>${strictMatched}/${slots.length}</strong> vị trí · Khớp linh hoạt (cùng Bài &amp; Mức độ): <strong>${flexMatched}/${slots.length}</strong> vị trí.</div><label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:600;color:#1C2333;cursor:pointer"><input type="checkbox" id="mx-flexible-mode"${g.flexibleMode?' checked':''}><span>Chế độ linh hoạt Ma trận 2D (chấp nhận mọi YCCĐ trong cùng Bài &amp; cả câu Nháp/Chờ duyệt để tạo đề nháp nhanh — ưu tiên câu đã duyệt trước)</span></label></div>`:'';
+    const diagBanner=(diag||Array.isArray(g.flexible_slots))?`<div class="callout ${g.flexibleMode?'':'warning'}" style="margin:10px 0 12px;padding:12px 14px;background:${g.flexibleMode?'#F2F0FB':'#F3F4F8'};border:1px solid ${g.flexibleMode?'#B9B0EA':'#D4A84A'};border-radius:8px"><div style="font-size:13px;margin-bottom:6px"><strong>Ngân hàng Khối ${E(m.grade)}:</strong> ${diag?`${diag.total_in_grade} câu (${diag.approved_in_grade} đã duyệt · ${diag.unapproved_in_grade} nháp/chờ duyệt) · `:''}Khớp chặt (YCCĐ nguồn &amp; đã duyệt): <strong>${strictMatched}/${slots.length}</strong> vị trí · Khớp linh hoạt (cùng Bài &amp; Mức độ): <strong>${flexMatched}/${slots.length}</strong> vị trí.</div><label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:600;color:#1C2333;cursor:pointer"><input type="checkbox" id="mx-flexible-mode"${g.flexibleMode?' checked':''}><span>Chế độ linh hoạt Ma trận 2D (chấp nhận mọi YCCĐ trong cùng Bài &amp; cả câu Nháp/Chờ duyệt để tạo đề nháp nhanh — ưu tiên câu đã duyệt trước)</span></label></div>`:'';
     const optLabel=q=>{
       const statusTag=(q.review_status&&q.review_status!=='approved')?(q.review_status==='pending_review'?'[Chờ duyệt] ':q.review_status==='needs_review'?'[Cần sửa] ':'[Nháp] '):'';
       const idPart=/^[A-Z]{1,6}-[0-9a-f-]{12,}$/i.test(String(q.id||''))?'':(q.id+' · ');

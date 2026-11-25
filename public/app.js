@@ -150,7 +150,7 @@ function openGradeConfigDialog(){
  const form=document.getElementById('grade-config-form');
  if(!dlg||!box||!form)return;
  const current=new Set(availableGrades().map(Number));
- box.innerHTML=grades().map(g=>`<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #d5dde5;border-radius:8px;cursor:pointer;font-weight:600;background:#fff"><input type="checkbox" name="active-grade" value="${g}"${current.has(g)?' checked':''}><span>Khối ${g}</span></label>`).join('');
+ box.innerHTML=grades().map(g=>`<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #D5D9E4;border-radius:8px;cursor:pointer;font-weight:600;background:#fff"><input type="checkbox" name="active-grade" value="${g}"${current.has(g)?' checked':''}><span>Khối ${g}</span></label>`).join('');
  dlg.querySelectorAll('[data-close="grade-config-dialog"]').forEach(b=>{b.onclick=()=>{if(typeof dlg.close==='function')dlg.close();};});
  form.onsubmit=async ev=>{
   ev.preventDefault();
@@ -676,8 +676,8 @@ function renderReview(){
  $('#review').innerHTML=(f.outcome?`<div class="callout">Đang lọc theo YCCĐ: <strong>${esc(f.outcome)}</strong> <button type="button" class="export-link" id="rv-clear-outcome">Bỏ lọc YCCĐ</button></div>`:'')+`<div class="page-head"><div><p class="eyebrow">Kiểm duyệt</p><h1>Duyệt câu hỏi</h1><p>Đã duyệt <strong>${p.approved}</strong>/${p.total} câu · chờ duyệt ${p.pending_review} · cần sửa lại ${p.needs_review} · nháp ${p.draft}</p></div><div class="actions"><button type="button" class="primary" id="rv-bulk-approve"${unapprovedInScope.length?'':' disabled'}>Duyệt nhanh ${unapprovedInScope.length} câu chưa duyệt</button></div></div>
  <div class="card"><div class="filters">${sel('rv-status','Trạng thái',[['pending_review','Chờ duyệt'],['needs_review','Cần sửa lại'],['draft','Bản nháp'],['approved','Đã duyệt'],['all','Tất cả']],f.status)}${sel('rv-grade','Khối',[['','Tất cả'],...rvGrades.map(g=>[g,'Khối '+g])],f.grade)}${sel('rv-lesson','Bài',lessonOpts,f.lesson)}${sel('rv-level','Mức độ',[['','Tất cả'],...C.cognitiveLevels().map(level=>[level,level])],f.level)}${sel('rv-type','Dạng câu',[['','Tất cả'],['MC','Nhiều lựa chọn'],['YN','Đúng/Sai'],['SHORT','Trả lời ngắn'],['ES','Tự luận']],f.type)}${sel('rv-section','Mạch PPCT',[['','Tất cả mạch'],['core','Nội dung cốt lõi (Mục II.1)'],['elective_topic','Chuyên đề học tập (Mục II.2)']],f.section||'')}${sel('rv-origin','Nguồn',[['','Tất cả'],['teacher','Giáo viên'],['ai_gemini','AI (Gemini)'],['expansion','Ngân hàng mở rộng']],f.origin)}</div></div>
  ${q?`<div class="card review-card"><div class="list-toolbar"><span>Câu <strong>${store.reviewIndex+1}</strong>/${queue.length} trong danh sách lọc</span><span class="actions"><button type="button" data-review-act="prev">‹ Trước (K)</button><button type="button" data-review-act="next">Sau (J) ›</button></span></div>
- <div class="q-meta"><span class="badge">Khối ${q.grade} · ${esc(q.lesson_code)} · ${esc(q.level)}</span><span class="badge">${esc(typeNames[q.type]||q.type)}</span>${q.competency ? `<span class="badge" style="background:#fef3c7;color:#92400e;font-weight:700">NL: ${esc(q.competency)}</span>` : ''}${badge(q)}${questionSectionBadge(q)}${String(q.origin||'').startsWith('ai')?'<span class="badge draft">Do AI tạo</span>':''}${isTechId(q.id)?'':`<span class="q-id">${esc(q.id)}</span>`}</div>
- <div class="review-grid"><div><div class="question-text" style="white-space:normal">${C.questionTextHtml(q.question)}</div>${answer}</div><div><div class="callout"><strong>Yêu cầu cần đạt &amp; Năng lực</strong><br>${esc(q.learning_outcome||'Chưa gắn YCCĐ')}${q.competency ? `<br><span class="badge" style="background:#fef3c7;color:#92400e;font-weight:700;margin-top:6px;display:inline-block">NL: ${esc(q.competency)}</span>` : ''}</div>${qualityWarningsHtml(q)}${actions}${history}</div></div></div>`
+ <div class="q-meta"><span class="badge">Khối ${q.grade} · ${esc(q.lesson_code)} · ${esc(q.level)}</span><span class="badge">${esc(typeNames[q.type]||q.type)}</span>${q.competency ? `<span class="badge" style="background:#FBF4E4;color:#8A5A00;font-weight:700">NL: ${esc(q.competency)}</span>` : ''}${badge(q)}${questionSectionBadge(q)}${String(q.origin||'').startsWith('ai')?'<span class="badge draft">Do AI tạo</span>':''}${isTechId(q.id)?'':`<span class="q-id">${esc(q.id)}</span>`}</div>
+ <div class="review-grid"><div><div class="question-text" style="white-space:normal">${C.questionTextHtml(q.question)}</div>${answer}</div><div><div class="callout"><strong>Yêu cầu cần đạt &amp; Năng lực</strong><br>${esc(q.learning_outcome||'Chưa gắn YCCĐ')}${q.competency ? `<br><span class="badge" style="background:#FBF4E4;color:#8A5A00;font-weight:700;margin-top:6px;display:inline-block">NL: ${esc(q.competency)}</span>` : ''}</div>${qualityWarningsHtml(q)}${actions}${history}</div></div></div>`
  :empty('Không còn câu nào trong danh sách này','Đổi bộ lọc hoặc trạng thái để xem các câu khác.')}`;
  [['rv-status','status'],['rv-grade','grade'],['rv-lesson','lesson'],['rv-level','level'],['rv-type','type'],['rv-section','section'],['rv-origin','origin']].forEach(([id,key])=>{$('#'+id).onchange=e=>{f[key]=e.target.value;if(key==='grade'){f.lesson='';store.reviewIndex=0;setActiveGrade(e.target.value||'all');return;}store.reviewIndex=0;renderReview();};});
  $('#review').querySelectorAll('[data-review-act]').forEach(b=>b.onclick=()=>reviewAct(b.dataset.reviewAct));
@@ -809,14 +809,14 @@ function renderOverview(){
  const showArchivedBanner = ovActive.length === 0 && archivedCount > 0;
 
  const bannerHtml = showArchivedBanner ? `
-  <div class="card" style="background:#F2F0FB;border:2px solid #3b82f6;border-radius:12px;padding:16px 20px;margin-bottom:18px;box-shadow:0 4px 14px rgba(59,130,246,0.12)">
+  <div class="card" style="background:#F2F0FB;border:2px solid #A99FE0;border-radius:12px;padding:16px 20px;margin-bottom:18px;box-shadow:0 4px 14px rgba(59,130,246,0.12)">
     <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap">
       
       <div style="flex:1;min-width:280px">
         <h3 style="margin:0 0 6px;color:#3A2D8A;font-size:16px;font-weight:700">
           Dữ liệu của Thầy/Cô vẫn an toàn 100%! Có ${archivedCount} câu hỏi môn ${esc(s)} đang ở mục "Lưu trữ"
         </h3>
-        <p style="margin:0 0 12px;font-size:13px;color:#1e3a8a;line-height:1.5">
+        <p style="margin:0 0 12px;font-size:13px;color:#4A3AA8;line-height:1.5">
           Toàn bộ <strong>${archivedCount} câu hỏi</strong> không hề bị mất, chỉ là đang được gắn trạng thái <em>Lưu trữ (Archived)</em> nên bộ lọc mặc định trên trang Tổng quan tạm thời chưa hiển thị. Thầy/Cô có thể bấm nút dưới đây để khôi phục đưa vào sử dụng ngay:
         </p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -921,7 +921,7 @@ function renderOverview(){
   function qualityWarningsHtml(q) {
     const list = (C && typeof C.questionQualityWarnings === 'function') ? C.questionQualityWarnings(q) : [];
     if (!list.length) return '';
-    return `<div class="callout warning" data-quality-warnings="${list.length}" style="margin-top:10px;border-left:4px solid #d97706;background:#fffbeb;color:#92400e"><strong>Gợi ý chất lượng câu hỏi (CV 7991/6569 — chỉ cảnh báo, không chặn lưu/duyệt)</strong><ul style="margin:6px 0 0 18px;padding:0">${list.map(w => `<li>${esc(w.message)}</li>`).join('')}</ul></div>`;
+    return `<div class="callout warning" data-quality-warnings="${list.length}" style="margin-top:10px;border-left:4px solid #8A5A00;background:#F3F4F8;color:#8A5A00"><strong>Gợi ý chất lượng câu hỏi (CV 7991/6569 — chỉ cảnh báo, không chặn lưu/duyệt)</strong><ul style="margin:6px 0 0 18px;padding:0">${list.map(w => `<li>${esc(w.message)}</li>`).join('')}</ul></div>`;
   }
   function subjectCompetencyGuideText(subjName) {
     const s = String(subjName || subject() || 'Tin học').trim();
@@ -1206,7 +1206,7 @@ ${commonEs}`;
                   <label style="display:flex;align-items:center;gap:6px;cursor:${isThpt ? 'pointer' : 'not-allowed'};opacity:${isThpt ? '1' : '0.55'}">
                     <input type="radio" name="ai_part" value="YN" ${selectedPart === 'YN' ? 'checked' : ''} ${isThpt ? '' : 'disabled'}>
                     <strong>Phần 2: Đúng/Sai 4 ý a-d (YN · CV 7991)</strong>
-                    ${isThpt ? '' : '<span style="color:#ef4444;font-size:11px;font-weight:600">(Không áp dụng cho THCS - TT 22/2021)</span>'}
+                    ${isThpt ? '' : '<span style="color:#C62828;font-size:11px;font-weight:600">(Không áp dụng cho THCS - TT 22/2021)</span>'}
                   </label>
                   <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
                     <input type="radio" name="ai_part" value="SHORT_ES" ${selectedPart === 'SHORT_ES' ? 'checked' : ''}>
@@ -1245,7 +1245,7 @@ ${commonEs}`;
           </div>
         </div>
 
-        <div style="background:#eef6fd;border:1px solid #D6D1F2;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1C2333;line-height:1.5">
+        <div style="background:#F3F4F8;border:1px solid #D6D1F2;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1C2333;line-height:1.5">
           <strong>Quy trình 3 bước dành cho Thầy/Cô:</strong>
           <ol style="margin:4px 0 0;padding-left:18px">
             <li>Bấm nút <strong>"Chép Prompt AI vào bộ nhớ tạm"</strong> bên dưới. Mở <strong>ChatGPT</strong> hoặc <strong>Gemini</strong>, dán vào khung chat và gửi đi.</li>
@@ -2092,7 +2092,7 @@ function lessonFilterOptions(){const f=store.filters;const unique=new Map(instru
 function renderBankList(){
  const result=filtered(),size=15,pages=Math.max(1,Math.ceil(result.length/size));store.page=Math.min(store.page,pages);const slice=result.slice((store.page-1)*size,store.page*size);
  $('#bank-toolbar').innerHTML=`<div class="list-toolbar"><span><strong>${result.length}</strong> câu khớp bộ lọc</span><div class="actions"><button id="select-filter" class="quiet">Chọn tất cả câu đang lọc</button><button id="reset-filter" class="quiet">Đặt lại bộ lọc</button></div></div>`;
- $('#bank-list').innerHTML=slice.length?slice.map(q=>`<article class="q-card"><input type="checkbox" aria-label="Chọn câu hỏi" data-check="${esc(q.id)}"${store.selected.has(q.id)?' checked':''}><div class="q-card-body"><button class="q-open" data-detail="${esc(q.id)}"><span class="q-meta"><span class="badge">Khối ${q.grade} · ${esc(q.lesson_code)}</span><span class="badge">${esc(typeNames[q.type]||q.type)} · ${esc(q.level)}</span>${q.competency ? `<span class="badge" style="background:#fef3c7;color:#92400e;font-weight:700">NL: ${esc(q.competency)}</span>` : ''}${badge(q)}${questionSectionBadge(q)}${isTechId(q.id)?'':`<span class="q-id">${esc(q.id)}</span>`}</span><div class="q-text">${esc(q.question)}</div><div class="small muted" style="margin-top:4px"><em>YCCĐ:</em> ${esc(q.learning_outcome || 'Chưa gắn YCCĐ')}${q.competency ? ` · <strong style="color:#854d0e">NL: ${esc(q.competency)}</strong>` : ' · <span class="muted">(Chưa gắn NL)</span>'}</div></button><div class="q-row-actions"><button type="button" class="export-link" data-detail="${esc(q.id)}">Xem</button><button type="button" class="export-link" data-edit="${esc(q.id)}">Sửa</button><button type="button" class="export-link" data-dup-q="${esc(q.id)}">Nhân bản</button>${q.review_status==='archived'?`<button type="button" class="export-link" data-restore-q="${esc(q.id)}">Khôi phục</button>`:`<button type="button" class="export-link" data-archive="${esc(q.id)}">Lưu trữ</button>`}<button type="button" class="export-link danger" data-del-q="${esc(q.id)}">Xóa</button></div></div></article>`).join(''):empty('Không có câu phù hợp','Thử đổi bài, mức độ hoặc từ khóa tìm kiếm.');
+ $('#bank-list').innerHTML=slice.length?slice.map(q=>`<article class="q-card"><input type="checkbox" aria-label="Chọn câu hỏi" data-check="${esc(q.id)}"${store.selected.has(q.id)?' checked':''}><div class="q-card-body"><button class="q-open" data-detail="${esc(q.id)}"><span class="q-meta"><span class="badge">Khối ${q.grade} · ${esc(q.lesson_code)}</span><span class="badge">${esc(typeNames[q.type]||q.type)} · ${esc(q.level)}</span>${q.competency ? `<span class="badge" style="background:#FBF4E4;color:#8A5A00;font-weight:700">NL: ${esc(q.competency)}</span>` : ''}${badge(q)}${questionSectionBadge(q)}${isTechId(q.id)?'':`<span class="q-id">${esc(q.id)}</span>`}</span><div class="q-text">${esc(q.question)}</div><div class="small muted" style="margin-top:4px"><em>YCCĐ:</em> ${esc(q.learning_outcome || 'Chưa gắn YCCĐ')}${q.competency ? ` · <strong style="color:#8A5A00">NL: ${esc(q.competency)}</strong>` : ' · <span class="muted">(Chưa gắn NL)</span>'}</div></button><div class="q-row-actions"><button type="button" class="export-link" data-detail="${esc(q.id)}">Xem</button><button type="button" class="export-link" data-edit="${esc(q.id)}">Sửa</button><button type="button" class="export-link" data-dup-q="${esc(q.id)}">Nhân bản</button>${q.review_status==='archived'?`<button type="button" class="export-link" data-restore-q="${esc(q.id)}">Khôi phục</button>`:`<button type="button" class="export-link" data-archive="${esc(q.id)}">Lưu trữ</button>`}<button type="button" class="export-link danger" data-del-q="${esc(q.id)}">Xóa</button></div></div></article>`).join(''):empty('Không có câu phù hợp','Thử đổi bài, mức độ hoặc từ khóa tìm kiếm.');
  $('#bank-pagination').innerHTML=`<div class="pagination"><button id="prev-page"${store.page<=1?' disabled':''}>← Trước</button><span>Trang ${store.page} / ${pages}</span><button id="next-page"${store.page>=pages?' disabled':''}>Sau →</button></div>`;
  $('#select-filter').onclick=()=>{result.filter(q=>q.review_status!=='archived').forEach(q=>store.selected.add(q.id));renderBankList();};$('#reset-filter').onclick=()=>{store.filters={grade:'',lesson:'',type:'',level:'',section:'',status:'active',search:'',competency:''};store.page=1;renderBank();};$('#prev-page').onclick=()=>{store.page--;renderBankList();};$('#next-page').onclick=()=>{store.page++;renderBankList();};
   setTimeout(() => renderLatex($('#bank-list')), 40);
@@ -2107,7 +2107,7 @@ function showDetail(id){
    :q.type==='SHORT'
     ?`<div class="callout"><strong>Đáp án trả lời ngắn:</strong> ${esc(C.shortAnswerOf(q)||'Chưa có đáp án')}</div>`
     :`<h3>Thang điểm · ${q.max_score||1} điểm</h3><ol class="rubric">${(q.rubric||[]).map(r=>`<li>${esc(r.criterion)} <strong>(${r.points} điểm)</strong></li>`).join('')}</ol><p class="muted">${esc(q.equivalent_answer_policy||'')}</p>`;
- $('#detail-content').innerHTML=`<div class="dialog-heading"><h2 id="detail-title">Chi tiết câu hỏi</h2><button data-close="detail-dialog" class="quiet">Đóng</button></div><div class="q-meta"><span class="badge">Khối ${q.grade} · ${esc(q.lesson_code)} · ${esc(q.level)}</span><span class="badge">${esc(typeNames[q.type]||q.type)}</span>${q.competency ? `<span class="badge" style="background:#fef3c7;color:#92400e;font-weight:700">NL: ${esc(q.competency)}</span>` : ''}${badge(q)}${questionSectionBadge(q)}${isTechId(q.id)?'':`<span class="q-id">${esc(q.id)}</span>`}</div><div class="question-text" style="white-space:normal">${C.questionTextHtml(q.question)}</div>${answer}<div class="callout"><strong>Yêu cầu cần đạt &amp; Năng lực</strong><br>${esc(q.learning_outcome||'Chưa gắn YCCĐ')}${q.competency ? `<br><span class="badge" style="background:#fef3c7;color:#92400e;font-weight:700;margin-top:6px;display:inline-block">Năng lực: ${esc(q.competency)}</span>` : '<br><span class="small muted" style="margin-top:4px;display:inline-block">(Chưa gắn NL — có thể bấm "Sửa câu hỏi" để bổ sung)</span>'}</div><p class="small muted">${esc(q.lesson_name||'')} · ${esc(q.response_mode||typeNames[q.type])}</p><details class="detail-source"><summary>Nguồn đối chiếu PPCT</summary><p>${esc(q.source_file||'Theo danh mục PPCT')}</p><p>${(q.source_rows||[]).map(r=>`Tuần ${esc(r.week_raw)} · Tiết ${esc(r.periods_raw)}`).join('<br>')}</p></details><div class="dialog-bottom"><button data-edit="${esc(q.id)}" class="primary">Sửa câu hỏi</button><button data-dup-q="${esc(q.id)}">Nhân bản câu</button>${q.review_status==='archived'?`<button data-restore-q="${esc(q.id)}">Khôi phục sử dụng</button>`:`<button data-archive="${esc(q.id)}">Lưu trữ tạm</button>`}<button data-del-q="${esc(q.id)}" class="danger">Xóa vĩnh viễn</button></div>`;
+ $('#detail-content').innerHTML=`<div class="dialog-heading"><h2 id="detail-title">Chi tiết câu hỏi</h2><button data-close="detail-dialog" class="quiet">Đóng</button></div><div class="q-meta"><span class="badge">Khối ${q.grade} · ${esc(q.lesson_code)} · ${esc(q.level)}</span><span class="badge">${esc(typeNames[q.type]||q.type)}</span>${q.competency ? `<span class="badge" style="background:#FBF4E4;color:#8A5A00;font-weight:700">NL: ${esc(q.competency)}</span>` : ''}${badge(q)}${questionSectionBadge(q)}${isTechId(q.id)?'':`<span class="q-id">${esc(q.id)}</span>`}</div><div class="question-text" style="white-space:normal">${C.questionTextHtml(q.question)}</div>${answer}<div class="callout"><strong>Yêu cầu cần đạt &amp; Năng lực</strong><br>${esc(q.learning_outcome||'Chưa gắn YCCĐ')}${q.competency ? `<br><span class="badge" style="background:#FBF4E4;color:#8A5A00;font-weight:700;margin-top:6px;display:inline-block">Năng lực: ${esc(q.competency)}</span>` : '<br><span class="small muted" style="margin-top:4px;display:inline-block">(Chưa gắn NL — có thể bấm "Sửa câu hỏi" để bổ sung)</span>'}</div><p class="small muted">${esc(q.lesson_name||'')} · ${esc(q.response_mode||typeNames[q.type])}</p><details class="detail-source"><summary>Nguồn đối chiếu PPCT</summary><p>${esc(q.source_file||'Theo danh mục PPCT')}</p><p>${(q.source_rows||[]).map(r=>`Tuần ${esc(r.week_raw)} · Tiết ${esc(r.periods_raw)}`).join('<br>')}</p></details><div class="dialog-bottom"><button data-edit="${esc(q.id)}" class="primary">Sửa câu hỏi</button><button data-dup-q="${esc(q.id)}">Nhân bản câu</button>${q.review_status==='archived'?`<button data-restore-q="${esc(q.id)}">Khôi phục sử dụng</button>`:`<button data-archive="${esc(q.id)}">Lưu trữ tạm</button>`}<button data-del-q="${esc(q.id)}" class="danger">Xóa vĩnh viễn</button></div>`;
  $('#detail-dialog').showModal(); setTimeout(() => renderLatex($('#detail-dialog')), 40);
 }
 function fmtPts(v){return typeof v==='number'?String(Math.round(v*1000)/1000).replace('.',','):String(v??'');}
@@ -2482,7 +2482,7 @@ function openEditor(id,duplicate=false){
   store.editing=old?structuredClone(old):{grade:Number(store.filters.grade)||effectiveGrade(),type:'MC',level:'Biết',lesson_code:store.filters.lesson||'',review_status:'draft',response_mode:'Trắc nghiệm',question:'',options:['','','',''],correct:0,option_explanations:['','','',''],max_score:1};
  }
  const q=store.editing;$('#edit-title').textContent=duplicate?'Nhân bản câu hỏi':old?'Sửa câu hỏi':'Thêm câu hỏi';
- $('#question-form').innerHTML=`<div id="form-error" class="callout error" role="alert" hidden></div><div class="form-grid"><div class="field"><label for="edit-grade">Khối lớp</label><select id="edit-grade" name="grade">${gradeOptions(q.grade)}</select></div><div class="field"><label for="edit-type">Dạng câu</label><select id="edit-type" name="type">${Object.entries(typeNames).map(([k,v])=>opt(k,v,k===q.type)).join('')}</select></div><div class="field"><label for="edit-level">Mức độ</label><select id="edit-level" name="level">${C.levelOptions(q.level)}</select></div><div class="field full"><label for="edit-lesson">Bài theo PPCT</label><select id="edit-lesson" name="lesson_code" required></select><p id="edit-lesson-hint" class="small muted" style="margin-top:4px"></p></div><div class="field full"><label for="edit-outcome">Yêu cầu cần đạt</label><select id="edit-outcome" name="outcome_index" required></select></div><div class="field span2"><label for="edit-competency">Thành phần Năng lực (NLa, NLb, NLc, NLd, NLe)</label><div style="display:flex;gap:8px;align-items:center"><input id="edit-competency" name="competency" value="${esc(q.competency||'')}" placeholder="VD: NLa hoặc chọn nhanh..." style="flex:1"><select id="quick-comp-select" style="max-width:145px" onchange="if(this.value){$('#edit-competency').value=this.value;}"><option value="">-- Chọn nhanh --</option><option value="NLa"${q.competency==='NLa'?' selected':''}>NLa (Phương tiện CNTT)</option><option value="NLb"${q.competency==='NLb'?' selected':''}>NLb (Môi trường số)</option><option value="NLc"${q.competency==='NLc'?' selected':''}>NLc (Giải quyết vấn đề)</option><option value="NLd"${q.competency==='NLd'?' selected':''}>NLd (Học &amp; tự học)</option><option value="NLe"${q.competency==='NLe'?' selected':''}>NLe (Hợp tác)</option></select></div><p class="small muted" style="margin-top:2px">NLa: Sử dụng &amp; QL phương tiện CNTT · NLb: Môi trường số · NLc: Giải quyết vấn đề · NLd: Học &amp; tự học · NLe: Hợp tác</p></div><div class="field span2"><label for="edit-status">Trạng thái sau khi lưu</label><select id="edit-status" name="review_status">${editorStatusOptions(q)}</select></div><div class="field"><label for="edit-mode">Cách trả lời</label><select id="edit-mode" name="response_mode">${['Trắc nghiệm','Tự luận','Thực hành'].map(v=>opt(v,v,v===q.response_mode)).join('')}</select></div><div class="field full"><label for="edit-question">Nội dung câu hỏi</label><textarea id="edit-question" name="question" rows="5" required aria-describedby="question-edit-help">${esc(q.question)}</textarea><div class="actions" style="margin-top:8px"><button type="button" data-question-template="code">Chèn mã</button><button type="button" data-question-template="table">Chèn bảng</button></div><p id="question-edit-help" class="editor-note">Chèn mẫu tại con trỏ rồi thay nội dung trong mẫu. Giữ dòng đầu và cuối của đoạn mã; giữ dòng gạch ngang và số cột của bảng. Xem kết quả bên dưới. Câu có mã hoặc bảng được sửa đầy đủ tại cửa sổ này.</p><div style="margin-top:12px"><strong>Xem trước nội dung câu hỏi</strong><div id="question-live-preview" style="margin-top:8px;padding:12px;border:1px solid #d5dde5;border-radius:6px;min-height:48px"></div></div></div></div><div id="answer-editor" style="margin-top:20px"></div><div id="question-quality-warnings" aria-live="polite" style="margin-top:12px"></div><p class="editor-note">Câu mới mặc định là bản nháp. Câu chỉ được <strong>duyệt</strong> ở màn hình “Duyệt câu hỏi” với phiếu kiểm định. Sửa nội dung câu đã duyệt sẽ đưa câu về “Cần sửa lại”.</p><div class="dialog-bottom"><button type="button" data-close="edit-dialog">Hủy</button><button type="submit" class="primary">Lưu câu hỏi</button></div>`;
+ $('#question-form').innerHTML=`<div id="form-error" class="callout error" role="alert" hidden></div><div class="form-grid"><div class="field"><label for="edit-grade">Khối lớp</label><select id="edit-grade" name="grade">${gradeOptions(q.grade)}</select></div><div class="field"><label for="edit-type">Dạng câu</label><select id="edit-type" name="type">${Object.entries(typeNames).map(([k,v])=>opt(k,v,k===q.type)).join('')}</select></div><div class="field"><label for="edit-level">Mức độ</label><select id="edit-level" name="level">${C.levelOptions(q.level)}</select></div><div class="field full"><label for="edit-lesson">Bài theo PPCT</label><select id="edit-lesson" name="lesson_code" required></select><p id="edit-lesson-hint" class="small muted" style="margin-top:4px"></p></div><div class="field full"><label for="edit-outcome">Yêu cầu cần đạt</label><select id="edit-outcome" name="outcome_index" required></select></div><div class="field span2"><label for="edit-competency">Thành phần Năng lực (NLa, NLb, NLc, NLd, NLe)</label><div style="display:flex;gap:8px;align-items:center"><input id="edit-competency" name="competency" value="${esc(q.competency||'')}" placeholder="VD: NLa hoặc chọn nhanh..." style="flex:1"><select id="quick-comp-select" style="max-width:145px" onchange="if(this.value){$('#edit-competency').value=this.value;}"><option value="">-- Chọn nhanh --</option><option value="NLa"${q.competency==='NLa'?' selected':''}>NLa (Phương tiện CNTT)</option><option value="NLb"${q.competency==='NLb'?' selected':''}>NLb (Môi trường số)</option><option value="NLc"${q.competency==='NLc'?' selected':''}>NLc (Giải quyết vấn đề)</option><option value="NLd"${q.competency==='NLd'?' selected':''}>NLd (Học &amp; tự học)</option><option value="NLe"${q.competency==='NLe'?' selected':''}>NLe (Hợp tác)</option></select></div><p class="small muted" style="margin-top:2px">NLa: Sử dụng &amp; QL phương tiện CNTT · NLb: Môi trường số · NLc: Giải quyết vấn đề · NLd: Học &amp; tự học · NLe: Hợp tác</p></div><div class="field span2"><label for="edit-status">Trạng thái sau khi lưu</label><select id="edit-status" name="review_status">${editorStatusOptions(q)}</select></div><div class="field"><label for="edit-mode">Cách trả lời</label><select id="edit-mode" name="response_mode">${['Trắc nghiệm','Tự luận','Thực hành'].map(v=>opt(v,v,v===q.response_mode)).join('')}</select></div><div class="field full"><label for="edit-question">Nội dung câu hỏi</label><textarea id="edit-question" name="question" rows="5" required aria-describedby="question-edit-help">${esc(q.question)}</textarea><div class="actions" style="margin-top:8px"><button type="button" data-question-template="code">Chèn mã</button><button type="button" data-question-template="table">Chèn bảng</button></div><p id="question-edit-help" class="editor-note">Chèn mẫu tại con trỏ rồi thay nội dung trong mẫu. Giữ dòng đầu và cuối của đoạn mã; giữ dòng gạch ngang và số cột của bảng. Xem kết quả bên dưới. Câu có mã hoặc bảng được sửa đầy đủ tại cửa sổ này.</p><div style="margin-top:12px"><strong>Xem trước nội dung câu hỏi</strong><div id="question-live-preview" style="margin-top:8px;padding:12px;border:1px solid #D5D9E4;border-radius:6px;min-height:48px"></div></div></div></div><div id="answer-editor" style="margin-top:20px"></div><div id="question-quality-warnings" aria-live="polite" style="margin-top:12px"></div><p class="editor-note">Câu mới mặc định là bản nháp. Câu chỉ được <strong>duyệt</strong> ở màn hình “Duyệt câu hỏi” với phiếu kiểm định. Sửa nội dung câu đã duyệt sẽ đưa câu về “Cần sửa lại”.</p><div class="dialog-bottom"><button type="button" data-close="edit-dialog">Hủy</button><button type="submit" class="primary">Lưu câu hỏi</button></div>`;
  const questionInput=$('#edit-question'),preview=$('#question-live-preview'),warnBox=$('#question-quality-warnings');
  const updateQualityWarnings=()=>{
   if(!warnBox)return;
@@ -2519,7 +2519,7 @@ function editorOutcomes(index=0,outcome){
  const hintEl=$('#edit-lesson-hint');
  if(hintEl){
   if(l&&normalizePpctSection(l)==='elective_topic'){
-   hintEl.style.color='#b45309';
+   hintEl.style.color='#8A5A00';
    hintEl.textContent=`Chuyên đề học tập (Mục II.2${l.orientation?' · '+l.orientation:''} · TT 22/2021 Điều 6.3 & 7.1): chỉ dùng cho Kiểm tra thường xuyên (KTTX), KHÔNG đưa vào Đề cương hay Đề kiểm tra định kì (GK/CK).`;
   }else{
    hintEl.style.color='';
@@ -2756,11 +2756,11 @@ function openImportDedupDialog({ filename, questions, grade, subjectName, detect
             <div style="color:#1F6B52;font-size:11px;font-weight:600;text-transform:uppercase">Câu mới sẵn sàng nạp</div>
             <div style="font-size:22px;font-weight:700;color:#1F6B52;margin-top:2px">${newCount} <span style="font-size:12px;font-weight:400;color:#1F6B52">câu</span></div>
           </div>
-          <div style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:10px 14px">
-            <div style="color:#854d0e;font-size:11px;font-weight:600;text-transform:uppercase">Trùng lặp Ngân hàng</div>
-            <div style="font-size:22px;font-weight:700;color:#ca8a04;margin-top:2px">${bankDupCount} <span style="font-size:12px;font-weight:400;color:#854d0e">câu</span></div>
+          <div style="background:#F3F4F8;border:1px solid #D4A84A;border-radius:8px;padding:10px 14px">
+            <div style="color:#8A5A00;font-size:11px;font-weight:600;text-transform:uppercase">Trùng lặp Ngân hàng</div>
+            <div style="font-size:22px;font-weight:700;color:#8A5A00;margin-top:2px">${bankDupCount} <span style="font-size:12px;font-weight:400;color:#8A5A00">câu</span></div>
           </div>
-          <div style="background:${internalDupCount > 0 ? '#FDEEEE' : '#F7F8FB'};border:1px solid ${internalDupCount > 0 ? '#fca5a5' : '#D5D9E4'};border-radius:8px;padding:10px 14px">
+          <div style="background:${internalDupCount > 0 ? '#FDEEEE' : '#F7F8FB'};border:1px solid ${internalDupCount > 0 ? '#F4C7C7' : '#D5D9E4'};border-radius:8px;padding:10px 14px">
             <div style="color:${internalDupCount > 0 ? '#A32020' : '#5B6475'};font-size:11px;font-weight:600;text-transform:uppercase">Trùng nội bộ trong tệp</div>
             <div style="font-size:22px;font-weight:700;color:${internalDupCount > 0 ? '#C62828' : '#5B6475'};margin-top:2px">${internalDupCount} <span style="font-size:12px;font-weight:400;color:#5B6475">câu</span></div>
           </div>
@@ -2774,7 +2774,7 @@ function openImportDedupDialog({ filename, questions, grade, subjectName, detect
           <button type="button" class="button ${currentTab === 'new' ? 'primary' : 'quiet'}" id="import-tab-new" style="font-size:12px;padding:5px 12px;border-radius:20px;color:${currentTab === 'new' ? '#fff' : '#1F6B52'}">
             Câu mới (${newCount})
           </button>
-          <button type="button" class="button ${currentTab === 'bank_dup' ? 'primary' : 'quiet'}" id="import-tab-bank-dup" style="font-size:12px;padding:5px 12px;border-radius:20px;color:${currentTab === 'bank_dup' ? '#fff' : '#854d0e'}">
+          <button type="button" class="button ${currentTab === 'bank_dup' ? 'primary' : 'quiet'}" id="import-tab-bank-dup" style="font-size:12px;padding:5px 12px;border-radius:20px;color:${currentTab === 'bank_dup' ? '#fff' : '#8A5A00'}">
             Trùng Ngân hàng (${bankDupCount})
           </button>
           ${internalDupCount > 0 ? `
@@ -2800,13 +2800,13 @@ function openImportDedupDialog({ filename, questions, grade, subjectName, detect
               statusBadge = `<span style="background:#E1EFE8;color:#1F6B52;border:1px solid #A9D3C1;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">Câu mới</span>`;
               cardBorder = '#CFE5DB';
             } else if (item.status === 'bank_dup') {
-              statusBadge = `<span style="background:#fef9c3;color:#854d0e;border:1px solid #fde047;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">Trùng Ngân hàng: ${esc(item.matchedId)}${item.matchedLesson ? ' · Bài ' + esc(item.matchedLesson) : ''}</span>`;
-              cardBorder = '#fef08a';
-              cardBg = '#fffdf5';
+              statusBadge = `<span style="background:#FBF4E4;color:#8A5A00;border:1px solid #D4A84A;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">Trùng Ngân hàng: ${esc(item.matchedId)}${item.matchedLesson ? ' · Bài ' + esc(item.matchedLesson) : ''}</span>`;
+              cardBorder = '#EBD7A6';
+              cardBg = '#F7F8FB';
             } else if (item.status === 'internal_dup') {
-              statusBadge = `<span style="background:#fee2e2;color:#C62828;border:1px solid #fca5a5;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">Trùng lặp với câu #${item.firstIndex + 1}</span>`;
+              statusBadge = `<span style="background:#F3F4F8;color:#C62828;border:1px solid #F4C7C7;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">Trùng lặp với câu #${item.firstIndex + 1}</span>`;
               cardBorder = '#F4C7C7';
-              cardBg = '#fefafa';
+              cardBg = '#F7F8FB';
             }
 
             const typeLabel = (typeof typeNames !== 'undefined' && typeNames[q.type]) || q.type || 'MC';
@@ -2833,7 +2833,7 @@ function openImportDedupDialog({ filename, questions, grade, subjectName, detect
                   ${q.branches.map((b, bIdx) => `
                     <div style="padding:4px 8px;border-radius:4px;font-size:12px;background:#F7F8FB;border:1px solid #E4E7F0;display:flex;align-items:center;gap:8px">
                       <strong style="min-width:18px">${String.fromCharCode(97 + bIdx)})</strong>
-                      <span style="padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;background:${b.correct ? '#E1EFE8' : '#fee2e2'};color:${b.correct ? '#1F6B52' : '#C62828'}">
+                      <span style="padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;background:${b.correct ? '#E1EFE8' : '#F3F4F8'};color:${b.correct ? '#1F6B52' : '#C62828'}">
                         ${b.correct ? 'ĐÚNG' : 'SAI'}
                       </span>
                       <span>${esc(b.content || '')}</span>
@@ -2860,7 +2860,7 @@ function openImportDedupDialog({ filename, questions, grade, subjectName, detect
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
                   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                     <span style="font-weight:700;color:#4A3AA8">#${idx + 1}</span>
-                    <span style="background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:3px;padding:1px 6px;font-size:11px;font-weight:700">Khối ${q.grade}</span>
+                    <span style="background:#F3F4F8;color:#4A3AA8;border:1px solid #ECE9F9;border-radius:3px;padding:1px 6px;font-size:11px;font-weight:700">Khối ${q.grade}</span>
                     ${statusBadge}
                     <span style="background:#ECE9F9;color:#4A3AA8;border-radius:3px;padding:1px 6px;font-size:11px;font-weight:600">${esc(typeLabel)}</span>
                     <span style="background:#F3F4F8;color:#4A5263;border-radius:3px;padding:1px 6px;font-size:11px">${esc(levelLabel)}</span>
@@ -3566,7 +3566,7 @@ function ppctImportCard(g){
    const f = ppctLessonFields(x);
    const outcomesHtml = f.outcomes.length
      ? `<ul>${f.outcomes.map(o => `<li>${esc(o)}</li>`).join('')}</ul>`
-     : `<p style="margin:4px 0 0;color:#b45309">Chưa có yêu cầu cần đạt (YCCĐ).</p>`;
+     : `<p style="margin:4px 0 0;color:#8A5A00">Chưa có yêu cầu cần đạt (YCCĐ).</p>`;
    const changes = Array.isArray(x.changes) ? x.changes : [];
    const changeByField = (fieldName) => changes.find(c => c.field === fieldName);
 
@@ -3630,7 +3630,7 @@ function ppctImportCard(g){
 
  return `<div class="card"><h2>Nhập PPCT từ Excel, JSON, Markdown hoặc Word</h2>
   <p class="muted">Khuyên dùng <strong>Excel (.xlsx / .csv)</strong> (phổ biến và thuận tiện nhất cho giáo viên mọi bộ môn) hoặc <strong>JSON / Markdown</strong> đủ <strong>7 cột chuẩn Phụ lục I (CV 5512, TT 02/2025 &amp; QĐ 2422)</strong>${isHighSchoolView ? ' kèm <strong>Bảng II.2 Chuyên đề lựa chọn THPT</strong> (TT 32/2018 &amp; TT 22/2021)' : ''} để nạp tức thì và bảo đảm chính xác 100%. Vẫn hỗ trợ tệp Word KHDH Phụ lục 1 (.docx). Khối lớp tự động nhận diện theo tên tệp hoặc theo Khối ${esc(g)} đang chọn.</p>
-  <div style="background:#eef6fd;border:1px solid #D6D1F2;border-radius:8px;padding:12px 16px;margin:12px 0;color:#1C2333;font-size:13px;line-height:1.6">
+  <div style="background:#F3F4F8;border:1px solid #D6D1F2;border-radius:8px;padding:12px 16px;margin:12px 0;color:#1C2333;font-size:13px;line-height:1.6">
     <strong>Hướng dẫn thầy/cô dùng AI (Gemini / ChatGPT / Claude) chuyển Word sang Excel / JSON để tải lên:</strong>
     <ol style="margin:6px 0 0;padding-left:20px">
       <li>Bấm nút <strong>Chép Prompt AI chuyển Word → Excel/JSON</strong> bên dưới.</li>
@@ -4168,8 +4168,8 @@ function lessonPickerTable(cells, prefix, countsState) {
     return `<tr><td><strong>${esc(l.lesson_code)}</strong></td>${cols}</tr>`;
   }).join('');
 
-  return `<details class="lesson-count-details" style="margin: 0.75rem 0; padding: 0.5rem; background: var(--bg-subtle, #f8f9fa); border: 1px solid var(--border, #dee2e6); border-radius: 4px;">
-    <summary style="font-weight: 600; cursor: pointer; color: var(--accent, #0056b3);">Tự chọn số câu theo từng bài & dạng câu</summary>
+  return `<details class="lesson-count-details" style="margin: 0.75rem 0; padding: 0.5rem; background: var(--bg-subtle, #F7F8FB); border: 1px solid var(--border, #E4E7F0); border-radius: 4px;">
+    <summary style="font-weight: 600; cursor: pointer; color: var(--accent, #4A3AA8);">Tự chọn số câu theo từng bài & dạng câu</summary>
     <div style="margin-top: 0.5rem;">
       <table class="plan-table" style="font-size: 0.85rem; width: 100%;">
         <thead><tr><th>Bài học</th>${activeTypes.map(t => `<th>${typeHeaders[t]}</th>`).join('')}</tr></thead>
@@ -4496,7 +4496,7 @@ function assessmentPlanImportCard(g, s) {
   return `<div id="ap-import-card" class="card" style="margin-top:20px">
     <h2>Nhập Kế hoạch kiểm tra, đánh giá từ Excel, JSON, Markdown hoặc Word</h2>
     <p class="muted">Khuyên dùng <strong>Excel (.xlsx / .csv)</strong> hoặc <strong>JSON / Markdown</strong> chuẩn <strong>Phụ lục 3 (CV 5512/BGDĐT-GDTrH &amp; TT 22/2021)</strong> để nạp tức thì 4 mốc ĐĐGđk cho môn ${esc(s)} Khối ${esc(g)}. Vẫn hỗ trợ đọc trực tiếp bảng KHKTĐG từ tệp Word (<code>.docx</code>).</p>
-    <div style="background:#eef6fd;border:1px solid #D6D1F2;border-radius:8px;padding:12px 16px;margin:12px 0;color:#1C2333;font-size:13px;line-height:1.6">
+    <div style="background:#F3F4F8;border:1px solid #D6D1F2;border-radius:8px;padding:12px 16px;margin:12px 0;color:#1C2333;font-size:13px;line-height:1.6">
       <strong>Hướng dẫn thầy/cô dùng AI (Gemini / ChatGPT / Claude) chuyển Word sang Excel / JSON để tải lên:</strong>
       <ol style="margin:6px 0 0;padding-left:20px">
         <li>Bấm nút <strong>Chép Prompt AI chuyển Word → Excel/JSON</strong> bên dưới.</li>
@@ -4604,7 +4604,7 @@ function renderAssessmentPlans() {
     <div class="card" style="margin-bottom:16px;background:#F7F8FB;border:1px solid #D5D9E4">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
         <div>
-          <h3 style="margin:0 0 4px;font-size:15px;color:#1e3a8a">Nguyên tắc kiểm tra định kỳ chuẩn Bộ GD&amp;ĐT (TT 22/2021 &amp; CV 5512)</h3>
+          <h3 style="margin:0 0 4px;font-size:15px;color:#4A3AA8">Nguyên tắc kiểm tra định kỳ chuẩn Bộ GD&amp;ĐT (TT 22/2021 &amp; CV 5512)</h3>
           <p class="small muted" style="margin:0">Môn ${esc(s)}: 04 bài ĐĐGđk/năm học (Giữa HK1: hệ số 2; Cuối HK1: hệ số 3; Giữa HK2: hệ số 2; Cuối HK2: hệ số 3). Cụm Chuyên đề học tập chỉ tính 01 điểm ĐĐGtx (Điều 7.1).</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -5168,7 +5168,7 @@ function wizardNav(activeStep=3){
   {n:5,title:'5. Phát hành',tab:'exams',desc:'Đề cương → Bộ đề'},
   {n:6,title:'6. Xuất bản & Hoán vị',tab:'exams',desc:'Mã 101–104 & Word/PDF'}
  ];
- return `<div class="card wizard-nav-card" style="margin-bottom:16px;padding:12px 16px;background:#F7F8FB;border:1px solid #d0dbe5;border-radius:8px">`+
+ return `<div class="card wizard-nav-card" style="margin-bottom:16px;padding:12px 16px;background:#F7F8FB;border:1px solid #D5D9E4;border-radius:8px">`+
   `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">`+
    `<strong style="color:var(--navy,#1C2333);font-size:13px">QUY TRÌNH RA ĐỀ CHUẨN 6 BƯỚC (MỐC C1)</strong>`+
    `<span class="small muted">Trình tự nghiệp vụ: Ma trận → Đề cương → Bộ đề → Khóa cả bộ → Phát hành → Xuất bản</span>`+
@@ -5177,9 +5177,9 @@ function wizardNav(activeStep=3){
    steps.map(s=>{
     const isActive=s.n===activeStep;
     const isPast=s.n<activeStep;
-    const bg=isActive?'var(--brand,#0a58ca)':(isPast?'#E4E7F0':'#F3F4F8');
+    const bg=isActive?'var(--brand,#4A3AA8)':(isPast?'#E4E7F0':'#F3F4F8');
     const color=isActive?'#fff':(isPast?'#2E3646':'#5B6475');
-    const border=isActive?'var(--brand,#0a58ca)':'#D5D9E4';
+    const border=isActive?'var(--brand,#4A3AA8)':'#D5D9E4';
     return `<a href="#${s.tab}" class="wizard-step-pill" style="display:block;text-decoration:none;padding:6px 8px;border-radius:6px;background:${bg};color:${color};border:1px solid ${border};text-align:center;font-size:12px;transition:all .15s">`+
      `<div style="font-weight:700;white-space:nowrap">${esc(s.title)}</div>`+
      `<div style="font-size:10px;opacity:.9;margin-top:2px">${esc(s.desc)}</div>`+
@@ -5239,7 +5239,7 @@ function examLinks(r){
   `<button type="button" class="button" data-open-custom-export="${esc(r.id)}" style="background:#4A3AA8;color:#fff;border-color:#4A3AA8;font-weight:700">Tùy biến xuất hồ sơ</button>`+
   `<button type="button" data-compare-exam="${esc(r.id)}">So sánh với đề khác</button>`+
   `<details class="dropdown-menu"><summary>Tải về ▾</summary><div class="dropdown-content">`+
-   (ans?`<a href="/api/exams/${esc(r.id)}/bundle.zip?format=docx" style="font-weight:bold;color:var(--brand,#0a58ca)">Tải trọn bộ Hồ sơ Word (.zip)</a>`+
+   (ans?`<a href="/api/exams/${esc(r.id)}/bundle.zip?format=docx" style="font-weight:bold;color:var(--brand,#4A3AA8)">Tải trọn bộ Hồ sơ Word (.zip)</a>`+
    `<a href="/api/exams/${esc(r.id)}/bundle.zip?format=pdf">Tải trọn bộ Hồ sơ PDF (.zip)</a>`+
    `<hr>`:'')+
    `<a href="${base}?format=docx&answers=0">Word học sinh</a>`+
@@ -5335,7 +5335,7 @@ function renderExams(){
      `<div class="exam-readiness-top"><strong>${isReady?`Ngân hàng đã đủ ${readyCount}/${totalNeed} câu hỏi để tạo đề`:`Đang đáp ứng ${readyCount}/${totalNeed} câu hỏi (${missingItems.length} ô còn thiếu)`}</strong><span class="exam-readiness-pct">${pct}%</span></div>`+
      `<div class="exam-readiness-bar"><div class="exam-readiness-fill" style="width:${pct}%"></div></div>`+
      `<p class="small muted" style="margin:0">Ngân hàng Khối ${esc(d.grade)} hiện có <strong>${gradeQs.length} câu</strong> (${approvedGradeQs} đã duyệt · ${unapprovedGradeQs} Nháp/Chờ duyệt).</p>`+
-     (missingItems.length?`<p class="small" style="margin:6px 0 0;color:#9a3412">Còn thiếu: ${esc(missingItems.slice(0,5).join('; '))}${missingItems.length>5?` và ${missingItems.length-5} mục khác`:''}.</p>`:'')+
+     (missingItems.length?`<p class="small" style="margin:6px 0 0;color:#C62828">Còn thiếu: ${esc(missingItems.slice(0,5).join('; '))}${missingItems.length>5?` và ${missingItems.length-5} mục khác`:''}.</p>`:'')+
     `</div>`;
  const flexBoxHtml=`<div class="exam-flex-switch${d.flexible_mode?' is-on':''}">`+
   `<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:600;color:var(--navy)">`+
@@ -5374,7 +5374,7 @@ function renderExams(){
       `<div class="field span2"><label for="exam-sim-pct">Tỉ lệ câu trùng Đề cương (%)</label><div class="sim-slider-wrap"><input id="exam-sim-pct" type="range" min="0" max="100" step="5" value="${esc(simVal)}"><input id="exam-sim-pct-num" type="number" min="0" max="100" step="1" value="${esc(simVal)}" style="width:74px"><span>%</span><span id="exam-sim-desc" class="small muted">(${simVal}% từ đề cương · ${100-simVal}% câu mới)</span></div></div>`+
       `<div class="field"><label for="exam-sim-mode">Chế độ áp dụng</label><select id="exam-sim-mode"><option value="min"${d.similarity_mode==='min'?' selected':''}>Tối thiểu (≥ ${simVal}%)</option><option value="exact"${d.similarity_mode==='exact'?' selected':''}>Bám sát (${simVal}% đề cương, ${100-simVal}% ngoài)</option></select></div>`+
      `</div>`+
-     `<p id="exam-sim-note" class="small" style="margin:8px 0 0;color:#b45309"${simVal>=90?' hidden':''}>Lưu ý: Quy chuẩn kiểm định chính thức khuyến nghị ≥ 90%. Mức dưới 90% vẫn tạo đề bình thường ở chế độ linh hoạt.</p>`+
+     `<p id="exam-sim-note" class="small" style="margin:8px 0 0;color:#8A5A00"${simVal>=90?' hidden':''}>Lưu ý: Quy chuẩn kiểm định chính thức khuyến nghị ≥ 90%. Mức dưới 90% vẫn tạo đề bình thường ở chế độ linh hoạt.</p>`+
     `</div>`+
     `<details class="sim-details-toggle" style="grid-column:1/-1;margin-top:2px"><summary>Tùy chọn nâng cao (Mã xáo trộn)</summary>`+
      `<div class="form-grid" style="margin-top:10px">`+
@@ -5916,17 +5916,17 @@ function initAiAssistant() {
     if (key && keyInput) {
       keyInput.value = key;
       if (keyStatus) {
-        keyStatus.innerHTML = '<span style="color:#2b8a3e">✓ Đã kết nối chìa khóa Google AI an toàn trên máy Thầy/Cô.</span><br><small style="color:#495057;">Tự động chuyển đổi thông minh: <code>gemini-1.5-flash</code> → <code>gemini-2.0-flash</code> → <code>gemini-1.5-pro</code></small>';
+        keyStatus.innerHTML = '<span style="color:#1F6B52">✓ Đã kết nối chìa khóa Google AI an toàn trên máy Thầy/Cô.</span><br><small style="color:#2E3646;">Tự động chuyển đổi thông minh: <code>gemini-1.5-flash</code> → <code>gemini-2.0-flash</code> → <code>gemini-1.5-pro</code></small>';
       }
       if (quickStatus) {
         quickStatus.innerHTML = '<span style="color:#1F6B52;font-weight:600">Đã kết nối và sẵn sàng nhận diện đề thi </span>';
       }
     } else {
       if (keyStatus) {
-        keyStatus.innerHTML = '<span style="color:#b45309">Chưa cài đặt chìa khóa. Thầy/Cô làm theo 3 bước hướng dẫn bên dưới để nhận miễn phí nhé.</span>';
+        keyStatus.innerHTML = '<span style="color:#8A5A00">Chưa cài đặt chìa khóa. Thầy/Cô làm theo 3 bước hướng dẫn bên dưới để nhận miễn phí nhé.</span>';
       }
       if (quickStatus) {
-        quickStatus.innerHTML = '<span style="color:#b45309;font-weight:600">Chưa gắn chìa khóa AI (Bấm "Đổi chìa khóa AI" bên phải để kết nối trong 1 phút) </span>';
+        quickStatus.innerHTML = '<span style="color:#8A5A00;font-weight:600">Chưa gắn chìa khóa AI (Bấm "Đổi chìa khóa AI" bên phải để kết nối trong 1 phút) </span>';
       }
     }
   }
@@ -6276,7 +6276,7 @@ Câu 3: Đơn vị đo lượng thông tin cơ bản trong máy tính là gì?
     const resContainer = $('#ai-parsed-results-container');
     if (resContainer) {
       resContainer.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 12px;background:#f1f3f5;border-radius:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 12px;background:#F3F4F8;border-radius:6px;">
           <span style="font-size:13px;"><strong>Đã nhận diện thành công ${questionsList.length} câu hỏi.</strong></span>
           <div style="display:flex;gap:6px;">
             <button type="button" class="quiet" id="btn-ai-select-all" style="font-size:11px;">Chọn tất cả</button>
@@ -6472,7 +6472,7 @@ Dưới đây là đề thi / yêu cầu cần chuyển đổi:
     saveKeyBtn.onclick = async () => {
       const key = (keyInput ? keyInput.value : '').trim();
       if (!key) {
-        if (keyStatus) keyStatus.innerHTML = '<span style="color:#d9534f">Vui lòng nhập Chìa khóa Google AI.</span>';
+        if (keyStatus) keyStatus.innerHTML = '<span style="color:#C62828">Vui lòng nhập Chìa khóa Google AI.</span>';
         return;
       }
       if (keyStatus) keyStatus.textContent = '⏳ Đang kiểm tra chìa khóa và tìm kiếm mô hình khả dụng...';
@@ -6501,7 +6501,7 @@ Dưới đây là đề thi / yêu cầu cần chuyển đổi:
         localStorage.setItem('gemini_available_models', JSON.stringify(models));
 
         if (keyStatus) {
-          keyStatus.innerHTML = `<span style="color:#2b8a3e;font-weight:700">✓ Kết nối thành công với Google Gemini!</span><br><small style="color:#1F6B52;">Mô hình tối ưu: <strong>${esc(topModel)}</strong> (Đã kích hoạt tự động chuyển đổi giữa ${models.length} mô hình của tài khoản).</small>`;
+          keyStatus.innerHTML = `<span style="color:#1F6B52;font-weight:700">✓ Kết nối thành công với Google Gemini!</span><br><small style="color:#1F6B52;">Mô hình tối ưu: <strong>${esc(topModel)}</strong> (Đã kích hoạt tự động chuyển đổi giữa ${models.length} mô hình của tài khoản).</small>`;
         }
         checkStoredKey();
         notify(`Đã lưu chìa khóa Google AI thành công! Mô hình đang dùng: ${topModel}`);
@@ -6509,7 +6509,7 @@ Dưới đây là đề thi / yêu cầu cần chuyển đổi:
           dialog.querySelector('[data-ai-tab="parse"]')?.click();
         }, 1200);
       } catch(err) {
-        if (keyStatus) keyStatus.innerHTML = `<span style="color:#d9534f">Không thể kết nối Gemini: ${esc(err.message)}</span>`;
+        if (keyStatus) keyStatus.innerHTML = `<span style="color:#C62828">Không thể kết nối Gemini: ${esc(err.message)}</span>`;
       } finally {
         saveKeyBtn.disabled = false;
       }
@@ -6520,7 +6520,7 @@ Dưới đây là đề thi / yêu cầu cần chuyển đổi:
     clearKeyBtn.onclick = () => {
       localStorage.removeItem('gemini_user_api_key');
       if (keyInput) keyInput.value = '';
-      if (keyStatus) keyStatus.innerHTML = '<span style="color:#6c757d">Đã xóa chìa khóa.</span>';
+      if (keyStatus) keyStatus.innerHTML = '<span style="color:#5B6475">Đã xóa chìa khóa.</span>';
       checkStoredKey();
       notify('Đã xóa chìa khóa Google AI.');
     };
@@ -6584,7 +6584,7 @@ Dưới đây là đề thi / yêu cầu cần chuyển đổi:
             <span>Câu ${idx + 1}</span>
             <span class="badge" style="background:#F2F0FB;color:#4A3AA8;font-size:11px;padding:3px 8px">${esc(friendlyTypes[q.type || 'MC'] || q.type)}</span>
             <span class="badge" style="background:#F3F4F8;color:#4A5263;font-size:11px;padding:3px 8px">${esc(friendlyLevels[q.level || 'Biết'] || q.level)}</span>
-            ${q.competency ? `<span class="badge" style="background:#fef3c7;color:#92400e;font-size:11px;padding:3px 8px;font-weight:700">${esc(q.competency.toUpperCase())}</span>` : ''}
+            ${q.competency ? `<span class="badge" style="background:#FBF4E4;color:#8A5A00;font-size:11px;padding:3px 8px;font-weight:700">${esc(q.competency.toUpperCase())}</span>` : ''}
           </label>
           <button type="button" class="quiet" data-toggle-edit="${cid}" style="font-size:12.5px;cursor:pointer;color:#4A3AA8;font-weight:600">Xem chi tiết & Sửa</button>
         </div>
@@ -6612,7 +6612,7 @@ Dưới đây là đề thi / yêu cầu cần chuyển đổi:
             <p style="margin:4px 0;font-size:13px"><strong>Đáp án trả lời ngắn:</strong> ${esc(C.shortAnswerOf(q))}</p>
           ` : ''}
           ${q.option_explanations && q.option_explanations.length ? `
-            <p style="margin-top:8px;font-size:13px;color:#555;border-top:1px dashed #e0e8f0;padding-top:6px">
+            <p style="margin-top:8px;font-size:13px;color:#555;border-top:1px dashed #E4E7F0;padding-top:6px">
               <em>Lời giải: ${esc(q.option_explanations[corr] || q.option_explanations.join('; '))}</em>
             </p>
           ` : ''}
@@ -6620,7 +6620,7 @@ Dưới đây là đề thi / yêu cầu cần chuyển đổi:
         </div>
 
         <!-- Edit block (hidden by default) -->
-        <div id="${cid}-editor" hidden style="margin-top:10px;padding-top:10px;border-top:1px dashed #c0d0e0;background:#f5f8fb;padding:10px;border-radius:6px">
+        <div id="${cid}-editor" hidden style="margin-top:10px;padding-top:10px;border-top:1px dashed #D5D9E4;background:#F3F4F8;padding:10px;border-radius:6px">
           <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">Nội dung câu hỏi:</label>
           <textarea id="${cid}-edit-q" rows="3" style="width:100%;padding:6px;box-sizing:border-box;margin-bottom:8px;font-family:inherit">${esc(q.question || '')}</textarea>
 
@@ -6937,7 +6937,7 @@ Hãy trả về duy nhất mảng JSON các câu hỏi (không thêm bất kỳ 
           if (msg) msg.innerHTML = `<span style="color:#1F6B52">✓ Đã nhận diện ngoại tuyến ${localParsed.length} câu hỏi (Google AI bận: ${esc(err.message)})</span>`;
           notify(`Google AI phản hồi: ${err.message}. Hệ thống đã tự động chuyển sang chế độ Ngoại tuyến và lấy được ${localParsed.length} câu hỏi!`);
         } else {
-          if (msg) msg.innerHTML = `<span style="color:#d9534f">Lỗi: ${esc(err.message)}</span>`;
+          if (msg) msg.innerHTML = `<span style="color:#C62828">Lỗi: ${esc(err.message)}</span>`;
           notify('Lỗi nhận diện: ' + err.message, true);
         }
       } finally {
@@ -7166,7 +7166,7 @@ function initUserGuide() {
     tabBtn.onclick = () => {
       dialog.querySelectorAll('[data-help-tab]').forEach(b => {
         b.classList.remove('active');
-        b.style.background = '#f5f5f5';
+        b.style.background = '#F3F4F8';
         b.style.color = '#333';
       });
       tabBtn.classList.add('active');
@@ -7190,7 +7190,7 @@ function initUserGuide() {
         await navigator.clipboard.writeText(textToCopy);
         const originalText = copyBtn.textContent;
         copyBtn.textContent = '✓ Đã sao chép vào bộ nhớ đệm!';
-        copyBtn.style.background = 'var(--green, #1d7058)';
+        copyBtn.style.background = 'var(--green, #1F6B52)';
         setTimeout(() => {
           copyBtn.textContent = originalText;
           copyBtn.style.background = '';

@@ -1,3 +1,9 @@
+## 25/11/2026 — Đề cương: tăng/giảm tỉ lệ câu của đề theo từng dạng; ô ma trận đánh số thuần
+
+- Khung "Đối chiếu đề thi với đề cương" có ô tỉ lệ riêng cho từng dạng (Trắc nghiệm, Đúng/Sai, Trả lời ngắn, Tự luận) và nút "Điều chỉnh đề cương theo tỉ lệ" (`/api/revisions/align-to-exam`, thay `trim-to-exam` cũ, vẫn nhận tên cũ). Thiếu thì thêm câu của đề vào đề cương (lấy câu gốc trong Ngân hàng, nhận cả câu đã trộn phương án); dư thì bớt, giữ YCCĐ. Xem trước số câu thêm/bớt và tỉ lệ chung; dưới 90% (quy định tổ) thì cảnh báo nhưng vẫn cho làm. Đề cương đã khóa thì lưu phiên bản mới.
+- Báo cáo đối chiếu có thêm `by_type` (số câu, có trong đề cương, % theo dạng).
+- Ô bảng ma trận ghi số câu thuần `(1, 2)`, `(1a, 1b)` thay cho `(Câu 1, Câu 2)` (rules/02). Bảng đặc tả vẫn ghi `(Câu 1, Câu 2)` cuối YCCĐ.
+
 ## 25/11/2026 — Trả lại giao diện cũ; Word ma trận khổ ngang; đề cương nhập số câu tùy ý và đúng 90% nội dung đề
 
 - **Giao diện:** giáo viên thấy bản mới xấu hơn. Gỡ các đợt đổi giao diện (màu tím, phông Be Vietnam Pro, thanh bên sáng, nhóm điều hướng, bỏ emoji, menu "Thêm"); trả lại khung, màu xanh Á Châu #0267B1 (đúng AGENTS.md), emoji và nhãn cũ. Giữ chức năng mới: trang Hồ sơ kiểm tra (trong Tổng quan), thanh 6 bước của kỳ kiểm tra, số câu sẵn có trong ô ma trận 2D; `theme.css` chỉ còn kiểu cho ba thành phần này, theo màu cũ. Django chèn ô chọn môn lại trước `<p class="nav-caption">`.

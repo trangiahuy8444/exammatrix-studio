@@ -300,7 +300,8 @@
     const missingOutcomes=[...new Set(items.filter(x=>!x.outcome_in_revision).map(x=>x.lesson_code+' · '+(qs.find(q=>q.id===x.question_id)?.learning_outcome||'')))];
     return {exam_id:exam?.id||null,exam_title:exam?.title||'',exam_code:exam?.exam_code||'',total:items.length,in_revision:inItems.length,count_percent:items.length?Math.round(1000*inItems.length/items.length)/10:0,
       points_percent:pts?Math.round(1000*inItems.reduce((n,x)=>n+x.points,0)/pts)/10:0,outcome_percent:items.length?Math.round(1000*items.filter(x=>x.outcome_in_revision).length/items.length)/10:0,
-      threshold:Number(exam?.similarity_target_percent)||90,required:Math.ceil(items.length*(Number(exam?.similarity_target_percent)||90)/100),missing_outcomes:missingOutcomes,items};
+      threshold:Number(exam?.similarity_target_percent)||90,required:Math.ceil(items.length*(Number(exam?.similarity_target_percent)||90)/100),missing_outcomes:missingOutcomes,
+      by_type:Object.fromEntries(['MC','YN','SHORT','ES'].filter(t=>items.some(x=>x.type===t)).map(t=>{const all=items.filter(x=>x.type===t),inn=all.filter(x=>x.in_revision).length;return [t,{total:all.length,in_revision:inn,percent:Math.round(1000*inn/all.length)/10}];})),items};
   }
   function proposeRevision(data,payload){if(payload&&'title' in payload&&!text(payload.title))fail('Cần nhập tên đề cương.');const p=plan(data,payload);let revision;
     if(text(payload?.title)){const qs=p.question_ids.map(id=>data.bank.questions.find(q=>q.id===id));revision=freeze({id:ident('REV',data.revisions,payload,qs),title:payload.title.trim(),grade:payload.grade,subject_name:payload.subject_name||payload.subject,exam_type:payload.exam_type,created_at:payload.created_at||null,question_count:qs.length,questions:qs.map(q=>({...clone(q),content_hash:contentHash(q),source_snapshot_hash:fingerprint(q)}))});}

@@ -609,30 +609,66 @@
    if(!p.exam_id&&!exams.length)exams=data.exams.filter(e=>sameSubject(e)&&Number(e.grade)===Number(rev.grade));
    return result({revision:{id:rev.id,title:rev.title,grade:rev.grade,question_count:(rev.questions||[]).length},reports:exams.map(e=>engine.revisionCoverage(e,rev))});
   }
-  if(path==='/api/revisions/trim-to-exam'){
-   // Đưa đề cương về đúng tỉ lệ X% câu của một đề (mặc định 90%): bớt khỏi đề cương những câu của đề vượt mức.
-   // Ưu tiên bớt câu mà YCCĐ vẫn còn câu khác trong đề cương, rồi câu mức cao, tự luận trước (như cách chọn câu ngoài đề cương khi tạo đề).
+  if(path==='/api/revisions/trim-to-exam'||path==='/api/revisions/align-to-exam'){
+   // Cân chỉnh đề cương theo tỉ lệ câu của một đề có trong đề cương, riêng từng dạng (VD: TN 90%, TL 100%).
+   // Thiếu thì THÊM câu của đề (lấy câu gốc trong Ngân hàng, kể cả bản đã trộn phương án); dư thì BỚT câu của đề,
+   // ưu tiên câu mà YCCĐ vẫn còn câu khác trong đề cương, rồi câu mức cao, tự luận trước.
    const rev=own(find(data.revisions,p.revision_id)),exam=own(find(data.exams,p.exam_id));
    if(typeof engine.fingerprint!=='function')fail('Bộ xử lý chưa hỗ trợ đối chiếu đề cương. Vui lòng tải lại trang.',503);
-   const pct=Math.max(90,Math.min(100,Math.round(Number(p.percent)||90)));
-   const eqs=exam.questions||[],total=eqs.length;if(!total)fail('Đề chưa có câu hỏi.');
-   const keep=Math.ceil(total*pct/100),efps=new Set(eqs.map(q=>engine.fingerprint(q)));
-   const revQs=rev.questions||[],inside=revQs.filter(q=>efps.has(engine.fingerprint(q)));
-   const removeN=inside.length-keep;
-   if(removeN<=0)fail(`Đề cương đang có ${inside.length}/${total} câu của đề (${Math.round(1000*inside.length/total)/10}%), không vượt ${pct}%; không cần bớt câu.`);
+   const fp=engine.fingerprint,eqs=exam.questions||[],total=eqs.length;if(!total)fail('Đề chưa có câu hỏi.');
+   const TYPES=['MC','YN','SHORT','ES'],NAME={MC:'trắc nghiệm',YN:'Đúng/Sai',SHORT:'trả lời ngắn',ES:'tự luận'};
+   const clampPct=v=>Math.max(0,Math.min(100,Math.round(Number(v))));
+   const base=p.percent!=null&&Number.isFinite(Number(p.percent))?clampPct(p.percent):90;
+   const targets={};TYPES.forEach(t=>{const v=p.targets&&p.targets[t];targets[t]=v!=null&&v!==''&&Number.isFinite(Number(v))?clampPct(v):base;});
+   const revQs=rev.questions||[],revFps=new Map(revQs.map(q=>[fp(q),q]));
    const okey=q=>q.lesson_code+'|'+q.learning_outcome,count=new Map();revQs.forEach(q=>count.set(okey(q),(count.get(okey(q))||0)+1));
    const lv={'Vận dụng cao':4,'Vận dụng':3,'Hiểu':2,'Biết':1},kd={ES:4,SHORT:3,YN:2,MC:1};
-   const removed=[];let pool=inside.slice();
-   for(let k=0;k<removeN;k++){
-    pool.sort((a,b)=>Number((count.get(okey(b))||0)>1)-Number((count.get(okey(a))||0)>1)||(lv[b.level]||0)-(lv[a.level]||0)||(kd[b.type]||0)-(kd[a.type]||0)||String(a.id).localeCompare(String(b.id)));
-    const q=pool.shift();removed.push(q);count.set(okey(q),(count.get(okey(q))||0)-1);
+   const bankByFp=new Map();bank.forEach(q=>{if(q.review_status!=='archived'&&Number(q.grade)===Number(rev.grade)){const k=fp(q);if(!bankByFp.has(k))bankByFp.set(k,q);}});
+   const removed=[],added=[],missingInBank=[],byType={};
+   // Chỉ một tỉ lệ chung: tổng số câu cần có = làm tròn lên của cả đề, chia cho các dạng theo phần lẻ lớn nhất (không dư câu).
+   const sharedWant={};
+   if(!p.targets){
+    const present=TYPES.filter(t=>eqs.some(q=>q.type===t)),need=Math.ceil(total*base/100);
+    const exact=present.map(t=>eqs.filter(q=>q.type===t).length*base/100),fl=exact.map(Math.floor);
+    let extra=need-fl.reduce((a,b)=>a+b,0);
+    present.map((t,i)=>({i,f:exact[i]-fl[i]})).sort((a,b)=>b.f-a.f||a.i-b.i).forEach(x=>{if(extra>0){fl[x.i]++;extra--;}});
+    present.forEach((t,i)=>{sharedWant[t]=fl[i];});
    }
-   const gone=new Set(removed.map(q=>q.id)),ids=revQs.filter(q=>!gone.has(q.id)).map(q=>q.id);
+   for(const t of TYPES){
+    const eT=eqs.filter(q=>q.type===t);if(!eT.length)continue;
+    const want=sharedWant[t]??Math.ceil(eT.length*targets[t]/100);
+    const inside=eT.filter(q=>revFps.has(fp(q))).map(q=>revFps.get(fp(q)));
+    const outside=eT.filter(q=>!revFps.has(fp(q)));
+    if(inside.length>want){
+     let pool=inside.slice();
+     for(let k=inside.length-want;k>0;k--){
+      pool.sort((a,b)=>Number((count.get(okey(b))||0)>1)-Number((count.get(okey(a))||0)>1)||(lv[b.level]||0)-(lv[a.level]||0)||(kd[b.type]||0)-(kd[a.type]||0)||String(a.id).localeCompare(String(b.id)));
+      const q=pool.shift();removed.push(q);count.set(okey(q),(count.get(okey(q))||0)-1);
+     }
+    }else if(inside.length<want){
+     for(const q of outside){
+      if(added.filter(x=>x.type===t).length>=want-inside.length)break;
+      const src=bankByFp.get(fp(q))||bank.find(b=>b.id===q.id&&b.review_status!=='archived'&&Number(b.grade)===Number(rev.grade));
+      if(!src){missingInBank.push(q);continue;}
+      if(!added.some(x=>x.id===src.id)&&!revQs.some(x=>x.id===src.id))added.push(src);
+     }
+    }
+    const now=inside.length-removed.filter(q=>q.type===t).length+added.filter(q=>q.type===t).length;
+    byType[t]={total:eT.length,target:targets[t],wanted:want,before:inside.length,after:now};
+   }
+   if(!removed.length&&!added.length)fail(missingInBank.length?`Không thêm được: ${missingInBank.length} câu của đề không còn trong Ngân hàng (đã xóa hoặc lưu trữ).`:'Đề cương đã đúng tỉ lệ đặt ra; không cần thay đổi.');
+   const gone=new Set(removed.map(q=>q.id)),ids=[...revQs.filter(q=>!gone.has(q.id)).map(q=>q.id),...added.map(q=>q.id)];
    let locked=false;try{checkRevision(rev);}catch(e){locked=true;}
+   const after=Object.values(byType).reduce((n,x)=>n+x.after,0),overall=Math.round(1000*after/total)/10;
+   const label=p.targets?Object.entries(byType).map(([t,x])=>`${NAME[t]} ${x.target}%`).join(', '):`${base}% đề`;
    const revision=locked
-    ?saveRevision({title:rev.title+` (${pct}% đề)`,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent})
+    ?saveRevision({title:rev.title+` (${label})`,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent})
     :saveRevision({title:rev.title,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent},rev);
-   return result({revision,revisions:data.revisions,new_version:locked,total,kept:keep,removed:removed.map(q=>({id:q.id,type:q.type,lesson_code:q.lesson_code,level:q.level,question:String(q.question||'').replace(/\s+/g,' ').slice(0,120),outcome_still_covered:(count.get(okey(q))||0)>0}))},true);
+   const brief=q=>({id:q.id,type:q.type,lesson_code:q.lesson_code,level:q.level,question:String(q.question||'').replace(/\s+/g,' ').slice(0,120)});
+   const warnings=[];if(overall<90)warnings.push(`Tỉ lệ chung còn ${String(overall).replace('.',',')}% câu của đề có trong đề cương, dưới mức 90% theo quy định của tổ (AGENTS.md, rules/01).`);
+   if(missingInBank.length)warnings.push(`${missingInBank.length} câu của đề không còn trong Ngân hàng nên không thêm được vào đề cương.`);
+   return result({revision,revisions:data.revisions,new_version:locked,total,kept:after,overall_percent:overall,by_type:byType,
+    added:added.map(brief),removed:removed.map(q=>({...brief(q),outcome_still_covered:(count.get(okey(q))||0)>0})),warnings},true);
   }
   if(path==='/api/revisions/import'){
    // Nhập đề cương từ tệp (Markdown/JSON đã đọc ở trình duyệt): thêm câu mới vào Ngân hàng (Nháp), dùng lại câu đã có

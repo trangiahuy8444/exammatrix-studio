@@ -5089,23 +5089,41 @@ async function renderRevisionCoverage(rev){
    <div class="callout" style="margin:0">Theo điểm: <strong>${String(rep.points_percent).replace('.',',')}%</strong></div>
    <div class="callout ${rep.outcome_percent<100?'warning':''}" style="margin:0">Câu có YCCĐ trong đề cương: <strong>${String(rep.outcome_percent).replace('.',',')}%</strong></div>
   </div>
-  ${rep.in_revision>rep.required?`<div class="callout" style="margin:10px 0"><strong>Đề cương đang chứa ${rep.in_revision}/${rep.total} câu của đề (${String(rep.count_percent).replace('.',',')}%).</strong> Quy định yêu cầu ít nhất ${rep.threshold}% (${rep.required} câu). Muốn đề cương chỉ chứa đúng ${rep.required} câu của đề, bấm nút dưới: ứng dụng bớt ${rep.in_revision-rep.required} câu của đề khỏi đề cương, ưu tiên câu mà YCCĐ vẫn còn câu khác trong đề cương.<div class="actions" style="margin-top:8px"><button type="button" class="primary" id="rev-trim-to-exam">Bớt ${rep.in_revision-rep.required} câu để đề cương còn ${rep.threshold}% nội dung đề</button></div></div>`:''}
+  ${(()=>{const NAME={MC:'Trắc nghiệm',YN:'Đúng/Sai',SHORT:'Trả lời ngắn',ES:'Tự luận'},bt=rep.by_type||{},keys=Object.keys(bt);if(!keys.length)return '';
+   store.revCovTargets=store.revCovTargets||{};
+   return `<div class="callout" style="margin:10px 0"><strong>Điều chỉnh tỉ lệ câu của đề có trong đề cương</strong>
+   <p class="small muted" style="margin:4px 0 8px">Đặt tỉ lệ cho từng dạng rồi bấm "Điều chỉnh đề cương". Thiếu thì ứng dụng THÊM câu của đề (lấy câu gốc trong Ngân hàng, kể cả câu đã trộn phương án); dư thì BỚT câu của đề, giữ YCCĐ. Quy định của tổ: tỉ lệ chung ít nhất 90% (AGENTS.md).</p>
+   <div class="form-grid" style="margin-bottom:8px">${keys.map(t=>`<div class="field"><label for="rev-cov-target-${t}">${NAME[t]||t} <span class="muted">(đang có ${bt[t].in_revision}/${bt[t].total} câu · ${String(bt[t].percent).replace('.',',')}%)</span></label><div style="display:flex;align-items:center;gap:6px"><input id="rev-cov-target-${t}" data-rev-cov-target="${t}" type="number" min="0" max="100" step="5" value="${esc(store.revCovTargets[t]??rep.threshold)}" style="width:90px"><span>%</span></div></div>`).join('')}</div>
+   <div class="actions"><button type="button" class="primary" id="rev-align-to-exam">Điều chỉnh đề cương theo tỉ lệ</button><span class="small muted" id="rev-align-preview"></span></div></div>`;})()}
   ${missing.length?`<h4>Câu của đề CHƯA có trong đề cương (${missing.length})</h4>${table(missing)}`:'<p class="badge approved">Mọi câu của đề đều có trong đề cương.</p>'}
   ${rep.missing_outcomes.length?`<p class="small"><strong>YCCĐ của đề chưa có trong đề cương:</strong> ${rep.missing_outcomes.map(esc).join('; ')}</p>`:''}
   ${present.length?`<details><summary>Câu đã có trong đề cương (${present.length})</summary>${table(present)}</details>`:''}
   <p class="small muted">Chỉ xem, không thay đổi dữ liệu. "Có trong đề cương" nghĩa là trùng nội dung câu hỏi, phương án và đáp án (kể cả khi đã trộn mã đề).</p>`;
  $('#rev-cov-exam').onchange=e=>{store.revCoverageExamId=e.target.value;renderRevisionCoverage(rev);};
- if($('#rev-trim-to-exam'))$('#rev-trim-to-exam').onclick=async()=>{
-  const n=rep.in_revision-rep.required;
-  if(!confirm(`Bớt ${n} câu của đề "${chosen.title||chosen.id}" khỏi đề cương "${rev.title}" để đề cương còn ${rep.threshold}% nội dung đề?\nCác câu bị bớt vẫn còn trong Ngân hàng; có thể thêm lại sau.`))return;
-  await mutate('/api/revisions/trim-to-exam',{revision_id:rev.id,exam_id:chosen.id,percent:rep.threshold},res=>{
+ const covPreview=()=>{const bt=rep.by_type||{},parts=[];let after=0;
+  document.querySelectorAll('[data-rev-cov-target]').forEach(inp=>{const t=inp.dataset.revCovTarget,x=bt[t];if(!x)return;const pct=Math.max(0,Math.min(100,Math.round(Number(inp.value)||0)));store.revCovTargets[t]=pct;const want=Math.ceil(x.total*pct/100);after+=want;const d=want-x.in_revision;if(d)parts.push(`${d>0?'thêm':'bớt'} ${Math.abs(d)} câu ${({MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'})[t]||t}`);});
+  const overall=rep.total?Math.round(1000*after/rep.total)/10:0,el=$('#rev-align-preview');
+  if(el)el.innerHTML=(parts.length?`Sẽ ${parts.join(', ')}. `:'Đề cương đã đúng tỉ lệ đặt ra. ')+`Tỉ lệ chung sau điều chỉnh: <strong${overall<90?' style="color:#b91c1c"':''}>${after}/${rep.total} câu (${String(overall).replace('.',',')}%)</strong>${overall<90?' — dưới 90%':''}.`;
+  return {parts,overall};};
+ document.querySelectorAll('[data-rev-cov-target]').forEach(inp=>{inp.oninput=covPreview;});
+ covPreview();
+ if($('#rev-align-to-exam'))$('#rev-align-to-exam').onclick=async()=>{
+  const {parts,overall}=covPreview();
+  if(!parts.length){notify('Đề cương đã đúng tỉ lệ đặt ra; không cần thay đổi.');return;}
+  if(!confirm(`Điều chỉnh đề cương "${rev.title}" theo đề "${chosen.title||chosen.id}": ${parts.join(', ')}.\nTỉ lệ chung sau điều chỉnh: ${String(overall).replace('.',',')}%${overall<90?' (dưới mức 90% của tổ)':''}.\nCâu bị bớt vẫn còn trong Ngân hàng.`))return;
+  const targets={};Object.keys(rep.by_type||{}).forEach(t=>{targets[t]=store.revCovTargets[t]??rep.threshold;});
+  await mutate('/api/revisions/align-to-exam',{revision_id:rev.id,exam_id:chosen.id,targets},res=>{
    if(res.revisions)store.revisions=res.revisions;
    store.activeRevisionViewId=res.revision.id;store.revCoverageExamId=chosen.id;
    renderRevisions();
-   const list=(res.removed||[]).map(q=>`- ${q.lesson_code} · ${q.level} · ${q.question}${q.outcome_still_covered?'':' (YCCĐ này không còn câu nào trong đề cương)'}`).join('\n');
-   notify(`${res.new_version?`Đề cương cũ đã khóa nên đã lưu phiên bản mới "${res.revision.title}". `:''}Đã bớt ${res.removed.length} câu; đề cương giờ chứa ${res.kept}/${res.total} câu của đề.\n${list}`);
+   const line=q=>`- ${q.lesson_code} · ${q.level} · ${q.question}`;
+   notify(`${res.new_version?`Đề cương cũ đã khóa nên đã lưu phiên bản mới "${res.revision.title}". `:''}Đề cương giờ chứa ${res.kept}/${res.total} câu của đề (${String(res.overall_percent).replace('.',',')}%).`
+    +(res.added?.length?`\nĐã thêm ${res.added.length} câu:\n${res.added.map(line).join('\n')}`:'')
+    +(res.removed?.length?`\nĐã bớt ${res.removed.length} câu:\n${res.removed.map(line).join('\n')}`:'')
+    +(res.warnings?.length?`\nLưu ý: ${res.warnings.join(' ')}`:''),Boolean(res.warnings?.length));
   });
  };
+
 }
 function startEditRevision(id){
  const r=store.revisions.find(x=>x.id===id);if(!r)return;

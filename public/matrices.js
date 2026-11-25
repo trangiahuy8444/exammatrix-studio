@@ -2020,7 +2020,8 @@
             row.cells[cellKey] = { count: 0, refs: [], points: 0 };
           }
           row.cells[cellKey].count += 1;
-          row.cells[cellKey].refs.push(label);
+          // Ô ma trận đánh số thuần: (1, 2), (1a, 1b) — không có chữ "Câu" (rules/02_danh_so_cau_hoi.md).
+          row.cells[cellKey].refs.push(`${slot.number}${part.label || ''}`);
           row.cells[cellKey].points += pts;
 
           row.counts[level] = (row.counts[level] || 0) + 1;

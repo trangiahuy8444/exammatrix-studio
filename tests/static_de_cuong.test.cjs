@@ -140,9 +140,7 @@ test('Đưa đề cương về 90% nội dung đề: bớt đúng số câu vư�
   r = await api.handle('/api/revisions/coverage', { revision_id: rev.id, exam_id: 'E1' }, data, env);
   assert.equal(r.response.reports[0].in_revision, 18);
   assert.equal(r.response.reports[0].count_percent, 90);
-  await assert.rejects(api.handle('/api/revisions/trim-to-exam', { revision_id: rev.id, exam_id: 'E1', percent: 90 }, data, env), /không cần bớt/);
-  const low = await api.handle('/api/revisions/trim-to-exam', { revision_id: rev.id, exam_id: 'E1', percent: 85 }, data, env).catch(e => e);
-  assert.match(String(low.message || ''), /không cần bớt/, 'Tỉ lệ dưới 90% được nâng lên 90%');
+  await assert.rejects(api.handle('/api/revisions/trim-to-exam', { revision_id: rev.id, exam_id: 'E1', percent: 90 }, data, env), /không cần thay đổi/);
   // Đề cương gắn với đề đã khóa: không sửa tại chỗ, lưu phiên bản mới.
   r = await api.handle('/api/revisions/save', { title: 'ĐC đủ', grade: 9, question_ids: ids }, data, env);
   data = r.data; const full = r.response.revision;
@@ -152,4 +150,25 @@ test('Đưa đề cương về 90% nội dung đề: bớt đúng số câu vư�
   assert.notEqual(r.response.revision.id, full.id);
   assert.equal(r.response.revision.title, 'ĐC đủ (90% đề)');
   assert.equal(r.data.revisions.find(x => x.id === full.id).questions.length, 20, 'Bản đã khóa giữ nguyên');
+});
+
+test('Tăng tỉ lệ đề cương: thêm câu của đề (kể cả bản đã trộn phương án) theo tỉ lệ riêng TN/TL; dưới 90% thì cảnh báo', async () => {
+  let data = workspace({ mcB1: 20, mcB2: 0, es: 4 });
+  let r = await api.handle('/api/revisions/save', { title: 'ĐC ít', grade: 9, question_ids: ['B1-0', 'B1-1'] }, data, env);
+  data = r.data; const rev = r.response.revision;
+  const q = id => ({ ...data.bank.questions.find(x => x.id === id) });
+  const mcs = Array.from({ length: 10 }, (_, i) => ({ ...q('B1-' + i), slot_number: i + 1, points: 0.25 }));
+  mcs[5].options = [...mcs[5].options].reverse(); mcs[5].correct = 3; mcs[5].id = 'B1-5-ma102';
+  data.exams = [{ id: 'E2', title: 'Đề', grade: 9, subject_name: 'Tin học', revision_id: rev.id, status: 'draft', questions: [...mcs, { ...q('ES-0'), slot_number: 1, points: 3 }, { ...q('ES-1'), slot_number: 2, points: 3 }] }];
+  r = await api.handle('/api/revisions/coverage', { revision_id: rev.id, exam_id: 'E2' }, data, env);
+  assert.deepEqual(r.response.reports[0].by_type, { MC: { total: 10, in_revision: 2, percent: 20 }, ES: { total: 2, in_revision: 0, percent: 0 } });
+  r = await api.handle('/api/revisions/align-to-exam', { revision_id: rev.id, exam_id: 'E2', targets: { MC: 90, ES: 50 } }, data, env);
+  data = r.data;
+  assert.deepEqual(r.response.by_type.MC, { total: 10, target: 90, wanted: 9, before: 2, after: 9 });
+  assert.deepEqual(r.response.by_type.ES, { total: 2, target: 50, wanted: 1, before: 0, after: 1 });
+  assert.ok(r.response.added.some(x => x.id === 'B1-5'), 'Câu đã trộn phương án được thêm bằng câu gốc trong Ngân hàng');
+  assert.ok(r.response.warnings.some(w => /dưới mức 90%/.test(w)), 'Tỉ lệ chung 10/12 = 83,3% < 90% thì cảnh báo');
+  r = await api.handle('/api/revisions/coverage', { revision_id: rev.id, exam_id: 'E2' }, data, env);
+  assert.equal(r.response.reports[0].in_revision, 10);
+  assert.equal(r.response.reports[0].by_type.MC.in_revision, 9);
 });

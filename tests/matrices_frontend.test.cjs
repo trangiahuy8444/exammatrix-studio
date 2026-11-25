@@ -828,6 +828,9 @@ Khối: 9
       assert.ok(docText.includes('<w:vMerge w:val="restart"/>') && docText.includes('<w:gridSpan w:val="'), 'Gộp ô dọc và ngang thành bảng Word gốc');
       assert.ok(docText.includes('<w:tblW w:w="13606" w:type="dxa"/>'), 'Bảng rộng đúng 24 cm');
       assert.ok(!docText.includes('altChunk') && !docText.includes('<table'), 'Không nhúng HTML: mở được cả ở Google Docs, Pages');
+      const matrixOnly = ui.generateMatrixWordHtml(mTest, 'matrix');
+      assert.ok(matrixOnly.includes('<small>(1)</small>') && !/<small>\(Câu/.test(matrixOnly), 'Ô ma trận đánh số thuần (1), không có chữ Câu');
+      assert.ok(ui.generateMatrixWordHtml(mTest, 'specification').includes('Câu 1'), 'Bảng đặc tả vẫn ghi (Câu 1) cuối YCCĐ');
       console.log('PASS matrix UI: downloadMatrixWord xuất đúng nội dung Web khổ Landscape ngay cả trên bản Pages');
     } finally {
       global.window = prevWin;

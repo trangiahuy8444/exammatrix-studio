@@ -315,13 +315,140 @@
   const revisionPlanFor = (counts, opts) => core && typeof core.computeRevisionPlan === 'function'
     ? core.computeRevisionPlan(counts, opts)
     : null;
-  // Đối chiếu một đề với đề cương: câu nào có trong đề cương (trùng nội dung), câu nào chưa; tỉ lệ theo số câu, theo điểm; phủ YCCĐ.
+  function compactQuestionDetail(q) {
+    if (!q || typeof q !== 'object') return null;
+    const out = {
+      id: q.id || null,
+      type: q.type || 'MC',
+      lesson_code: q.lesson_code || '',
+      level: q.level || '',
+      learning_outcome: q.learning_outcome || '',
+      question: String(q.question || '')
+    };
+    if (Array.isArray(q.options)) {
+      out.options = q.options.map(o => String(o ?? ''));
+      const cIdx = Number(q.correct);
+      out.correct = Number.isInteger(cIdx) && cIdx >= 0 && cIdx < out.options.length ? cIdx : null;
+    }
+    if (Array.isArray(q.statements)) {
+      out.statements = q.statements.map((st, idx) => ({
+        label: String(st?.label || ('abcd'[idx] || String(idx + 1))),
+        text: String(typeof st === 'object' ? (st?.text ?? '') : (st ?? '')),
+        correct: Boolean(typeof st === 'object' && st?.correct === true)
+      }));
+    }
+    if (q.type === 'SHORT') {
+      out.short_answer = String(q.short_answer ?? q.correct_answer ?? q.answer ?? '');
+    }
+    if (Array.isArray(q.rubric)) {
+      out.rubric = q.rubric.map(r => ({
+        criterion: String(r?.criterion ?? ''),
+        points: Number(r?.points || 0)
+      }));
+    }
+    return out;
+  }
+  function buildOptionMap(examQ, revQ) {
+    if (!examQ || !revQ) return [];
+    const type = examQ.type || revQ.type;
+    if (type === 'MC' && Array.isArray(examQ.options) && Array.isArray(revQ.options)) {
+      const used = new Set();
+      const eCorr = Number(examQ.correct);
+      const rCorr = Number(revQ.correct);
+      return examQ.options.map((rawOpt, ei) => {
+        const key = norm(rawOpt);
+        const eIsCorr = ei === eCorr;
+        let ri = revQ.options.findIndex((ro, idx) => !used.has(idx) && norm(ro) === key && (idx === rCorr) === eIsCorr);
+        if (ri < 0) ri = revQ.options.findIndex((ro, idx) => !used.has(idx) && norm(ro) === key);
+        if (ri >= 0) used.add(ri);
+        return {
+          exam_index: ei,
+          revision_index: ri,
+          same_text: ri >= 0,
+          same_correct: ri >= 0 ? eIsCorr === (ri === rCorr) : false
+        };
+      });
+    }
+    if (type === 'YN' && Array.isArray(examQ.statements) && Array.isArray(revQ.statements)) {
+      const used = new Set();
+      return examQ.statements.map((est, ei) => {
+        const eTxt = norm(typeof est === 'object' ? est?.text : est);
+        const eOk = Boolean(typeof est === 'object' && est?.correct === true);
+        let ri = revQ.statements.findIndex((rst, idx) => !used.has(idx) && norm(typeof rst === 'object' ? rst?.text : rst) === eTxt && Boolean(typeof rst === 'object' && rst?.correct === true) === eOk);
+        if (ri < 0) ri = revQ.statements.findIndex((rst, idx) => !used.has(idx) && norm(typeof rst === 'object' ? rst?.text : rst) === eTxt);
+        if (ri >= 0) used.add(ri);
+        return {
+          exam_index: ei,
+          revision_index: ri,
+          same_text: ri >= 0,
+          same_correct: ri >= 0 ? eOk === Boolean(typeof revQ.statements[ri] === 'object' && revQ.statements[ri]?.correct === true) : false
+        };
+      });
+    }
+    return [];
+  }
+  // Đối chiếu một đề với đề cương: câu nào có trong đề cương (trùng nội dung), câu nào chưa; tỉ lệ theo số câu, theo điểm; phủ YCCĐ; vị trí trực quan.
   function revisionCoverage(exam,revision,ppct) {
     const PART={MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'},qs=list(exam?.questions),rs=list(revision?.questions);
     const ok=outcomeKeyFn(ppct||exam?.ppct_snapshot),fps=new Set(rs.map(matchKey)),outcomes=new Set(rs.map(ok)),texts=new Set(rs.map(stemKey));
-    const items=qs.map((q,i)=>{const inRev=fps.has(matchKey(q));return {label:(PART[q.type]||q.type)+' câu '+(q.slot_number??(i+1)),question_id:q.id,type:q.type,lesson_code:q.lesson_code,level:q.level,points:Number(q.points)||0,question:String(q.question||'').replace(/\s+/g,' ').slice(0,160),in_revision:inRev,similar_text:!inRev&&texts.has(stemKey(q)),outcome_in_revision:outcomes.has(ok(q))};});
+    const revPartCounter={MC:0,YN:0,SHORT:0,ES:0},byMatch=new Map(),byStem=new Map();
+    rs.forEach((rq,ri)=>{
+      const rType=rq?.type||'MC';
+      const nextPart=(revPartCounter[rType]=(revPartCounter[rType]||0)+1);
+      const revPartNum=Number(rq?.slot_number)||nextPart;
+      const revLabel=(PART[rType]||rType)+' câu '+revPartNum;
+      const entry={q:rq,revision_question_id:rq?.id||null,revision_label:revLabel,revision_order:ri+1,revision_part_number:revPartNum};
+      const mk=matchKey(rq),sk=stemKey(rq);
+      if(!byMatch.has(mk))byMatch.set(mk,entry);
+      if(!byStem.has(sk))byStem.set(sk,entry);
+    });
+    const examPartCounter={MC:0,YN:0,SHORT:0,ES:0};
+    const items=qs.map((q,i)=>{
+      const qType=q?.type||'MC';
+      const nextPart=(examPartCounter[qType]=(examPartCounter[qType]||0)+1);
+      const partNum=q.slot_number??nextPart;
+      const mk=matchKey(q),sk=stemKey(q);
+      const inRev=fps.has(mk);
+      const simText=!inRev&&texts.has(sk);
+      const mEntry=byMatch.get(mk)||null;
+      const sEntry=!mEntry?(byStem.get(sk)||null):null;
+      const target=mEntry||sEntry;
+      const relation=target&&core&&typeof core.questionRelation==='function'
+        ?core.questionRelation(target.q,q)
+        :(mEntry?'trung_han':(sEntry?'cung_loi_dan':null));
+      const matchType=relation==='trung_han'?'exact':(relation==='tron_phuong_an'?'shuffled':(relation==='cung_loi_dan'?'similar':'outside'));
+      return {
+        label:(PART[qType]||qType)+' câu '+partNum,
+        question_id:q.id,
+        type:qType,
+        lesson_code:q.lesson_code,
+        level:q.level,
+        points:Number(q.points)||0,
+        question:String(q.question||'').replace(/\s+/g,' ').slice(0,160),
+        in_revision:inRev,
+        similar_text:simText,
+        outcome_in_revision:outcomes.has(ok(q)),
+        exam_order:i+1,
+        part_number:partNum,
+        match_type:matchType,
+        match_relation:relation,
+        revision_question_id:target?.revision_question_id||null,
+        revision_label:target?.revision_label||null,
+        revision_order:target?.revision_order||null,
+        revision_part_number:target?.revision_part_number||null,
+        option_map:target&&(qType==='MC'||qType==='YN')?buildOptionMap(q,target.q):[],
+        exam_detail:compactQuestionDetail(q),
+        revision_detail:target?compactQuestionDetail(target.q):null
+      };
+    });
     const pts=items.reduce((n,x)=>n+x.points,0),inItems=items.filter(x=>x.in_revision);
     const missingOutcomes=[...new Set(items.filter(x=>!x.outcome_in_revision).map(x=>x.lesson_code+' · '+(qs.find(q=>q.id===x.question_id)?.learning_outcome||'')))];
+    const matchSummary={
+      exact:items.filter(x=>x.match_type==='exact').length,
+      shuffled:items.filter(x=>x.match_type==='shuffled').length,
+      similar:items.filter(x=>x.match_type==='similar').length,
+      outside:items.filter(x=>x.match_type==='outside').length
+    };
     const typeTargets=revision?.coverage_targets||exam?.coverage_targets||null;
     const rawCounts=revision?.coverage_counts||exam?.coverage_counts||null;
     const rawOverall=revision?.overall_target_percent??exam?.overall_target_percent??null;
@@ -349,10 +476,10 @@
     const required=hasPlan?plan.required_total:(rawOverall!=null?requiredRevCount(items.length,fallbackPct):Math.ceil(items.length*fallbackPct/100));
     const threshold=rawOverall!=null?Number(rawOverall):(hasPlan?(items.length?Math.round(1000*required/items.length)/10:fallbackPct):fallbackPct);
     const typesOk=hasPlan?Object.values(byType).every(x=>x.ok!==false):true;
-    return {exam_id:exam?.id||null,exam_title:exam?.title||'',exam_code:exam?.exam_code||'',total:items.length,in_revision:inItems.length,count_percent:items.length?Math.round(1000*inItems.length/items.length)/10:0,
+    return {exam_id:exam?.id||null,exam_title:exam?.title||'',exam_code:exam?.exam_code||'',total:items.length,revision_total:rs.length,in_revision:inItems.length,count_percent:items.length?Math.round(1000*inItems.length/items.length)/10:0,
       points_percent:pts?Math.round(1000*inItems.reduce((n,x)=>n+x.points,0)/pts)/10:0,outcome_percent:items.length?Math.round(1000*items.filter(x=>x.outcome_in_revision).length/items.length)/10:0,
       threshold,required,types_ok:typesOk,overall_target_percent:rawOverall!=null?Number(rawOverall):null,coverage_targets:typeTargets?clone(typeTargets):null,missing_outcomes:missingOutcomes,
-      by_type:byType,items};
+      match_summary:matchSummary,by_type:byType,items};
   }
   function proposeRevision(data,payload){if(payload&&'title' in payload&&!text(payload.title))fail('Cần nhập tên đề cương.');const p=plan(data,payload);let revision;
     if(text(payload?.title)){const qs=p.question_ids.map(id=>data.bank.questions.find(q=>q.id===id));revision=freeze({id:ident('REV',data.revisions,payload,qs),title:payload.title.trim(),grade:payload.grade,subject_name:payload.subject_name||payload.subject,exam_type:payload.exam_type,created_at:payload.created_at||null,question_count:qs.length,questions:qs.map(q=>({...clone(q),content_hash:contentHash(q),source_snapshot_hash:fingerprint(q)}))});}

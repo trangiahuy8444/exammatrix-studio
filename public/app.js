@@ -5154,7 +5154,135 @@ function renderRevisions(){
   mountRevisionViewerContent($('#revision-inline-viewer'),activeRev,Boolean(store.activeRevisionShowAnswers),true);
  }
 }
-// Đối chiếu đề thi ↔ đề cương (chỉ đọc): câu nào của đề đã có trong đề cương, câu nào chưa, tỉ lệ theo câu và điểm, phủ YCCĐ.
+const VIS_SHORT_PART={MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'};
+const VIS_FULL_PART={MC:'Trắc nghiệm nhiều lựa chọn',YN:'Đúng / Sai',SHORT:'Trả lời ngắn',ES:'Tự luận'};
+const VIS_MATCH_META={
+ exact:{label:'Trùng hoàn toàn',short:'Trùng',icon:'↔'},
+ shuffled:{label:'Trùng nội dung (đã trộn phương án)',short:'Trộn PA',icon:'⇄'},
+ similar:{label:'Gần giống (cùng lời dẫn, khác phương án)',short:'Gần giống',icon:'≈'},
+ outside:{label:'Câu mới (ngoài đề cương)',short:'Ngoài ĐC',icon:'＋'}
+};
+function visualDiffPair(textA,textB){
+ const a=String(textA??''),b=String(textB??'');
+ const n=s=>C.normalize(s).replace(/\s+/g,' ').trim();
+ if(!b)return {same:false,htmlA:esc(a),htmlB:''};
+ if(n(a)===n(b))return {same:true,htmlA:esc(a),htmlB:esc(b)};
+ const tokA=a.split(/(\s+)/).filter(Boolean),tokB=b.split(/(\s+)/).filter(Boolean);
+ if(tokA.length>220||tokB.length>220){
+  return {same:false,htmlA:`<mark class="rev-diff-a">${esc(a)}</mark>`,htmlB:`<mark class="rev-diff-b">${esc(b)}</mark>`};
+ }
+ const m=tokA.length,k=tokB.length;
+ const dp=Array.from({length:m+1},()=>new Uint16Array(k+1));
+ for(let i=m-1;i>=0;i--)for(let j=k-1;j>=0;j--){
+  dp[i][j]=(tokA[i]===tokB[j])?(1+dp[i+1][j+1]):Math.max(dp[i+1][j],dp[i][j+1]);
+ }
+ const outA=[],outB=[];let i=0,j=0;
+ while(i<m&&j<k){
+  if(tokA[i]===tokB[j]){const s=esc(tokA[i]);outA.push(s);outB.push(s);i++;j++;}
+  else if(dp[i+1][j]>=dp[i][j+1]){const s=esc(tokA[i]);outA.push(/^\s+$/.test(tokA[i])?s:`<mark class="rev-diff-a">${s}</mark>`);i++;}
+  else{const s=esc(tokB[j]);outB.push(/^\s+$/.test(tokB[j])?s:`<mark class="rev-diff-b">${s}</mark>`);j++;}
+ }
+ while(i<m){const s=esc(tokA[i]);outA.push(/^\s+$/.test(tokA[i])?s:`<mark class="rev-diff-a">${s}</mark>`);i++;}
+ while(j<k){const s=esc(tokB[j]);outB.push(/^\s+$/.test(tokB[j])?s:`<mark class="rev-diff-b">${s}</mark>`);j++;}
+ return {same:false,htmlA:outA.join(''),htmlB:outB.join('')};
+}
+function renderVisualOptionList(detail,optionMap,side,hasRevMatch){
+ if(!detail)return '';
+ const isExam=side==='exam';
+ const targetWord=isExam?'ĐC':'Đề';
+ const mapArr=Array.isArray(optionMap)?optionMap:[];
+ if(detail.type==='MC'&&Array.isArray(detail.options)){
+  return `<ol class="rev-vis-opt-list">${detail.options.map((optText,idx)=>{
+   const letter='ABCD'[idx]||String(idx+1);
+   const isCorr=Number(detail.correct)===idx;
+   const m=isExam?mapArr.find(x=>x.exam_index===idx):mapArr.find(x=>x.revision_index===idx);
+   const peerIdx=m?(isExam?m.revision_index:m.exam_index):-1;
+   let mapTag='';
+   if(hasRevMatch){
+    if(m&&peerIdx>=0){
+     const peerLetter='ABCD'[peerIdx]||String(peerIdx+1);
+     const cls=idx===peerIdx?'is-exact':'is-shuffled';
+     const sym=idx===peerIdx?'=':'⇄';
+     mapTag=`<span class="rev-vis-map-tag ${cls}">${sym} ${targetWord} ${peerLetter}</span>`;
+    }else{
+     mapTag=`<span class="rev-vis-map-tag is-diff">${isExam?'Khác':'Không dùng'}</span>`;
+    }
+   }
+   return `<li class="rev-vis-opt${isCorr?' is-correct':''}"><span class="rev-vis-opt-key">${letter}.</span><span class="rev-vis-opt-txt">${esc(optText)}</span>${isCorr?'<span class="rev-vis-corr-badge">Đúng</span>':''}${mapTag}</li>`;
+  }).join('')}</ol>`;
+ }
+ if(detail.type==='YN'&&Array.isArray(detail.statements)){
+  return `<ol class="rev-vis-opt-list">${detail.statements.map((st,idx)=>{
+   const letter=st?.label||('abcd'[idx]||String(idx+1));
+   const m=isExam?mapArr.find(x=>x.exam_index===idx):mapArr.find(x=>x.revision_index===idx);
+   const peerIdx=m?(isExam?m.revision_index:m.exam_index):-1;
+   let mapTag='';
+   if(hasRevMatch){
+    if(m&&peerIdx>=0){
+     const peerLetter='abcd'[peerIdx]||String(peerIdx+1);
+     const cls=idx===peerIdx?'is-exact':'is-shuffled';
+     const sym=idx===peerIdx?'=':'⇄';
+     mapTag=`<span class="rev-vis-map-tag ${cls}">${sym} ${targetWord} ${peerLetter})</span>`;
+    }else{
+     mapTag=`<span class="rev-vis-map-tag is-diff">${isExam?'Khác':'Không dùng'}</span>`;
+    }
+   }
+   return `<li class="rev-vis-opt${st?.correct?' is-correct':''}"><span class="rev-vis-opt-key">${esc(letter)})</span><span class="rev-vis-opt-txt">${esc(st?.text||'')}</span><span class="rev-vis-corr-badge">${st?.correct?'ĐÚNG':'SAI'}</span>${mapTag}</li>`;
+  }).join('')}</ol>`;
+ }
+ if(detail.type==='SHORT'){
+  return `<div class="rev-vis-short"><strong>Đáp án ngắn:</strong> <code>${esc(detail.short_answer||'—')}</code></div>`;
+ }
+ if(detail.type==='ES'&&Array.isArray(detail.rubric)&&detail.rubric.length){
+  return `<ul class="rev-vis-rubric">${detail.rubric.map(r=>`<li><span>${esc(r.criterion)}</span><strong>${esc(fmtPts(r.points))}đ</strong></li>`).join('')}</ul>`;
+ }
+ return '';
+}
+function renderVisualComparePanel(item,rev,chosen,filterList){
+ if(!item)return '<p class="small muted" style="margin:8px 0 0">Chọn một ô câu hỏi ở bản đồ vị trí phía trên để xem so sánh chi tiết.</p>';
+ const meta=VIS_MATCH_META[item.match_type]||VIS_MATCH_META.outside;
+ const examCodeTag=chosen?.exam_code?`Mã ${chosen.exam_code}`:(chosen?.title||'Đề thi');
+ const eDetail=item.exam_detail||{question:item.question,type:item.type,lesson_code:item.lesson_code,level:item.level};
+ const rDetail=item.revision_detail;
+ const diff=rDetail?visualDiffPair(eDetail.question,rDetail.question):{same:false,htmlA:esc(eDetail.question),htmlB:''};
+ const hasMatch=Boolean(rDetail);
+ const navList=filterList?.length?filterList:[item];
+ const posInNav=navList.findIndex(x=>x.exam_order===item.exam_order);
+ const prevItem=posInNav>0?navList[posInNav-1]:null;
+ const nextItem=posInNav>=0&&posInNav<navList.length-1?navList[posInNav+1]:null;
+ const sameLessonInRev=(rev?.questions||[]).filter(rq=>rq.lesson_code===item.lesson_code).length;
+ return `<div class="rev-vis-compare-head">
+   <div class="rev-vis-compare-title">
+     <span class="rev-vis-status-badge is-${esc(item.match_type)}">${meta.icon} ${esc(meta.label)}</span>
+     <span class="rev-vis-pos-chain"><strong>Đề thi: ${esc(item.label)}</strong> ${rDetail?`↔ <strong>Đề cương: ${esc(item.revision_label)}</strong>`:'→ <em>Chưa có trong đề cương</em>'}</span>
+     <span class="small muted">${esc(item.lesson_code||'')} · ${esc(item.level||'')} · ${esc(fmtPts(item.points))} điểm</span>
+   </div>
+   <div class="rev-vis-compare-actions">
+     <button type="button" class="quiet" data-rev-vis-step="${prevItem?prevItem.exam_order:''}" ${prevItem?'':'disabled'}>← Câu trước</button>
+     <button type="button" class="quiet" data-rev-vis-step="${nextItem?nextItem.exam_order:''}" ${nextItem?'':'disabled'}>Câu sau →</button>
+     ${item.revision_question_id?`<button type="button" class="export-link" data-rev-vis-jump="${esc(item.revision_question_id)}">↓ Định vị trong đề cương</button>`:''}
+   </div>
+ </div>
+ <div class="rev-vis-cols">
+   <div class="rev-vis-col is-exam">
+     <div class="rev-vis-col-head"><span>📄 Đề thi (${esc(examCodeTag)})</span><strong>${esc(item.label)} · vị trí #${item.exam_order}</strong></div>
+     <div class="rev-vis-stem">${diff.htmlA}</div>
+     ${renderVisualOptionList(eDetail,item.option_map,'exam',hasMatch)}
+   </div>
+   <div class="rev-vis-col is-rev${rDetail?'':' is-empty'}">
+     <div class="rev-vis-col-head"><span>📘 Đề cương (${esc(rev?.title||'Hiện tại')})</span><strong>${rDetail?`${esc(item.revision_label)} · vị trí #${item.revision_order}`:'Chưa có câu khớp'}</strong></div>
+     ${rDetail
+       ?`<div class="rev-vis-stem">${diff.same?'<span class="rev-vis-same-pill">✓ Lời dẫn giống 100%</span>':''}<div>${diff.htmlB}</div></div>${renderVisualOptionList(rDetail,item.option_map,'rev',true)}`
+       :`<div class="rev-vis-missing-box">
+           <p><strong>Câu mới ngoài đề cương.</strong> Không tìm thấy câu có cùng nội dung hoặc cùng lời dẫn trong "${esc(rev?.title||'')}".</p>
+           <p class="small"><strong>YCCĐ:</strong> ${item.outcome_in_revision?'<span style="color:#166534">✓ Đã được phủ bởi câu khác trong đề cương</span>':'<span style="color:#991b1b">⚠ Chưa có câu nào phủ YCCĐ này</span>'}</p>
+           ${eDetail.learning_outcome?`<p class="small muted"><em>Yêu cầu cần đạt:</em> ${esc(eDetail.learning_outcome)}</p>`:''}
+           <p class="small muted">Hiện có <strong>${sameLessonInRev} câu</strong> thuộc bài ${esc(item.lesson_code||'—')} trong đề cương.</p>
+         </div>`}
+   </div>
+ </div>`;
+}
+// Đối chiếu đề thi ↔ đề cương (chỉ đọc): câu nào của đề đã có trong đề cương, câu nào chưa, tỉ lệ theo câu và điểm, phủ YCCĐ, bản đồ vị trí và đối chiếu 2 cột trực quan.
 async function renderRevisionCoverage(rev){
  const box=$('#revision-coverage');if(!box)return;
  const exams=store.exams.filter(e=>(e.subject_name||'Tin học')===subject()&&Number(e.grade)===Number(rev.grade)&&(e.questions||[]).length);
@@ -5178,12 +5306,14 @@ async function renderRevisionCoverage(rev){
  const minReq90=window.BankCore?.requiredRevisionCount?window.BankCore.requiredRevisionCount(rep.total,90):Math.ceil(rep.total*0.9-1e-9);
  const ok=(rep.in_revision>=minReq90)&&(rep.in_revision>=rep.required)&&(rep.types_ok!==false);
  const missing=rep.items.filter(x=>!x.in_revision),present=rep.items.filter(x=>x.in_revision);
- const row=x=>`<tr><td><strong>${esc(x.label)}</strong></td><td>${esc(x.lesson_code)}</td><td>${esc(x.level)}</td><td style="text-align:right">${esc(String(x.points).replace('.',','))}</td><td>${esc(x.question)}</td><td>${x.in_revision?'✓ có trong đề cương':x.similar_text?'Gần giống (lời dẫn trùng, phương án khác)':x.outcome_in_revision?'Chưa có câu này (đã có YCCĐ)':'<strong>Chưa có câu và YCCĐ</strong>'}</td></tr>`;
- const table=list=>`<div class="table-wrap"><table class="small"><thead><tr><th>Câu</th><th>Bài</th><th>Mức độ</th><th>Điểm</th><th>Nội dung</th><th>Đề cương</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table></div>`;
+ const row=x=>`<tr><td><strong>${esc(x.label)}</strong></td><td>${x.revision_label?`<span class="rev-vis-loc-chip is-${esc(x.match_type||'exact')}">${esc(x.revision_label)}</span>`:'<span class="muted">—</span>'}</td><td>${esc(x.lesson_code)}</td><td>${esc(x.level)}</td><td style="text-align:right">${esc(String(x.points).replace('.',','))}</td><td>${esc(x.question)}</td><td>${x.in_revision?(x.match_type==='shuffled'?'⇄ Trùng (đã trộn PA)':'✓ Trùng hoàn toàn'):x.similar_text?'≈ Gần giống (lời dẫn trùng, PA khác)':x.outcome_in_revision?'Chưa có câu này (đã có YCCĐ)':'<strong>Chưa có câu và YCCĐ</strong>'}</td><td><button type="button" class="quiet" data-rev-vis-inspect="${esc(x.exam_order)}">🔍 So sánh</button></td></tr>`;
+ const table=list=>`<div class="table-wrap"><table class="small"><thead><tr><th>Vị trí đề</th><th>Vị trí ĐC</th><th>Bài</th><th>Mức độ</th><th>Điểm</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>${list.map(row).join('')}</tbody></table></div>`;
  const linkedReports=linked.map(e=>allReports.find(r=>r.exam_id===e.id)).filter(Boolean);
  store.revCovTargetsByRev=store.revCovTargetsByRev||{};
  store.revCovCountsByRev=store.revCovCountsByRev||{};
  store.revCovOverallByRev=store.revCovOverallByRev||{};
+ store.revCovSelectedOrder=store.revCovSelectedOrder||{};
+ store.revCovVisualFilter=store.revCovVisualFilter||'all';
  const savedByRev=store.revCovTargetsByRev[rev.id]||(rev.coverage_targets&&typeof rev.coverage_targets==='object'?rev.coverage_targets:null);
  const savedCountsByRev=store.revCovCountsByRev[rev.id]||(rev.coverage_counts&&typeof rev.coverage_counts==='object'?rev.coverage_counts:(chosen.coverage_counts&&typeof chosen.coverage_counts==='object'?chosen.coverage_counts:null));
  const savedOverall=store.revCovOverallByRev[rev.id]??rev.overall_target_percent??chosen.overall_target_percent??rev.similarity_target_percent??90;
@@ -5226,6 +5356,69 @@ async function renderRevisionCoverage(rev){
      return `<button type="button" class="rev-cov-exam-pill${lr.exam_id===chosen.id?' is-active':''}" data-rev-cov-pick="${esc(lr.exam_id)}">${esc(lr.exam_code?`Mã ${lr.exam_code}`:shortTitle)} · ${lr.in_revision}/${lr.total} ${lOk?'✓':'⚠'}</button>`;
    }).join('')}
  </div>`:'';
+ const itemsList=Array.isArray(rep.items)?rep.items:[];
+ const ms=rep.match_summary||{
+  exact:itemsList.filter(x=>(x.match_type||(x.in_revision?'exact':'outside'))==='exact').length,
+  shuffled:itemsList.filter(x=>x.match_type==='shuffled').length,
+  similar:itemsList.filter(x=>x.match_type==='similar'||(!x.match_type&&x.similar_text)).length,
+  outside:itemsList.filter(x=>x.match_type==='outside'||(!x.match_type&&!x.in_revision&&!x.similar_text)).length
+ };
+ const activeFilter=store.revCovVisualFilter||'all';
+ const matchTypeOf=x=>x.match_type||(x.in_revision?'exact':(x.similar_text?'similar':'outside'));
+ const filteredItems=activeFilter==='all'?itemsList:itemsList.filter(x=>matchTypeOf(x)===activeFilter);
+ const storedOrder=store.revCovSelectedOrder[chosen.id];
+ let selectedItem=itemsList.find(x=>x.exam_order===storedOrder)||filteredItems[0]||itemsList.find(x=>matchTypeOf(x)==='outside')||itemsList.find(x=>matchTypeOf(x)==='similar')||itemsList.find(x=>matchTypeOf(x)==='shuffled')||itemsList[0]||null;
+ if(selectedItem)store.revCovSelectedOrder[chosen.id]=selectedItem.exam_order;
+ const partsOrder=['MC','YN','SHORT','ES'].filter(t=>itemsList.some(x=>x.type===t));
+ const filterButtons=[
+  {key:'all',label:`Tất cả (${rep.total})`,cls:'is-all'},
+  {key:'exact',label:`Trùng hoàn toàn (${ms.exact})`,cls:'is-exact'},
+  {key:'shuffled',label:`Trộn phương án (${ms.shuffled})`,cls:'is-shuffled'},
+  ...(ms.similar>0?[{key:'similar',label:`Gần giống (${ms.similar})`,cls:'is-similar'}]:[]),
+  {key:'outside',label:`Ngoài đề cương (${ms.outside})`,cls:'is-outside'}
+ ];
+ const multiStripHtml=(store.revCovMultiExam&&linkedReports.length>1)?`<div class="rev-vis-multi-grid">
+   ${linkedReports.map(lr=>{
+     const codeTxt=lr.exam_code?`Mã ${lr.exam_code}`:(lr.exam_title||lr.exam_id);
+     const lrItems=lr.items||[];
+     return `<div class="rev-vis-multi-row${lr.exam_id===chosen.id?' is-active-exam':''}">
+       <button type="button" class="rev-vis-multi-name" data-rev-cov-pick="${esc(lr.exam_id)}">${esc(codeTxt)} <span>(${lr.in_revision}/${lr.total})</span></button>
+       <div class="rev-vis-multi-cells">${lrItems.map(mi=>{
+         const mt=matchTypeOf(mi);
+         const partPrefix=VIS_SHORT_PART[mi.type]||mi.type;
+         return `<button type="button" class="rev-vis-mini-cell is-${esc(mt)}${lr.exam_id===chosen.id&&selectedItem?.exam_order===mi.exam_order?' is-selected':''}" data-rev-vis-multi-pick="${esc(lr.exam_id)}:${mi.exam_order}" title="${esc(codeTxt)} · ${esc(mi.label)} (${mi.revision_label?`↔ ${mi.revision_label}`:'Ngoài đề cương'})">${esc(partPrefix)}${mi.part_number??mi.exam_order}</button>`;
+       }).join('')}</div>
+     </div>`;
+   }).join('')}
+ </div>`:'';
+ const mapHtml=partsOrder.map(pt=>{
+  const pItems=itemsList.filter(x=>x.type===pt);
+  return `<div class="rev-vis-part">
+    <div class="rev-vis-part-title">${esc(VIS_FULL_PART[pt]||pt)} (${pItems.filter(x=>x.in_revision).length}/${pItems.length} câu trong đề cương)</div>
+    <div class="rev-vis-grid">${pItems.map(x=>{
+      const mt=matchTypeOf(x);
+      const dimmed=activeFilter!=='all'&&mt!==activeFilter;
+      const isSel=selectedItem&&selectedItem.exam_order===x.exam_order;
+      const subTxt=x.revision_part_number?`${VIS_MATCH_META[mt]?.icon||'↔'} ĐC ${x.revision_part_number}`:'Mới';
+      return `<button type="button" class="rev-vis-cell is-${esc(mt)}${dimmed?' is-dimmed':''}${isSel?' is-selected':''}" data-rev-vis-order="${x.exam_order}" title="${esc(x.label)} · ${esc(x.lesson_code)} · ${esc(VIS_MATCH_META[mt]?.label||'')}${x.revision_label?` → Đề cương: ${x.revision_label}`:''}">
+        <span class="rev-vis-cell-top">Câu ${x.part_number??x.exam_order}</span>
+        <span class="rev-vis-cell-sub">${esc(subTxt)}</span>
+      </button>`;
+    }).join('')}</div>
+  </div>`;
+ }).join('');
+ const visualBoxHtml=`<section class="rev-vis-box" aria-label="So sánh trực quan vị trí đề thi và đề cương">
+   <div class="rev-vis-bar">
+     <div class="rev-vis-title"><strong>🔍 So sánh trực quan: vị trí trong đề &amp; mức độ giống</strong></div>
+     <div class="rev-vis-filters">
+       ${filterButtons.map(fb=>`<button type="button" class="rev-vis-filter-pill ${fb.cls}${activeFilter===fb.key?' is-active':''}" data-rev-vis-filter="${fb.key}">${esc(fb.label)}</button>`).join('')}
+       ${linkedReports.length>1?`<button type="button" id="rev-vis-multi-toggle" class="rev-vis-filter-pill${store.revCovMultiExam?' is-active':''}">⊞ ${store.revCovMultiExam?'Ẩn bảng nhiều đề':`So sánh ${linkedReports.length} đề song song`}</button>`:''}
+     </div>
+   </div>
+   ${multiStripHtml}
+   <div class="rev-vis-map">${mapHtml}</div>
+   <div id="rev-vis-compare" class="rev-vis-compare">${renderVisualComparePanel(selectedItem,rev,chosen,filteredItems)}</div>
+ </section>`;
  box.innerHTML=`<div class="rev-cov-head">
    <div class="rev-cov-title-group">
      <h3>📊 Đối chiếu đề cương</h3>
@@ -5239,12 +5432,68 @@ async function renderRevisionCoverage(rev){
   </div>
   ${linkedStripHtml}
   ${ratioBarHtml}
+  ${visualBoxHtml}
   ${missing.length?`<details class="rev-cov-details"><summary>Câu của đề chưa có trong đề cương (${missing.length})</summary>${table(missing)}</details>`:'<span class="badge approved">✓ Mọi câu của đề đều có trong đề cương</span>'}
   ${rep.missing_outcomes.length?`<p class="small" style="margin:8px 0 0;color:#991b1b"><strong>YCCĐ chưa có:</strong> ${rep.missing_outcomes.map(esc).join('; ')}</p>`:''}
   ${present.length?`<details class="rev-cov-details"><summary>Câu đã có trong đề cương (${present.length})</summary>${table(present)}</details>`:''}`;
  const covSel=$('#rev-cov-exam');if(!covSel)return;
  covSel.onchange=e=>{store.revCoverageExamId=e.target.value;renderRevisionCoverage(rev);};
  box.querySelectorAll('[data-rev-cov-pick]').forEach(b=>{b.onclick=()=>{store.revCoverageExamId=b.dataset.revCovPick;renderRevisionCoverage(rev);};});
+ const selectVisualOrder=(order,{scroll=false}={})=>{
+  const target=itemsList.find(x=>Number(x.exam_order)===Number(order));
+  if(!target)return;
+  store.revCovSelectedOrder[chosen.id]=target.exam_order;
+  box.querySelectorAll('.rev-vis-cell').forEach(btn=>btn.classList.toggle('is-selected',Number(btn.dataset.revVisOrder)===target.exam_order));
+  box.querySelectorAll('.rev-vis-multi-cell, .rev-vis-mini-cell').forEach(btn=>{
+   const [eid,ord]=String(btn.dataset.revVisMultiPick||'').split(':');
+   btn.classList.toggle('is-selected',eid===chosen.id&&Number(ord)===target.exam_order);
+  });
+  const cmpEl=box.querySelector('#rev-vis-compare');
+  if(cmpEl){
+   cmpEl.innerHTML=renderVisualComparePanel(target,rev,chosen,filteredItems);
+   bindVisualCompareEvents(cmpEl);
+   if(scroll&&typeof cmpEl.scrollIntoView==='function')cmpEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+ };
+ const bindVisualCompareEvents=(rootEl)=>{
+  rootEl.querySelectorAll('[data-rev-vis-step]').forEach(b=>{
+   b.onclick=()=>{if(b.dataset.revVisStep)selectVisualOrder(b.dataset.revVisStep);};
+  });
+  rootEl.querySelectorAll('[data-rev-vis-jump]').forEach(b=>{
+   b.onclick=()=>{
+    const qid=b.dataset.revVisJump;if(!qid)return;
+    const viewer=$('#revision-inline-viewer');if(!viewer||viewer.hidden)return;
+    const escaped=(typeof CSS!=='undefined'&&CSS.escape)?CSS.escape(qid):qid.replace(/"/g,'\\"');
+    const card=viewer.querySelector(`[data-edit-qid="${escaped}"]`);
+    if(!card){notify('Không tìm thấy câu tương ứng trong khung xem đề cương bên dưới.',true);return;}
+    viewer.querySelectorAll('.rev-jump-highlight').forEach(el=>el.classList.remove('rev-jump-highlight'));
+    card.classList.add('rev-jump-highlight');
+    if(typeof card.scrollIntoView==='function')card.scrollIntoView({behavior:'smooth',block:'center'});
+    setTimeout(()=>card.classList.remove('rev-jump-highlight'),2600);
+   };
+  });
+ };
+ bindVisualCompareEvents(box);
+ box.querySelectorAll('[data-rev-vis-order]').forEach(b=>{
+  b.onclick=()=>selectVisualOrder(b.dataset.revVisOrder);
+ });
+ box.querySelectorAll('[data-rev-vis-inspect]').forEach(b=>{
+  b.onclick=()=>selectVisualOrder(b.dataset.revVisInspect,{scroll:true});
+ });
+ box.querySelectorAll('[data-rev-vis-filter]').forEach(b=>{
+  b.onclick=()=>{store.revCovVisualFilter=b.dataset.revVisFilter||'all';renderRevisionCoverage(rev);};
+ });
+ const multiToggle=box.querySelector('#rev-vis-multi-toggle');
+ if(multiToggle)multiToggle.onclick=()=>{store.revCovMultiExam=!store.revCovMultiExam;renderRevisionCoverage(rev);};
+ box.querySelectorAll('[data-rev-vis-multi-pick]').forEach(b=>{
+  b.onclick=()=>{
+   const [eid,ord]=String(b.dataset.revVisMultiPick||'').split(':');
+   if(!eid)return;
+   store.revCoverageExamId=eid;
+   if(ord)store.revCovSelectedOrder[eid]=Number(ord);
+   renderRevisionCoverage(rev);
+  };
+ });
  const readCounts=()=>{
   const cur={};
   store.revCovCountsByRev[rev.id]=store.revCovCountsByRev[rev.id]||{};
@@ -5497,6 +5746,49 @@ function examLinks(r){
   (editable?`<button type="button" class="export-link danger" data-del-exam="${esc(r.id)}" title="Xóa đề nháp này">🗑 Xóa</button>`:'')+
  `</div>`;
 }
+function renderExamOverlapVisual(selectedExams){
+ const list=Array.isArray(selectedExams)?selectedExams:[];
+ if(list.length<2||typeof C?.questionKeys!=='function')return '';
+ const groups=new Map();
+ const examRows=list.map(ex=>{
+  const codeTag=ex.exam_code?`Mã ${ex.exam_code}`:(ex.title||ex.id);
+  const partCounter={MC:0,YN:0,SHORT:0,ES:0};
+  const qs=(ex.questions||[]).map((q,idx)=>{
+   const qType=q?.type||'MC';
+   const nextPart=(partCounter[qType]=(partCounter[qType]||0)+1);
+   const pNum=q?.slot_number??nextPart;
+   const lbl=`${VIS_SHORT_PART[qType]||qType} câu ${pNum}`;
+   const mk=C.questionKeys(q).match;
+   if(!groups.has(mk))groups.set(mk,{key:mk,question:String(q?.question||'').replace(/\s+/g,' ').slice(0,180),lesson:q?.lesson_code||'',type:qType,hits:[]});
+   groups.get(mk).hits.push({exam_id:ex.id,codeTag,label:lbl,part_prefix:`${VIS_SHORT_PART[qType]||qType}${pNum}`,question:q,order:idx+1});
+   return {mk,label:lbl,part_prefix:`${VIS_SHORT_PART[qType]||qType}${pNum}`,order:idx+1};
+  });
+  return {ex,codeTag,qs};
+ });
+ const sharedGroups=[...groups.values()].filter(g=>new Set(g.hits.map(h=>h.exam_id)).size>=2);
+ if(!sharedGroups.length){
+  return `<section class="exam-cmp-visual"><h3>🔍 Vị trí câu trùng giữa các đề</h3><p class="small" style="margin:0;color:#166534"><strong>✓ Không có câu hỏi nào trùng nội dung giữa các đề đã chọn.</strong></p></section>`;
+ }
+ const sharedSet=new Set(sharedGroups.map(g=>g.key));
+ const strips=examRows.map(er=>`<div class="rev-vis-multi-row">
+   <span class="rev-vis-multi-name">${esc(er.codeTag)} (${er.qs.filter(x=>sharedSet.has(x.mk)).length}/${er.qs.length} trùng)</span>
+   <div class="rev-vis-multi-cells">${er.qs.map(x=>`<span class="rev-vis-mini-cell ${sharedSet.has(x.mk)?'is-shuffled':'is-exact'}" title="${esc(er.codeTag)} · ${esc(x.label)}${sharedSet.has(x.mk)?' (trùng với đề khác)':' (riêng đề này)'}">${esc(x.part_prefix)}</span>`).join('')}</div>
+ </div>`).join('');
+ const rows=sharedGroups.map(g=>{
+  const firstQ=g.hits[0]?.question;
+  const posBadges=g.hits.map(h=>{
+   const rel=(firstQ&&h.question!==firstQ&&typeof C.questionRelation==='function')?C.questionRelation(firstQ,h.question):'';
+   const relNote=rel==='tron_phuong_an'?' (trộn PA)':'';
+   return `<span class="rev-vis-loc-chip ${rel==='tron_phuong_an'?'is-shuffled':'is-exact'}">${esc(h.codeTag)}: ${esc(h.label)}${esc(relNote)}</span>`;
+  }).join(' ');
+  return `<tr><td>${posBadges}</td><td>${esc(g.lesson)}</td><td>${esc(g.question)}</td></tr>`;
+ }).join('');
+ return `<section class="exam-cmp-visual">
+   <h3>🔍 Vị trí câu trùng giữa ${list.length} đề đã chọn (${sharedGroups.length} câu dùng chung)</h3>
+   <div class="rev-vis-multi-grid">${strips}</div>
+   <details open class="rev-cov-details"><summary>Danh sách câu trùng &amp; vị trí trong từng đề (${sharedGroups.length})</summary><div class="table-wrap"><table class="small"><thead><tr><th>Vị trí theo mã đề</th><th>Bài</th><th>Nội dung câu hỏi</th></tr></thead><tbody>${rows}</tbody></table></div></details>
+ </section>`;
+}
 function openExamComparison(id){
  const dialog=$('#exam-comparison-dialog'),form=$('#exam-comparison-form'),result=$('#exam-comparison-result');
  const exams=currentExams();
@@ -5511,7 +5803,11 @@ function openExamComparison(id){
   error.hidden=true;result.innerHTML='';
   if(ids.length<2||ids.length>6){error.textContent='Chọn từ 2 đến 6 đề khác nhau để so sánh.';error.hidden=false;return;}
   button.disabled=true;button.textContent='Đang đối chiếu…';
-  try{const report=await request('/api/exams/compare',{ids});result.innerHTML=window.BankExamComparison.reportHtml(report);}
+  try{
+   const report=await request('/api/exams/compare',{ids});
+   const selectedExams=ids.map(xid=>exams.find(e=>e.id===xid)).filter(Boolean);
+   result.innerHTML=window.BankExamComparison.reportHtml(report)+(typeof renderExamOverlapVisual==='function'?renderExamOverlapVisual(selectedExams):'');
+  }
   catch(e){error.textContent=detailError(e);error.hidden=false;}
   finally{button.disabled=false;button.textContent='So sánh các đề đã chọn';}
  };

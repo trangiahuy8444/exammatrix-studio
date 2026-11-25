@@ -1,3 +1,8 @@
+## 26/11/2026 — So sánh trực quan vị trí câu hỏi (Đề thi ↔ Đề cương & giữa các đề)
+
+- **Dữ liệu đối chiếu giàu vị trí (`static-exam-engine.js`):** `revisionCoverage` đánh chỉ số vị trí từng câu theo phần (`TN câu k`, `Đ/S câu k`, `TLN câu k`, `TL câu k`), phân loại quan hệ (`exact`, `shuffled`, `similar`, `outside`) qua `core.questionRelation`, tạo `option_map` ánh xạ từng phương án A–D / mệnh đề a–d trước–sau trộn, kèm `exam_detail`, `revision_detail` và `match_summary`.
+- **Khung So sánh trực quan (`app.js`, `styles.css`):** trong `#revision-coverage`, bổ sung bản đồ ô vị trí tô màu theo mức độ trùng (kèm bộ lọc đếm câu và chế độ `So sánh N đề song song` cho các mã đề liên kết), khung đối chiếu 2 cột highlight khác biệt từng từ của lời dẫn (`visualDiffPair`), nhãn ánh xạ phương án (`= ĐC A`, `⇄ ĐC C`), nút duyệt `← Câu trước / Câu sau →` và nút `↓ Định vị trong đề cương` cuộn thẳng tới câu tương ứng trong bản xem đề cương. Hộp thoại `#exam-comparison-dialog` hiển thị thêm sơ đồ vị trí câu trùng theo từng mã đề (`renderExamOverlapVisual`).
+
 ## 26/11/2026 — Gợi ý 90% không ép bù & chỉnh trực tiếp số câu từng dạng trên khung Đối chiếu đề cương
 
 - **Mở khóa chỉnh tay (`core.js`, `app.js`, `static-api.js`, `static-exam-engine.js`):** giữ quy chuẩn `rules/01` tối thiểu `90%` làm tròn lên (`31` câu → `28`) khi kiểm định duyệt đề chính thức (`verifyExam`, `KR.checkExam`), nhưng bỏ cơ chế ép bù ngược trong `computeRevisionPlan`.

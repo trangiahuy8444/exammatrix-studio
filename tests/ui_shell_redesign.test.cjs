@@ -31,10 +31,10 @@ test('index.html preserves required shell, header, toast, and sidebar IDs', () =
   }
   assert(indexHtml.includes('id="notice" popover="manual"'), '#notice must use popover="manual" for top-layer visibility');
   assert(!indexHtml.includes('class="page-crumb"'), 'Redundant breadcrumb should be removed from topbar');
-  assert(indexHtml.includes('./styles.css?v=20261125m'));
+  assert(indexHtml.includes('./styles.css?v=20261126b'));
   assert(indexHtml.includes('./matrices.js?v=20261125n'));
   assert(indexHtml.includes('./firebase-bridge.js?v=20261125q'));
-  assert(indexHtml.includes('./app.js?v=20261126a'));
+  assert(indexHtml.includes('./app.js?v=20261126b'));
 });
 
 test('styles.css styles #notice as floating fixed toast, full nav collapse, and single-line topbar', () => {
@@ -61,6 +61,9 @@ test('app.js notify uses auto-dismiss top-layer floating toast without scrollInt
   assert(appJs.includes('function initSidebarToggle()'));
   assert(appJs.includes("getElementById('btn-close-sidebar')"));
   assert(appJs.includes('function initTopbarMenus()'));
+  assert(appJs.includes('rev-vis-box') && appJs.includes('rev-vis-compare') && appJs.includes('function visualDiffPair('));
+  assert(appJs.includes('function renderExamOverlapVisual('));
+  assert(stylesCss.includes('.rev-vis-cell') && stylesCss.includes('.rev-vis-compare'));
 });
 
 test('firebase-bridge.js renders streamlined account dropdown, preserves auth/Drive IDs, and delegates toast to window.notify', () => {

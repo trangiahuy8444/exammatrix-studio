@@ -314,3 +314,61 @@ test('3 đề liên kết giao nhau (Mã 101, 102, 103 · 31 câu): giải chín
   assert.equal(hasRevCritVerify, true);
   assert.equal(hasRevCritKr, true);
 });
+
+test('revisionCoverage tra ve vi tri trong de & de cuong, option_map va tom tat so sanh truc quan', () => {
+  const mkMc = (id, text, options, correct, lesson = 'B1', level = 'Biết') => ({
+    id, grade: 9, subject_name: 'Tin học', type: 'MC', lesson_code: lesson, level,
+    learning_outcome: 'YCCĐ ' + lesson, review_status: 'approved', question: text, options, correct, points: 0.25
+  });
+  const mkEs = (id, text, lesson = 'B1') => ({
+    id, grade: 9, subject_name: 'Tin học', type: 'ES', lesson_code: lesson, level: 'Vận dụng',
+    learning_outcome: 'YCCĐ ' + lesson, review_status: 'approved', question: text,
+    rubric: [{ criterion: 'Ý 1', points: 0.5 }, { criterion: 'Ý 2', points: 0.5 }], points: 1
+  });
+  const rev = {
+    id: 'REV-VIS',
+    title: 'ĐC CK1 K9',
+    grade: 9,
+    questions: [
+      mkMc('R1', 'Câu 1 đề cương giữ nguyên', ['Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D'], 0),
+      mkMc('R2', 'Câu 2 đề cương trộn phương án', ['Lựa 1', 'Lựa 2', 'Lựa 3', 'Lựa 4'], 1),
+      mkMc('R3', 'Câu 3 cùng lời dẫn khác đáp án', ['Cũ 1', 'Cũ 2', 'Cũ 3', 'Cũ 4'], 0),
+      mkEs('R4', 'Câu tự luận trong đề cương', 'B2')
+    ]
+  };
+  const exam = {
+    id: 'EX-VIS',
+    title: 'Đề CK1',
+    exam_code: '101',
+    grade: 9,
+    questions: [
+      mkMc('E1', 'Câu 1 đề cương giữ nguyên', ['Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D'], 0),
+      mkMc('E2', 'Câu 2 đề cương trộn phương án', ['Lựa 4', 'Lựa 1', 'Lựa 2', 'Lựa 3'], 2),
+      mkMc('E3', 'Câu 3 cùng lời dẫn khác đáp án', ['Mới 1', 'Mới 2', 'Mới 3', 'Mới 4'], 1),
+      mkMc('E4', 'Câu mới hoàn toàn ngoài đề cương', ['X1', 'X2', 'X3', 'X4'], 0),
+      mkEs('E5', 'Câu tự luận trong đề cương', 'B2')
+    ]
+  };
+  const rep = engine.revisionCoverage(exam, rev);
+  assert.equal(rep.revision_total, 4);
+  assert.deepEqual(rep.match_summary, { exact: 2, shuffled: 1, similar: 1, outside: 1 });
+  assert.equal(rep.items[0].match_type, 'exact');
+  assert.equal(rep.items[0].revision_label, 'TN câu 1');
+  assert.equal(rep.items[0].option_map[0].revision_index, 0);
+  assert.equal(rep.items[1].match_type, 'shuffled');
+  assert.equal(rep.items[1].in_revision, true);
+  assert.equal(rep.items[1].revision_label, 'TN câu 2');
+  assert.equal(rep.items[1].option_map[0].revision_index, 3); // Lựa 4 -> idx 3 ở đề cương
+  assert.equal(rep.items[1].option_map[2].revision_index, 1); // Đáp án đúng Lựa 2 -> idx 1 ở đề cương
+  assert.equal(rep.items[1].option_map[2].same_correct, true);
+  assert.equal(rep.items[2].match_type, 'similar');
+  assert.equal(rep.items[2].in_revision, false);
+  assert.equal(rep.items[2].similar_text, true);
+  assert.equal(rep.items[2].revision_label, 'TN câu 3');
+  assert.equal(rep.items[3].match_type, 'outside');
+  assert.equal(rep.items[3].revision_label, null);
+  assert.equal(rep.items[3].revision_detail, null);
+  assert.equal(rep.items[4].match_type, 'exact');
+  assert.equal(rep.items[4].revision_label, 'TL câu 1');
+  assert.equal(rep.items[4].revision_detail.rubric.length, 2);
+});

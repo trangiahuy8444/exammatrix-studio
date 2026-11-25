@@ -4179,14 +4179,30 @@ Quy ước:
 - [Dạng câu]: MC (Trắc nghiệm 4 lựa chọn), YN (Đúng/Sai 4 ý a-d), SHORT (Trả lời ngắn), ES (Tự luận).
 - Tổng điểm phải bằng đúng 10.0 điểm.`;
 
+    const okMsg = `Đã chép Prompt AI tạo Ma trận ${subjName} Khối ${g} (${isHigh ? 'THPT CV 7991' : 'THCS Á Châu'}) vào bộ nhớ tạm!`;
+    const notifyOk = () => {
+      if (typeof message === 'function') message(okMsg);
+      else if (typeof window !== 'undefined' && typeof window.notify === 'function') window.notify(okMsg);
+    };
+    const fallbackCopy = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = prompt;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) { notifyOk(); return; }
+      } catch {}
+      if (typeof message === 'function') message('Trình duyệt không cho phép tự động sao chép. Vui lòng thử lại.', true);
+      else if (typeof window !== 'undefined' && typeof window.notify === 'function') window.notify('Trình duyệt không cho phép tự động sao chép. Vui lòng thử lại.', true);
+    };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(prompt).then(() => {
-        alert(`Đã chép Prompt AI tạo Ma trận ${subjName} Khối ${g} (${isHigh ? 'THPT CV 7991' : 'THCS Á Châu'}) vào bộ nhớ tạm!`);
-      }).catch(() => {
-        window.prompt('Sao chép Prompt AI dưới đây:', prompt);
-      });
+      navigator.clipboard.writeText(prompt).then(notifyOk).catch(fallbackCopy);
     } else {
-      window.prompt('Sao chép Prompt AI dưới đây:', prompt);
+      fallbackCopy();
     }
   }
 

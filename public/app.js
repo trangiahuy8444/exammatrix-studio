@@ -7184,7 +7184,11 @@ function initBackupManager() {
           const kttxs = Array.isArray(payload.kttx) ? payload.kttx : [];
 
           if (!bankQs.length && !revs.length && !exams.length && !mats.length && !kttxs.length) {
-            alert('Tệp sao lưu rỗng hoặc không đúng định dạng của ExamMatrix Studio.');
+            if (statusDiv) {
+              statusDiv.textContent = '⚠️ Tệp sao lưu rỗng hoặc không đúng định dạng của ExamMatrix Studio.';
+              statusDiv.style.display = 'block';
+            }
+            notify('Tệp sao lưu rỗng hoặc không đúng định dạng của ExamMatrix Studio.', true);
             return;
           }
 
@@ -7242,7 +7246,11 @@ function initBackupManager() {
         } catch(err) {
           // Không lưu được thì nạp lại dữ liệu đang có để màn hình không hiện bản chưa lưu.
           if (typeof load === 'function') load().catch(() => {});
-          alert('Chưa khôi phục được dữ liệu: ' + err.message);
+          if (statusDiv) {
+            statusDiv.textContent = '⚠️ Chưa khôi phục được dữ liệu: ' + err.message;
+            statusDiv.style.display = 'block';
+          }
+          notify('Chưa khôi phục được dữ liệu: ' + err.message, true);
         }
       };
       reader.readAsText(file);

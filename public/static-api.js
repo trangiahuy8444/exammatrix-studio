@@ -41,8 +41,14 @@
   function saveRevision(payload,existing){
    if(existing)checkRevision(existing);
    if(typeof payload.title!=='string'||!payload.title.trim())fail('Nhập tên đề cương.');
-   const grade=Number(payload.grade??existing?.grade),ids=payload.question_ids??payload.questions?.map(q=>q.id);
-   if(!Number.isInteger(grade)||!Array.isArray(ids)||!ids.length||new Set(ids).size!==ids.length)fail('Chọn câu hỏi cùng khối, không trùng mã để lập đề cương.');
+   const grade=Number(payload.grade??existing?.grade),rawIds=payload.question_ids??payload.questions?.map(q=>q.id);
+   // Thông báo đúng điều sai (trước đây gộp chung: "Chọn câu hỏi cùng khối, không trùng mã…").
+   if(!Number.isInteger(grade))fail('Chưa xác định khối của đề cương. Hãy chọn khối lớp rồi lưu lại.');
+   if(!Array.isArray(rawIds)||!rawIds.length)fail('Đề cương chưa có câu hỏi nào. Hãy bốc câu theo số lượng từng dạng (hoặc theo ma trận) hoặc chọn câu từ Ngân hàng trước khi lưu.');
+   if(rawIds.some(x=>typeof x!=='string'||!x.trim()))fail('Có câu trong đề cương chưa có mã câu hỏi. Hãy nhập câu vào Ngân hàng trước (hoặc dùng "Import Đề cương" để ứng dụng tự thêm).');
+   const ids=[...new Set(rawIds)]; // câu bị chọn hai lần chỉ giữ một lần
+   const missing=ids.filter(key=>!bank.some(q=>q.id===key));
+   if(missing.length)fail(`Có ${missing.length} câu không còn trong Ngân hàng (đã xóa hoặc nhập lại với mã mới). Hãy chọn lại câu từ Ngân hàng hoặc dùng "Import Đề cương" để ứng dụng tự thêm câu.`,400,{missing_ids:missing.slice(0,50)});
    const contentFields=['grade','type','lesson_code','level','learning_outcome','question','options','correct','option_explanations','statements','short_answer','rubric','max_score','equivalent_answer_policy','competency'];
    const questions=ids.map(key=>{const q=own(find(bank,key));if(q.grade!==grade||q.review_status==='archived')fail('Câu hỏi khác khối hoặc đã lưu trữ.');
     const incoming=payload.questions?.find(x=>x.id===key);
@@ -593,6 +599,33 @@
     return {...rest,available:pool.length,requested:req,revision_count:picked.length,question_ids:picked};
    });
    return result({cells:cellsOut,question_ids:chosenIds,total:chosenIds.length,exam_question_count:flexSlots.length,warnings});
+  }
+  if(path==='/api/revisions/coverage'){
+   // Chỉ đọc: đề nào đã có bao nhiêu câu trong đề cương, câu nào chưa có, tỉ lệ theo câu/điểm và phủ YCCĐ.
+   const rev=own(find(data.revisions,p.revision_id));
+   if(typeof engine.revisionCoverage!=='function')fail('Bộ xử lý chưa hỗ trợ đối chiếu đề cương. Vui lòng tải lại trang.',503);
+   const sameSubject=e=>(e.subject_name||'Tin học')===subject;
+   let exams=p.exam_id?[own(find(data.exams,p.exam_id))]:data.exams.filter(e=>sameSubject(e)&&e.revision_id===rev.id);
+   if(!p.exam_id&&!exams.length)exams=data.exams.filter(e=>sameSubject(e)&&Number(e.grade)===Number(rev.grade));
+   return result({revision:{id:rev.id,title:rev.title,grade:rev.grade,question_count:(rev.questions||[]).length},reports:exams.map(e=>engine.revisionCoverage(e,rev))});
+  }
+  if(path==='/api/revisions/import'){
+   // Nhập đề cương từ tệp (Markdown/JSON đã đọc ở trình duyệt): thêm câu mới vào Ngân hàng (Nháp), dùng lại câu đã có
+   // (cùng khối, cùng nội dung), rồi lập đề cương từ đúng các câu trong Ngân hàng. Một lần ghi; lỗi thì không ghi gì.
+   const grade=Number(p.grade);
+   if(!Number.isInteger(grade))fail('Chưa xác định khối của đề cương. Hãy chọn khối lớp trước khi nhập tệp.');
+   const incoming=(Array.isArray(p.questions)?p.questions:[]).filter(q=>q&&typeof q==='object'&&String(q.question||'').trim());
+   if(!incoming.length)fail('Tệp không có câu hỏi hợp lệ. Hãy tải tệp mẫu Đề cương (JSON hoặc Markdown) để xem định dạng.');
+   const keyOf=q=>Number(q.grade??grade)+'|'+String(q.question||'').normalize('NFC').toLowerCase().trim().replace(/\s+/gu,' ');
+   let work=data,added=0;
+   const fresh=incoming.map(q=>{const c={...clone(q),grade:Number(q.grade??grade)};delete c.id;delete c.review_status;return c;});
+   try{const r=await handle('/api/bank/import',{mode:'append',questions:fresh,grade},work,env);work=r.data;added=r.response?.import_report?.added||0;}
+   catch(err){if(!/^Không có câu mới/.test(String(err.message)))throw err;}
+   const byKey=new Map(work.bank.questions.filter(q=>q.review_status!=='archived').map(q=>[keyOf(q),q.id]));
+   const ids=[...new Set(incoming.map(q=>byKey.get(keyOf(q))).filter(Boolean))];
+   if(!ids.length)fail('Chưa đưa được câu nào của tệp vào Ngân hàng.');
+   const saved=await handle('/api/revisions/save',{title:String(p.title||'').trim()||`Đề cương ôn tập Khối ${grade}`,grade,question_ids:ids,similarity_target_percent:p.similarity_target_percent},work,env);
+   return {response:{...saved.response,import_report:{file_questions:incoming.length,added,reused:ids.length-added}},data:saved.data,changed:true};
   }
   if(path==='/api/revisions/save'||path==='/api/revisions/update'){
    const old=path.endsWith('/update')?own(find(data.revisions,p.id)):null;

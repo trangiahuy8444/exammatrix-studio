@@ -4102,7 +4102,7 @@ function revisionLinks(r){
   `</div></details>`+
  `</div>`;
 }
-function revisionMatrixSources(g){const d=store.examDraft,list=[];usableMatrices(g).forEach(m=>list.push({id:'mx:'+m.id,label:`Ma trận & đặc tả · ${m.title} · V${m.version}`,payload:{grade:g,exam_type:m.exam_type,matrix_id:m.id}}));store.templates.filter(t=>Number(t.grade)===Number(g)&&!t.unsupported).forEach(t=>list.push({id:t.id,label:`Mẫu ma trận · ${t.title||t.id} · ${periodNames[t.exam_type]||t.exam_type}`,payload:{grade:g,exam_type:t.exam_type,template_id:t.id,blueprint:t.rows||[]}}));if(Number(d.grade)===Number(g)&&!d.template_id&&!d.matrix_id&&d.blueprint?.length&&C.blueprintSummary(d.blueprint).points===10)list.push({id:'draft',label:'Phân bố đang thiết lập ở màn hình Tạo đề',payload:{grade:g,exam_type:d.exam_type,blueprint:d.blueprint}});return list;}
+function revisionMatrixSources(g){const d=store.examDraft,list=[];usableMatrices(g).forEach(m=>list.push({id:'mx:'+m.id,label:`Ma trận & đặc tả · ${m.title} · V${m.version}`,payload:{grade:g,exam_type:m.exam_type,matrix_id:m.id}}));store.templates.filter(t=>Number(t.grade)===Number(g)&&!t.unsupported).forEach(t=>list.push({id:t.id,label:`Mẫu ma trận · ${t.title||t.id} · ${periodNames[t.exam_type]||t.exam_type}`,payload:{grade:g,exam_type:t.exam_type,template_id:t.id,blueprint:t.rows||[]}}));if(Number(d.grade)===Number(g)&&!d.template_id&&!d.matrix_id&&d.blueprint?.length&&C.blueprintSummary(d.blueprint).points===10)list.push({id:'draft',label:'Phân bố đang thiết lập ở màn hình Tạo đề',payload:{grade:g,exam_type:d.exam_type,blueprint:d.blueprint}});list.push({id:'bank',label:`Toàn bộ ngân hàng Khối ${g} (chưa cần ma trận · chia theo bài và mức độ)`,payload:{grade:g,subject_name:subject(),from_bank:true}});return list;}
 
 function lessonPickerTable(cells, prefix, countsState) {
   if (!cells || !cells.length) return '';
@@ -4214,11 +4214,12 @@ function revisionMatrixPanel(g,qs){
  const picked=c=>revCellPickedCount(g,c,qs,flex);
  const inMatrix=qs.filter(q=>cells.some(c=>flex?(Number(q.grade)===Number(g)&&examNormLesson(q.lesson_code)===examNormLesson(c.lesson_code)&&String(q.type||'').toUpperCase()===String(c.type||'').toUpperCase()&&examNormLevel(q.level)===examNormLevel(c.level)):C.cellMatches(c,q))).length;
  const displayCells=flex?cells.map(c=>({...c,available:capOf(c)})):cells;
+ const isBankSrc=Boolean(src.payload?.from_bank);
  const activeTypes=['MC','YN','SHORT','ES'].filter(tp=>cells.some(c=>String(c.type||'').toUpperCase()===tp));
  const typeEntries=activeTypes.map(tp=>{
   const needByType=cells.filter(c=>String(c.type||'').toUpperCase()===tp).reduce((n,c)=>n+Number(c.need||0),0);
   const availByType=revAvailByType(g,cells,tp,flex);
-  const val=store.revTypeCounts[tp]!==undefined?Math.max(0,Math.floor(Number(store.revTypeCounts[tp])||0)):Math.min(availByType,Math.ceil(needByType*1.5));
+  const val=store.revTypeCounts[tp]!==undefined?Math.max(0,Math.floor(Number(store.revTypeCounts[tp])||0)):isBankSrc?0:Math.min(availByType,Math.ceil(needByType*1.5));
   return {tp,label:examTypeLabel(tp),needByType,availByType,val};
  });
  const totalTypeCount=typeEntries.reduce((n,x)=>n+x.val,0);
@@ -4230,9 +4231,10 @@ function revisionMatrixPanel(g,qs){
   (strictShort&&gradeQs.length>0?`<p class="small muted" style="margin:6px 0 0 25px">Ngân hàng Khối ${g} hiện có <strong>${gradeQs.length} câu</strong> (${approvedGradeQs} câu đã duyệt). ${flex?'Đã tự bật chế độ linh hoạt để chọn số câu đề cương từ toàn bộ ngân hàng khối.':'Đang tắt: chỉ lấy câu đã duyệt khớp 100% YCCĐ.'}</p>`:'')+
  `</div>`;
  const randomByTypeBox=cells.length?`<div class="callout" style="margin:12px 0;background:#f8fbff;border-color:#93c5fd">`+
-  `<strong style="display:block;color:var(--navy);margin-bottom:8px">🎲 Tự tạo đề cương theo dạng câu hỏi (bốc ngẫu nhiên theo tỉ lệ ma trận)</strong>`+
-  `<div class="form-grid" style="margin-bottom:10px">${typeEntries.map(x=>`<div class="field"><label for="rev-type-${esc(x.tp)}">${esc(x.label)} <span class="muted">(đề ${x.needByType} · tối đa ${x.availByType})</span></label><input id="rev-type-${esc(x.tp)}" type="number" min="0" max="${x.availByType}" step="1" data-rev-type-count="${esc(x.tp)}" value="${esc(x.val)}"></div>`).join('')}</div>`+
-  `<div class="actions"><button type="button" id="rev-random-by-type" class="primary"${totalTypeCount<1?' disabled':''}>🎲 Bốc ngẫu nhiên ${totalTypeCount} câu theo ma trận</button><span class="small muted">Mỗi lần bấm sẽ bốc một bộ ngẫu nhiên mới đúng tỉ lệ bài &amp; mức độ trong ma trận.</span></div>`+
+  `<strong style="display:block;color:var(--navy);margin-bottom:8px">🎲 Tạo đề cương theo số câu từng dạng (VD: 40 câu trắc nghiệm, 6 câu tự luận)</strong>`+
+  `<p class="small muted" style="margin:0 0 8px">${isBankSrc?'Số câu mỗi dạng được chia cho các bài và mức độ theo tỉ lệ câu đã duyệt đang có trong ngân hàng.':'Số câu mỗi dạng được chia cho các ô cùng dạng theo đúng tỉ lệ bài và mức độ của ma trận. Ô nào thiếu câu đã duyệt, ứng dụng báo rõ ô đó.'}</p>`+
+  `<div class="form-grid" style="margin-bottom:10px">${typeEntries.map(x=>`<div class="field"><label for="rev-type-${esc(x.tp)}">${esc(x.label)} <span class="muted">(${isBankSrc?`ngân hàng có ${x.availByType}`:`đề ${x.needByType} · tối đa ${x.availByType}`})</span></label><input id="rev-type-${esc(x.tp)}" type="number" min="0" max="${x.availByType}" step="1" data-rev-type-count="${esc(x.tp)}" value="${esc(x.val)}"></div>`).join('')}</div>`+
+  `<div class="actions"><button type="button" id="rev-random-by-type" class="primary"${totalTypeCount<1?' disabled':''}>🎲 Bốc ngẫu nhiên ${totalTypeCount} câu${isBankSrc?'':' theo ma trận'}</button><span class="small muted">Mỗi lần bấm sẽ bốc một bộ ngẫu nhiên mới đúng tỉ lệ bài &amp; mức độ trong ma trận.</span></div>`+
  `</div>`:'';
  return `<div class="field"><label for="revision-matrix">Tạo đề cương theo ma trận</label><select id="revision-matrix">${sources.map(x=>opt(x.id,x.label,x.id===src.id)).join('')}</select></div>${flexSwitchHtml}${randomByTypeBox}<details style="margin:12px 0"><summary style="cursor:pointer;font-weight:600;color:var(--blue)">📊 Tùy chỉnh chi tiết theo từng bài / ô ma trận (${cells.length} ô)</summary><div style="margin-top:10px">${planTable(plan,'<th>Số câu đề cương</th><th>Đã chọn</th>',c=>{const cap=capOf(c);return `<td><input type="number" class="small-input" min="0" max="${cap}" step="1" data-rev-count="${esc(c.key)}" value="${esc(count(c))}" aria-label="Số câu đề cương ô ${esc(c.lesson_code)} ${esc(examTypeLabel(c.type))} ${esc(c.level)}"></td><td><span class="badge${picked(c)<count(c)?' draft':' approved'}">${picked(c)}</span></td>`;},{flexible:flex,grade:Number(g)})}${lessonPickerTable(displayCells,'rev',store.revLessonCounts||{})}${cells.length?`<div class="actions" style="margin-top:10px"><label for="rev-total" class="small">Tổng số câu</label><input id="rev-total" type="number" class="small-input" min="1" step="1" value="${total}"><button type="button" id="rev-split">Chia theo tỉ lệ</button><button type="button" class="primary" id="rev-auto">Tự chọn ${total} câu theo từng ô</button></div><p class="small muted">Đang chọn ${qs.length} câu (${inMatrix} câu thuộc ô ma trận${qs.length-inMatrix?`, ${qs.length-inMatrix} câu ngoài ma trận`:''}). Sửa số từng ô rồi bấm "Tự chọn theo từng ô", hoặc dùng khung bốc ngẫu nhiên theo dạng ở trên.</p>`:''}</div></details>`;
 }
@@ -4247,7 +4249,7 @@ function bindRevisionMatrixPanel(g){
    const btn=$('#rev-random-by-type');
    if(btn){
     const sum=[...document.querySelectorAll('[data-rev-type-count]')].reduce((n,i)=>n+Math.max(0,Math.floor(Number(i.value)||0)),0);
-    btn.textContent=`🎲 Bốc ngẫu nhiên ${sum} câu theo ma trận`;
+    btn.textContent=`🎲 Bốc ngẫu nhiên ${sum} câu${src().payload?.from_bank?'':' theo ma trận'}`;
     btn.disabled=sum<1;
    }
   };
@@ -4268,7 +4270,7 @@ function bindRevisionMatrixPanel(g){
   const sum=Object.values(typeCounts).reduce((a,b)=>a+b,0);
   if(sum<1){notify('Hãy nhập ít nhất 1 câu hỏi cho một dạng câu.',true);return;}
   try{
-   const res=await request('/api/revisions/propose',{...src().payload,flexible:Boolean(store.revFlexibleMode),type_counts:typeCounts,seed:String(Date.now())+'-'+Math.random().toString(36).slice(2)});
+   const res=await request('/api/revisions/propose',{...src().payload,flexible:Boolean(store.revFlexibleMode)&&!src().payload?.from_bank,type_counts:typeCounts,seed:String(Date.now())+'-'+Math.random().toString(36).slice(2)});
    questions().filter(q=>Number(q.grade)===Number(g)).forEach(q=>store.selected.delete(q.id));
    res.question_ids.forEach(id=>store.selected.add(id));
    store.revCounts=store.revCounts||{};
@@ -4277,7 +4279,7 @@ function bindRevisionMatrixPanel(g){
    (res.cells||[]).forEach(c=>{countsByType[c.type]=(countsByType[c.type]||0)+Number(c.revision_count||0);});
    const summaryStr=Object.entries(countsByType).filter(([,v])=>v>0).map(([tp,v])=>`${v} ${examTypeLabel(tp)}`).join(', ');
    renderRevisions();
-   notify(`Đã bốc ngẫu nhiên ${res.total} câu theo ma trận cho Khối ${g}${summaryStr?` (${summaryStr})`:''}. Bấm "Lưu phiên bản đề cương" bên dưới để lưu.`+(res.warnings?.length?'\nLưu ý: '+res.warnings.join(' '):''),Boolean(res.warnings?.length));
+   notify(`Đã bốc ngẫu nhiên ${res.total} câu ${res.source==='bank'?'từ ngân hàng':'theo ma trận'} cho Khối ${g}${summaryStr?` (${summaryStr})`:''}. Bấm "Lưu phiên bản đề cương" bên dưới để lưu.`+(res.warnings?.length?'\nLưu ý: '+res.warnings.join(' '):''),Boolean(res.warnings?.length));
   }catch(err){notify(detailError(err),true);}
  };
  if($('#rev-apply-lesson-split'))$('#rev-apply-lesson-split').onclick=()=>{
@@ -4947,7 +4949,7 @@ function renderRevisions(){
    <button type="button" class="button quiet" id="rev-copy-prompt" style="color:#0267b1;padding:4px 8px;font-size:12px;font-weight:600">📋 Chép Prompt AI tạo Đề cương</button>
  </div>`+
  `<div class="card"><div class="list-toolbar" style="margin-top:0"><h2 style="margin:0">Các phiên bản đề cương đã lưu (${shownRevs.length} / ${store.revisions.length})</h2><div class="actions" style="display:flex;align-items:center;gap:8px"><label for="rev-list-grade-filter" class="small muted" style="font-weight:600">Khối lớp:</label><select id="rev-list-grade-filter" style="min-width:150px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff">${opt('all',`Tất cả khối (${store.revisions.length})`,revFilterG==='all')}${revGrades.map(gr=>opt(gr,`Khối ${gr} (${store.revisions.filter(x=>Number(x.grade)===gr).length})`,String(revFilterG)===String(gr))).join('')}</select></div></div>${shownRevs.length?[...shownRevs].reverse().map(r=>`<article class="saved-item"><div><h3>${esc(r.title)}</h3><p><strong>Khối ${r.grade}</strong> · ${countRecord(r)} câu hỏi (${revSummaryText(r)})${r.similarity_target_percent!=null?` · Tương đồng đề thi: <strong>${r.similarity_target_percent}%</strong>`:''} · ${esc(date(r.updated_at||r.created_at))}</p>${r.source_file?`<p class="q-id">Nguồn: ${esc(r.source_file)}</p>`:''}</div><div class="actions">${revisionLinks(r)}</div></article>`).join(''):empty('Chưa có phiên bản đề cương','Chọn câu ở ngân hàng hoặc Import tệp .docx đề cương.')}</div>`+
- `<div id="revision-inline-viewer" class="card" hidden></div>`+
+ `<div id="revision-coverage" class="card" hidden></div>`+`<div id="revision-inline-viewer" class="card" hidden></div>`+
  `<div class="two-col"><div class="card"><h2>${editingRev?`Sửa phiên bản đề cương: ${esc(editingRev.title||'')}`:'Lưu đề cương mới từ Ngân hàng'}</h2><form id="revision-form"><div class="form-grid"><div class="field"><label for="revision-grade">Khối lớp</label><select id="revision-grade">${gradeOptions(g)}</select></div><div class="field span2"><label for="revision-title">Tên phiên bản</label><input id="revision-title" value="${esc(store.revisionTitleDraft||(editingRev?.title||''))}" placeholder="Ví dụ: Đề cương Giữa HK1 · Khối ${g} · bản 1" required></div></div><div class="callout" style="margin:10px 0;background:#f8fafc;border-color:var(--line)"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px"><label for="revision-sim-pct" style="font-weight:650;color:var(--navy);margin:0">🎯 Mức độ tương đồng mục tiêu với Đề thi (%)</label><div class="actions" style="gap:4px">${[70,80,90,100].map(v=>`<button type="button" class="export-link${revSimPct===v?' primary':''}" data-rev-sim-preset="${v}">${v}%</button>`).join('')}</div></div><div class="sim-slider-wrap"><input id="revision-sim-pct" type="range" min="0" max="100" step="5" value="${esc(revSimPct)}"><input id="revision-sim-pct-num" type="number" min="0" max="100" step="1" value="${esc(revSimPct)}" style="width:74px"><span>%</span><span id="revision-sim-desc" class="small muted">(${revSimPct}% trong đề cương · ${100-revSimPct}% câu mới)</span></div></div><div class="selection-tray"><span><strong>${ids.length}</strong> câu khối ${g} đang được chọn</span><a href="#bank">Điều chỉnh lựa chọn</a></div>${electiveQs.length?`<div class="callout warning" style="margin-bottom:10px">⚠️ Đang có <strong>${electiveQs.length}</strong> câu thuộc <strong>Chuyên đề học tập (Mục II.2)</strong>. Theo Thông tư 22/2021/TT-BGDĐT Điều 7.1, câu Chuyên đề không dùng trong Đề cương ôn tập kiểm tra định kì. <button type="button" class="export-link" id="revision-remove-elective">Loại câu Chuyên đề khỏi lựa chọn</button></div>`:''}${revisionMatrixPanel(g,qs)}<div class="actions"><button type="button" id="revision-add-filter">Thêm câu đang lọc của khối ${g}</button><button type="button" id="revision-preview-draft"${!ids.length?' disabled':''}>Xem toàn bộ đang chọn</button><button type="button" id="revision-clear" class="quiet">Bỏ chọn khối ${g}</button></div><div class="revision-ids">${qs.length?qs.map(q=>`${isTechId(q.id)?'':`${esc(q.id)} · `}${esc(q.lesson_code)} · ${esc(q.level)} · ${esc(statusNames[q.review_status])}${questionSectionOf(q)==='elective_topic'?' · [CĐHT]':''}`).join('<br>'):'Chưa chọn câu. Dùng khung bốc ngẫu nhiên theo ma trận ở trên hoặc chọn thêm từ Ngân hàng.'}</div><div class="actions"><button type="submit" id="save-revision" class="primary"${!ids.length?' disabled':''}>${editingRev?'Cập nhật đề cương đang sửa':'Lưu phiên bản đề cương'}</button>${editingRev?`<button type="button" id="save-revision-as-new"${!ids.length?' disabled':''}>Lưu thành bản mới</button><button type="button" class="quiet" id="cancel-edit-revision">Hủy sửa</button>`:''}</div></form></div><div class="card"><h2>Giữ đúng nội dung đã chuẩn bị</h2><p class="muted">Phiên bản lưu giữ nội dung câu hỏi tại thời điểm tạo. Nếu sửa một câu trong ngân hàng sau đó, phiên bản cũ vẫn giữ nguyên.</p><div class="callout">Thầy/Cô có thể chọn số câu từng dạng (Trắc nghiệm, Đúng/Sai, Trả lời ngắn, Tự luận), bấm <strong>🎲 Bốc ngẫu nhiên</strong> đúng tỉ lệ ma trận rồi thiết lập <strong>mức tương đồng (%)</strong> mong muốn trước khi lưu. ${Number(g)>=10?'Đề cương định kì THPT chỉ lấy câu từ Nội dung cốt lõi (Mục II.1), không đưa bài Chuyên đề học tập.':''}</div><p class="small muted">Bấm <strong>👁 Xem toàn bộ</strong> ở bất kì đề cương nào phía trên để xem đầy đủ bảng giới hạn kiến thức, toàn bộ câu hỏi và chỉnh sửa trực tiếp ngay trên trang web.</p></div></div>`;
  const btnRevJson = $('#rev-download-json-sample');
  if (btnRevJson) btnRevJson.onclick = () => downloadRevisionJsonSample(effectiveGrade());
@@ -4961,70 +4963,25 @@ function renderRevisions(){
   const file=ev.target.files?.[0];if(!file)return;
   const ext=file.name.toLowerCase().split('.').pop();
   try{
-   if(ext==='md'||ext==='txt'){
+   if(ext==='md'||ext==='txt'||ext==='json'){
+     // Thêm câu của tệp vào Ngân hàng (Nháp; câu đã có thì dùng lại) rồi lập đề cương — một lần ghi.
      const text=await file.text();
-     const g=effectiveGrade();
      const s=store.selectedSubject||store.ppctSubject||'Tin học';
-     const parsed=parseQuestionsFromRawText(text,g,s);
-     if(!parsed.length){
-       notify('Không tìm thấy câu hỏi hợp lệ trong tệp Markdown. Bấm "📝 Tải mẫu Đề cương (Markdown)" để xem định dạng mẫu.',true);
-       return;
+     let g=effectiveGrade(),title=file.name.replace(/\.[^/.]+$/, '').replace(/^[_-]+/, ''),qs=[];
+     if(ext==='json'){
+       const data=JSON.parse(text);const revData=data.revision||data;
+       g=Number(revData.grade)||g;title=revData.title||title;
+       qs=Array.isArray(revData.questions)?revData.questions:(Array.isArray(data)?data:[]);
+     }else{
+       qs=(typeof window.parseQuestionsFromRawText==='function'?window.parseQuestionsFromRawText(text,g,s):[]);
      }
-     if(!store.bank)store.bank={questions:[]};
-     if(!store.bank.questions)store.bank.questions=[];
-     const existingIds=new Set(store.bank.questions.map(q=>q.id));
-     parsed.forEach(q=>{
-       if(!existingIds.has(q.id))store.bank.questions.push(q);
-     });
-     const revTitle = file.name.replace(/\.[^/.]+$/, '').replace(/^[_-]+/, '') || `Đề cương ôn tập Khối ${g}`;
-     const revId = `REV-${Math.random().toString(36).slice(2,10)}`;
-     const newRev = {
-       id: revId,
-       title: revTitle,
-       grade: g,
-       subject_name: s,
-       source_file: file.name,
-       question_ids: parsed.map(q=>q.id),
-       questions: parsed,
-       question_count: parsed.length,
-       created_at: new Date().toISOString()
-     };
-     await mutate('/api/revisions/save',newRev,res=>{
-       store.activeRevisionViewId=res.revision?.id||newRev.id;
+     if(!qs.length){notify('Không tìm thấy câu hỏi hợp lệ trong tệp. Bấm "Tải mẫu Đề cương (JSON / Markdown)" để xem định dạng.',true);return;}
+     await mutate('/api/revisions/import',{title:title||`Đề cương ôn tập Khối ${g}`,grade:g,questions:qs.map(q=>({...q,grade:Number(q.grade)||g,subject_name:s}))},async res=>{
+       await load();
+       store.activeRevisionViewId=res.revision?.id;
        renderRevisions();
-       notify(`Đã import thành công đề cương "${newRev.title}" (${parsed.length} câu hỏi).`);
-     });
-   }else if(ext==='json'){
-     const text=await file.text();
-     const data=JSON.parse(text);
-     const revData = data.revision || data;
-     const g=Number(revData.grade)||effectiveGrade();
-     const qs=revData.questions || (Array.isArray(data)?data:[]);
-     const revTitle = revData.title || file.name.replace(/\.[^/.]+$/, '');
-     const revId = revData.id || `REV-${Math.random().toString(36).slice(2,10)}`;
-     if(qs.length){
-       if(!store.bank)store.bank={questions:[]};
-       if(!store.bank.questions)store.bank.questions=[];
-       const existingIds=new Set(store.bank.questions.map(q=>q.id));
-       qs.forEach(q=>{
-         if(!q.id)q.id=`K${g}-GV-${Math.random().toString(36).slice(2,9)}`;
-         if(!existingIds.has(q.id))store.bank.questions.push(q);
-       });
-     }
-     const newRev = {
-       id: revId,
-       title: revTitle,
-       grade: g,
-       source_file: file.name,
-       question_ids: qs.map(q=>q.id),
-       questions: qs,
-       question_count: qs.length,
-       created_at: new Date().toISOString()
-     };
-     await mutate('/api/revisions/save',newRev,res=>{
-       store.activeRevisionViewId=res.revision?.id||newRev.id;
-       renderRevisions();
-       notify(`Đã import đề cương "${newRev.title}" (${qs.length} câu).`);
+       const rep=res.import_report||{};
+       notify(`Đã nhập đề cương "${res.revision?.title}" (${res.revision?.question_count||0} câu): ${rep.added||0} câu mới thêm vào Ngân hàng ở trạng thái Nháp, ${rep.reused||0} câu đã có sẵn.${rep.added?' Hãy duyệt các câu mới trước khi tạo đề chính thức.':''}`);
      });
    }else{
      const b64=await fileToBase64(file);
@@ -5078,10 +5035,38 @@ function renderRevisions(){
   }
  };
  const activeRev=store.revisions.find(r=>r.id===store.activeRevisionViewId)||store.revisions[0];
+ if(activeRev)renderRevisionCoverage(activeRev);
  if(activeRev&&$('#revision-inline-viewer')){
   $('#revision-inline-viewer').hidden=false;
   mountRevisionViewerContent($('#revision-inline-viewer'),activeRev,Boolean(store.activeRevisionShowAnswers),true);
  }
+}
+// Đối chiếu đề thi ↔ đề cương (chỉ đọc): câu nào của đề đã có trong đề cương, câu nào chưa, tỉ lệ theo câu và điểm, phủ YCCĐ.
+async function renderRevisionCoverage(rev){
+ const box=$('#revision-coverage');if(!box)return;
+ const exams=store.exams.filter(e=>(e.subject_name||'Tin học')===subject()&&Number(e.grade)===Number(rev.grade)&&(e.questions||[]).length);
+ if(!exams.length){box.hidden=false;box.innerHTML=`<h3 style="margin-top:0">📊 Đối chiếu đề thi với đề cương "${esc(rev.title)}"</h3><p class="muted">Khối ${esc(rev.grade)} chưa có đề thi nào để đối chiếu. Tạo đề ở màn hình "Tạo đề kiểm tra" rồi quay lại đây.</p>`;return;}
+ const linked=exams.filter(e=>e.revision_id===rev.id);
+ const chosen=exams.find(e=>e.id===store.revCoverageExamId)||linked[0]||exams[0];
+ box.hidden=false;box.innerHTML=`<h3 style="margin-top:0">📊 Đối chiếu đề thi với đề cương "${esc(rev.title)}"</h3><p class="muted">Đang đối chiếu…</p>`;
+ let rep;try{rep=(await request('/api/revisions/coverage',{revision_id:rev.id,exam_id:chosen.id})).reports[0];}catch(err){box.innerHTML=`<div class="callout warning">${esc(detailError(err))}</div>`;return;}
+ if(store.activeRevisionViewId&&store.activeRevisionViewId!==rev.id)return;
+ const ok=rep.in_revision>=rep.required;
+ const missing=rep.items.filter(x=>!x.in_revision),present=rep.items.filter(x=>x.in_revision);
+ const row=x=>`<tr><td><strong>${esc(x.label)}</strong></td><td>${esc(x.lesson_code)}</td><td>${esc(x.level)}</td><td style="text-align:right">${esc(String(x.points).replace('.',','))}</td><td>${esc(x.question)}</td><td>${x.in_revision?'✓ có trong đề cương':x.similar_text?'Gần giống (nội dung lời dẫn trùng, phương án/đáp án khác)':x.outcome_in_revision?'Chưa có câu này; YCCĐ đã có trong đề cương':'<strong>Chưa có câu và YCCĐ</strong>'}</td></tr>`;
+ const table=list=>`<div class="table-wrap"><table class="small"><thead><tr><th>Câu</th><th>Bài</th><th>Mức độ</th><th>Điểm</th><th>Nội dung</th><th>Đề cương</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table></div>`;
+ box.innerHTML=`<h3 style="margin-top:0">📊 Đối chiếu đề thi với đề cương "${esc(rev.title)}"</h3>
+  <div class="field" style="max-width:520px"><label for="rev-cov-exam">Đề thi</label><select id="rev-cov-exam">${exams.map(e=>`<option value="${esc(e.id)}"${e.id===chosen.id?' selected':''}>${esc(e.title||e.id)}${e.exam_code?' · Mã '+esc(e.exam_code):''}${e.revision_id===rev.id?' (gắn với đề cương này)':''}</option>`).join('')}</select></div>
+  <div class="kg-stats" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0">
+   <div class="callout ${ok?'':'warning'}" style="margin:0"><strong>${rep.in_revision}/${rep.total} câu</strong> có trong đề cương (${String(rep.count_percent).replace('.',',')}%) · cần ít nhất ${rep.required} câu (${rep.threshold}%)</div>
+   <div class="callout" style="margin:0">Theo điểm: <strong>${String(rep.points_percent).replace('.',',')}%</strong></div>
+   <div class="callout ${rep.outcome_percent<100?'warning':''}" style="margin:0">Câu có YCCĐ trong đề cương: <strong>${String(rep.outcome_percent).replace('.',',')}%</strong></div>
+  </div>
+  ${missing.length?`<h4>Câu của đề CHƯA có trong đề cương (${missing.length})</h4>${table(missing)}`:'<p class="badge approved">Mọi câu của đề đều có trong đề cương.</p>'}
+  ${rep.missing_outcomes.length?`<p class="small"><strong>YCCĐ của đề chưa có trong đề cương:</strong> ${rep.missing_outcomes.map(esc).join('; ')}</p>`:''}
+  ${present.length?`<details><summary>Câu đã có trong đề cương (${present.length})</summary>${table(present)}</details>`:''}
+  <p class="small muted">Chỉ xem, không thay đổi dữ liệu. "Có trong đề cương" nghĩa là trùng nội dung câu hỏi, phương án và đáp án (kể cả khi đã trộn mã đề).</p>`;
+ $('#rev-cov-exam').onchange=e=>{store.revCoverageExamId=e.target.value;renderRevisionCoverage(rev);};
 }
 function startEditRevision(id){
  const r=store.revisions.find(x=>x.id===id);if(!r)return;
@@ -5794,6 +5779,8 @@ if(coursePicker)coursePicker.onchange=()=>{location.href='/app/?curriculum='+enc
 
 // AI Assistant (Google Gemini) UI Integration
 function initAiAssistant() {
+  // Bộ đọc câu hỏi từ văn bản (Markdown, Word đã chuyển chữ) dùng chung cho Ngân hàng, Đề cương, Tạo đề (trước đây chỉ gọi được trong trợ lý AI).
+  window.parseQuestionsFromRawText = parseQuestionsFromRawText;
   const btn = $('#btn-ai-assistant');
   const dialog = $('#ai-dialog');
   if (!btn || !dialog) return;

@@ -5190,9 +5190,9 @@ async function renderRevisionCoverage(rev){
  const bt=rep.by_type||{},keys=Object.keys(bt);
  const countsByType={};keys.forEach(t=>{if(bt[t]?.total)countsByType[t]=bt[t].total;});
  const applyLabel=linked.length>1?`Áp dụng cho đề cương & ${linked.length} đề liên kết`:(linked.length===1?'Áp dụng cho đề cương & đề liên kết':'Áp dụng tỉ lệ');
- const ratioBarHtml=keys.length?`<div class="rev-cov-ratio-bar" title="Ưu tiên làm tròn xuống trên Tổng ≤ % (VD 90% của 31 câu = 27/31) và giữ nguyên các dạng đã ghim (như TL 100%). Tỉ lệ này áp dụng chung cho đề cương và mọi đề liên kết.">
+ const ratioBarHtml=keys.length?`<div class="rev-cov-ratio-bar" title="Tổng tối thiểu ≥ % (làm tròn lên, không dưới 90%: VD 90% của 31 câu = 28/31) và giữ nguyên các dạng đã ghim (như TL 100%). Tỉ lệ này áp dụng chung cho đề cương và mọi đề liên kết.">
    <div class="rev-cov-ratio-inputs">
-     <label class="rev-cov-type-item" for="rev-cov-overall" title="Giới hạn tỉ lệ chung cả đề (làm tròn xuống: 90% của 31 câu = 27/31)">Tổng ≤<input id="rev-cov-overall" type="number" min="0" max="100" step="1" value="${esc(savedOverall)}"><span>%</span></label>
+     <label class="rev-cov-type-item" for="rev-cov-overall" title="Tỉ lệ chung tối thiểu cả đề (làm tròn lên, không dưới 90%: 90% của 31 câu = 28/31)">Tổng ≥<input id="rev-cov-overall" type="number" min="90" max="100" step="1" value="${esc(savedOverall)}"><span>%</span></label>
      ${keys.map(t=>{
        const defVal=t==='ES'?100:(savedByRev&&savedByRev[t]!=null?savedByRev[t]:(bt[t].target!=null?bt[t].target:rep.threshold));
        const val=(savedByRev&&savedByRev[t]!=null)?savedByRev[t]:defVal;
@@ -5275,7 +5275,7 @@ async function renderRevisionCoverage(rev){
    else store.revCovOverallByRev[rev.id]=null;
   }
   const overall=rep.total?Math.round(1000*after/rep.total)/10:0,el=$('#rev-align-preview');
-  const minReq=window.BankCore?.requiredRevisionCount?window.BankCore.requiredRevisionCount(rep.total,90):Math.floor(rep.total*0.9+1e-9);
+  const minReq=window.BankCore?.requiredRevisionCount?window.BankCore.requiredRevisionCount(rep.total,90):Math.ceil(rep.total*0.9-1e-9);
   if(el)el.innerHTML=`Tổng mục tiêu: <strong${after<minReq?' style="color:#b45309"':''}>${after}/${rep.total} (${String(overall).replace('.',',')}%)</strong>${parts.length?` · ${parts.join(', ')}`:''}`;
   return {parts,overall,overallPct,overallMode,targets:cur};
  };

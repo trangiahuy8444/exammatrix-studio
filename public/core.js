@@ -1208,13 +1208,15 @@ function syncEditedQuestionsFromSheet(sheet,record){
     if(apply&&report.changed){if(bank.ppct)bank.ppct.lessons=lessonsOut;bank.questions=qsOut;if(Array.isArray(data.matrices))data.matrices=msOut;}
     return report;
   }
-  // Quy chuẩn làm tròn xuống trên tổng số câu (VD: 90% của 31 câu = floor(27,9) = 27 câu, ≤ 90% và ưu tiên giữ dạng tự luận 100%).
+  // Số câu tối thiểu lấy từ đề cương: LÀM TRÒN LÊN để không dưới tỉ lệ đặt ra (VD: 90% của 31 câu = ceil(27,9) = 28 câu = 90,3%).
+  // Căn cứ: rules/01_phan_cong_va_bien_soan_de.md — 90% đề thi lấy từ hoặc bám sát đề cương (giáo viên chốt giữ tối thiểu 90%, 25/11/2026).
+  const REVISION_MIN_PERCENT=90;
   function requiredRevisionCount(total,percent){
     const n=Number(total)||0;
-    const pct=Number.isFinite(Number(percent))?Math.max(0,Math.min(100,Number(percent))):90;
+    const pct=Number.isFinite(Number(percent))?Math.max(0,Math.min(100,Number(percent))):REVISION_MIN_PERCENT;
     if(n<=0||pct<=0)return 0;
     if(pct>=100)return n;
-    return Math.max(1,Math.floor(n*pct/100+1e-9));
+    return Math.min(n,Math.ceil(n*pct/100-1e-9));
   }
   function computeRevisionPlan(countsByType,opts={}){
     const TYPES=['MC','YN','SHORT','ES'];
@@ -1240,7 +1242,7 @@ function syncEditedQuestionsFromSheet(sheet,record){
     let requiredTotal=0;
     let overallPercentOut=0;
     if(hasOverall){
-      const overallPct=clamp(opts.overallPercent);
+      const overallPct=Math.max(REVISION_MIN_PERCENT,clamp(opts.overallPercent)); // tỉ lệ chung không dưới 90%
       overallPercentOut=overallPct;
       requiredTotal=requiredRevisionCount(total,overallPct);
       if(typeTargets&&present.length){
@@ -1289,6 +1291,15 @@ function syncEditedQuestionsFromSheet(sheet,record){
       requiredTotal=requiredRevisionCount(total,90);
       apportionRem(requiredTotal,present);
       requiredTotal=present.reduce((s,t)=>s+(want[t]||0),0);
+    }
+    // Chặn cuối: tổng không dưới mức tối thiểu 90% (làm tròn lên); thiếu thì bù vào dạng còn câu, ưu tiên trắc nghiệm.
+    const floorReq=requiredRevisionCount(total,REVISION_MIN_PERCENT);
+    if(requiredTotal<floorReq){
+      let need=floorReq-requiredTotal;
+      const order=present.slice().sort((a,b)=>(a==='MC'?-1:b==='MC'?1:0)||(counts[b]-(want[b]||0))-(counts[a]-(want[a]||0)));
+      for(const t of order){if(need<=0)break;const room=counts[t]-(want[t]||0);const add=Math.min(room,need);if(add>0){want[t]=(want[t]||0)+add;need-=add;}}
+      requiredTotal=present.reduce((s,t)=>s+(want[t]||0),0);
+      if(overallPercentOut<REVISION_MIN_PERCENT)overallPercentOut=REVISION_MIN_PERCENT;
     }
     const by_type={};
     present.forEach(t=>{

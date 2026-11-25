@@ -311,7 +311,7 @@
   }
   const requiredRevCount = (n, pct) => core && typeof core.requiredRevisionCount === 'function'
     ? core.requiredRevisionCount(n, pct)
-    : (n <= 0 || pct <= 0 ? 0 : (pct >= 100 ? n : Math.max(1, Math.floor(n * pct / 100 + 1e-9))));
+    : (n <= 0 || pct <= 0 ? 0 : (pct >= 100 ? n : Math.min(n, Math.ceil(n * pct / 100 - 1e-9))));
   const revisionPlanFor = (counts, opts) => core && typeof core.computeRevisionPlan === 'function'
     ? core.computeRevisionPlan(counts, opts)
     : null;

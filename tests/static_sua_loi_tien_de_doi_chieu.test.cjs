@@ -23,3 +23,17 @@ test('Đề cương không hợp lệ: vi phạm kho luật mang cùng mã với
   assert.ok(f);
   assert.equal(f.code, 'revision');
 });
+
+test('Tỉ lệ đề cương tối thiểu 90%, làm tròn lên (rules/01): 31 câu cần 28; mọi cách đặt tỉ lệ đều không xuống dưới 90%', () => {
+  assert.equal(C.requiredRevisionCount(31, 90), 28);
+  assert.equal(C.requiredRevisionCount(20, 90), 18);
+  assert.equal(C.requiredRevisionCount(12, 90), 11);
+  assert.equal(C.requiredRevisionCount(10, 100), 10);
+  const a = C.computeRevisionPlan({ MC: 28, ES: 3 }, { overallPercent: 80, typeTargets: { MC: 80, ES: 100 } });
+  assert.equal(a.required_total, 28, 'Tỉ lệ chung đặt 80% vẫn được nâng lên 90%');
+  const b = C.computeRevisionPlan({ MC: 28, ES: 3 }, { typeTargets: { MC: 85, ES: 100 } });
+  assert.deepEqual([b.required_total, b.by_type.MC.want, b.by_type.ES.want], [28, 25, 3], 'TN 85% + TL 100% = 27 < 28: bù 1 câu trắc nghiệm');
+  const c = C.computeRevisionPlan({ MC: 28, ES: 3 });
+  assert.equal(c.required_total, 28);
+  assert.ok(c.actual_percent >= 90);
+});

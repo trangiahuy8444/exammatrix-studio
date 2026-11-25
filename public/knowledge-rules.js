@@ -461,7 +461,7 @@
       const reqTotal = rawOverall != null
         ? (core && typeof core.requiredRevisionCount === 'function'
           ? core.requiredRevisionCount(qs.length, threshold)
-          : (qs.length <= 0 || threshold <= 0 ? 0 : (threshold >= 100 ? qs.length : Math.max(1, Math.floor(qs.length * threshold / 100 + 1e-9)))))
+          : (qs.length <= 0 || threshold <= 0 ? 0 : (threshold >= 100 ? qs.length : Math.min(qs.length, Math.ceil(qs.length * threshold / 100 - 1e-9)))))
         : Math.ceil(qs.length * threshold / 100);
       F.push([d, 'so_cau_trong_de_cuong', inRev], [d, 'so_cau_can_tu_de_cuong', reqTotal]);
       const typeTargets = rev?.coverage_targets || e?.coverage_targets || null;

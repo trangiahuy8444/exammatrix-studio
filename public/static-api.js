@@ -685,7 +685,7 @@
    };
    const reqRevCount=(n,pct)=>coreLib&&typeof coreLib.requiredRevisionCount==='function'
     ?coreLib.requiredRevisionCount(n,pct)
-    :(n<=0||pct<=0?0:(pct>=100?n:Math.max(1,Math.floor(n*pct/100+1e-9))));
+    :(n<=0||pct<=0?0:(pct>=100?n:Math.min(n,Math.ceil(n*pct/100-1e-9))));
    const rawOverall=p.overall_percent!==undefined&&p.overall_percent!==null&&p.overall_percent!==''&&Number.isFinite(Number(p.overall_percent))?clampPct(p.overall_percent):null;
 
    if(p.apply_to_linked===true){

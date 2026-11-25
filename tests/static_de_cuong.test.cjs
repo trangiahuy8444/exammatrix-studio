@@ -152,7 +152,7 @@ test('Đưa đề cương về 90% nội dung đề: bớt đúng số câu vư�
   assert.equal(r.data.revisions.find(x => x.id === full.id).questions.length, 20, 'Bản đã khóa giữ nguyên');
 });
 
-test('Tăng tỉ lệ đề cương: thêm câu của đề (kể cả bản đã trộn phương án) theo tỉ lệ riêng TN/TL; dưới 90% thì cảnh báo', async () => {
+test('Tăng tỉ lệ đề cương: thêm câu của đề (kể cả bản đã trộn phương án) theo tỉ lệ riêng TN/TL; tổng không dưới 90% (tự bù)', async () => {
   let data = workspace({ mcB1: 20, mcB2: 0, es: 4 });
   let r = await api.handle('/api/revisions/save', { title: 'ĐC ít', grade: 9, question_ids: ['B1-0', 'B1-1'] }, data, env);
   data = r.data; const rev = r.response.revision;
@@ -164,16 +164,17 @@ test('Tăng tỉ lệ đề cương: thêm câu của đề (kể cả bản đ�
   assert.deepEqual(r.response.reports[0].by_type, { MC: { total: 10, in_revision: 2, percent: 20 }, ES: { total: 2, in_revision: 0, percent: 0 } });
   r = await api.handle('/api/revisions/align-to-exam', { revision_id: rev.id, exam_id: 'E2', targets: { MC: 90, ES: 50 } }, data, env);
   data = r.data;
-  assert.deepEqual(r.response.by_type.MC, { total: 10, target: 90, wanted: 9, before: 2, after: 9 });
-  assert.deepEqual(r.response.by_type.ES, { total: 2, target: 50, wanted: 1, before: 0, after: 1 });
+  // TN 90% + TL 50% chỉ được 10/12 = 83,3% < 90%: bù thêm 1 câu trắc nghiệm để đạt 11/12 (làm tròn lên của 90%).
+  assert.deepEqual([r.response.by_type.MC.wanted, r.response.by_type.MC.after], [10, 10]);
+  assert.deepEqual([r.response.by_type.ES.wanted, r.response.by_type.ES.after], [1, 1]);
   assert.ok(r.response.added.some(x => x.id === 'B1-5'), 'Câu đã trộn phương án được thêm bằng câu gốc trong Ngân hàng');
-  assert.ok(r.response.warnings.some(w => /dưới mức 90%/.test(w)), 'Tỉ lệ chung 10/12 = 83,3% < 90% thì cảnh báo');
+  assert.ok(!r.response.warnings.some(w => /dưới mức 90%/.test(w)), 'Đã tự bù lên tối thiểu 90%');
   r = await api.handle('/api/revisions/coverage', { revision_id: rev.id, exam_id: 'E2' }, data, env);
-  assert.equal(r.response.reports[0].in_revision, 10);
-  assert.equal(r.response.reports[0].by_type.MC.in_revision, 9);
+  assert.equal(r.response.reports[0].in_revision, 11);
+  assert.equal(r.response.reports[0].by_type.MC.in_revision, 10);
 });
 
-test('Áp dụng tỉ lệ chung (VD: 27/31 câu · TN 85%, TL 100%) cho tất cả các đề liên kết và đồng bộ kiểm tra đối chiếu', async () => {
+test('Áp dụng tỉ lệ chung (VD: 28/31 câu · TN 85% → bù lên 25/28, TL 100%) cho tất cả các đề liên kết và đồng bộ kiểm tra đối chiếu', async () => {
   let data = workspace({ mcB1: 40, mcB2: 20, es: 6 });
   const q = id => ({ ...data.bank.questions.find(x => x.id === id) });
   // Tạo đề cương ban đầu chỉ có ít câu để kiểm tra bước tự bổ sung đồng loạt
@@ -194,16 +195,17 @@ test('Áp dụng tỉ lệ chung (VD: 27/31 câu · TN 85%, TL 100%) cho tất c
     revision_id: rev.id, exam_id: 'E1', targets: { MC: 85, ES: 100 }, apply_to_linked: true
   }, data, env);
   data = r.data;
-  assert.deepEqual(r.response.coverage_targets, { MC: 85, ES: 100 });
-  assert.deepEqual(r.response.revision.coverage_targets, { MC: 85, ES: 100 });
+  // TN 85% + TL 100% = 24 + 3 = 27/31 < 90%: bù lên 28/31, tỉ lệ TN thực tế 25/28 (89%).
+  assert.deepEqual(r.response.coverage_targets, { MC: 89, ES: 100 });
+  assert.deepEqual(r.response.revision.coverage_targets, { MC: 89, ES: 100 });
   assert.equal(r.response.linked_count, 2);
   assert.equal(r.response.exam_reports.length, 2);
   for (const rep of r.response.exam_reports) {
     assert.equal(rep.total, 31);
-    assert.equal(rep.in_revision, 27);
-    assert.equal(rep.required, 27);
+    assert.equal(rep.in_revision, 28);
+    assert.equal(rep.required, 28);
     assert.equal(rep.types_ok, true);
-    assert.equal(rep.by_type.MC.in_revision, 24);
+    assert.equal(rep.by_type.MC.in_revision, 25);
     assert.equal(rep.by_type.ES.in_revision, 3);
     assert.equal(rep.by_type.ES.percent, 100);
   }
@@ -211,8 +213,8 @@ test('Áp dụng tỉ lệ chung (VD: 27/31 câu · TN 85%, TL 100%) cho tất c
   const cov = await api.handle('/api/revisions/coverage', { revision_id: r.response.revision.id }, data, env);
   assert.equal(cov.response.reports.length, 2);
   for (const rep of cov.response.reports) {
-    assert.equal(rep.in_revision, 27);
-    assert.equal(rep.required, 27);
+    assert.equal(rep.in_revision, 28);
+    assert.equal(rep.required, 28);
     assert.equal(rep.types_ok, true);
   }
 });
@@ -257,7 +259,7 @@ test('Tạo bộ đề mới kế thừa tỉ lệ từng dạng (coverage_targe
   }
 });
 
-test('3 đề liên kết giao nhau (Mã 101, 102, 103 · 31 câu): giải chính xác về 27/31 (TN 24/28, TL 3/3) và đạt kiểm định', async () => {
+test('3 đề liên kết giao nhau (Mã 101, 102, 103 · 31 câu): giải chính xác về 28/31 (TN 25/28, TL 3/3) và đạt kiểm định', async () => {
   const KR = require('../public/knowledge-rules.js');
   let data = workspace({ mcB1: 42, mcB2: 0, es: 4 });
   const q = id => ({ ...data.bank.questions.find(x => x.id === id) });
@@ -283,9 +285,9 @@ test('3 đề liên kết giao nhau (Mã 101, 102, 103 · 31 câu): giải chín
   assert.equal(r.response.exam_reports.length, 3);
   for (const rep of r.response.exam_reports) {
     assert.equal(rep.total, 31);
-    assert.equal(rep.in_revision, 27, `${rep.exam_code} phải đúng 27/31`);
-    assert.equal(rep.required, 27);
-    assert.equal(rep.by_type.MC.in_revision, 24, `${rep.exam_code} TN phải đúng 24/28`);
+    assert.equal(rep.in_revision, 28, `${rep.exam_code} phải đúng 28/31 (tối thiểu 90%, làm tròn lên)`);
+    assert.equal(rep.required, 28);
+    assert.equal(rep.by_type.MC.in_revision, 25, `${rep.exam_code} TN phải đúng 25/28`);
     assert.equal(rep.by_type.ES.in_revision, 3, `${rep.exam_code} TL phải đủ 3/3`);
     assert.equal(rep.types_ok, true);
   }

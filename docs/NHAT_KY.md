@@ -1,3 +1,11 @@
+## 25/11/2026 — Tỉ lệ đề cương trở lại tối thiểu 90% (làm tròn lên)
+
+Giáo viên chốt giữ đúng `rules/01_phan_cong_va_bien_soan_de.md` ("90% đề thi phải được lấy từ hoặc bám sát bộ câu hỏi trong Đề cương ôn tập"), bỏ cách làm tròn xuống của 9486b10 (31 câu chỉ cần 27 = 87,1%).
+
+- `core.requiredRevisionCount` làm tròn LÊN: 31 câu cần 28 (90,3%), 12 câu cần 11, 20 câu cần 18.
+- `core.computeRevisionPlan`: tỉ lệ chung không đặt dưới 90%; chặn cuối bảo đảm tổng không dưới mức 90% dù đặt tỉ lệ từng dạng thế nào, thiếu thì bù vào dạng còn câu (ưu tiên trắc nghiệm). VD TN 85% + TL 100% trên 28 TN + 3 TL → 25/28 + 3/3 = 28/31.
+- Phép làm tròn dự phòng ở engine, API, kho luật, khung đối chiếu cũng làm tròn lên. Ô "Tổng ≤" đổi thành "Tổng ≥" (tối thiểu 90).
+
 ## 25/11/2026 — Sửa lỗi sau rà soát commit 107ac84 (Antigravity)
 
 - Lưu PPCT: kiểm tra vòng lặp bài tiền đề **trước** khi cập nhật câu hỏi/ma trận (trước đây câu hỏi trong bộ nhớ đã bị đổi dù lần lưu bị từ chối); chỉ chặn vòng lặp đi qua bài đang lưu (`core.detectPrerequisiteCycle(..., { through })`), vòng lặp cũ ở chỗ khác không còn chặn mọi lần lưu.

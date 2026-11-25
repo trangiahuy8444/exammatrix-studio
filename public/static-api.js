@@ -99,7 +99,8 @@
      else if(/vận\s*dụng|^vd$/i.test(lv))r.level='Vận dụng';
      const pl=ppct&&Array.isArray(ppct.lessons)?ppct.lessons.find(x=>Number(x.grade)===Number(m.grade)&&(x.subject_name||'Tin học')===mSubj&&x.lesson_code===r.lesson_code):null;
      const outLen=Array.isArray(pl?.outcomes)&&pl.outcomes.length?pl.outcomes.length:1;
-     if(!Number.isInteger(r.ppct_outcome_index)||r.ppct_outcome_index<0||r.ppct_outcome_index>=outLen)r.ppct_outcome_index=0;
+     if(r.outcome_mode==='any')r.ppct_outcome_index=null; // ô ma trận 2D: mọi YCCĐ của bài
+     else if(!Number.isInteger(r.ppct_outcome_index)||r.ppct_outcome_index<0||r.ppct_outcome_index>=outLen)r.ppct_outcome_index=0;
     });
    }
    if(!Array.isArray(m.slots))return m;
@@ -152,6 +153,7 @@
     const expectedOutcomes=new Set();
     reqs.forEach(r=>{
      const les=(ppctData?.lessons||[]).find(l=>Number(l.grade)===Number(matrix.grade)&&normSubj(l.subject_name)===mSubj&&normLesson(l.lesson_code)===normLesson(r.lesson_code));
+     if(r.outcome_mode==='any'){(les?.outcomes||[]).forEach(o=>o&&expectedOutcomes.add(normText(o)));return;}
      const out=les&&Array.isArray(les.outcomes)&&r.ppct_outcome_index!=null?les.outcomes[r.ppct_outcome_index]:'';
      if(out)expectedOutcomes.add(normText(out));
     });
@@ -492,7 +494,7 @@
      if(firstReq){
       const les=(ppct.lessons||[]).find(l=>Number(l.grade)===mGrade&&normSubj(l.subject_name)===normSubj(mSubj)&&normLesson(l.lesson_code)===normLesson(lessonCode));
       const o=les&&Array.isArray(les.outcomes)&&firstReq.ppct_outcome_index!=null?les.outcomes[firstReq.ppct_outcome_index]:'';
-      outcomes=o?[o]:(firstReq.text?[firstReq.text]:[]);
+      outcomes=firstReq.outcome_mode==='any'?(les?.outcomes||[]).filter(Boolean):(o?[o]:(firstReq.text?[firstReq.text]:[]));
      }else if(Array.isArray(srcCell.outcomes)){
       outcomes=clone(srcCell.outcomes);
      }
@@ -656,7 +658,7 @@
     const firstPart=s.parts&&s.parts[0];
     const req=targetMatrix&&firstPart?(targetMatrix.requirements||[]).find(r=>r.id===firstPart.requirement_id):null;
     const ppctLes=req?(ppct.lessons||[]).find(l=>Number(l.grade)===mGrade&&normSubj(l.subject_name)===normSubj(mSubj)&&normLesson(l.lesson_code)===normLesson(req.lesson_code)):null;
-    const ppctOutcome=(ppctLes&&Array.isArray(ppctLes.outcomes)&&req.ppct_outcome_index!=null)?ppctLes.outcomes[req.ppct_outcome_index]:'';
+    const ppctOutcome=(req&&req.outcome_mode!=='any'&&ppctLes&&Array.isArray(ppctLes.outcomes)&&req.ppct_outcome_index!=null)?ppctLes.outcomes[req.ppct_outcome_index]:'';
     const fallbackOutcome=ppctOutcome||req?.text||(entry.cell?.outcomes?.[0]||'');
     return {
      ...clone(cand),
@@ -708,6 +710,12 @@
     allowed_kinds:clone(targetMatrix?.allowed_kinds||[...new Set(selectedQuestions.map(q=>q.type))]),
     validation_note:note
    };
+   // Bản chụp từng câu và cả đề (trước đây đề linh hoạt thiếu nên kiểm định luôn báo "bản chụp sai").
+   if(typeof engine.fingerprint==='function'){
+    const revFps=new Set((rev?.questions||[]).map(rq=>engine.fingerprint(rq)));
+    exam.questions.forEach(q=>{q.content_hash=engine.contentHash(q);q.source_content_hash=q.content_hash;q.source_snapshot_hash=engine.fingerprint(q);q.in_revision=Boolean(rev)&&revFps.has(q.source_snapshot_hash);});
+    exam.snapshot_integrity=engine.jsonDigest({questions:exam.questions,matrix:exam.matrix_snapshot||null,blueprint:exam.blueprint,revision:exam.revision_snapshot,ppct:exam.ppct_snapshot});
+   }
    exam.verification=verification(exam);
    return exam;
   };
@@ -898,22 +906,38 @@
   }
   if(path==='/api/exams/permute'){
    const source=own(find(data.exams,p.id)),report=verification(source);
-   if(!source.questions?.length||report.errors.some(e=>e.code==='snapshot'))fail('Đề gốc chưa có bản chụp hợp lệ; không thể hoán vị.',409);
+   const snap=report.errors.find(e=>e.code==='snapshot');
+   if(!source.questions?.length||snap)fail('Đề gốc chưa có bản chụp hợp lệ nên không trộn được: '+(snap?snap.message:'đề chưa có câu hỏi.'),409);
    if(['locked','published'].includes(source.status)&&await workflow.contentHash(source)!==source.approved_hash)fail('Đề gốc đã thay đổi sau khi khóa.',409);
    const codes=p.codes||Array.from({length:p.num_variants??4},(_,i)=>String(101+i));
    if(!Array.isArray(codes)||codes.length<2||codes.length>6||codes.some(c=>typeof c!=='string'||!/^\d{3,6}$/.test(c))||new Set(codes).size!==codes.length)fail('Chọn 2–6 mã đề khác nhau, mỗi mã có 3–6 chữ số.');
+   const family=source.parent_exam_id||source.id;
+   const taken=new Set(data.exams.filter(x=>x.id!==source.id&&(x.parent_exam_id===family||x.id===family)).map(x=>String(x.exam_code||'')));
+   const clash=codes.filter(c=>taken.has(c));
+   if(clash.length)fail('Mã '+clash.join(', ')+' đã có trong các mã đã trộn từ đề này. Hãy chọn mã khác hoặc xóa mã cũ trước.',409);
    let randomSeed=Array.from(String(p.seed??now())).reduce((n,c)=>(Math.imul(n,31)+c.charCodeAt(0))>>>0,1);
    const shuffle=values=>{const a=values.slice();for(let i=a.length-1;i>0;i--){randomSeed=(Math.imul(randomSeed,1664525)+1013904223)>>>0;const j=randomSeed%(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;};
+   // Trộn đề: chỉ xáo trong TỪNG PHẦN (TN → Đ/S → TLN → TL giữ nguyên thứ tự phần), đánh số lại từ Câu 1 mỗi phần.
+   // Tùy chọn: xáo phương án A–D, xáo ý a–d câu Đúng/Sai, giữ nguyên thứ tự câu tự luận. Mã hoán vị là bản nháp, cần duyệt riêng.
+   const PART_ORDER=['MC','YN','SHORT','ES'];
+   const keepEsOrder=p.keep_es_order!==false,shuffleQuestions=p.shuffle_questions!==false,shuffleOptions=p.shuffle_options!==false,shuffleStatements=p.shuffle_statements===true;
+   const lockedOption=o=>/tất cả|cả\s+[ABCD]\s+(và|hoặc)|all of|both\s+[ABCD]|không có phương án nào|none of/i.test(String(o||''));
    const exams=[];
    for(const code of codes){
     const exam=draft(source,'EXAM');exam.parent_exam_id=source.parent_exam_id||source.id;exam.exam_code=code;exam.title=source.title+' — Mã '+code;
-    if(p.shuffle_questions!==false)exam.questions=shuffle(exam.questions);
+    exam.questions.forEach(q=>{if(q.source_slot_number===undefined)q.source_slot_number=q.slot_number;});
+    const types=[...new Set([...PART_ORDER,...exam.questions.map(q=>q.type)])].filter(t=>exam.questions.some(q=>q.type===t));
+    exam.questions=types.flatMap(t=>{const part=exam.questions.filter(q=>q.type===t);return shuffleQuestions&&!(t==='ES'&&keepEsOrder)?shuffle(part):part;});
     const counters={};
     for(const q of exam.questions){q.slot_number=(counters[q.type]=(counters[q.type]||0)+1);
-     if(q.type==='MC'&&p.shuffle_options!==false&&!q.options.some(o=>/tất cả|cả\s+[ABCD]\s+(và|hoặc)|all of|both\s+[ABCD]/i.test(o))){
+     if(q.type==='MC'&&shuffleOptions&&Array.isArray(q.options)&&q.options.length===4&&!q.options.some(lockedOption)){
       const order=shuffle([0,1,2,3]),old=q.options,exps=q.option_explanations; q.options=order.map(i=>old[i]);q.correct=order.indexOf(q.correct);if(exps)q.option_explanations=order.map(i=>exps[i]||'');
      }
+     if(q.type==='YN'&&shuffleStatements&&Array.isArray(q.statements)&&q.statements.length===4){
+      const order=shuffle([0,1,2,3]),old=q.statements;q.statements=order.map((i,k)=>({...old[i],label:'abcd'[k]}));
+     }
     }
+    exam.shuffle_options_used={shuffle_questions:shuffleQuestions,shuffle_options:shuffleOptions,shuffle_statements:shuffleStatements,keep_es_order:keepEsOrder,seed:String(p.seed??'')};
     await refreshIntegrity(exam);exam.verification=verification(exam);put(data.exams,exam);exams.push(exam);
    }
    return result({result:{exams,codes},exams:data.exams},true);
@@ -998,7 +1022,7 @@
      const pool=bank.filter(q=>q&&q.review_status!=='archived'&&String(q.subject_name||'Tin học').normalize('NFC').trim().toLowerCase()===ms);
      const graph=KG.buildGraph({bank:{questions:pool,ppct}},{subject:matrix.subject_name||subject});
      for(const c of report.cells){if(!c.shortfall)continue;
-      c.suggestions=KG.suggestForCell(graph,pool,{grade:matrix.grade,lesson_code:c.lesson_code,type:c.kind,level:c.level,learning_outcome:c.outcome})
+      c.suggestions=KG.suggestForCell(graph,pool,{grade:matrix.grade,lesson_code:c.lesson_code,type:c.kind,level:c.level,learning_outcome:c.any_outcome?'':c.outcome})
        .filter(x=>x.action!=='dung_ngay').slice(0,5)
        .map(x=>{const q=pool.find(q=>q.id===x.question_id);return {...x,question:String(q?.question||'').replace(/\s+/g,' ').slice(0,120)};});
      }

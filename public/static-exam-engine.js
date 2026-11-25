@@ -87,13 +87,17 @@
   function kinds(m) { return m.allowed_kinds || (m.profile==='THCS' ? ['MC','ES'] : KINDS); }
   // Vị trí ra đề được: một ý, hoặc câu Đúng/Sai 4 ý cùng bài, mức độ và YCCĐ gốc. Tự luận nhiều ý vẫn chặn.
   // Hai YCCĐ được coi là một khi cùng bài, mức độ và YCCĐ gốc trong PPCT (bảng đặc tả có thể tách mỗi ý thành một mục tiêu riêng).
+  // Ô ma trận 2D: chỉ ràng buộc bài × dạng câu × mức độ, nhận MỌI YCCĐ của bài (YCCĐ, năng lực cụ thể có sau khi có đề).
+  const anyOutcome = r => obj(r) && r.outcome_mode === 'any';
+  const outcomeLabel = (r,l) => anyOutcome(r) ? '(Mọi YCCĐ của bài)' : list(l?.outcomes)[r?.ppct_outcome_index];
+  const outcomeOk = (q,r,l) => anyOutcome(r) ? list(l?.outcomes).some(o=>norm(o)===norm(q.learning_outcome)) : q.learning_outcome===list(l?.outcomes)[r.ppct_outcome_index];
   function singleRequirement(s,m) {
     if(!obj(s)||!Array.isArray(s.parts)||!s.parts.length||!s.parts.every(p=>obj(p)))return false;
     if(s.parts.length===1)return true;
     if(s.kind!=='YN'||s.parts.length!==4)return false;
     const reqs=s.parts.map(p=>list(m?.requirements).find(r=>obj(r)&&r.id===p.requirement_id));
     if(reqs.some(r=>!r))return false;
-    const key=r=>[r.lesson_code,r.level,r.ppct_outcome_index].join('|');
+    const key=r=>[r.lesson_code,r.level,anyOutcome(r)?'*':r.ppct_outcome_index].join('|');
     return reqs.every(r=>key(r)===key(reqs[0]));
   }
   function technical(q) {
@@ -145,7 +149,8 @@
     }
     for(const r of arrays.requirements){if(!text(r.id)||rs.has(r.id))error('requirement_id','requirements','Mã YCCĐ trống hoặc trùng.');rs.set(r.id,r);const l=lesson(ppct,m,r.lesson_code);
       if(!ls.has(r.lesson_code)||!l)error('lesson','requirements','YCCĐ chưa gắn bài đúng môn, khối.');
-      if(!Number.isInteger(r.ppct_outcome_index)||!text(list(l?.outcomes)[r.ppct_outcome_index]))error('outcome','requirements','Chọn YCCĐ nguồn trong PPCT.');
+      if(anyOutcome(r)){if(!list(l?.outcomes).some(text))error('outcome','requirements','Bài '+r.lesson_code+' chưa có YCCĐ trong PPCT.');}
+      else if(!Number.isInteger(r.ppct_outcome_index)||!text(list(l?.outcomes)[r.ppct_outcome_index]))error('outcome','requirements','Chọn YCCĐ nguồn trong PPCT.');
       if(!LEVELS.includes(r.level)||!text(r.text))error('requirement','requirements','Nội dung hoặc mức độ YCCĐ không hợp lệ.');
       if(!(ctx.competencies||['NLa','NLb','NLc','NLd','NLe']).includes(r.competency))error('competency','requirements','Thành phần năng lực không hợp lệ.');
     }
@@ -193,7 +198,7 @@
   }
   function eligible(q,m,s,ppct,approved=true) {
     if(!technical(q)||(approved&&q.review_status!=='approved')||q.grade!==m.grade||subject(q.subject_name)!==subject(m.subject_name)||q.type!==s.kind)return false;
-    return s.parts.every(p=>{const r=m.requirements.find(r=>r.id===p.requirement_id),l=r&&lesson(ppct,m,r.lesson_code);return r&&l&&q.lesson_code===r.lesson_code&&q.level===r.level&&q.learning_outcome===l.outcomes[r.ppct_outcome_index];});
+    return s.parts.every(p=>{const r=m.requirements.find(r=>r.id===p.requirement_id),l=r&&lesson(ppct,m,r.lesson_code);return r&&l&&q.lesson_code===r.lesson_code&&q.level===r.level&&outcomeOk(q,r,l);});
   }
   function unique(qs) { const ids=new Set(),texts=new Set();return qs.filter(q=>{const t=norm(q.question);if(ids.has(q.id)||texts.has(t))return false;ids.add(q.id);texts.add(t);return true;}); }
   function candidates(matrix,questions,ppct) {
@@ -204,8 +209,8 @@
     const v=validateMatrix(matrix,ppct),cells=[],unresolved_slots=[],groups=new Map();
     for(const s of list(matrix?.slots)){if(!singleRequirement(s,matrix)){unresolved_slots.push({slot_id:s?.id,kind:s?.kind,number:s?.number,parts:s?.parts||[],reason:'Chưa hỗ trợ câu nhiều ý gắn với nhiều YCCĐ khác nhau.'});continue;}
       const r=list(matrix.requirements).find(r=>r.id===s.parts[0]?.requirement_id),l=r&&lesson(ppct,matrix,r.lesson_code);if(!r||!l){unresolved_slots.push({slot_id:s.id,reason:'Chưa xác định YCCĐ trong PPCT.'});continue;}
-      const outcome=l.outcomes?.[r.ppct_outcome_index],key=[r.lesson_code,s.kind,r.level,outcome].join('|');
-      if(!groups.has(key))groups.set(key,{lesson_code:r.lesson_code,outcome,kind:s.kind,level:r.level,needed:0,approved:0,pending_review:0,needs_review:0,draft:0,shortfall:0,slot:s});groups.get(key).needed++;
+      const outcome=outcomeLabel(r,l),key=[r.lesson_code,s.kind,r.level,outcome].join('|');
+      if(!groups.has(key))groups.set(key,{lesson_code:r.lesson_code,outcome,any_outcome:anyOutcome(r),kind:s.kind,level:r.level,needed:0,approved:0,pending_review:0,needs_review:0,draft:0,shortfall:0,slot:s});groups.get(key).needed++;
     }
     for(const c of groups.values()){for(const status of ['approved','pending_review','needs_review','draft'])c[status]=unique(list(questions).filter(q=>q.review_status===status&&eligible(q,matrix,c.slot,ppct,false))).length;c.shortfall=Math.max(0,c.needed-c.approved);delete c.slot;cells.push(c);}
     const complete=v.valid&&v.exam_supported&&!unresolved_slots.length, total_shortfall=cells.reduce((s,c)=>s+c.shortfall,0);
@@ -246,7 +251,7 @@
   }
   function cellGroups(src,ppct) {
     const groups=new Map();
-    for(const s of src.slots){let c=s.cell;if(!c){const r=s.requirements[0],l=lesson(ppct,src.matrix,r.lesson_code);c={lesson_code:r.lesson_code,type:s.slot.kind,level:r.level,outcomes:[l.outcomes[r.ppct_outcome_index]]};}
+    for(const s of src.slots){let c=s.cell;if(!c){const r=s.requirements[0],l=lesson(ppct,src.matrix,r.lesson_code);c={lesson_code:r.lesson_code,type:s.slot.kind,level:r.level,outcomes:anyOutcome(r)?list(l.outcomes).filter(text):[l.outcomes[r.ppct_outcome_index]]};}
       const key=[c.lesson_code,c.type,c.level,...c.outcomes].join('|');if(!groups.has(key))groups.set(key,{...c,key,need:0,points:[],pool:[]});const g=groups.get(key);g.need++;g.points.push(s.slot.parts.reduce((sum,p)=>sum+Number(p.points),0));g.pool=unique([...g.pool,...s.candidates]);
     }return [...groups.values()];
   }
@@ -303,23 +308,61 @@
     const selected=assign(slots,{revision:rev,percent,exact:!!rev&&p.similarity_mode==='exact',seed:p.seed});
     const questions=selected.map((q,i)=>({...clone(q),points:slots[i].slot.parts.reduce((sum,p)=>sum+Number(p.points),0),slot_id:slots[i].slot.id,slot_number:slots[i].slot.number,reviewed_part_ids:p.placements?clone(p.placements.find(x=>x.slot_id===slots[i].slot.id).reviewed_part_ids):[],content_hash:contentHash(q),source_content_hash:contentHash(q),source_snapshot_hash:fingerprint(q),in_revision:!!rev&&rev.questions.some(r=>fingerprint(r)===fingerprint(q))}));
     const e={id:ident('EXAM',data.exams,p,questions),title:p.title.trim(),grade:p.grade,subject_name:p.subject_name||p.subject,exam_type:p.exam_type,duration,campus:p.campus||src.matrix?.campus||'',exam_code:p.exam_code||'101',created_at:p.created_at||null,seed:p.seed??'',status:'drafting',question_count:questions.length,total_points:10,questions,blueprint:src.blueprint||cellGroups(src,data.bank.ppct).flatMap(c=>c.points.map(points=>({lesson_code:c.lesson_code,type:c.type,level:c.level,outcomes:c.outcomes,count:1,points_per_question:points}))),profile:src.matrix?.profile||p.profile||'GENERAL',allowed_kinds:src.matrix?clone(kinds(src.matrix)):[...new Set(questions.map(q=>q.type))],template_id:null,revision_id:rev?.id||null,revision_snapshot:rev?clone(rev):null,similarity_target_percent:percent,similarity_mode:p.similarity_mode||'min',scoring_policy:{yn_table:clone(src.matrix?.scoring_policy?.yn_table||{'0':'0','1':'0.1','2':'0.25','3':'0.5','4':'1'}),rounding:p.exam_type==='TX'?'half_up_integer':'half_up_1dp',blank_counts_as:'wrong'},validation_note:'Bản nháp đã kiểm tra kỹ thuật; cần giáo viên duyệt chuyên môn và chỉ báo trước khi phát hành.'};
-    if(src.matrix)Object.assign(e,{matrix_id:src.matrix.id,matrix_version:src.matrix.version,matrix_digest:src.matrix.content_sha256||digest(src.matrix),matrix_snapshot:clone(src.matrix),matrix_requirement_outcomes:Object.fromEntries(src.matrix.requirements.map(r=>[r.id,lesson(data.bank.ppct,src.matrix,r.lesson_code).outcomes[r.ppct_outcome_index]]))});
+    if(src.matrix)Object.assign(e,{matrix_id:src.matrix.id,matrix_version:src.matrix.version,matrix_digest:src.matrix.content_sha256||digest(src.matrix),matrix_snapshot:clone(src.matrix),matrix_requirement_outcomes:Object.fromEntries(src.matrix.requirements.map(r=>[r.id,anyOutcome(r)?null:lesson(data.bank.ppct,src.matrix,r.lesson_code).outcomes[r.ppct_outcome_index]]))});
     e.revision_check=revisionReport(e,rev);e.revision_match_count=rev?e.revision_check.exact_count:null;e.revision_required_count=rev?e.revision_check.required:null;
     if(rev&&!e.revision_check.passed)fail('Đề chưa đạt YCCĐ hoặc tỉ lệ đề cương ít nhất 90%.');
     e.ppct_snapshot=clone(data.bank.ppct);
     e.snapshot_integrity=sha256(canonical({questions:e.questions,matrix:e.matrix_snapshot||null,blueprint:e.blueprint,revision:e.revision_snapshot,ppct:e.ppct_snapshot}));
     return freeze(clone(e));
   }
+  // Nhãn câu theo phần (đánh số lại từ Câu 1 cho từng dạng): "TN câu 3", "TL câu 1".
+  const PART_LABEL={MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'};
+  const qLabel=(q,i)=>(PART_LABEL[q?.type]||q?.type||'Câu')+' câu '+(q?.slot_number??(i+1));
+  const listLabels=xs=>{const shown=xs.slice(0,12).join(', ');return xs.length>12?shown+` và ${xs.length-12} câu khác`:shown;};
   function verifyExam(data,exam) {
+    // Kiểm từng nhóm điều kiện riêng và nêu rõ câu nào sai (trước đây dừng ở lỗi đầu tiên, câu thông báo chung chung).
     const errors=[];const e=exam||{},qs=list(e.questions);let matrix=null;
-    try {if(!text(e.title))fail('Thiếu tên đề.');similarity(e);if(!qs.length||qs.length!==e.question_count||!near(qs.reduce((n,q)=>n+Number(q.points),0),10)||e.total_points!==10)fail('Đề không đủ số câu hoặc đúng 10 điểm.');
-      if(qs.some(q=>!technical(q)||q.review_status!=='approved'||q.grade!==e.grade||subject(q.subject_name)!==subject(e.subject_name)||!positive(q.points)||q.source_snapshot_hash!==fingerprint(q)))fail('Bản chụp câu hỏi sai phạm vi, chưa duyệt hoặc đã thay đổi nội dung.');
-      if(new Set(qs.map(q=>q.id)).size!==qs.length||new Set(qs.map(q=>norm(q.question))).size!==qs.length)fail('Đề bị trùng câu.');
-      if(e.snapshot_integrity!==sha256(canonical({questions:e.questions,matrix:e.matrix_snapshot||null,blueprint:e.blueprint,revision:e.revision_snapshot,ppct:e.ppct_snapshot})))fail('Bản chụp đề đã bị thay đổi.');
-      const evidence={...data,bank:{questions:qs,ppct:e.ppct_snapshot||data.bank.ppct},matrices:e.matrix_snapshot?[e.matrix_snapshot]:[]};const src=source(evidence,{grade:e.grade,subject_name:e.subject_name,exam_type:e.exam_type,matrix_id:e.matrix_id,blueprint:e.blueprint});matrix=src.matrix;
-      if(matrix&&(e.matrix_digest!==(matrix.content_sha256||digest(matrix))||matrix.slots.length!==qs.length||matrix.grade!==e.grade||matrix.slots.some(s=>{const q=qs.find(q=>q.slot_id===s.id);return !q||!eligible(q,matrix,s,evidence.bank.ppct)||!near(q.points,s.parts.reduce((n,p)=>n+Number(p.points),0));})))fail('Câu hỏi không khớp từng vị trí ma trận đã khóa.');
-      if(!matrix){const matching=src.slots.map(s=>({...s,candidates:qs.filter(q=>s.candidates.some(c=>fingerprint(c)===fingerprint(q)))}));assign(matching,{});}
-    }catch(err){errors.push({code:'snapshot',message:err.message});}
+    const add=(code,message,extra)=>errors.push({code,message,...(extra||{})});
+    if(!text(e.title))add('title','Thiếu tên đề.');
+    try{similarity(e);}catch(err){add('similarity',err.message);}
+    const total=qs.reduce((n,q)=>n+Number(q.points||0),0);
+    if(!qs.length)add('points','Đề chưa có câu hỏi.');
+    else if(qs.length!==e.question_count||!near(total,10)||e.total_points!==10)add('points',`Đề có ${qs.length} câu, tổng ${Math.round(total*100)/100} điểm; cần đúng 10 điểm và khớp số câu khai báo (${e.question_count}).`);
+    const group=(pred)=>qs.map((q,i)=>pred(q)?qLabel(q,i):null).filter(Boolean);
+    const notApproved=group(q=>q.review_status!=='approved');
+    if(notApproved.length)add('questions_not_approved',`Câu chưa duyệt: ${listLabels(notApproved)}. Đề chính thức chỉ dùng câu đã duyệt.`,{questions:notApproved});
+    const wrongScope=group(q=>q.grade!==e.grade||subject(q.subject_name)!==subject(e.subject_name));
+    if(wrongScope.length)add('scope',`Câu khác khối hoặc khác môn với đề: ${listLabels(wrongScope)}.`,{questions:wrongScope});
+    const badTech=group(q=>!technical(q)||!positive(q.points));
+    if(badTech.length)add('technical',`Câu thiếu nội dung kỹ thuật (phương án, đáp án, hướng dẫn chấm) hoặc điểm: ${listLabels(badTech)}.`,{questions:badTech});
+    const changed=group(q=>q.source_snapshot_hash!==fingerprint(q));
+    if(changed.length)add('snapshot',`Nội dung câu đã thay đổi so với bản chụp lúc tạo đề (hoặc đề tạo bằng bản cũ chưa có bản chụp): ${listLabels(changed)}. Hãy tạo lại đề hoặc dùng "Kiểm định lại" sau khi sửa.`,{questions:changed});
+    const seenId=new Map(),seenText=new Map(),dups=[];
+    qs.forEach((q,i)=>{const t=norm(q.question);if(seenId.has(q.id)||seenText.has(t))dups.push(qLabel(q,i)+' trùng '+(seenId.get(q.id)||seenText.get(t)));seenId.set(q.id,qLabel(q,i));seenText.set(t,qLabel(q,i));});
+    if(dups.length)add('duplicate','Đề bị trùng câu: '+listLabels(dups)+'.');
+    if(!changed.length&&e.snapshot_integrity!==sha256(canonical({questions:e.questions,matrix:e.matrix_snapshot||null,blueprint:e.blueprint,revision:e.revision_snapshot,ppct:e.ppct_snapshot})))add('snapshot','Bản chụp đề (ma trận, đề cương, PPCT đi kèm) đã bị thay đổi sau khi tạo.');
+    try{
+      const evidence={...data,bank:{questions:qs,ppct:e.ppct_snapshot||data.bank.ppct},matrices:e.matrix_snapshot?[e.matrix_snapshot]:[]};
+      const src=source(evidence,{grade:e.grade,subject_name:e.subject_name,exam_type:e.exam_type,matrix_id:e.matrix_id,blueprint:e.blueprint});matrix=src.matrix;
+      if(matrix){
+        if(e.matrix_digest!==(matrix.content_sha256||digest(matrix)))add('matrix','Ma trận gắn với đề đã thay đổi sau khi tạo đề.');
+        if(matrix.grade!==e.grade)add('matrix','Ma trận khác khối với đề.');
+        if(matrix.slots.length!==qs.length)add('matrix',`Ma trận có ${matrix.slots.length} vị trí, đề có ${qs.length} câu.`);
+        const ppctE=evidence.bank.ppct,bad=[];
+        for(const s of matrix.slots){
+          const q=qs.find(q=>q.slot_id===s.id);const pts=s.parts.reduce((n,p)=>n+Number(p.points),0);
+          const label=(PART_LABEL[s.kind]||s.kind)+' câu '+(s.number??'?');
+          if(!q){bad.push(label+': chưa có câu');continue;}
+          if(q.type!==s.kind){bad.push(label+': sai dạng câu');continue;}
+          const r=list(matrix.requirements).find(r=>r.id===s.parts[0]?.requirement_id),l=r&&lesson(ppctE,matrix,r.lesson_code);
+          if(r&&q.lesson_code!==r.lesson_code)bad.push(`${label}: câu thuộc bài ${q.lesson_code}, ô cần bài ${r.lesson_code}`);
+          else if(r&&q.level!==r.level)bad.push(`${label}: câu mức ${q.level}, ô cần mức ${r.level}`);
+          else if(r&&l&&!outcomeOk(q,r,l))bad.push(`${label}: YCCĐ của câu không khớp ${anyOutcome(r)?'YCCĐ nào của bài trong PPCT':'YCCĐ của ô'}`);
+          else if(!near(Number(q.points),pts))bad.push(`${label}: câu ${q.points} điểm, ô ${pts} điểm`);
+        }
+        if(bad.length)add('matrix_cell','Câu không khớp vị trí ma trận: '+listLabels(bad)+'.',{cells:bad});
+      }else{const matching=src.slots.map(s=>({...s,candidates:qs.filter(q=>s.candidates.some(c=>fingerprint(c)===fingerprint(q)))}));assign(matching,{});}
+    }catch(err){add('matrix',err.message);}
     let rev=null;try{rev=revisionFor(data,{...e,revision_id:e.revision_id});if(!rev)fail('Chưa gắn đề cương; chưa đủ điều kiện duyệt.');}catch(err){errors.push({code:'revision',message:err.message});}
     const rc=revisionReport(e,rev);if(!rc.passed)errors.push({code:'revision_criterion',message:'Chưa đạt 100% YCCĐ và tỉ lệ đề cương ít nhất 90%.'});
     if(!e.matrix_id)errors.push({code:'matrix_required',message:'Phân bố tự thiết lập chỉ dùng bản nháp. Chọn ma trận đã khóa để duyệt và phát hành trên Pages.'});
@@ -333,5 +376,5 @@
     const actualRevision=revision||work.revisions.find(r=>r.id===p.revision_id);
     return freeze({exams,exams_all:[...clone(list(data.exams)),...exams],revision:clone(actualRevision),revisions:clone(work.revisions),revision_size:actualRevision.questions.length,outside_per_exam:exams[0].question_count-exams[0].revision_match_count,warnings:['Các đề có thể dùng chung câu; không bảo đảm bộ đề không trùng câu.']});
   }
-  return {validateMatrix,shortfall,candidates,plan,generateExam,proposeRevision,generateSet,verifyExam,subjectContext,matrixDigest:digest,jsonDigest:value=>sha256(canonical(value))};
+  return {validateMatrix,shortfall,candidates,plan,generateExam,proposeRevision,generateSet,verifyExam,subjectContext,matrixDigest:digest,jsonDigest:value=>sha256(canonical(value)),fingerprint,contentHash};
 });

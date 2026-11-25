@@ -35,3 +35,5 @@ node_modules/
 !/acceptance/**/
 !/acceptance/**/*.md
 !/acceptance/**/*.py
+# Kịch bản Node (dữ liệu tự sinh, không có đề thật); CI cần mo-phong.cjs cho tests/static_mo_phong.test.cjs
+!/acceptance/**/*.cjs

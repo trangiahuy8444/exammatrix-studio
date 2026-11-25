@@ -1,3 +1,14 @@
+## 25/11/2026 — Ma trận 2D → đề cương, đề → bảng đặc tả; sửa kiểm định; hộp thoại trộn đề
+
+- Thao tác trên giao diện thật (Firebase giả, tài khoản Tin 9) tái hiện 4 lỗi: (1) bảng 2D tự gắn YCCĐ theo vị trí mức độ (Biết → YCCĐ 1, Hiểu → YCCĐ 2…) và năng lực mã đầu tiên, nên "Tạo đề thi ngay từ Ma trận 2D" báo thiếu câu, buộc dùng chế độ linh hoạt; (2) đề linh hoạt không có bản chụp câu nên kiểm định luôn "bản chụp sai", báo cáo ghi "ma trận: Bản nháp", thông báo chung chung; (3) trích đặc tả từ đề gộp nhầm "TN câu 1" với "TL câu 1" (số câu đánh lại theo phần), luôn gán YCCĐ thứ nhất; (4) trộn đề xáo lẫn tự luận vào trắc nghiệm, hộp hỏi chỉ là ô nhập số (5–10 mã vẫn chỉ tạo 4), đề linh hoạt không trộn được.
+- Sửa: yêu cầu `outcome_mode: 'any'` (ô 2D chỉ ràng buộc bài × dạng × mức độ, mọi YCCĐ của bài) trong `matrices.js` (bảng 2D, thêm lựa chọn "Mọi YCCĐ của bài" ở ô YCCĐ nguồn), `static-exam-engine.js` (kiểm ma trận, chọn câu, thiếu câu, đề cương), `static-exam-workflow.js` (đối chiếu ô khi duyệt), `static-api.js` (chuẩn hóa ma trận, chế độ linh hoạt, gợi ý ô thiếu).
+- `verifyExam` kiểm từng nhóm riêng, nêu rõ câu: chưa duyệt, khác khối/môn, thiếu nội dung kỹ thuật, nội dung đổi so với bản chụp (`snapshot`), trùng câu, sai ô ma trận (bài/mức/YCCĐ/điểm). Đề linh hoạt có bản chụp từng câu và cả đề. Trộn đề chỉ chặn khi bản chụp thật sự sai.
+- `syncSpecFromExam`: mã vị trí, yêu cầu kèm dạng câu; YCCĐ đúng vị trí trong PPCT; năng lực của câu, không có thì lấy năng lực khai trong PPCT của bài; câu Đúng/Sai đủ 4 ý.
+- Trộn đề: xáo trong từng phần (TN → Đ/S → TLN → TL), tùy chọn xáo phương án, ý a–d câu Đúng/Sai, giữ thứ tự tự luận, mã tự chọn 2–6, chặn trùng mã đã trộn; hộp thoại mới hiện bảng đáp án tổng hợp kèm số câu gốc (`core.permutationAnswerKey`).
+- Mô phỏng 9 môn: 5 môn chuyển sang ma trận 2D, bước trộn kiểm thứ tự phần; tìm thêm 2 chỗ chưa hiểu ô 2D (duyệt khóa đề, gợi ý ô thiếu), đã sửa; 18/18 lượt đạt.
+- Kiểm thử: `tests/static_ma_tran_2d.test.cjs` (7 ca). Node 184/184, engine 458 (1 bỏ qua). Đổi `?v=20261125b`. Đã thử trên giao diện: ma trận 2D → đề (không thiếu câu) → bộ đề + đề cương → kiểm định đạt → đặc tả theo đề đúng số câu, YCCĐ, năng lực → trộn 4 mã.
+- Lưu ý: ma trận cũ tạo bằng bảng 2D trước ngày này vẫn mang YCCĐ gắn theo vị trí; muốn đổi, chọn "Mọi YCCĐ của bài" ở từng yêu cầu (ma trận đã khóa phải tạo phiên bản mới).
+
 ## 24/11/2026 — Mô phỏng giáo viên 9 môn; sửa 5 lỗi
 
 - Kịch bản `acceptance/2026-11-24-mo-phong-9-mon/mo-phong.cjs`: 9 tài khoản (Tin 8, Toán 9, Vật lí 10, Hóa 11, Sinh 12, Ngữ văn 7, Tiếng Anh 6, Lịch sử 10, Địa lí 11) chạy qua cầu nối thật với Firestore giả. Vòng 1: 19 bước từ đăng nhập đến phát hành, xuất Word/ZIP, tải lại, hai tab. Vòng 2: 11–12 tình huống lộn xộn. Biên bản: `acceptance/2026-11-24-mo-phong-9-mon/BIEN_BAN.md`.

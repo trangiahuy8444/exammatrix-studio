@@ -786,8 +786,9 @@ function syncEditedQuestionsFromSheet(sheet,record){
         'Ở bước 3, chọn dạng câu được phép và cách chấm Đúng/Sai; ứng dụng cảnh báo tỉ lệ theo CV 7991 (chỉ cảnh báo).',
         'Bấm "Báo cáo thiếu câu theo ô" để biết ô nào chưa đủ câu đã duyệt; "Mở duyệt ô này" để sang màn hình duyệt đã lọc sẵn.',
         '"Xác nhận bản đã thống nhất để khóa" rồi "Khóa phiên bản này". Muốn sửa bản đã khóa: "Tạo phiên bản mới".',
-        '"Tạo và lưu đề riêng" để sinh đề trực tiếp từ ma trận.'],
-      tips:['Giữ nguyên YCCĐ, số câu, số điểm của ma trận gốc.','Đánh số câu dạng (1, 2, 3) hoặc (1a, 1b), không dùng (C1 - C4).']},
+        '"Tạo và lưu đề riêng" để sinh đề trực tiếp từ ma trận.',
+        'Ma trận 2D: nhập số câu theo bài × mức độ rồi bấm "🚀 Tạo đề thi ngay từ Ma trận 2D". Mỗi ô nhận mọi YCCĐ của bài; YCCĐ và năng lực cụ thể lấy từ đề khi "Trích xuất sang Bảng 2 Đặc tả".'],
+      tips:['Ma trận cũ muốn chuyển sang cách 2D: ở từng yêu cầu, chọn "Mọi YCCĐ của bài" trong ô YCCĐ nguồn.','Giữ nguyên YCCĐ, số câu, số điểm của ma trận gốc (Khối 8, 10 nhận ma trận của tổ).','Đánh số câu dạng (1, 2, 3) hoặc (1a, 1b), không dùng (C1 - C4).']},
     exams:{title:'Tạo đề kiểm tra',purpose:'Sinh đề từ ngân hàng theo ma trận và đề cương, kiểm định, duyệt – khóa, phát hành và xuất hồ sơ.',
       steps:['Điền tên đề, khối, kì kiểm tra, thời gian; chọn ma trận (ma trận đã khóa ở "Ma trận & đặc tả" hiện bảng từng ô kèm YCCĐ) và đề cương nếu đã có.',
         'Bấm "Tạo và lưu đề kiểm tra". Nếu thiếu câu, ứng dụng báo rõ ô thiếu (không tự hạ mức độ hay đổi bài).',
@@ -795,7 +796,8 @@ function syncEditedQuestionsFromSheet(sheet,record){
         '"Tạo đề tự động theo ma trận": chọn số đề (1–6) và đề cương (tự lập, chỉnh số câu từng ô; hoặc bản đã lưu). Mỗi đề lấy 90% câu từ đề cương, 10% còn lại (ưu tiên Vận dụng) để phân hóa.',
         'Mở đề đã lưu, xem kết quả "Kiểm định": tổng 10 điểm, khớp từng ô ma trận, tiêu chí đề cương T ≥ 90%, bao phủ YCCĐ 100%.',
         'Vòng đời: "Gửi duyệt đề" → "Duyệt & khóa" → "Phát hành". Đề đã khóa không sửa được; muốn sửa tạo bản chỉnh sửa mới và duyệt lại.',
-        'Nhập "Mã xáo trộn" để tạo các mã đề hoán vị; tải "Bảng đối chiếu mã đề".',
+        'Mở đề → "🔀 Trộn mã đề": chọn số mã (2–6), tên mã, cách xáo (câu trong từng phần, phương án A–D, ý a–d câu Đúng/Sai, giữ thứ tự tự luận). Ứng dụng hiện bảng đáp án tổng hợp kèm số câu gốc; mỗi mã là bản nháp cần duyệt riêng.',
+        'Mở đề → "📋 Trích xuất sang Bảng 2 Đặc tả": tạo bản "Ma trận & Đặc tả theo đề" với YCCĐ và năng lực thật của từng câu, số câu ghi cuối mỗi YCCĐ.',
         'Xuất: "Tải trọn bộ Hồ sơ Word" / "PDF" (PDF chuyển từ chính tệp Word), "Tải tệp LMS", hoặc mã nguồn XeLaTeX.'],
       tips:['Đáp án và hướng dẫn chấm chỉ tải được với tài khoản có quyền xem đáp án; mỗi lần tải đều được ghi nhật ký.',
         'Câu đã dùng trong đề phát hành gần đây được cảnh báo (không chặn).']},
@@ -814,6 +816,23 @@ function syncEditedQuestionsFromSheet(sheet,record){
       tips:['Màn hình chỉ đọc, không thay đổi dữ liệu.',
         'Kho luật chạy song song với kiểm định hiện có; quyết định duyệt đề vẫn theo kiểm định hiện có.']},
   };
+  // Bảng đáp án tổng hợp các mã đề (trộn đề): mỗi dòng một mã, mỗi cột một câu theo phần.
+  // MC: chữ cái; Đ/S: chuỗi Đ/S theo ý a–d; TLN: đáp án; TL: "TL". Kèm số câu gốc để đối chiếu.
+  function permutationAnswerKey(exams){
+    const PART={MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'},ORDER=['MC','YN','SHORT','ES'];
+    const list=(Array.isArray(exams)?exams:[]).filter(e=>e&&Array.isArray(e.questions));
+    if(!list.length)return {columns:[],rows:[]};
+    const answer=q=>{
+      if(q.type==='MC')return Number.isInteger(q.correct)?'ABCD'[q.correct]||'?':'?';
+      if(q.type==='YN')return (Array.isArray(q.statements)?q.statements:[]).map(s=>s&&s.correct?'Đ':'S').join('');
+      if(q.type==='SHORT')return String(shortAnswerOf(q)||'?');
+      return 'TL';
+    };
+    const sorted=e=>e.questions.slice().sort((a,b)=>ORDER.indexOf(a.type)-ORDER.indexOf(b.type)||(a.slot_number||0)-(b.slot_number||0));
+    const columns=sorted(list[0]).map(q=>({type:q.type,label:(PART[q.type]||q.type)+' '+(q.slot_number||'')}));
+    const rows=list.map(e=>({code:String(e.exam_code||e.id),cells:sorted(e).map(q=>({answer:answer(q),source:q.source_slot_number??q.slot_number}))}));
+    return {columns,rows};
+  }
   function screenGuide(tab){
     const g=SCREEN_GUIDES[tab]||SCREEN_GUIDES.overview;
     return {...g,tips:g.tips.slice()};
@@ -905,6 +924,6 @@ function syncEditedQuestionsFromSheet(sheet,record){
     }
     return out;
   }
-  const api={questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  const api={permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

@@ -155,7 +155,8 @@
       if (!r || !text(r.id) || reqs.has(r.id)) fail('Ma trận có mã yêu cầu thiếu hoặc trùng.');
       reqs.set(r.id,r);
     }
-    const slotIds = new Set();
+    const slotIds = new Set(), anyCells = new Set();
+    const cellId = (lesson,kind,level) => canonical([lesson,kind,level]);
     for (const slot of matrix.slots) {
       if (!slot || !text(slot.id) || slotIds.has(slot.id) || !kinds.includes(slot.kind) || !Array.isArray(slot.parts) || !slot.parts.length) fail('Ma trận có vị trí câu thiếu, trùng hoặc không hợp lệ.');
       slotIds.add(slot.id);
@@ -164,7 +165,10 @@
         const r = reqs.get(part.requirement_id);
         if (!r || !text(r.lesson_code) || !levels.includes(r.level) || !positive(part.points)) fail('Ma trận có ý chưa ánh xạ hoặc điểm không hợp lệ.');
         let outcome = r.text;
-        if (ppct) {
+        if (r.outcome_mode === 'any') {
+          // Ô ma trận 2D: mọi YCCĐ của bài; so khớp theo bài × dạng × mức độ.
+          outcome = '*'; anyCells.add(cellId(r.lesson_code,slot.kind,r.level));
+        } else if (ppct) {
           const lesson = (ppct.lessons || []).find(l => l.lesson_code === r.lesson_code && (l.grade == null || l.grade === exam.grade));
           outcome = lesson && Number.isInteger(r.ppct_outcome_index) && r.ppct_outcome_index >= 0 ? (lesson.outcomes || [])[r.ppct_outcome_index] : undefined;
           if (typeof outcome !== 'string' || !text(outcome)) fail('Ma trận chưa ánh xạ đúng YCCĐ trong PPCT.');
@@ -175,7 +179,14 @@
         add(expected,k,identity === undefined ? 1 : 0,Number(part.points)); identity = k;
       }
     }
-    for (const q of exam.questions) add(actual,key(q.lesson_code,q.learning_outcome,q.type,q.level),1,Number(q.points));
+    for (const q of exam.questions) {
+      const any = anyCells.has(cellId(q.lesson_code,q.type,q.level));
+      if (any && ppct) {
+        const lesson = (ppct.lessons || []).find(l => l.lesson_code === q.lesson_code && (l.grade == null || l.grade === exam.grade));
+        if (!lesson || !(lesson.outcomes || []).some(o => norm(o) === norm(q.learning_outcome))) fail('Câu thuộc bài ' + q.lesson_code + ' có YCCĐ không có trong PPCT của bài.');
+      }
+      add(actual,key(q.lesson_code,any ? '*' : q.learning_outcome,q.type,q.level),1,Number(q.points));
+    }
     for (const k of new Set([...expected.keys(),...actual.keys()])) {
       const e=expected.get(k)||[0,0], a=actual.get(k)||[0,0];
       if (e[0] !== a[0] || Math.abs(e[1]-a[1]) > 1e-9) fail('Đề lệch số câu hoặc điểm tại ô ma trận: '+k);

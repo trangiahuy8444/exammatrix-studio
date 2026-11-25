@@ -2188,7 +2188,7 @@ function buildVerificationReportHtml(record){
   }).join('')+
   `</tbody></table></div></details>`;
 
- return `<div class="doc-sheet"><header class="doc-sheet-head" align="center"><h3>BÁO CÁO ĐỐI CHIẾU & KIỂM ĐỊNH ĐỀ THI THEO MA TRẬN ĐẶC TẢ</h3><p><strong>${esc(record.title||'ĐỀ KIỂM TRA')} · KHỐI ${esc(record.grade)}</strong></p><p>Ma trận đối chiếu: <strong>${esc(v.matrix_title||matrixDisplayName(v,record))}</strong> · Trạng thái ma trận: <strong>${v.matrix_locked?'Đã duyệt & Khóa':'Bản nháp'}</strong></p></header>`+
+ return `<div class="doc-sheet"><header class="doc-sheet-head" align="center"><h3>BÁO CÁO ĐỐI CHIẾU & KIỂM ĐỊNH ĐỀ THI THEO MA TRẬN ĐẶC TẢ</h3><p><strong>${esc(record.title||'ĐỀ KIỂM TRA')} · KHỐI ${esc(record.grade)}</strong></p><p>Ma trận đối chiếu: <strong>${esc(v.matrix_title||matrixDisplayName(v,record))}</strong> · Trạng thái ma trận: <strong>${!v.matrix_id?'Không gắn ma trận (phân bố tự thiết lập)':v.matrix_locked?'Đã duyệt & Khóa':'Chưa khóa'}</strong></p></header>`+
  `<div class="callout ${v.passed?'':'warning'}" style="margin-bottom:16px"><strong>Kết luận kiểm định: <span class="badge ${badgeCls}">${v.passed?'ĐẠT YÊU CẦU CHUẨN MA TRẬN':'CHƯA ĐẠT YÊU CẦU'}</span></strong><br>${esc(v.summary||'')}</div>`+
  `<section class="doc-section"><h4>1. Đối chiếu Cấu trúc Dạng thức Câu hỏi & Tổng điểm</h4><div class="table-wrap"><table class="doc-table"><thead><tr><th align="center">Dạng câu hỏi</th><th align="center">Số câu / lệnh hỏi theo Ma trận</th><th align="center">Số câu / lệnh hỏi trong Đề thi</th><th align="center">Điểm Ma trận</th><th align="center">Điểm Đề thi</th><th align="center">Kết quả</th></tr></thead><tbody>${(v.type_checks||[]).map(tc=>`<tr><td><strong>${esc(tc.label)}</strong></td><td align="center">${tc.expected_items}</td><td align="center">${tc.actual_items}${tc.actual_questions&&tc.actual_questions!==tc.actual_items?` (${tc.actual_questions} câu lớn)`:''}</td><td align="center">${fmtPts(tc.expected_points)} điểm</td><td align="center"><strong>${fmtPts(tc.actual_points)} điểm</strong></td><td align="center"><span class="badge ${tc.matched?'approved':'draft'}">${tc.matched?'Khớp 100%':'Lệch'}</span></td></tr>`).join('')}<tr><td><strong>TỔNG CỘNG TOÀN ĐỀ</strong></td><td align="center" colspan="2"><strong>${v.total_questions} câu hỏi chính thức</strong></td><td align="center"><strong>${fmtPts(v.expected_points)} điểm</strong></td><td align="center"><strong>${fmtPts(v.total_points)} điểm</strong></td><td align="center"><span class="badge ${v.points_matched?'approved':'draft'}">${v.points_matched?'Đủ 10,0 điểm':'Lệch điểm'}</span></td></tr></tbody></table></div></section>`+
  `<section class="doc-section"><h4>2. Đối chiếu Mức độ Nhận thức (Biết · Hiểu · Vận dụng · Vận dụng cao)</h4><div class="table-wrap"><table class="doc-table"><thead><tr><th align="center">Mức độ nhận thức</th><th align="center">Số lệnh hỏi (Ma trận)</th><th align="center">Số lệnh hỏi (Đề thi)</th><th align="center">Điểm số (Ma trận)</th><th align="center">Điểm số (Đề thi)</th><th align="center">Đánh giá</th></tr></thead><tbody>${(v.level_checks||[]).map(lc=>`<tr><td align="center"><strong>${esc(lc.level)}</strong></td><td align="center">${lc.expected_items}</td><td align="center">${lc.actual_items}</td><td align="center">${fmtPts(lc.expected_points)} điểm</td><td align="center"><strong>${fmtPts(lc.actual_points)} điểm</strong></td><td align="center"><span class="badge ${lc.matched?'approved':'draft'}">${lc.matched?'Đúng tỉ lệ':'Cần kiểm tra'}</span></td></tr>`).join('')}</tbody></table></div></section>`+
@@ -5247,7 +5247,7 @@ function examLinks(r){
    (ans?`<button type="button" data-view-exam="${esc(r.id)}" data-mode="answers">🔑 Xem đáp án & HDC</button>`:'')+
    (editable?`<button type="button" data-edit-exam="${esc(r.id)}">Sửa thông tin đề</button>`:'')+
    `<button type="button" data-dup-exam="${esc(r.id)}">Nhân bản đề</button>`+
-   `<button type="button" data-permute-exam="${esc(r.id)}">🔀 Trộn mã đề (2 hoặc 4 mã)</button>`+
+   `<button type="button" data-permute-exam="${esc(r.id)}">🔀 Trộn mã đề (2–6 mã)</button>`+
    `<button type="button" data-load-exam="${esc(r.id)}">Nạp cấu hình tạo đề</button>`+
    (editable?`<hr><button type="button" class="danger" data-del-exam="${esc(r.id)}">Xóa đề kiểm tra</button>`:'<p class="small muted">Đề đã khóa: không sửa, không xóa. Muốn sửa hãy tạo bản chỉnh sửa mới.</p>')+
   `</div></details>`+
@@ -5547,21 +5547,60 @@ async function duplicateExam(id){
   renderExams();notify('Đã nhân bản đề kiểm tra.');
  });
 }
+// Trộn đề: hộp thoại tùy chỉnh (số mã, tên mã, xáo câu trong từng phần, xáo phương án, ý Đúng/Sai, giữ thứ tự tự luận).
 async function promptPermuteExam(id){
  const ex=store.exams.find(x=>x.id===id);if(!ex)return;
- const countStr=prompt(`Nhập số lượng mã đề cần trộn từ đề "${ex.title}" (ví dụ: 2 hoặc 4):`, "4");
- if(!countStr)return;
- const count=parseInt(countStr, 10);
- if(isNaN(count)||count<2||count>10){
-  notify('Vui lòng nhập số lượng mã đề từ 2 đến 10.', true);
-  return;
- }
- const codes = count === 2 ? ['101', '102'] : ['101', '102', '103', '104'].slice(0, count);
- await mutate('/api/exams/permute', {id, num_variants: count, codes, shuffle_questions: true, shuffle_options: true}, res=>{
-  if(res.exams)store.exams=res.exams;
-  renderExams();
-  notify(`Đã tạo thành công ${res.result?.count || count} mã đề hoán vị kèm bảng đáp án đồng bộ!`);
- });
+ let dlg=document.getElementById('permute-dialog');
+ if(!dlg){dlg=document.createElement('dialog');dlg.id='permute-dialog';dlg.style.cssText='max-width:900px;width:95vw;border-radius:14px;padding:22px';document.body.appendChild(dlg);}
+ const family=ex.parent_exam_id||ex.id;
+ const takenCodes=new Set(store.exams.filter(x=>x.id!==ex.id&&(x.parent_exam_id===family||x.id===family)).map(x=>String(x.exam_code||'')));
+ const suggest=n=>{const out=[];for(let c=101;out.length<n&&c<999;c++){const s=String(c);if(!takenCodes.has(s))out.push(s);}return out;};
+ const parts=['MC','YN','SHORT','ES'].map(t=>[t,ex.questions.filter(q=>q.type===t).length]).filter(([,n])=>n);
+ const partNames={MC:'Trắc nghiệm',YN:'Đúng/Sai',SHORT:'Trả lời ngắn',ES:'Tự luận'};
+ const hasYN=parts.some(([t])=>t==='YN'),hasES=parts.some(([t])=>t==='ES');
+ dlg.innerHTML=`<div class="dialog-heading"><h2 style="margin:0">🔀 Trộn mã đề</h2><button type="button" class="quiet" data-close-permute>Đóng</button></div>
+  <p class="muted">Từ đề <strong>${esc(ex.title)}</strong> (${ex.questions.length} câu: ${parts.map(([t,n])=>`${partNames[t]} ${n}`).join(', ')}). Mỗi mã chỉ xáo <strong>thứ tự câu trong từng phần</strong> và <strong>thứ tự phương án</strong>; nội dung, điểm và đáp án đúng giữ nguyên. Thứ tự các phần giữ nguyên.</p>
+  <div class="form-grid">
+   <div class="field"><label for="perm-count">Số mã đề</label><select id="perm-count">${[2,3,4,5,6].map(n=>`<option value="${n}"${n===4?' selected':''}>${n} mã</option>`).join('')}</select></div>
+   <div class="field span2"><label for="perm-codes">Các mã đề (cách nhau dấu phẩy, 3–6 chữ số)</label><input id="perm-codes" value="${suggest(4).join(', ')}"></div>
+   <div class="field"><label for="perm-seed">Mã ngẫu nhiên (để tạo lại y hệt)</label><input id="perm-seed" value="${esc(String(Date.now()).slice(-6))}"></div>
+  </div>
+  <fieldset style="margin-top:10px"><legend>Cách xáo trộn</legend>
+   <label class="inline-check"><input type="checkbox" id="perm-q" checked> Xáo thứ tự câu trong từng phần</label><br>
+   <label class="inline-check"><input type="checkbox" id="perm-o" checked> Xáo thứ tự phương án A, B, C, D (bỏ qua câu có phương án "Tất cả các ý trên", "Cả A và B"…)</label><br>
+   ${hasYN?'<label class="inline-check"><input type="checkbox" id="perm-s"> Xáo thứ tự ý a), b), c), d) của câu Đúng/Sai</label><br>':''}
+   ${hasES?'<label class="inline-check"><input type="checkbox" id="perm-es" checked> Giữ nguyên thứ tự câu tự luận (thường xếp từ dễ đến khó)</label>':''}
+  </fieldset>
+  <p class="small muted" id="perm-note"></p>
+  <div id="perm-error" class="callout error" hidden></div>
+  <div class="actions" style="margin-top:12px"><button type="button" class="primary" id="perm-run">Trộn và lưu các mã đề</button><button type="button" data-close-permute>Hủy</button></div>
+  <div id="perm-result"></div>`;
+ const $d=s=>dlg.querySelector(s);
+ const updateNote=()=>{const codes=$d('#perm-codes').value.split(/[,;\s]+/).filter(Boolean);
+  $d('#perm-note').textContent=(ex.exam_code&&codes.includes(String(ex.exam_code))?`Đề gốc cũng đang mang mã ${ex.exam_code}: khi in và nộp hồ sơ chỉ dùng các mã đã trộn, không dùng đề gốc. `:'')+'Các mã mới là bản nháp riêng, cần gửi duyệt và khóa trước khi phát hành đề cương.';};
+ $d('#perm-codes').oninput=updateNote;updateNote();
+ dlg.querySelectorAll('[data-close-permute]').forEach(b=>b.onclick=()=>dlg.close());
+ $d('#perm-count').onchange=()=>{$d('#perm-codes').value=suggest(Number($d('#perm-count').value)).join(', ');updateNote();};
+ $d('#perm-run').onclick=async()=>{
+  const err=$d('#perm-error');err.hidden=true;
+  const codes=$d('#perm-codes').value.split(/[,;\s]+/).map(x=>x.trim()).filter(Boolean);
+  const problem=codes.length<2||codes.length>6?'Chọn từ 2 đến 6 mã đề.':codes.some(c=>!/^\d{3,6}$/.test(c))?'Mỗi mã đề gồm 3–6 chữ số.':new Set(codes).size!==codes.length?'Các mã đề không được trùng nhau.':codes.find(c=>takenCodes.has(c))?`Mã ${codes.find(c=>takenCodes.has(c))} đã có trong các mã đã trộn từ đề này.`:'';
+  if(problem){err.textContent=problem;err.hidden=false;return;}
+  $d('#perm-run').disabled=true;
+  const body={id,codes,num_variants:codes.length,shuffle_questions:$d('#perm-q').checked,shuffle_options:$d('#perm-o').checked,shuffle_statements:Boolean($d('#perm-s')?.checked),keep_es_order:$d('#perm-es')?$d('#perm-es').checked:true,seed:$d('#perm-seed').value};
+  try{
+   const res=await request('/api/exams/permute',body);
+   if(res.exams)store.exams=res.exams;
+   const made=res.result?.exams||[];
+   const key=C.permutationAnswerKey([ex,...made]);
+   $d('#perm-result').innerHTML=`<div class="callout" style="margin-top:12px"><strong>Đã tạo ${made.length} mã đề: ${made.map(e=>esc(e.exam_code)).join(', ')}.</strong> Bảng đáp án tổng hợp (dòng đầu là đề gốc; số nhỏ là số câu gốc):</div>
+    <div class="table-wrap"><table class="small"><thead><tr><th>Mã</th>${key.columns.map(c=>`<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${key.rows.map((r,i)=>`<tr><td><strong>${esc(i===0?'Đề gốc':r.code)}</strong></td>${r.cells.map(c=>`<td style="text-align:center">${esc(c.answer)}${i>0?`<br><span class="muted" style="font-size:10px">câu ${esc(c.source)}</span>`:''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+   renderExams();
+   notify(`Đã trộn ${made.length} mã đề từ "${ex.title}". Các mã là bản nháp: hãy gửi duyệt và khóa từng mã.`);
+  }catch(e2){err.textContent=e2.message;err.hidden=false;}
+  finally{$d('#perm-run').disabled=false;}
+ };
+ dlg.showModal();
 }
 function loadExamConfig(id){
  const ex=store.exams.find(x=>x.id===id);if(!ex)return;

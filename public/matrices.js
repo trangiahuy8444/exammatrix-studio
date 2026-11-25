@@ -151,21 +151,23 @@
       const outcomeForLevel = ppctOutcomes[lvlIdx] || ppctOutcomes[0] || (targetLevel + ': Yêu cầu cần đạt về ' + lessonTitle + '.');
       const realOutcomeText = outcomeForLevel;
 
-      let req = (m.requirements || []).find(r => r.lesson_code === lessonCode && (r.level === targetLevel || (targetLevel === 'Vận dụng' && r.level === 'Vận dụng thấp')));
+      // Ô ma trận 2D chỉ ràng buộc bài × dạng × mức độ: nhận mọi YCCĐ của bài. YCCĐ và năng lực cụ thể
+      // lấy từ câu hỏi thật khi trích bảng đặc tả từ đề (trước đây tự gắn YCCĐ theo vị trí mức độ, không có căn cứ).
+      void realOutcomeText;
+      let req = (m.requirements || []).find(r => r.lesson_code === lessonCode && r.outcome_mode === 'any' && (r.level === targetLevel || (targetLevel === 'Vận dụng' && r.level === 'Vận dụng thấp')))
+        || (m.requirements || []).find(r => r.lesson_code === lessonCode && (r.level === targetLevel || (targetLevel === 'Vận dụng' && r.level === 'Vận dụng thấp')));
       if (!req) {
         req = {
           id: uid('R'),
           lesson_code: lessonCode,
           level: targetLevel,
-          text: realOutcomeText,
+          text: `${targetLevel}: mọi yêu cầu cần đạt của ${lessonTitle} (YCCĐ cụ thể lấy từ đề khi trích bảng đặc tả)`,
           competency: competencies()[0] || 'NLa',
-          ppct_outcome_index: ppctOutcomes.length ? Math.min(lvlIdx, ppctOutcomes.length - 1) : null,
+          outcome_mode: 'any',
+          ppct_outcome_index: null,
           choice_group: null
         };
         m.requirements.push(req);
-      } else if (ppctOutcomes.length && /^(Biết|Hiểu|Vận dụng|Vận dụng cao):\s*Yêu cầu cần đạt về/i.test(String(req.text || '').trim())) {
-        req.text = realOutcomeText;
-        req.ppct_outcome_index = Math.min(lvlIdx, ppctOutcomes.length - 1);
       }
 
       const isHighSchool = m.profile === 'THPT' || Number(m.grade) >= 10;
@@ -629,13 +631,13 @@
     });
   }
 
-  function syncSpecFromExam(m, exam) {
+  function syncSpecFromExam(m, exam, ppctOverride) {
     if (!m || !exam || !Array.isArray(exam.questions) || !exam.questions.length) {
       return false;
     }
     if (!Array.isArray(m.lessons)) m.lessons = [];
     const existingLessons = new Map(m.lessons.map(l => [l.lesson_code, l]));
-    const ppctLessons = lessons(m.grade);
+    const ppctLessons = Array.isArray(ppctOverride) ? ppctOverride.filter(l => Number(l.grade) === Number(m.grade)) : lessons(m.grade);
     exam.questions.forEach(q => {
       const lCode = q.lesson_code || 'B1';
       if (!existingLessons.has(lCode)) {
@@ -653,65 +655,63 @@
     const newReqs = [];
     const newSlots = [];
     const reqGroupMap = new Map();
+    const normT = t => String(t || '').normalize('NFC').toLowerCase().replace(/\s+/gu, ' ').trim();
+    const allowedComps = competencies();
+    const compOf = (q, pl) => {
+      // Năng lực: của câu hỏi; nếu trống thì mã đầu tiên khai trong PPCT của bài; cuối cùng mới lấy mã mặc định của môn.
+      if (q.competency && allowedComps.includes(q.competency)) return q.competency;
+      const fromPpct = [...(pl?.digital_competencies || []), ...(pl?.competencies || [])].join(' ').match(/\bNL\s*([a-eA-E])\b/);
+      const code = fromPpct ? 'NL' + fromPpct[1].toLowerCase() : '';
+      return allowedComps.includes(code) ? code : (allowedComps[0] || 'NLa');
+    };
 
+    // Mỗi dạng câu đánh số lại từ Câu 1 (TN câu 1.., TL câu 1..): mã định danh phải kèm dạng câu,
+    // nếu không "TN câu 1" và "TL câu 1" bị gộp làm một (lỗi trước 25/11/2026).
     exam.questions.forEach((q, idx) => {
+      const kind = q.type || 'MC';
       const qNum = q.slot_number || (idx + 1);
       const qLevel = q.level || 'Biết';
-      const qComp = q.competency || 'NLa';
+      const lCode = q.lesson_code || 'B1';
+      const pl = ppctLessons.find(l => l.lesson_code === lCode);
+      const outcomes = Array.isArray(pl?.outcomes) ? pl.outcomes : [];
       const rawText = q.learning_outcome || (q.question ? (q.question.length > 150 ? q.question.slice(0, 147) + '...' : q.question) : ('Mục tiêu đánh giá câu ' + qNum));
       const cleanText = String(rawText || '').replace(/\s*\(Mục tiêu\s+Câu[^)]*\)/gi, '').trim();
-      const lCode = q.lesson_code || 'B1';
+      const outcomeIdx = outcomes.findIndex(o => normT(o) === normT(cleanText));
+      const qComp = compOf(q, pl);
 
-      // Nhóm theo Bài học + Mức độ + Nội dung YCCĐ (các câu chung YCCĐ được tự động gộp vào 1 mục tiêu chung)
-      const normTextKey = cleanText.normalize('NFC').toLowerCase().replace(/\s+/gu, ' ');
-      const groupKey = `${lCode}|${qLevel}|${normTextKey}`;
-
-      let targetReqId;
-      if (reqGroupMap.has(groupKey)) {
-        const existingReq = reqGroupMap.get(groupKey);
-        targetReqId = existingReq.id;
-        const currentRefs = existingReq._refNums || [];
-        if (!currentRefs.includes(qNum)) currentRefs.push(qNum);
-        currentRefs.sort((a, b) => a - b);
-        existingReq._refNums = currentRefs;
-        existingReq.custom_refs = currentRefs.map(n => 'Câu ' + n).join(', ');
+      const groupKey = `${lCode}|${qLevel}|${kind}|${normT(cleanText)}|${qComp}`;
+      let req = reqGroupMap.get(groupKey);
+      if (req) {
+        if (!req._refNums.includes(qNum)) req._refNums.push(qNum);
+        req._refNums.sort((a, b) => a - b);
+        req.custom_refs = req._refNums.map(n => 'Câu ' + n).join(', ');
       } else {
-        targetReqId = 'R-EXAM-Q' + qNum;
-        const newReq = {
-          id: targetReqId,
+        req = {
+          id: `R-EXAM-${kind}-${qNum}`,
           lesson_code: lCode,
           level: qLevel,
-          text: cleanText,
+          text: outcomeIdx >= 0 ? outcomes[outcomeIdx] : cleanText,
           competency: qComp,
           custom_refs: 'Câu ' + qNum,
           _refNums: [qNum],
-          ppct_outcome_index: 0
+          ppct_outcome_index: outcomeIdx >= 0 ? outcomeIdx : null,
+          ...(outcomeIdx >= 0 ? {} : { outcome_mode: 'any' })
         };
-        reqGroupMap.set(groupKey, newReq);
-        newReqs.push(newReq);
+        reqGroupMap.set(groupKey, req);
+        newReqs.push(req);
       }
 
-      const sId = 'S' + qNum;
-      const kind = q.type || 'MC';
+      const sId = `S-${kind}-${qNum}`;
       let pts = Number(q.points);
       if (!Number.isFinite(pts) || pts <= 0) {
         pts = kind === 'MC' ? 0.25 : kind === 'YN' ? 1.0 : kind === 'SHORT' ? 0.5 : 1.0;
       }
-
-      newSlots.push({
-        id: sId,
-        number: qNum,
-        kind: kind,
-        parts: [
-          {
-            id: sId + '-P1',
-            requirement_id: targetReqId,
-            points: pts,
-            label: ''
-          }
-        ]
-      });
+      const parts = kind === 'YN'
+        ? ['a', 'b', 'c', 'd'].map(label => ({ id: `${sId}-${label}`, requirement_id: req.id, points: Math.round(pts / 4 * 10000) / 10000, label }))
+        : [{ id: sId + '-P1', requirement_id: req.id, points: pts, label: '' }];
+      newSlots.push({ id: sId, number: qNum, kind, scoring: { mode: 'sum_parts' }, parts });
     });
+    newReqs.forEach(r => { delete r._refNums; });
 
     m.requirements = newReqs;
     m.slots = newSlots;
@@ -1332,7 +1332,7 @@
   }
   function requirementEditor(r,i,locked,received){
     const source=lessons(ui.editing.grade).find(l=>l.lesson_code===r.lesson_code);
-    return `<div class="mx-requirement"><div class="dialog-heading" style="margin-bottom:6px"><label for="mx-req-${i}">Yêu cầu / chỉ báo ${i+1}</label>${!locked&&!received?`<button type="button" class="quiet danger" data-action="remove-requirement" data-index="${i}">Xóa yêu cầu</button>`:''}</div><textarea id="mx-req-${i}" rows="2" data-field="requirements.${i}.text"${locked||received?' disabled':''}>${E(r.text)}</textarea><div class="form-grid">${select('Mức độ của yêu cầu '+(i+1),`requirements.${i}.level`,requirementLevelOptions(r.level),locked||received)}${select('Năng lực của yêu cầu '+(i+1),`requirements.${i}.competency`,competencyOptions(r.competency),locked||received)}${select('YCCĐ nguồn của yêu cầu '+(i+1),`requirements.${i}.ppct_outcome_index`,opt('','Chọn yêu cầu từ PPCT',r.ppct_outcome_index===null)+(source?.outcomes||[]).map((o,n)=>opt(n,o,r.ppct_outcome_index===n)).join(''),locked)}</div></div>`;
+    return `<div class="mx-requirement"><div class="dialog-heading" style="margin-bottom:6px"><label for="mx-req-${i}">Yêu cầu / chỉ báo ${i+1}</label>${!locked&&!received?`<button type="button" class="quiet danger" data-action="remove-requirement" data-index="${i}">Xóa yêu cầu</button>`:''}</div><textarea id="mx-req-${i}" rows="2" data-field="requirements.${i}.text"${locked||received?' disabled':''}>${E(r.text)}</textarea><div class="form-grid">${select('Mức độ của yêu cầu '+(i+1),`requirements.${i}.level`,requirementLevelOptions(r.level),locked||received)}${select('Năng lực của yêu cầu '+(i+1),`requirements.${i}.competency`,competencyOptions(r.competency),locked||received)}${select('YCCĐ nguồn của yêu cầu '+(i+1),`requirements.${i}.ppct_outcome_index`,opt('','Chọn yêu cầu từ PPCT',r.ppct_outcome_index===null&&r.outcome_mode!=='any')+opt('*','Mọi YCCĐ của bài (ma trận 2D — YCCĐ cụ thể lấy từ đề)',r.outcome_mode==='any')+(source?.outcomes||[]).map((o,n)=>opt(n,o,r.outcome_mode!=='any'&&r.ppct_outcome_index===n)).join(''),locked)}</div></div>`;
   }
   function bulkEditor(){const m=ui.editing;return `<div class="mx-bulk"><h4>Thêm phân bố</h4><div class="form-grid"><div class="field"><label for="mx-bulk-kind">Dạng câu</label><select id="mx-bulk-kind">${Object.entries(kinds).filter(([k])=>effectiveKinds(m).includes(k)).map(([k,v])=>opt(k,v,false)).join('')}</select></div><div class="field span2"><label for="mx-bulk-req">Yêu cầu kiểm tra</label><select id="mx-bulk-req">${m.requirements.map(r=>opt(r.id,`${r.lesson_code} · ${r.level} · ${r.text}`,false)).join('')}</select></div><div class="field"><label for="mx-bulk-count">Số câu mẹ</label><input id="mx-bulk-count" type="number" min="1" max="100" value="1"></div><div class="field"><label for="mx-bulk-parts">Ý / câu tự luận</label><input id="mx-bulk-parts" type="number" min="1" max="10" value="1"></div><div class="field"><label for="mx-bulk-points">Điểm mỗi ý / câu đơn</label><input id="mx-bulk-points" type="number" min="0.01" step="0.05" value="0.25"></div></div><p class="small muted">Đúng/Sai luôn có 4 ý a–d. Số yêu cầu con của tự luận khác với số tiêu chí của hướng dẫn chấm.</p><button data-action="add-slots">Thêm vào phân bố</button></div>`;}
   function slotEditor(s,si,p,pi,locked,received){const m=ui.editing;const rs=m.requirements.filter(r=>!received||(r.source_index===p.source_index&&r.level===p.source_level));return `<tr><td>${pi===0?`${E(NAMEShort(s.kind))} ${s.number}`:''}</td><td>${E(p.label||'—')}</td><td><select aria-label="Yêu cầu vị trí ${E(s.id)} ${pi+1}" data-field="slots.${si}.parts.${pi}.requirement_id"${locked?' disabled':''}>${opt('','Chọn yêu cầu',!p.requirement_id)}${rs.map(r=>opt(r.id,`${r.lesson_code} · ${r.level} · ${r.text}`,r.id===p.requirement_id)).join('')}</select></td><td><input aria-label="Điểm vị trí ${E(s.id)} ${pi+1}" type="number" min="0.01" step="0.05" data-field="slots.${si}.parts.${pi}.points" value="${E(p.points)}"${locked||received?' disabled':''}></td>${(m.profile==='THPT'||m.competency_catalog?.length)?`<td><select aria-label="Chỉ báo vị trí ${E(s.id)} ${pi+1}" data-field="slots.${si}.parts.${pi}.indicator"${locked||received?' disabled':''}>${opt('','Chọn mã',!p.indicator)}${m.indicator_catalog.filter(c=>c.competency===m.requirements.find(r=>r.id===p.requirement_id)?.competency||c.code===p.indicator).map(c=>opt(c.code,c.code+' · '+c.text,c.code===p.indicator)).join('')+(!m.indicator_catalog.some(c=>c.code===p.indicator)&&p.indicator?opt(p.indicator,p.indicator+' · không có trong danh mục',true):'')}</select></td>`:''}${!locked&&!received?`<td>${pi===0?`<button class="quiet danger" data-action="remove-slot" data-index="${si}">Bỏ câu</button>`:''}</td>`:''}</tr>`;}
@@ -1407,7 +1407,8 @@
     const path=el.dataset.field.split('.'),key=path.pop();let object=ui.editing;
     for(const part of path)object=object[part];const previous=object[key];let value=el.value;
     if(el.type==='checkbox')value=key==='choice_group'?(el.checked?'alternative':null):el.checked;
-    else if(el.type==='number'||key==='ppct_outcome_index'||key==='grade')value=value===''?null:Number(value);
+    else if(key==='ppct_outcome_index'&&value==='*'){object.outcome_mode='any';value=null;}
+    else if(el.type==='number'||key==='ppct_outcome_index'||key==='grade'){if(key==='ppct_outcome_index')delete object.outcome_mode;value=value===''?null:Number(value);}
     if(key==='assessment_plan_id'){
       object[key]=value;
       const plans = getAssessmentPlansForMatrix(ui.editing.grade, subject(ui.editing));
@@ -4261,6 +4262,6 @@ Quy ước:
     }
     openEditorWithDraft(draft);
   }
-  const api={shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,STANDARD_PRESETS,newDraft,openEditorWithDraft,openEditorWithExamSpec,createFromPlan,getAssessmentPlansForMatrix,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,mergeQuestionRequirements,syncSpecFromExam,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
+  const api={syncSpecFromExam,shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,STANDARD_PRESETS,newDraft,openEditorWithDraft,openEditorWithExamSpec,createFromPlan,getAssessmentPlansForMatrix,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,mergeQuestionRequirements,syncSpecFromExam,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

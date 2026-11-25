@@ -2004,15 +2004,31 @@
     if (authBox) {
       authBox.className = 'auth-pill-container';
       authBox.innerHTML = `
-        <span id="cloud-sync-pill" class="cloud-sync-pill cloud-pill-offline" hidden>Chưa kết nối</span>
-        <span id="fb-user-badge" class="auth-pill-badge"><span class="auth-offline-dot"></span><span class="auth-status-text">Chưa đăng nhập</span></span>
-        <button id="gdrive-sync-btn" class="topbar-btn auth-login-btn" type="button" hidden title="Đồng bộ cây thư mục theo từng Khối lên Google Drive riêng">☁ Đồng bộ Drive</button>
-        <button id="fb-auth-btn" class="topbar-btn topbar-btn-primary auth-login-btn" type="button">Đăng nhập Google</button>
+        <span id="cloud-sync-pill" class="cloud-sync-pill cloud-pill-offline" hidden>Chưa đăng nhập</span>
+        <button id="fb-signin-btn" class="topbar-btn topbar-btn-outline auth-login-btn" type="button">Đăng nhập Google</button>
+        <details id="fb-account-menu" class="topbar-dropdown topbar-account-menu" hidden>
+          <summary id="fb-user-badge" class="topbar-account-trigger" aria-label="Tài khoản giáo viên">
+            <span class="auth-offline-dot"></span><span class="auth-status-text">Chưa đăng nhập</span>
+          </summary>
+          <div class="topbar-dropdown-panel topbar-account-panel" role="menu">
+            <div id="fb-account-meta" class="topbar-account-meta"></div>
+            <button id="gdrive-sync-btn" class="topbar-menu-item" type="button" role="menuitem" hidden title="Đồng bộ cây thư mục theo từng Khối lên Google Drive riêng">🔗 Kết nối Drive</button>
+            <hr class="topbar-menu-sep">
+            <button id="fb-auth-btn" class="topbar-menu-item is-danger" type="button" role="menuitem">Đăng xuất</button>
+          </div>
+        </details>
       `;
+
+      const accountMenu = authBox.querySelector('#fb-account-menu');
+      const signinBtn = authBox.querySelector('#fb-signin-btn');
+      if (signinBtn) {
+        signinBtn.onclick = () => showLoginModal(true);
+      }
 
       const syncBtn = authBox.querySelector('#gdrive-sync-btn');
       if (syncBtn) {
         syncBtn.onclick = async () => {
+          if (accountMenu) accountMenu.open = false;
           syncBtn.disabled = true;
           try {
             await syncDriveV2Now();
@@ -2029,13 +2045,14 @@
       const authBtn = authBox.querySelector('#fb-auth-btn');
       if (authBtn) {
         authBtn.onclick = async () => {
+          if (accountMenu) accountMenu.open = false;
           const curUser = window.FirebaseState.user;
           if (curUser && !curUser.isAnonymous) {
             if (confirm('Thầy/Cô có muốn đăng xuất khỏi tài khoản Google hiện tại? Dữ liệu đã được lưu an toàn trên Đám mây.')) {
               await helpers.signOut(auth);
               saveRuntimeDriveToken(null, '', 0);
               lastSyncedSlicesV2 = null;
-      lastKnownRevsV2 = null;
+              lastKnownRevsV2 = null;
               cloudFolderCacheV2.clear();
               showToast('Đã đăng xuất.');
             }
@@ -2272,6 +2289,9 @@
   function updateUserUI(user) {
     const badge = document.getElementById('fb-user-badge');
     const btn = document.getElementById('fb-auth-btn');
+    const signinBtn = document.getElementById('fb-signin-btn');
+    const accountMenu = document.getElementById('fb-account-menu');
+    const accountMeta = document.getElementById('fb-account-meta');
     if (!badge || !btn) {
       updateDriveSyncButton();
       return;
@@ -2279,14 +2299,24 @@
     if (user && !user.isAnonymous) {
       const name = user.displayName || (user.email ? user.email.split('@')[0] : 'Giáo viên');
       const initial = name.charAt(0).toUpperCase();
-      badge.innerHTML = `<span class="auth-avatar">${escapeHtml(initial)}</span><strong class="auth-name" title="${escapeHtml(user.email || '')}">${escapeHtml(name)}</strong>`;
+      if (accountMenu) accountMenu.hidden = false;
+      if (signinBtn) signinBtn.hidden = true;
+      badge.innerHTML = `<span class="auth-avatar">${escapeHtml(initial)}</span><span class="auth-name" title="${escapeHtml(user.email || '')}">${escapeHtml(name)}</span><span class="topbar-caret" aria-hidden="true">▾</span>`;
+      if (accountMeta) {
+        accountMeta.innerHTML = `<strong>${escapeHtml(name)}</strong>${user.email ? `<span>${escapeHtml(user.email)}</span>` : ''}`;
+      }
       btn.textContent = 'Đăng xuất';
-      btn.className = 'topbar-btn auth-logout-btn';
+      btn.className = 'topbar-menu-item is-danger';
       showLoginModal(false);
     } else {
+      if (accountMenu) {
+        accountMenu.hidden = true;
+        accountMenu.open = false;
+      }
+      if (signinBtn) signinBtn.hidden = false;
       badge.innerHTML = `<span class="auth-offline-dot"></span><span class="auth-status-text">${useUnifiedCloudV2() ? 'Chưa đăng nhập' : 'Chế độ thử'}</span>`;
       btn.textContent = 'Đăng nhập Google';
-      btn.className = 'topbar-btn topbar-btn-primary auth-login-btn';
+      btn.className = 'topbar-menu-item';
     }
     updateDriveSyncButton();
   }

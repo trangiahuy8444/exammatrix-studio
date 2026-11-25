@@ -10,7 +10,7 @@
   <meta property="og:description" content="Hệ thống quản lý Ma trận, Bảng đặc tả, Đề cương và Đề thi chuẩn Thông tư Bộ GD&ĐT">
   <meta property="og:type" content="website">
   <title>ExamMatrix Studio · Khảo thí & Đánh giá</title>
-  <link rel="stylesheet" href="./styles.css?v=20261125i">
+  <link rel="stylesheet" href="./styles.css?v=20261125k">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
   <script src="./core.js?v=20261125j" defer></script>
   <script src="./exam-comparison.js?v=20261124h" defer></script>
@@ -32,18 +32,21 @@
   <script src="./google-drive-config.js?v=20261124h" defer></script>
   <script src="./google-drive-storage.js?v=20261124h" defer></script>
   <script src="./cloud-storage-v2.js?v=20261124h" defer></script>
-  <script src="./firebase-bridge.js?v=20261124n" defer></script>
+  <script src="./firebase-bridge.js?v=20261125k" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" defer></script>
-  <script src="./app.js?v=20261125j" defer></script>
+  <script src="./app.js?v=20261125k" defer></script>
   <script src="./knowledge-ui.js?v=20261124k" defer></script>
   <link rel="stylesheet" href="./theme.css?v=20261125i">
 </head>
 <body>
 <a class="skip" href="#main">Đến nội dung chính</a>
 <aside class="sidebar" id="main-sidebar">
-  <a class="brand" href="#overview" title="ExamMatrix Studio"><span class="brand-mark">EM</span><span class="brand-text">EXAMMATRIX<small id="sidebar-subject-caption">Khảo thí Á Châu · 2026–2027</small></span></a>
+  <div class="sidebar-head">
+    <a class="brand" href="#overview" title="ExamMatrix Studio"><span class="brand-mark">EM</span><span class="brand-text">EXAMMATRIX<small id="sidebar-subject-caption">Khảo thí Á Châu · 2026–2027</small></span></a>
+    <button type="button" id="btn-close-sidebar" class="sidebar-close-btn" aria-label="Đóng thanh điều hướng" title="Đóng menu (Ctrl + B)">✕</button>
+  </div>
   <div class="sidebar-grade-box" id="sidebar-grade-box">
     <div class="sidebar-grade-head">
       <label for="sidebar-grade-select" class="sidebar-grade-title">KHÔNG GIAN KHỐI LỚP</label>
@@ -72,12 +75,16 @@
 <div class="workspace">
 <header class="topbar">
   <div class="topbar-left">
-    <button type="button" id="btn-toggle-sidebar" class="sidebar-toggle-btn" aria-label="Thu gọn hoặc mở rộng thanh điều hướng" title="Thu gọn / Mở rộng menu (Phím tắt: Ctrl + B)">
+    <button type="button" id="btn-toggle-sidebar" class="sidebar-toggle-btn" aria-controls="main-sidebar" aria-expanded="true" aria-label="Đóng hoặc mở thanh điều hướng" title="Đóng / Mở menu (Phím tắt: Ctrl + B)">
       <span class="toggle-icon">☰</span>
     </button>
+    <div class="topbar-page-indicator">
+      <span id="current-tab-label" class="page-current">Tổng quan</span>
+      <span id="current-grade-badge" class="topbar-grade-pill" title="Khối lớp đang làm việc">Khối 8</span>
+    </div>
     <div class="topbar-subject-badge">
-      <span class="subject-icon">📚</span>
-      <label for="global-subject-select" class="subject-label">Môn</label>
+      <span class="subject-icon" aria-hidden="true">📚</span>
+      <label for="global-subject-select" class="sr-only">Môn học</label>
       <select id="global-subject-select" class="topbar-select" aria-label="Chọn môn học">
         <option value="Tin học">Tin học</option>
         <option value="Toán học">Toán học</option>
@@ -90,40 +97,36 @@
         <option value="Địa lí">Địa lí</option>
       </select>
     </div>
-    <div class="topbar-page-indicator">
-      <span class="page-crumb">Khảo thí & Đánh giá</span>
-      <span class="page-sep">/</span>
-      <span id="current-tab-label" class="page-current">Tổng quan</span>
-      <span id="current-grade-badge" class="topbar-grade-pill" title="Khối lớp đang làm việc">Khối 8</span>
-    </div>
   </div>
   <div class="topbar-right">
-    <!-- Nhóm Công cụ chuyên môn -->
-    <div class="topbar-btn-group">
-      <button id="btn-ai-assistant" class="topbar-btn topbar-btn-primary" type="button" title="Đưa câu hỏi từ file Word vào ngân hàng tự động bằng AI">
-        <span class="btn-icon">✨</span>
-        <span class="btn-text">AI Nhập đề</span>
-      </button>
-      <button id="btn-backup-data" class="topbar-btn" type="button" title="Sao lưu hoặc khôi phục dữ liệu">
-        <span class="btn-icon">💾</span>
-        <span class="btn-text">Sao lưu</span>
-      </button>
-      <button id="btn-user-guide" class="topbar-btn" type="button" title="Quy trình chuẩn SOP & Cẩm nang khảo thí">
-        <span class="btn-icon">📋</span>
-        <span class="btn-text">Hướng dẫn & SOP</span>
-      </button>
-    </div>
+    <button id="btn-ai-assistant" class="topbar-btn topbar-btn-primary" type="button" title="Đưa câu hỏi từ file Word vào ngân hàng tự động bằng AI">
+      <span class="btn-icon" aria-hidden="true">✨</span>
+      <span class="btn-text">AI Nhập đề</span>
+    </button>
 
-    <span class="topbar-divider"></span>
+    <details id="topbar-tools-menu" class="topbar-dropdown">
+      <summary class="topbar-btn topbar-dropdown-trigger" aria-label="Tiện ích và hỗ trợ">
+        <span class="btn-icon" aria-hidden="true">⚙️</span>
+        <span class="btn-text">Tiện ích</span>
+        <span class="topbar-caret" aria-hidden="true">▾</span>
+      </summary>
+      <div class="topbar-dropdown-panel" role="menu">
+        <button id="btn-backup-data" class="topbar-menu-item" type="button" role="menuitem" title="Sao lưu hoặc khôi phục dữ liệu">
+          <span class="menu-icon" aria-hidden="true">💾</span>
+          <span>Sao lưu & Khôi phục</span>
+        </button>
+        <button id="btn-user-guide" class="topbar-menu-item" type="button" role="menuitem" title="Quy trình chuẩn SOP & Cẩm nang khảo thí">
+          <span class="menu-icon" aria-hidden="true">📋</span>
+          <span>Hướng dẫn & SOP</span>
+        </button>
+        <hr class="topbar-menu-sep">
+        <button id="refresh" class="topbar-menu-item" type="button" role="menuitem" title="Tải lại dữ liệu mới nhất">
+          <span class="menu-icon" aria-hidden="true">🔄</span>
+          <span>Tải lại dữ liệu</span>
+        </button>
+      </div>
+    </details>
 
-    <!-- Nhóm Trạng thái & Tiện ích -->
-    <div class="topbar-btn-group">
-      <button id="refresh" class="topbar-btn icon-only" type="button" title="Tải lại dữ liệu">
-        <span class="btn-icon">🔄</span>
-      </button>
-    </div>
-
-    <!-- Khung tài khoản giáo viên -->
     <div id="firebase-auth-box" class="auth-pill-container"></div>
   </div>
 </header>

@@ -12,7 +12,7 @@
   <title>ExamMatrix Studio · Khảo thí & Đánh giá</title>
   <link rel="stylesheet" href="./styles.css?v=20261124k">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-  <script src="./core.js?v=20261125c" defer></script>
+  <script src="./core.js?v=20261125e" defer></script>
   <script src="./exam-comparison.js?v=20261124h" defer></script>
   <script src="./competency-catalog.js?v=20261124h" defer></script>
   <script src="./competency-catalog-ui.js?v=20261124h" defer></script>
@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="./matrices.css?v=20261124h">
   <script src="./assessment-plan-model.js?v=20261124h" defer></script>
   <script src="./table-file-helper.js?v=20261124k" defer></script>
-  <script src="./matrices.js?v=20261125b" defer></script>
+  <script src="./matrices.js?v=20261125e" defer></script>
   <script src="./curricula.js?v=20261124h" defer></script>
   <script src="./firebase-config.js?v=20261124h" defer></script>
   <script src="./google-drive-config.js?v=20261124h" defer></script>
@@ -36,34 +36,46 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" defer></script>
-  <script src="./app.js?v=20261125c" defer></script>
+  <script src="./app.js?v=20261125e" defer></script>
   <script src="./knowledge-ui.js?v=20261124k" defer></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="./theme.css?v=20261125f">
 </head>
 <body>
 <a class="skip" href="#main">Đến nội dung chính</a>
 <aside class="sidebar" id="main-sidebar">
-  <a class="brand" href="#overview" title="ExamMatrix Studio"><span class="brand-mark">EM</span><span class="brand-text">EXAMMATRIX<small id="sidebar-subject-caption">Khảo thí Á Châu · 2026–2027</small></span></a>
+  <a class="brand" href="#overview" title="ExamMatrix Studio"><span class="brand-mark">EM</span><span class="brand-text">ExamMatrix Studio<small id="sidebar-subject-caption">Khảo thí Á Châu · 2026–2027</small></span></a>
   <div class="sidebar-grade-box" id="sidebar-grade-box">
     <div class="sidebar-grade-head">
-      <label for="sidebar-grade-select" class="sidebar-grade-title">KHÔNG GIAN KHỐI LỚP</label>
+      <label for="sidebar-grade-select" class="sidebar-grade-title">Khối lớp đang làm việc</label>
       <button type="button" id="btn-config-active-grades" class="sidebar-grade-cfg-btn" title="Tùy chỉnh các khối đang giảng dạy (6–12)" aria-label="Tùy chỉnh các khối đang giảng dạy">⚙️</button>
     </div>
     <div class="sidebar-grade-control">
       <select id="sidebar-grade-select" class="sidebar-grade-select" aria-label="Chọn khối lớp làm việc"></select>
     </div>
   </div>
-  <p class="nav-caption">KHÔNG GIAN CHUYÊN MÔN</p>
-  <nav aria-label="Điều hướng chính">
-    <a href="#overview" data-tab="overview" title="Tổng quan"><span class="nav-icon">📊</span><span class="nav-label">Tổng quan</span></a>
-    <a href="#bank" data-tab="bank" title="Ngân hàng câu hỏi"><span class="nav-icon">🗄️</span><span class="nav-label">Ngân hàng câu hỏi</span></a>
-    <a href="#review" data-tab="review" title="Duyệt câu hỏi"><span class="nav-icon">✔️</span><span class="nav-label">Duyệt câu hỏi</span></a>
-    <a href="#ppct" data-tab="ppct" title="Phân phối chương trình"><span class="nav-icon">📅</span><span class="nav-label">Phân phối chương trình</span></a>
-    <a href="#assessment-plans" data-tab="assessment-plans" title="Kế hoạch kiểm tra đánh giá"><span class="nav-icon">📋</span><span class="nav-label">Kế hoạch KTĐG</span></a>
-    <a href="#revisions" data-tab="revisions" title="Đề cương ôn tập"><span class="nav-icon">📝</span><span class="nav-label">Đề cương ôn tập</span></a>
-    <a href="#matrices" data-tab="matrices" title="Ma trận & đặc tả"><span class="nav-icon">📐</span><span class="nav-label">Ma trận & đặc tả</span></a>
-    <a href="#exams" data-tab="exams" title="Tạo đề kiểm tra"><span class="nav-icon">📑</span><span class="nav-label">Tạo đề kiểm tra</span></a>
-    <a href="#kttx" data-tab="kttx" title="Kiểm tra thường xuyên"><span class="nav-icon">🎯</span><span class="nav-label">Kiểm tra thường xuyên</span></a>
-    <a href="#knowledge" data-tab="knowledge" title="Bản đồ tri thức"><span class="nav-icon">🧠</span><span class="nav-label">Bản đồ tri thức</span></a>
+  <nav class="nav-groups" aria-label="Điều hướng chính">
+    <div class="nav-group">
+      <a href="#overview" data-tab="overview" class="nav-group-title"><span class="nav-label">Hồ sơ kiểm tra</span></a>
+      <a href="#matrices" data-tab="matrices"><span class="nav-label">Ma trận và đặc tả</span></a>
+      <a href="#revisions" data-tab="revisions"><span class="nav-label">Đề cương ôn tập</span></a>
+      <a href="#exams" data-tab="exams"><span class="nav-label">Đề kiểm tra và mã đề</span></a>
+    </div>
+    <div class="nav-group">
+      <a href="#bank" data-tab="bank" class="nav-group-title"><span class="nav-label">Ngân hàng câu hỏi</span></a>
+      <a href="#review" data-tab="review"><span class="nav-label">Duyệt câu hỏi</span></a>
+    </div>
+    <div class="nav-group">
+      <a href="#ppct" data-tab="ppct" class="nav-group-title"><span class="nav-label">Chương trình (PPCT)</span></a>
+      <a href="#assessment-plans" data-tab="assessment-plans"><span class="nav-label">Kế hoạch kiểm tra, đánh giá</span></a>
+    </div>
+    <div class="nav-group">
+      <a href="#kttx" data-tab="kttx" class="nav-group-title"><span class="nav-label">Kiểm tra thường xuyên</span></a>
+    </div>
+    <div class="nav-group">
+      <a href="#knowledge" data-tab="knowledge" class="nav-group-title"><span class="nav-label">Bản đồ tri thức</span></a>
+    </div>
   </nav>
   <div class="sidebar-foot"><span class="local-dot"></span> Lưu trữ trực tuyến<p>Tự động đồng bộ và sao lưu độc lập theo từng Khối lớp trên Google Drive.</p></div>
 </aside>
@@ -142,6 +154,7 @@
   <div id="static-sync-status" role="status" class="callout warning" hidden></div>
   <div id="notice" role="status" aria-live="polite" hidden></div>
   <div id="loading" class="empty" role="status">Đang mở ngân hàng câu hỏi…</div>
+  <nav id="ky-stepper" class="ky-stepper" aria-label="Các bước của kỳ kiểm tra" hidden></nav>
   <section id="overview" class="view" hidden></section>
   <section id="bank" class="view" hidden></section>
   <section id="review" class="view" hidden></section>

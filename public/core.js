@@ -743,11 +743,12 @@ function syncEditedQuestionsFromSheet(sheet,record){
   }
   // Hướng dẫn theo màn hình đang mở (giáo viên yêu cầu 28/10/2026): mỗi màn hình có mục đích, các bước và lưu ý riêng.
   const SCREEN_GUIDES={
-    overview:{title:'Tổng quan',purpose:'Xem nhanh tình trạng ngân hàng của môn đang chọn và đi đến việc cần làm tiếp theo.',
-      steps:['Đọc các ô số liệu: tổng số câu, số câu theo khối, theo trạng thái duyệt.',
-        'Bấm "Mở màn hình duyệt câu hỏi →" nếu còn câu đang chờ duyệt.',
-        'Bấm "Soạn câu hỏi mới" hoặc "Chuẩn bị đề cương →" để sang bước tiếp theo.'],
-      tips:['Đề chính thức chỉ dùng câu ở trạng thái "Đã duyệt".']},
+    overview:{title:'Hồ sơ kiểm tra',purpose:'Xem mỗi kỳ kiểm tra định kì đã đủ sáu thành phần hồ sơ chưa và đi thẳng tới việc cần làm tiếp theo.',
+      steps:['Mỗi dòng là một kỳ (Giữa, Cuối học kì I, II). Sáu cột: Ma trận, Đặc tả, Đề cương, Đề và mã đề, Duyệt và khóa, Phát hành.',
+        'Dấu tích đỏ là đã xong; vòng tím nửa đậm là đang làm; vòng đỏ có dấu chấm than là cần sửa; vòng nét đứt là chưa làm.',
+        'Bấm nút ở cột "Việc tiếp theo" để mở đúng bước của kỳ đó; thanh 6 bước ở đầu các màn hình Ma trận, Đề cương, Đề cho biết đang ở bước nào.',
+        '"Cần xử lí trước khi duyệt" liệt kê lỗi kiểm định của các đề chưa khóa; bấm "Mở đề" để sửa.'],
+      tips:['Đề chính thức chỉ dùng câu ở trạng thái "Đã duyệt".','Chọn khối ở thanh bên trái; chọn "Tất cả khối" để xem hồ sơ mọi khối.']},
     bank:{title:'Ngân hàng câu hỏi',purpose:'Tìm, soạn, sửa và nhập câu hỏi (MC, Đúng/Sai, Trả lời ngắn, Tự luận) theo bài học và YCCĐ trong PPCT.',
       steps:['Lọc theo khối, bài học, dạng câu, mức độ, trạng thái hoặc gõ vào ô tìm kiếm (mã câu, nội dung, phương án, YCCĐ).',
         'Bấm "+ Thêm câu hỏi": chọn khối, bài, YCCĐ, mức độ, dạng câu rồi nhập nội dung và đáp án. MC cần đủ 4 phương án kèm giải thích; Đúng/Sai cần đủ 4 ý a–d; Trả lời ngắn cần đáp án; Tự luận cần 4 tiêu chí chấm, tổng 1 điểm.',
@@ -820,6 +821,56 @@ function syncEditedQuestionsFromSheet(sheet,record){
   };
   // Bảng đáp án tổng hợp các mã đề (trộn đề): mỗi dòng một mã, mỗi cột một câu theo phần.
   // MC: chữ cái; Đ/S: chuỗi Đ/S theo ý a–d; TLN: đáp án; TL: "TL". Kèm số câu gốc để đối chiếu.
+  // Bìa hồ sơ kỳ kiểm tra (trang Hồ sơ kiểm tra): trạng thái 6 thành phần của từng kỳ định kì, tính từ dữ liệu thật.
+  // state: 'done' (đã xong), 'doing' (đang làm), 'fix' (cần sửa), 'todo' (chưa làm). Không ghi dữ liệu.
+  function dossierStatus(data,opts){
+    const o=opts||{},grade=Number(o.grade),subj=normalize(o.subject||'Tin học');
+    const mine=r=>r&&Number(r.grade)===grade&&normalize(r.subject_name||'Tin học')===subj&&r.status!=='archived';
+    const PERIODS=[['GK1','Giữa học kì I'],['CK1','Cuối học kì I'],['GK2','Giữa học kì II'],['CK2','Cuối học kì II']];
+    const frozen=e=>e&&(e.status==='locked'||e.status==='published');
+    const realSpec=m=>Array.isArray(m.requirements)&&m.requirements.length&&m.requirements.every(r=>r&&r.outcome_mode!=='any');
+    return PERIODS.map(([code,label])=>{
+      const mats=(data?.matrices||[]).filter(m=>mine(m)&&m.exam_type===code);
+      const exams=(data?.exams||[]).filter(e=>mine(e)&&e.exam_type===code);
+      const revIds=new Set(exams.map(e=>e.revision_id).filter(Boolean));
+      const revs=(data?.revisions||[]).filter(r=>revIds.has(r.id));
+      const families=new Map();exams.forEach(e=>{const f=e.parent_exam_id||e.exam_set?.id||e.id;families.set(f,(families.get(f)||0)+1);});
+      const bad=exams.filter(e=>!frozen(e)&&e.verification&&e.verification.passed===false);
+      const slot=(key,label,state,note)=>({key,label,state,note:note||''});
+      const slots=[
+        slot('matrix','Ma trận',mats.some(m=>m.status==='locked')?'done':mats.length?'doing':'todo'),
+        slot('spec','Đặc tả',mats.some(m=>(m.status==='locked'&&realSpec(m))||m.spec_locked)?'done':mats.some(realSpec)?'doing':'todo'),
+        slot('revision','Đề cương',revs.some(r=>r.status==='published')?'done':revs.length?'doing':'todo'),
+        slot('exam','Đề và mã đề',exams.length&&Math.max(0,...families.values())>=2?'done':exams.length?'doing':'todo',exams.length?`${exams.length} đề`:''),
+        slot('approve','Duyệt, khóa',exams.some(frozen)?'done':bad.length?'fix':exams.length?'doing':'todo',bad.length?`${bad.length} đề cần sửa`:''),
+        slot('publish','Phát hành',exams.some(e=>e.status==='published')?'done':'todo')
+      ];
+      const TARGET={matrix:['matrices','Lập ma trận'],spec:['exams','Trích bảng đặc tả từ đề'],revision:['revisions','Lập đề cương'],exam:['exams','Tạo đề và trộn mã'],approve:['exams',bad.length?'Sửa đề, rồi duyệt':'Gửi duyệt đề'],publish:['exams','Phát hành']};
+      const first=slots.find(x=>x.state==='fix')||slots.find(x=>x.state!=='done');
+      const started=slots.some(x=>x.state!=='todo');
+      const next=first?{tab:TARGET[first.key][0],label:started?TARGET[first.key][1]:'Bắt đầu'}:null;
+      const issues=bad.flatMap(e=>(e.verification.errors||[]).slice(0,3).map(err=>({exam_id:e.id,text:`${e.title||'Đề'}${e.exam_code?' (mã '+e.exam_code+')':''}: ${err.message}`})));
+      const duration=(mats.find(m=>m.duration)||exams.find(e=>e.duration)||{}).duration;
+      return {code,label,meta:duration?`${duration} phút`:'',slots,next,issues,done:slots.filter(x=>x.state==='done').length};
+    });
+  }
+  // Thanh 6 bước của một kỳ kiểm tra (Ma trận, Đề cương, Đề…): trạng thái từng bước lấy từ bìa hồ sơ.
+  function kyStepperModel(data,opts){
+    const o=opts||{},period=o.period||'GK1';
+    const d=dossierStatus(data,o).find(p=>p.code===period)||dossierStatus({},o)[0];
+    const by=Object.fromEntries(d.slots.map(x=>[x.key,x.state]));
+    const hasPpct=(data?.ppct?.lessons||[]).some(l=>Number(l.grade)===Number(o.grade)&&normalize(l.subject_name||'Tin học')===normalize(o.subject||'Tin học'));
+    const steps=[
+      {key:'scope',label:'Phạm vi',tab:'ppct',state:hasPpct?'done':'todo'},
+      {key:'matrix',label:'Ma trận',tab:'matrices',state:by.matrix},
+      {key:'revision',label:'Đề cương',tab:'revisions',state:by.revision},
+      {key:'exam',label:'Đề và mã đề',tab:'exams',state:by.exam==='done'&&by.spec==='done'?'done':by.exam},
+      {key:'approve',label:'Kiểm định, duyệt',tab:'exams',state:by.approve},
+      {key:'publish',label:'Phát hành',tab:'exams',state:by.publish}
+    ];
+    const current={matrices:'matrix',revisions:'revision',exams:'exam'}[o.tab]||null;
+    return {period:d.code,label:d.label,steps:steps.map((s,i)=>({...s,n:i+1,current:s.key===current}))};
+  }
   function permutationAnswerKey(exams){
     const PART={MC:'TN',YN:'Đ/S',SHORT:'TLN',ES:'TL'},ORDER=['MC','YN','SHORT','ES'];
     const list=(Array.isArray(exams)?exams:[]).filter(e=>e&&Array.isArray(e.questions));
@@ -926,6 +977,6 @@ function syncEditedQuestionsFromSheet(sheet,record){
     }
     return out;
   }
-  const api={permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
+  const api={kyStepperModel,dossierStatus,permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
 })(typeof window!=='undefined'?window:globalThis);

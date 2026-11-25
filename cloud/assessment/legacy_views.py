@@ -49,7 +49,7 @@ def application(request):
                           '<input type="hidden" name="csrfmiddlewaretoken" value="{}">'
                           '<button type="submit" class="quiet">Đăng xuất</button></form>', request.user.username, token)
     html = html.replace('<span class="teacher">Không gian giáo viên</span>', str(account), 1)
-    html = html.replace('<p class="nav-caption">', str(selector)+'<p class="nav-caption">', 1)
+    html = html.replace('<nav class="nav-groups"', str(selector)+'<nav class="nav-groups"', 1)
     if course is not None:
         html = html.replace('<title>Ngân hàng đề · Tin học Asian School</title>',
                             str(format_html('<title>Ngân hàng đề · {} {}</title>', course.subject.name, course.grade)))
@@ -68,7 +68,7 @@ def application(request):
 
 @require_http_methods(['GET'])
 def source_asset(request, asset):
-    if asset not in {'app.js', 'core.js', 'matrices.js', 'curricula.js', 'styles.css', 'matrices.css'}:
+    if asset not in {'app.js', 'core.js', 'matrices.js', 'curricula.js', 'styles.css', 'matrices.css', 'theme.css'}:
         # Assets are limited to the exact bundled image files; no user uploads.
         if not asset.startswith('assets/') or Path(asset).suffix.lower() not in {'.png', '.jpg', '.jpeg', '.svg'}:
             raise Http404()

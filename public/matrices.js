@@ -208,6 +208,25 @@
     renumberAllSlots(m);
   }
 
+  // Số câu ĐÃ DUYỆT sẵn có trong ngân hàng cho một ô bảng 2D (bài × dạng × mức độ), để giáo viên biết thiếu câu ngay khi nhập.
+  function gridAvailCount(m, lessonCode, gridType) {
+    const want = { MC_B: ['MC', ['Biết']], MC_H: ['MC', ['Hiểu']], YN: ['YN', null], ES_VD: ['ES', ['Vận dụng', 'Vận dụng thấp']], ES_VDC: ['ES', ['Vận dụng cao']] }[gridType];
+    if (!want) return null;
+    const qs = Array.isArray(ui.ctx?.questions) ? ui.ctx.questions : null;
+    if (!qs) return null;
+    const code = String(lessonCode || '').trim().toLowerCase(), subj = String(subject(m) || '').normalize('NFC').toLowerCase();
+    return qs.filter(q => q && q.review_status === 'approved' && Number(q.grade) === Number(m.grade)
+      && String(q.subject_name || 'Tin học').normalize('NFC').toLowerCase() === subj
+      && String(q.lesson_code || '').trim().toLowerCase() === code && q.type === want[0] && (!want[1] || want[1].includes(q.level))).length;
+  }
+  function gridAvailHtml(m, lessonCode, gridType, count) {
+    const have = gridAvailCount(m, lessonCode, gridType);
+    if (have === null) return '';
+    const need = Number(count) || 0;
+    if (!need && !have) return '';
+    const short = need > have;
+    return `<span class="mx-grid-avail${short ? ' short' : ''}" title="Số câu đã duyệt trong ngân hàng cho ô này">${short ? `thiếu ${need - have}` : `có ${have} câu`}</span>`;
+  }
   function matrixGridHtml(m, locked, received) {
     const reqMap = new Map((m.requirements || []).map(r => [r.id, r]));
     const isTHPT = m.profile === 'THPT';
@@ -267,20 +286,20 @@
             </div>
           </td>
           <td style="text-align:center">
-            <input type="number" min="0" max="30" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="MC_B" value="${mc_b}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>
+            <input type="number" min="0" max="30" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="MC_B" value="${mc_b}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>${gridAvailHtml(m, lesson.lesson_code, 'MC_B', mc_b)}
           </td>
           <td style="text-align:center">
-            <input type="number" min="0" max="30" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="MC_H" value="${mc_h}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>
+            <input type="number" min="0" max="30" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="MC_H" value="${mc_h}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>${gridAvailHtml(m, lesson.lesson_code, 'MC_H', mc_h)}
           </td>
           ${isTHPT ? `
           <td style="text-align:center">
-            <input type="number" min="0" max="10" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="YN" value="${yn}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>
+            <input type="number" min="0" max="10" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="YN" value="${yn}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>${gridAvailHtml(m, lesson.lesson_code, 'YN', yn)}
           </td>` : ''}
           <td style="text-align:center">
-            <input type="number" min="0" max="10" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="ES_VD" value="${es_vd}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>
+            <input type="number" min="0" max="10" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="ES_VD" value="${es_vd}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>${gridAvailHtml(m, lesson.lesson_code, 'ES_VD', es_vd)}
           </td>
           <td style="text-align:center">
-            <input type="number" min="0" max="10" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="ES_VDC" value="${es_vdc}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>
+            <input type="number" min="0" max="10" class="mx-grid-input" data-lesson-code="${E(lesson.lesson_code)}" data-grid-type="ES_VDC" value="${es_vdc}" style="width:54px;text-align:center;font-weight:600;padding:4px"${dis}>${gridAvailHtml(m, lesson.lesson_code, 'ES_VDC', es_vdc)}
           </td>
           <td style="text-align:center;font-weight:600">${totalQ} câu</td>
           <td style="text-align:center;font-weight:700;color:var(--blue)">${Math.round(lessonPts * 100) / 100}đ</td>

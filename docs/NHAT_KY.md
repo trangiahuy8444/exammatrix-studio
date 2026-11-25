@@ -1,3 +1,14 @@
+## 25/11/2026 — Giao diện mới, đợt 1–3: nhận diện, điều hướng 5 nhóm, trang Hồ sơ kiểm tra, thanh 6 bước
+
+- Giáo viên duyệt bản mẫu "ExamMatrix Studio — Thiết kế lại trải nghiệm" (3 màn hình). Khảo sát trước đó: 10 mục điều hướng ngang hàng, thanh trên 7 nút, chọn khối lặp 3 chỗ, PPCT 51 nút, khoảng 40% nút có biểu tượng cảm xúc, 42 màu nền.
+- `public/theme.css` (nạp sau cùng): bảng màu Mực tím #4A3AA8 (hành động chính), Bút đỏ #C62828 (dấu tích, lỗi), Xanh bảng #1F6B52 (đạt), Chì #1C2333; phông Be Vietnam Pro; thanh bên sáng; trỏ biến màu cũ của `styles.css` sang màu mới; đè các quy tắc `!important` cũ của khung chung; ẩn biểu tượng cảm xúc ở điều hướng và thanh trên.
+- `index.html`: điều hướng 5 nhóm (Hồ sơ kiểm tra: Ma trận, Đề cương, Đề; Ngân hàng: Duyệt; Chương trình: Kế hoạch KTĐG; Kiểm tra thường xuyên; Bản đồ tri thức), mọi màn hình cũ vẫn còn dưới dạng mục con.
+- Trang chủ đổi thành "Hồ sơ kiểm tra": mỗi kỳ định kì 6 ô (Ma trận, Đặc tả, Đề cương, Đề và mã đề, Duyệt và khóa, Phát hành) tính từ dữ liệu thật (`core.dossierStatus`), dấu tích bút đỏ, nút "Việc tiếp theo", danh sách lỗi kiểm định cần xử lí, số liệu ngân hàng. Bản mẫu có ô "Bản PDF" nhưng bản Pages không tạo PDF nên thay bằng "Phát hành".
+- Thanh 6 bước (`core.kyStepperModel`) ở đầu màn hình Ma trận, Đề cương, Đề, có ô chọn kỳ kiểm tra.
+- Bảng ma trận 2D: dưới mỗi ô hiện số câu đã duyệt sẵn có trong ngân hàng ("có 17 câu") hoặc "thiếu N" màu đỏ.
+- Kiểm thử: `tests/static_giao_dien_moi.test.cjs` (5 ca); sửa ca trợ giúp trong `frontend.test.cjs` (trang chủ đổi tên). Node 194/194, engine 458 (1 bỏ qua), mô phỏng 9 môn 18/18. Đã xem trên giao diện (Firebase giả).
+- Chưa làm: phần bên trong từng màn hình (ma trận, đề cương, đề, ngân hàng, PPCT) vẫn còn nút màu cũ và biểu tượng cảm xúc ghi thẳng trong mã; thanh trên cùng vẫn đủ các nút cũ.
+
 ## 25/11/2026 — Đề cương: sửa lỗi lưu, nhập tệp, lập theo số câu từng dạng, đối chiếu với đề
 
 - Tái hiện trên giao diện (Firebase giả) lỗi giáo viên báo "Chọn câu hỏi cùng khối, không trùng mã để lập đề cương.": lối "📥 Import Đề cương" hỏng cả ba kiểu tệp — JSON có mã câu trùng (hay gặp ở tệp do AI soạn) ra đúng lỗi này; JSON không có mã câu ra "Không tìm thấy hồ sơ…" vì câu chỉ thêm vào màn hình, không vào ngân hàng; Markdown báo "parseQuestionsFromRawText is not defined" vì hàm đọc nằm trong phần trợ lý AI.

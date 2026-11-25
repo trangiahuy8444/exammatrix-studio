@@ -630,9 +630,23 @@ function switchTab(tab){
  store.tab=['overview','bank','review','ppct','assessment-plans','revisions','matrices','exams','kttx','knowledge'].includes(tab)?tab:'overview';
  document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==store.tab);
  document.querySelectorAll('[data-tab]').forEach(a=>{if(a.dataset.tab===store.tab)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
- const tabLabels={knowledge:'Bản đồ tri thức',overview:'Tổng quan',bank:'Ngân hàng câu hỏi',review:'Duyệt câu hỏi',ppct:'Phân phối chương trình','assessment-plans':'Kế hoạch KTĐG',revisions:'Đề cương ôn tập',matrices:'Ma trận & đặc tả',exams:'Tạo đề kiểm tra',kttx:'Kiểm tra thường xuyên'};
+ const tabLabels={knowledge:'Bản đồ tri thức',overview:'Hồ sơ kiểm tra',bank:'Ngân hàng câu hỏi',review:'Duyệt câu hỏi',ppct:'Chương trình (PPCT)','assessment-plans':'Kế hoạch kiểm tra, đánh giá',revisions:'Đề cương ôn tập',matrices:'Ma trận và đặc tả',exams:'Đề kiểm tra và mã đề',kttx:'Kiểm tra thường xuyên'};
  const curEl=document.getElementById('current-tab-label');if(curEl)curEl.textContent=tabLabels[store.tab]||'Khảo thí';
+ renderKyStepper();
  if(store.bank)renderCurrent();
+}
+// Thanh 6 bước của kỳ kiểm tra (thiết kế duyệt 25/11/2026), hiện ở màn hình Ma trận, Đề cương, Đề.
+function renderKyStepper(){
+ const el=document.getElementById('ky-stepper');if(!el)return;
+ const show=['matrices','revisions','exams'].includes(store.tab)&&store.bank&&typeof store.activeGrade==='number';
+ el.hidden=!show;if(!show){el.innerHTML='';return;}
+ const period=store.dossierPeriod||store.examDraft?.exam_type||'GK1';
+ const model=C.kyStepperModel({matrices:store.matrixRecords||[],exams:store.exams||[],revisions:store.revisions||[],ppct:store.bank?.ppct},{grade:store.activeGrade,subject:subject(),period,tab:store.tab});
+ const periods=[['GK1','Giữa học kì I'],['CK1','Cuối học kì I'],['GK2','Giữa học kì II'],['CK2','Cuối học kì II']];
+ el.innerHTML=`<div class="ky-stepper-head"><label for="ky-period">Kỳ kiểm tra</label><select id="ky-period">${periods.map(([c,l])=>`<option value="${c}"${c===model.period?' selected':''}>${l}, ${esc(subject())} ${store.activeGrade}</option>`).join('')}</select></div>
+  <ol>${model.steps.map(s=>`<li class="ky-step ky-${s.state}${s.current?' ky-current':''}"><a href="#${s.tab}"${s.current?' aria-current="step"':''}><span class="ky-badge" aria-hidden="true">${s.state==='done'?'✓':s.n}</span><span>${esc(s.label)}</span><span class="ky-sr">${s.state==='done'?' (đã xong)':s.state==='fix'?' (cần sửa)':s.state==='doing'?' (đang làm)':''}</span></a></li>`).join('')}</ol>`;
+ const sel=document.getElementById('ky-period');
+ if(sel)sel.onchange=()=>{store.dossierPeriod=sel.value;if(store.examDraft)store.examDraft.exam_type=sel.value;if(store.tab==='exams'&&typeof chooseExamTemplate==='function')chooseExamTemplate();renderCurrent();renderKyStepper();};
 }
 function render(){switchTab(location.hash.slice(1)||store.tab);}
 function renderCurrent(){
@@ -824,21 +838,34 @@ function renderOverview(){
    ? `${ovActive.filter(q=>q.type==='MC').length} trắc nghiệm · ${ovActive.filter(q=>q.type==='ES').length} tự luận`
    : `${archivedCount} câu đang lưu trữ — Bấm nút bên dưới để khôi phục`;
 
- $('#overview').innerHTML=(!qs.length?`<div class="card"><h2>Bắt đầu ngân hàng môn ${esc(s)} của bạn</h2><p>1. Thiết lập phân phối chương trình môn ${esc(s)}. 2. Soạn câu hỏi. 3. Chuẩn bị đề cương, lập ma trận và tạo đề.</p><a class="button primary" href="#ppct">Quản lý PPCT ${esc(s)}</a> <a class="button" href="#bank">Soạn câu hỏi mới</a></div>`:'')+
- title(`Không gian chuyên môn · ${s}`,'Mỗi câu hỏi, một căn cứ rõ ràng',`Quản lí nội dung môn ${s} theo chương trình GDPT 2018. Chuẩn bị đề cương và tạo đề có kiểm tra ma trận.`,`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><label for="overview-grade-select" class="small muted" style="font-weight:600">Khối lớp:</label><select id="overview-grade-select" style="min-height:38px;padding:7px 12px;border:1px solid var(--line);border-radius:7px;font-weight:600;background:#fff">${opt('all',`Tất cả khối (${availableGrades().join(', ')})`,ovGrade==='all')}${gradeOptions(ovGrade)}</select><a class="button primary" href="#bank">Mở ngân hàng ${esc(s)}</a></div>`)+
- bannerHtml+
- `<div class="stats"><div class="stat"><strong>${displayQCount}</strong><span>${qCountLabel}</span><small>${qCountDetail}</small></div><div class="stat"><strong>${ovReady.length || (ovActive.length === 0 ? archivedCount : 0)}</strong><span>Câu đủ điều kiện tạo đề</span><small>Mẫu đã duyệt hoặc tự kiểm tra</small></div><div class="stat"><strong>${ovRevs.length}</strong><span>Phiên bản đề cương</span><small>Môn ${esc(s)}</small></div><div class="stat"><strong>${ovExms.length}</strong><span>Đề kiểm tra đã lưu</span><small>Môn ${esc(s)}</small></div></div>`+
- `<div class="grade-grid">${shownGrades.map(g=>{
-   const a=active.filter(q=>q.grade===g);
-   const gArchived=qs.filter(q=>q.grade===g&&q.review_status==='archived');
-   const effectiveCount = a.length > 0 ? a.length : gArchived.length;
-   const suffix = a.length > 0 ? '' : (gArchived.length > 0 ? ' (Lưu trữ)' : '');
-   const lsCount=lessons(g, s).length;
-   const haveQuestions = (a.length > 0 ? a : gArchived);
-   return `<a class="grade-card" href="#bank" data-open-grade="${g}"><h3>${esc(s)} ${g}</h3><p>${lsCount?`${lsCount} bài PPCT · ${lessons(g, s).filter(l=>haveQuestions.some(q=>q.lesson_code===l.lesson_code)).length} bài có câu hỏi`:'Chưa nạp PPCT khối này'}</p><div class="bar"><span style="width:${effectiveCount?100:(lsCount?40:0)}%"></span></div><strong>${effectiveCount} câu hỏi${suffix}</strong><span class="muted"> · Xem ngân hàng →</span></a>`;
- }).join('')}</div>`+
- `<div class="two-col" style="margin-top:22px"><div class="card"><h2>Chuẩn bị một đề kiểm tra</h2><ol class="muted"><li>Lọc và rà soát câu hỏi môn ${esc(s)} theo bài, YCCĐ và mức độ.</li><li>Chọn câu, lưu một phiên bản đề cương đã chuẩn bị phát.</li><li>Chọn ma trận, kiểm tra phân bố và tạo đề.</li></ol><a href="#revisions">Chuẩn bị đề cương →</a></div><div class="card"><h2>Trạng thái nội dung môn ${esc(s)}</h2><p class="muted">${(p=>`${p.approved} câu đã duyệt · ${p.pending_review} câu chờ duyệt · ${p.needs_review} câu cần sửa lại · ${p.draft} bản nháp`)(C.reviewProgress(ovQs))} · ${archivedCount} câu lưu trữ.</p><div class="callout">Đề kiểm tra chính thức chỉ dùng câu <strong>đã duyệt</strong>. <a href="#review">Mở màn hình duyệt câu hỏi →</a></div></div></div>`;
-
+ // Trang chủ "Hồ sơ kiểm tra" (thiết kế duyệt 25/11/2026): bìa hồ sơ 6 thành phần cho từng kỳ, việc cần xử lí, ngân hàng.
+ const tick='<svg class="pen-tick" viewBox="0 0 40 34" role="img" aria-label="Đã xong"><path d="M6 19c3 2.5 6 5.5 8.5 9 5-10 11.5-18 20-24" transform="rotate(-4 20 17)"></path></svg>';
+ const slotHtml=x=>x.state==='done'?tick
+  :x.state==='fix'?`<span class="dossier-fix" title="${esc(x.note)}"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M12 7v6M12 16.5v.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></svg><span>${esc(x.note||'Cần sửa')}</span></span>`
+  :x.state==='doing'?`<span class="dossier-doing" role="img" aria-label="Đang làm${x.note?': '+esc(x.note):''}"></span>${x.note?`<span class="dossier-note">${esc(x.note)}</span>`:''}`
+  :'<span class="dossier-todo" role="img" aria-label="Chưa làm"></span>';
+ const dataForDossier={matrices:store.matrixRecords||[],exams:store.exams||[],revisions:store.revisions||[]};
+ const dossierGrades=ovGrade==='all'?shownGrades:[Number(ovGrade)];
+ const dossiers=dossierGrades.map(g=>({grade:g,periods:C.dossierStatus(dataForDossier,{grade:g,subject:s})}));
+ const dossierHtml=dossiers.map(d=>`<section class="dossier" aria-labelledby="dossier-${d.grade}">
+   <h2 id="dossier-${d.grade}">Kiểm tra định kì, ${esc(s)} ${d.grade}</h2>
+   <div class="table-wrap"><table class="dossier-table"><thead><tr><th scope="col">Kỳ kiểm tra</th>${d.periods[0].slots.map(x=>`<th scope="col">${esc(x.label)}</th>`).join('')}<th scope="col" class="dossier-next-h">Việc tiếp theo</th></tr></thead>
+   <tbody>${d.periods.map(p=>`<tr><th scope="row"><span class="dossier-period">${esc(p.label)}</span>${p.meta?`<span class="dossier-meta">${esc(p.meta)}</span>`:''}</th>${p.slots.map(x=>`<td>${slotHtml(x)}</td>`).join('')}<td class="dossier-next">${p.next?`<a class="button${p.slots.some(x=>x.state==='fix')||p.slots.some(x=>x.state!=='todo')?' primary':''}" href="#${p.next.tab}" data-dossier-grade="${d.grade}" data-dossier-period="${p.code}">${esc(p.next.label)}</a>`:'<span class="dossier-complete">Đủ hồ sơ</span>'}</td></tr>`).join('')}</tbody></table></div>
+  </section>`).join('');
+ const issues=dossiers.flatMap(d=>d.periods.flatMap(p=>p.issues.map(i=>({...i,label:p.label,grade:d.grade}))));
+ const reviewWaiting=ovActive.filter(q=>['pending_review','content_checked','draft','needs_review'].includes(q.review_status)).length;
+ $('#overview').innerHTML=(!qs.length?`<div class="card"><h2>Bắt đầu với môn ${esc(s)}</h2><p class="muted">Ba bước đầu tiên: nhập phân phối chương trình, đưa câu hỏi vào ngân hàng, rồi mở kỳ kiểm tra để lập ma trận.</p><div class="actions"><a class="button primary" href="#ppct">Nhập phân phối chương trình</a><a class="button" href="#bank">Nhập câu hỏi</a></div></div>`:'')+
+ `<div class="page-head"><div><h1>Hồ sơ kiểm tra</h1><p>Mỗi kỳ kiểm tra cần đủ sáu thành phần để nộp tổ. Dấu tích đỏ là phần đã xong.</p></div></div>`+
+ bannerHtml+dossierHtml+
+ `<div class="two-col dossier-side">
+   <section class="card"><h2>Cần xử lí trước khi duyệt</h2>${issues.length?`<ul class="dossier-issues">${issues.slice(0,8).map(i=>`<li><span><strong>${esc(i.label)}, khối ${i.grade}.</strong> ${esc(i.text)}</span><a href="#exams" data-open-exam="${esc(i.exam_id)}">Mở đề</a></li>`).join('')}</ul>`:'<p class="muted">Chưa có đề nào cần sửa. Kết quả kiểm định của từng đề hiện ở đây.</p>'}</section>
+   <section class="card"><h2>Ngân hàng câu hỏi ${ovGrade==='all'?'':'khối '+esc(ovGrade)}</h2><p class="muted">Chỉ câu đã duyệt mới được dùng cho đề chính thức.</p>
+    <div class="dossier-stats"><div><strong>${ovReady.length}</strong><span>câu đã duyệt</span></div><div><strong class="${reviewWaiting?'dossier-alert':''}">${reviewWaiting}</strong><span>câu chưa duyệt</span></div><div><strong>${ovRevs.length}</strong><span>đề cương</span></div><div><strong>${ovExms.length}</strong><span>đề kiểm tra</span></div></div>
+    <div class="actions">${reviewWaiting?`<a class="button primary" href="#review">Duyệt ${reviewWaiting} câu</a>`:''}<a class="button" href="#bank">Mở ngân hàng</a></div>
+   </section>
+  </div>`;
+ document.querySelectorAll('#overview [data-dossier-period]').forEach(a=>a.addEventListener('click',()=>{const g=Number(a.dataset.dossierGrade);if(g&&g!==Number(store.activeGrade))setActiveGrade(g,{skipRender:true,silent:true});store.examDraft.exam_type=a.dataset.dossierPeriod;store.dossierPeriod=a.dataset.dossierPeriod;}));
+ document.querySelectorAll('#overview [data-open-exam]').forEach(a=>a.addEventListener('click',()=>{store.examSubTab='saved';store.activeExamViewId=a.dataset.openExam;}));
  const ovSel=$('#overview-grade-select');
  if(ovSel)ovSel.onchange=e=>{setActiveGrade(e.target.value||'all');};
 
@@ -5767,7 +5794,7 @@ function openMatrixInExamCreator(m){
   notify(msg);
  }
 }
-function renderMatrices(){window.MatrixUI.mount($("#matrices"),{request,notify,context:store.context,ppct:store.bank.ppct,revisions:store.revisions,exams:store.exams,assessmentPlans:store.assessmentPlans||[],activeGrade:store.activeGrade,activeGrades:availableGrades(),onGradeChange:g=>setActiveGrade(g,{skipRender:true}),onExamCreated:e=>{if(e&&!store.exams.some(x=>x.id===e.id))store.exams.push(e);},onMatricesChanged:list=>{if(Array.isArray(list))store.matrixRecords=list;},onOpenInExamCreator:openMatrixInExamCreator,
+function renderMatrices(){window.MatrixUI.mount($("#matrices"),{request,notify,context:store.context,ppct:store.bank.ppct,questions:store.bank?.questions||[],revisions:store.revisions,exams:store.exams,assessmentPlans:store.assessmentPlans||[],activeGrade:store.activeGrade,activeGrades:availableGrades(),onGradeChange:g=>setActiveGrade(g,{skipRender:true}),onExamCreated:e=>{if(e&&!store.exams.some(x=>x.id===e.id))store.exams.push(e);},onMatricesChanged:list=>{if(Array.isArray(list))store.matrixRecords=list;},onOpenInExamCreator:openMatrixInExamCreator,
  openReview:cell=>{if(cell?.grade)setActiveGrade(Number(cell.grade),{skipRender:true});store.reviewFilters=C.reviewFiltersForCell(cell);store.reviewIndex=0;location.hash='#review';}});}
 
 // Keep download URLs tied to this tab's course, including newly rendered links.

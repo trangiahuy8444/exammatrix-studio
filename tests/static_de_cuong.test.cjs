@@ -119,3 +119,37 @@ test('Đối chiếu đề ↔ đề cương: câu nào có, câu nào chưa (nh
   assert.equal(rep.items.find(x => x.label === 'TN câu 3').outcome_in_revision, true);
   assert.equal(rep.outcome_percent, 100);
 });
+
+test('Đưa đề cương về 90% nội dung đề: bớt đúng số câu vượt, ưu tiên câu có YCCĐ còn câu khác; đề cương khóa thì lưu phiên bản mới', async () => {
+  let data = workspace({ mcB1: 20, mcB2: 0, es: 4 });
+  const ids = [...Array.from({ length: 18 }, (_, i) => 'B1-' + i), 'ES-0', 'ES-1'];
+  let r = await api.handle('/api/revisions/save', { title: 'ĐC', grade: 9, question_ids: [...ids, 'B1-18', 'B1-19'] }, data, env);
+  data = r.data; const rev = r.response.revision;
+  const q = id => ({ ...data.bank.questions.find(x => x.id === id) });
+  data.exams = [{ id: 'E1', title: 'Đề 20 câu', grade: 9, subject_name: 'Tin học', revision_id: rev.id, status: 'draft', similarity_target_percent: 90, questions: ids.map((id, i) => ({ ...q(id), slot_number: i + 1, points: 0.5 })) }];
+  r = await api.handle('/api/revisions/coverage', { revision_id: rev.id, exam_id: 'E1' }, data, env);
+  assert.equal(r.response.reports[0].in_revision, 20);
+  r = await api.handle('/api/revisions/trim-to-exam', { revision_id: rev.id, exam_id: 'E1', percent: 90 }, data, env);
+  data = r.data;
+  assert.equal(r.response.kept, 18);
+  assert.equal(r.response.removed.length, 2);
+  assert.equal(r.response.new_version, false);
+  assert.ok(r.response.removed.every(x => x.outcome_still_covered), 'Không làm mất YCCĐ');
+  assert.equal(r.response.revision.id, rev.id);
+  assert.equal(r.response.revision.questions.length, 20, 'Đề cương còn 2 câu ngoài đề + 18 câu của đề');
+  r = await api.handle('/api/revisions/coverage', { revision_id: rev.id, exam_id: 'E1' }, data, env);
+  assert.equal(r.response.reports[0].in_revision, 18);
+  assert.equal(r.response.reports[0].count_percent, 90);
+  await assert.rejects(api.handle('/api/revisions/trim-to-exam', { revision_id: rev.id, exam_id: 'E1', percent: 90 }, data, env), /không cần bớt/);
+  const low = await api.handle('/api/revisions/trim-to-exam', { revision_id: rev.id, exam_id: 'E1', percent: 85 }, data, env).catch(e => e);
+  assert.match(String(low.message || ''), /không cần bớt/, 'Tỉ lệ dưới 90% được nâng lên 90%');
+  // Đề cương gắn với đề đã khóa: không sửa tại chỗ, lưu phiên bản mới.
+  r = await api.handle('/api/revisions/save', { title: 'ĐC đủ', grade: 9, question_ids: ids }, data, env);
+  data = r.data; const full = r.response.revision;
+  data.exams[0] = { ...data.exams[0], revision_id: full.id, status: 'locked' };
+  r = await api.handle('/api/revisions/trim-to-exam', { revision_id: full.id, exam_id: 'E1' }, data, env);
+  assert.equal(r.response.new_version, true);
+  assert.notEqual(r.response.revision.id, full.id);
+  assert.equal(r.response.revision.title, 'ĐC đủ (90% đề)');
+  assert.equal(r.data.revisions.find(x => x.id === full.id).questions.length, 20, 'Bản đã khóa giữ nguyên');
+});

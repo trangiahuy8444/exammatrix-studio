@@ -2512,10 +2512,172 @@
 </html>`;
   }
 
+  // Chuyển HTML bảng ma trận/đặc tả (do chính ứng dụng sinh) sang OOXML gốc của Word: đoạn văn, bảng có gộp ô,
+  // dòng tiêu đề lặp lại, tô nền, căn lề. Không cần Word để mở: Google Docs, Pages, LibreOffice đều đọc được.
+  const DOCX_TEXT_WIDTH = 13606; // 24 cm
+  function htmlToOoxml(html) {
+    const decode = s => String(s).replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&amp;/g, '&');
+    const xml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const styleOf = attrs => { const m = /style\s*=\s*"([^"]*)"/i.exec(attrs || ''); const out = {}; if (m) m[1].split(';').forEach(d => { const i = d.indexOf(':'); if (i > 0) out[d.slice(0, i).trim().toLowerCase()] = d.slice(i + 1).trim(); }); return out; };
+    const attrNum = (attrs, name) => { const m = new RegExp(name + '\\s*=\\s*"?(\\d+)', 'i').exec(attrs || ''); return m ? Math.max(1, Number(m[1])) : 1; };
+    const hex = v => { const m = /#([0-9a-f]{6}|[0-9a-f]{3})\b/i.exec(v || ''); if (!m) return null; let h = m[1]; if (h.length === 3) h = h.split('').map(c => c + c).join(''); return h.toUpperCase(); };
+    const halfPts = v => { const m = /([\d.]+)\s*pt/.exec(v || ''); return m ? Math.round(Number(m[1]) * 2) : null; };
+    const tokens = []; const re = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z0-9]+)([^>]*)>|([^<]+)/g; let t;
+    while ((t = re.exec(html))) { if (t[0].startsWith('<!--')) continue; if (t[4] != null) tokens.push({ text: decode(t[4]) }); else tokens.push({ close: !!t[1], tag: t[2].toLowerCase(), attrs: t[3] || '' }); }
+    // Dựng cây phần tử đơn giản.
+    const VOID = new Set(['br', 'col', 'img', 'hr', 'meta']);
+    const root = { tag: '#root', attrs: '', children: [] }; const stack = [root];
+    for (const k of tokens) {
+      const top = stack[stack.length - 1];
+      if (k.text != null) { top.children.push({ tag: '#text', text: k.text }); continue; }
+      if (k.close) { for (let i = stack.length - 1; i > 0; i--) if (stack[i].tag === k.tag) { stack.length = i; break; } continue; }
+      const node = { tag: k.tag, attrs: k.attrs, style: styleOf(k.attrs), children: [] };
+      top.children.push(node); if (!VOID.has(k.tag)) stack.push(node);
+    }
+    // Chạy chữ: gom văn bản trong một khối, giữ đậm/nghiêng/cỡ chữ/màu, <br> thành ngắt dòng.
+    function runs(node, fmt, out) {
+      for (const c of node.children) {
+        if (c.tag === '#text') { const txt = c.text.replace(/\s+/g, ' '); if (txt) out.push({ text: fmt.upper ? txt.toUpperCase() : txt, fmt }); continue; }
+        if (c.tag === 'br') { out.push({ br: true }); continue; }
+        if (c.tag === 'table') continue;
+        const st = c.style || {}, f = { ...fmt };
+        if (c.tag === 'strong' || c.tag === 'b' || /^(700|bold)$/.test(st['font-weight'] || '')) f.bold = true;
+        if (c.tag === 'em' || c.tag === 'i' || st['font-style'] === 'italic') f.italic = true;
+        if (c.tag === 'small') f.size = Math.max(16, (f.size || 22) - 3);
+        if (halfPts(st['font-size'])) f.size = halfPts(st['font-size']);
+        if (hex(st.color)) f.color = hex(st.color);
+        if (st['text-transform'] === 'uppercase') f.upper = true;
+        if ((c.tag === 'p' || c.tag === 'div') && out.length && !out[out.length - 1].br) out.push({ para: true });
+        runs(c, f, out);
+      }
+      return out;
+    }
+    function runXml(r) {
+      const f = r.fmt || {}; const pr = (f.bold ? '<w:b/>' : '') + (f.italic ? '<w:i/>' : '') + (f.color && f.color !== '000000' ? '<w:color w:val="' + f.color + '"/>' : '') + (f.size ? '<w:sz w:val="' + f.size + '"/><w:szCs w:val="' + f.size + '"/>' : '');
+      return '<w:r>' + (pr ? '<w:rPr>' + pr + '</w:rPr>' : '') + '<w:t xml:space="preserve">' + xml(r.text) + '</w:t></w:r>';
+    }
+    function paragraphs(list, pPr) {
+      // Cắt khoảng trắng đầu/cuối mỗi đoạn; {para:true} tách đoạn mới.
+      const paras = [[]]; list.forEach(r => { if (r.para) { if (paras[paras.length - 1].length) paras.push([]); } else paras[paras.length - 1].push(r); });
+      return paras.map(rs => {
+        while (rs.length && rs[0].text != null && !rs[0].text.trim()) rs.shift();
+        while (rs.length && rs[rs.length - 1].text != null && !rs[rs.length - 1].text.trim()) rs.pop();
+        if (rs.length && rs[0].text != null) rs[0] = { ...rs[0], text: rs[0].text.replace(/^\s+/, '') };
+        const last = rs.length - 1; if (last >= 0 && rs[last].text != null) rs[last] = { ...rs[last], text: rs[last].text.replace(/\s+$/, '') };
+        return '<w:p><w:pPr>' + pPr + '</w:pPr>' + rs.map(r => r.br ? '<w:r><w:br/></w:r>' : runXml(r)).join('') + '</w:p>';
+      }).join('');
+    }
+    const jcOf = (st, fallback) => { const a = (st['text-align'] || fallback || '').toLowerCase(); return a === 'center' ? 'center' : a === 'right' ? 'right' : a === 'justify' ? 'both' : 'left'; };
+    function tableXml(tbl, inherited) {
+      const tst = tbl.style || {}, noBorder = /none|0/.test(tst.border || '') && !/solid/.test(tst.border || '');
+      const rows = [], colWidths = [];
+      tbl.children.forEach(c => {
+        if (c.tag === 'colgroup') c.children.filter(x => x.tag === 'col').forEach(col => colWidths.push(col.style?.width || ''));
+        if (c.tag === 'col') colWidths.push(c.style?.width || '');
+        if (c.tag === 'tr') rows.push({ tr: c, head: false });
+        if (c.tag === 'thead' || c.tag === 'tbody' || c.tag === 'tfoot') c.children.filter(x => x.tag === 'tr').forEach(tr => rows.push({ tr, head: c.tag === 'thead' }));
+      });
+      // Đặt ô lên lưới, tính gộp dọc (rowspan) và gộp ngang (colspan).
+      const occupied = [], placed = [];
+      rows.forEach((row, ri) => {
+        occupied[ri] = occupied[ri] || []; let col = 0; placed[ri] = placed[ri] || [];
+        row.tr.children.filter(x => x.tag === 'td' || x.tag === 'th').forEach(cell => {
+          while (occupied[ri][col]) col++;
+          const cs = attrNum(cell.attrs, 'colspan'), rs = attrNum(cell.attrs, 'rowspan');
+          placed[ri].push({ cell, col, cs, rs, start: true });
+          for (let r = ri; r < ri + rs; r++) { occupied[r] = occupied[r] || []; for (let k = col; k < col + cs; k++) occupied[r][k] = true; if (r > ri) { placed[r] = placed[r] || []; placed[r].push({ cell, col, cs, rs, start: false }); } }
+          col += cs;
+        });
+      });
+      const ncols = Math.max(1, ...occupied.map(r => (r || []).length));
+      // Độ rộng cột: từ <col> (%), hoặc width px của ô không gộp ngang; cột còn lại chia đều phần dư.
+      const tw = new Array(ncols).fill(null);
+      if (colWidths.length === ncols) colWidths.forEach((w, i) => { const pc = /([\d.]+)%/.exec(w), px = /([\d.]+)px/.exec(w); if (pc) tw[i] = DOCX_TEXT_WIDTH * Number(pc[1]) / 100; else if (px) tw[i] = Number(px[1]) * 15; });
+      placed.forEach(r => (r || []).forEach(p => { if (p.start && p.cs === 1 && tw[p.col] == null) { const px = /([\d.]+)px/.exec(p.cell.style?.width || ''), pc = /([\d.]+)%/.exec(p.cell.style?.width || ''); if (px) tw[p.col] = Number(px[1]) * 15; else if (pc) tw[p.col] = DOCX_TEXT_WIDTH * Number(pc[1]) / 100; } }));
+      const known = tw.reduce((s, w) => s + (w || 0), 0), unknown = tw.filter(w => w == null).length;
+      let rest = DOCX_TEXT_WIDTH - known;
+      if (unknown && rest < unknown * 500) { const scale = (DOCX_TEXT_WIDTH - unknown * 500) / Math.max(1, known); tw.forEach((w, i) => { if (w != null) tw[i] = w * scale; }); rest = unknown * 500; }
+      tw.forEach((w, i) => { if (w == null) tw[i] = rest / unknown; });
+      const sum = tw.reduce((s, w) => s + w, 0); const widths = tw.map(w => Math.max(200, Math.round(w * DOCX_TEXT_WIDTH / sum)));
+      const border = noBorder ? '<w:tblBorders>' + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(k => '<w:' + k + ' w:val="nil"/>').join('') + '</w:tblBorders>'
+        : '<w:tblBorders>' + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(k => '<w:' + k + ' w:val="single" w:sz="4" w:space="0" w:color="000000"/>').join('') + '</w:tblBorders>';
+      const baseFmt = { ...inherited }; if (halfPts(tst['font-size'])) baseFmt.size = halfPts(tst['font-size']);
+      let out = '<w:tbl><w:tblPr><w:tblW w:w="' + DOCX_TEXT_WIDTH + '" w:type="dxa"/><w:jc w:val="center"/>' + border + '<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="85" w:type="dxa"/><w:right w:w="85" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>' + widths.map(w => '<w:gridCol w:w="' + w + '"/>').join('') + '</w:tblGrid>';
+      rows.forEach((row, ri) => {
+        out += '<w:tr><w:trPr><w:cantSplit/>' + (row.head ? '<w:tblHeader/>' : '') + '</w:trPr>';
+        (placed[ri] || []).slice().sort((a, b) => a.col - b.col).forEach(p => {
+          const st = p.cell.style || {}, w = widths.slice(p.col, p.col + p.cs).reduce((s, x) => s + x, 0);
+          const fill = hex(st.background || st['background-color']);
+          const va = /top/.test(st['vertical-align'] || '') ? 'top' : /bottom/.test(st['vertical-align'] || '') ? 'bottom' : 'center';
+          let tc = '<w:tc><w:tcPr><w:tcW w:w="' + w + '" w:type="dxa"/>' + (p.cs > 1 ? '<w:gridSpan w:val="' + p.cs + '"/>' : '') + (p.rs > 1 ? (p.start ? '<w:vMerge w:val="restart"/>' : '<w:vMerge/>') : '') + (fill && p.start ? '<w:shd w:val="clear" w:color="auto" w:fill="' + fill + '"/>' : '') + '<w:vAlign w:val="' + va + '"/></w:tcPr>';
+          if (!p.start) { tc += '<w:p/></w:tc>'; out += tc; return; }
+          const fmt = { ...baseFmt }; if (p.cell.tag === 'th') fmt.bold = true; if (halfPts(st['font-size'])) fmt.size = halfPts(st['font-size']); if (hex(st.color)) fmt.color = hex(st.color);
+          const inner = p.cell.children.filter(x => x.tag === 'table');
+          const pPr = '<w:spacing w:before="20" w:after="20" w:line="252" w:lineRule="auto"/><w:jc w:val="' + jcOf(st, p.cell.tag === 'th' ? 'center' : 'left') + '"/>';
+          const textPart = paragraphs(runs(p.cell, fmt, []), pPr);
+          tc += (textPart || '') + inner.map(x => tableXml(x, fmt) + '<w:p/>').join('') + (textPart || inner.length ? '' : '<w:p/>') + '</w:tc>';
+          out += tc;
+        });
+        out += '</w:tr>';
+      });
+      return out + '</w:tbl>';
+    }
+    // Khối ngoài bảng: đoạn văn theo <p>/<div>; bảng giữ nguyên thứ tự.
+    let body = '';
+    function blocks(node, fmt, pageBreak) {
+      let pending = [];
+      const flush = (st) => { if (pending.some(r => r.text != null && r.text.trim())) body += paragraphs(pending, '<w:spacing w:before="60" w:after="60"/><w:jc w:val="' + jcOf(st || {}, 'left') + '"/>'); pending = []; };
+      for (const c of node.children) {
+        if (c.tag === '#text') { const txt = c.text.replace(/\s+/g, ' '); if (txt.trim()) pending.push({ text: fmt.upper ? txt.toUpperCase() : txt, fmt }); continue; }
+        if (c.tag === 'br') { pending.push({ br: true }); continue; }
+        const st = c.style || {};
+        if (/always|page/.test(st['page-break-before'] || '')) { flush(node.style); body += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'; }
+        if (c.tag === 'table') { flush(node.style); body += tableXml(c, fmt) + '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:p>'; continue; }
+        if (c.tag === 'p' || /^h[1-6]$/.test(c.tag) || (c.tag === 'div' && !c.children.some(x => x.tag === 'table' || x.tag === 'div' || x.tag === 'p'))) {
+          flush(node.style); const f = { ...fmt }; if (halfPts(st['font-size'])) f.size = halfPts(st['font-size']); if (/^(700|bold)$/.test(st['font-weight'] || '') || /^h/.test(c.tag)) f.bold = true; if (st['text-transform'] === 'uppercase') f.upper = true; if (st['font-style'] === 'italic') f.italic = true;
+          const rs = runs(c, f, []); if (rs.some(r => r.text != null && r.text.trim())) body += paragraphs(rs, '<w:spacing w:before="60" w:after="60"/><w:jc w:val="' + jcOf(st, 'left') + '"/>' + (/indent/.test(Object.keys(st).join()) ? '' : ''));
+          continue;
+        }
+        if (c.tag === 'div' || c.tag === 'section' || c.tag === 'body' || c.tag === 'html') { flush(node.style); const f = { ...fmt }; if (halfPts(st['font-size'])) f.size = halfPts(st['font-size']); blocks(c, f); continue; }
+        if (['style', 'script', 'head', 'title', 'colgroup'].includes(c.tag)) continue;
+        // Phần tử nội dòng ở cấp khối (strong, span…): gom vào đoạn đang chờ.
+        runs({ children: [c] }, fmt, pending);
+      }
+      flush(node.style);
+    }
+    blocks(root, { size: 22 });
+    return body;
+  }
+
+  // Tệp .docx thật: khổ ngang A4, lề trên/dưới 1,0 cm, vùng chữ rộng 24 cm, Times New Roman, chân trang "Trang X/Y".
+  // Nội dung lấy đúng bản xem trước (generateMatrixWordHtml) rồi chuyển sang bảng Word gốc; dòng thead lặp lại mỗi trang.
+  function matrixDocxBytes(m, section='all') {
+    const zip = (typeof window !== 'undefined' && window.BankStaticExport && window.BankStaticExport.zipFiles) || null;
+    if (!zip) return null;
+    const body = htmlToOoxml(generateMatrixWordHtml(m, section));
+    const decl = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+    const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    const run = t => '<w:r><w:t xml:space="preserve">' + t + '</w:t></w:r>';
+    const field = code => '<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ' + code + ' </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>';
+    const font = '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/>';
+    const entries = [
+      ['[Content_Types].xml', decl + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/></Types>'],
+      ['_rels/.rels', decl + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="' + R + '/officeDocument" Target="word/document.xml"/></Relationships>'],
+      ['word/_rels/document.xml.rels', decl + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId2" Type="' + R + '/footer" Target="footer1.xml"/><Relationship Id="rId3" Type="' + R + '/styles" Target="styles.xml"/></Relationships>'],
+      ['word/styles.xml', decl + '<w:styles xmlns:w="' + W + '"><w:docDefaults><w:rPrDefault><w:rPr>' + font + '<w:sz w:val="22"/><w:lang w:val="vi-VN"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>'],
+      ['word/footer1.xml', decl + '<w:ftr xmlns:w="' + W + '"><w:p><w:pPr><w:jc w:val="center"/></w:pPr>' + run('Trang ') + field('PAGE') + run('/') + field('NUMPAGES') + '</w:p></w:ftr>'],
+      ['word/document.xml', decl + '<w:document xmlns:w="' + W + '" xmlns:r="' + R + '"><w:body>' + body + '<w:sectPr><w:footerReference w:type="default" r:id="rId2"/><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="567" w:right="1616" w:bottom="567" w:left="1616" w:header="284" w:footer="284" w:gutter="0"/></w:sectPr></w:body></w:document>']
+    ];
+    return zip(entries.map(([name, data]) => ({ name, data })));
+  }
+
   function downloadMatrixWord(m, section='all') {
     if (!m) return;
-    const html = generateMatrixWordStandaloneHtml(m, section);
-    const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
+    const docx = matrixDocxBytes(m, section);
+    const blob = docx
+      ? new Blob([docx], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+      : new Blob(['\ufeff', generateMatrixWordStandaloneHtml(m, section)], { type: 'application/msword;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -2523,12 +2685,12 @@
     const rawSubj = String(subject(m) || 'Tin học').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').toUpperCase();
     const subjCode = (rawSubj === 'TIN_HOC' || rawSubj === 'TIN') ? 'TIN' : (rawSubj || 'MON');
     const secName = section === 'matrix' ? 'MA_TRAN' : section === 'specification' ? 'DAC_TA' : section === 'competencies' ? 'NANG_LUC' : 'MA_TRAN_VA_DAC_TA';
-    a.download = `${subjCode}_${m.grade}_${period}_${secName}.doc`;
+    a.download = `${subjCode}_${m.grade}_${period}_${secName}.${docx ? 'docx' : 'doc'}`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
-    message(`Đã xuất tệp Word "${a.download}" thành công.`);
+    message(`Đã xuất tệp Word "${a.download}" (khổ ngang) thành công.`);
   }
 
   function downloadMatrixJson(m) {
@@ -4281,6 +4443,6 @@ Quy ước:
     }
     openEditorWithDraft(draft);
   }
-  const api={syncSpecFromExam,shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,STANDARD_PRESETS,newDraft,openEditorWithDraft,openEditorWithExamSpec,createFromPlan,getAssessmentPlansForMatrix,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,mergeQuestionRequirements,syncSpecFromExam,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
+  const api={matrixDocxBytes,htmlToOoxml,syncSpecFromExam,shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,STANDARD_PRESETS,newDraft,openEditorWithDraft,openEditorWithExamSpec,createFromPlan,getAssessmentPlansForMatrix,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,mergeQuestionRequirements,syncSpecFromExam,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

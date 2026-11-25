@@ -609,6 +609,31 @@
    if(!p.exam_id&&!exams.length)exams=data.exams.filter(e=>sameSubject(e)&&Number(e.grade)===Number(rev.grade));
    return result({revision:{id:rev.id,title:rev.title,grade:rev.grade,question_count:(rev.questions||[]).length},reports:exams.map(e=>engine.revisionCoverage(e,rev))});
   }
+  if(path==='/api/revisions/trim-to-exam'){
+   // Đưa đề cương về đúng tỉ lệ X% câu của một đề (mặc định 90%): bớt khỏi đề cương những câu của đề vượt mức.
+   // Ưu tiên bớt câu mà YCCĐ vẫn còn câu khác trong đề cương, rồi câu mức cao, tự luận trước (như cách chọn câu ngoài đề cương khi tạo đề).
+   const rev=own(find(data.revisions,p.revision_id)),exam=own(find(data.exams,p.exam_id));
+   if(typeof engine.fingerprint!=='function')fail('Bộ xử lý chưa hỗ trợ đối chiếu đề cương. Vui lòng tải lại trang.',503);
+   const pct=Math.max(90,Math.min(100,Math.round(Number(p.percent)||90)));
+   const eqs=exam.questions||[],total=eqs.length;if(!total)fail('Đề chưa có câu hỏi.');
+   const keep=Math.ceil(total*pct/100),efps=new Set(eqs.map(q=>engine.fingerprint(q)));
+   const revQs=rev.questions||[],inside=revQs.filter(q=>efps.has(engine.fingerprint(q)));
+   const removeN=inside.length-keep;
+   if(removeN<=0)fail(`Đề cương đang có ${inside.length}/${total} câu của đề (${Math.round(1000*inside.length/total)/10}%), không vượt ${pct}%; không cần bớt câu.`);
+   const okey=q=>q.lesson_code+'|'+q.learning_outcome,count=new Map();revQs.forEach(q=>count.set(okey(q),(count.get(okey(q))||0)+1));
+   const lv={'Vận dụng cao':4,'Vận dụng':3,'Hiểu':2,'Biết':1},kd={ES:4,SHORT:3,YN:2,MC:1};
+   const removed=[];let pool=inside.slice();
+   for(let k=0;k<removeN;k++){
+    pool.sort((a,b)=>Number((count.get(okey(b))||0)>1)-Number((count.get(okey(a))||0)>1)||(lv[b.level]||0)-(lv[a.level]||0)||(kd[b.type]||0)-(kd[a.type]||0)||String(a.id).localeCompare(String(b.id)));
+    const q=pool.shift();removed.push(q);count.set(okey(q),(count.get(okey(q))||0)-1);
+   }
+   const gone=new Set(removed.map(q=>q.id)),ids=revQs.filter(q=>!gone.has(q.id)).map(q=>q.id);
+   let locked=false;try{checkRevision(rev);}catch(e){locked=true;}
+   const revision=locked
+    ?saveRevision({title:rev.title+` (${pct}% đề)`,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent})
+    :saveRevision({title:rev.title,grade:rev.grade,question_ids:ids,similarity_target_percent:rev.similarity_target_percent},rev);
+   return result({revision,revisions:data.revisions,new_version:locked,total,kept:keep,removed:removed.map(q=>({id:q.id,type:q.type,lesson_code:q.lesson_code,level:q.level,question:String(q.question||'').replace(/\s+/g,' ').slice(0,120),outcome_still_covered:(count.get(okey(q))||0)>0}))},true);
+  }
   if(path==='/api/revisions/import'){
    // Nhập đề cương từ tệp (Markdown/JSON đã đọc ở trình duyệt): thêm câu mới vào Ngân hàng (Nháp), dùng lại câu đã có
    // (cùng khối, cùng nội dung), rồi lập đề cương từ đúng các câu trong Ngân hàng. Một lần ghi; lỗi thì không ghi gì.
@@ -738,7 +763,7 @@
     revision_snapshot:rev?clone(rev):null,
     revision_match_count:revMatched,
     similarity_target_percent:Number(genPayload.similarity_percent??90),
-    similarity_mode:genPayload.similarity_mode||'min',
+    similarity_mode:genPayload.similarity_mode||'exact',
     scoring_policy:clone(targetMatrix?.scoring_policy||{yn_table:{'0':'0','1':'0.1','2':'0.25','3':'0.5','4':'1'},rounding:mType==='TX'?'half_up_integer':'half_up_1dp',blank_counts_as:'wrong'}),
     allowed_kinds:clone(targetMatrix?.allowed_kinds||[...new Set(selectedQuestions.map(q=>q.type))]),
     validation_note:note
@@ -816,13 +841,17 @@
     const flexSlots=resolveFlexSource(genPayload,p,targetMatrix);
     const rev=genPayload.revision_id?own(find(data.revisions,genPayload.revision_id)):null;
     if(rev&&Number(rev.grade)!==Number(genPayload.grade))fail('Đề cương phải cùng khối, môn và kì kiểm tra.');
-    const pickedQuestions=assignFlexibleSlots(flexSlots,{revision:rev,seed:genPayload.seed,percent:genPayload.similarity_percent??rev?.similarity_target_percent??90,similarity_mode:genPayload.similarity_mode||'min'});
+    const pickedQuestions=assignFlexibleSlots(flexSlots,{revision:rev,seed:genPayload.seed,percent:genPayload.similarity_percent??rev?.similarity_target_percent??90,similarity_mode:genPayload.similarity_mode||'exact'});
     const dup=findRecentDuplicateExam(data.exams,genPayload,targetMatrix,pickedQuestions.map(q=>q.id));
     if(dup)return result({exam:dup,exams:data.exams},false);
     const exam=assembleFlexibleExam({targetMatrix,blueprint:p.blueprint,flexSlots,pickedQuestions,genPayload,rev});
     put(data.exams,exam);return result({exam,exams:data.exams},true);
    }
-   const exam=clone(engine.generateExam(data,genPayload));exam.created_at=now();exam.verification=verification(exam);put(data.exams,exam);return result({exam,exams:data.exams},true);
+   // "Bám sát" (mặc định): đúng tỉ lệ đề cương, phần còn lại lấy ngoài đề cương. Ngân hàng không đủ câu ngoài đề cương thì tạo theo "tối thiểu" và báo rõ.
+   let exam,simWarn=[];
+   try{exam=clone(engine.generateExam(data,{...genPayload,similarity_mode:genPayload.similarity_mode||'exact'}));}
+   catch(err){if((genPayload.similarity_mode||'exact')!=='exact'||!genPayload.revision_id)throw err;exam=clone(engine.generateExam(data,{...genPayload,similarity_mode:'min'}));simWarn=['Ngân hàng không đủ câu ngoài đề cương để bám sát tỉ lệ; đề được tạo với tỉ lệ đề cương tối thiểu (có thể cao hơn).'];}
+   exam.created_at=now();exam.verification=verification(exam);put(data.exams,exam);return result({exam,exams:data.exams,warnings:simWarn},true);
   }
   if(path==='/api/exams/generate-set'){
    const count=Number(p.exam_count);if(!Number.isInteger(count)||count<1||count>6)fail('Số đề trong bộ phải từ 1 đến 6.');
@@ -870,7 +899,7 @@
     const setId=id('SET'),exams=[];
     for(let n=0;n<count;n++){
      const examSeed=String(genPayload.seed??'')+':'+n;
-     const pickedQuestions=assignFlexibleSlots(flexSlots,{revision,seed:examSeed,percent:genPayload.similarity_percent??revision?.similarity_target_percent??90,similarity_mode:genPayload.similarity_mode||'min'});
+     const pickedQuestions=assignFlexibleSlots(flexSlots,{revision,seed:examSeed,percent:genPayload.similarity_percent??revision?.similarity_target_percent??90,similarity_mode:genPayload.similarity_mode||'exact'});
      const exam=assembleFlexibleExam({targetMatrix,blueprint:p.blueprint,flexSlots,pickedQuestions,genPayload:{...genPayload,title:genPayload.title.trim()+` — Đề ${n+1}`,exam_code:String(101+n),seed:examSeed},rev:revision});
      exam.exam_set={id:setId,index:n+1,count};
      exams.push(exam);

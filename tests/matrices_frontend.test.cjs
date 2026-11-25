@@ -790,7 +790,7 @@ Khối: 9
       global.window = {
         ...(prevWin || {}),
         FirebaseClient: { canHandle: () => true },
-        BankStaticExport: { matrixBytes: () => { throw new Error('downloadMatrixWord must not call raw matrixBytes'); } }
+        BankStaticExport: { zipFiles: require('../public/static-exam-export.js').zipFiles, matrixBytes: () => { throw new Error('downloadMatrixWord must not call raw matrixBytes'); } }
       };
       global.document = {
         ...(prevDoc || {}),
@@ -813,14 +813,21 @@ Khối: 9
       };
       ui.downloadMatrixWord(mTest, 'all');
       assert.equal(createdLinks.length, 1);
-      assert.equal(createdLinks[0].download, 'TIN_9_GK1_MA_TRAN_VA_DAC_TA.doc');
+      assert.equal(createdLinks[0].download, 'TIN_9_GK1_MA_TRAN_VA_DAC_TA.docx');
       assert.equal(createdLinks[0].clicked, true);
       assert.ok(capturedBlob, 'Phải tạo Blob Word');
-      const docText = await capturedBlob.text();
+      const docText = Buffer.from(await capturedBlob.arrayBuffer()).toString('utf8');
+      assert.ok(docText.startsWith('PK'), 'Phải là tệp .docx (ZIP)');
       assert.ok(docText.includes('KHUNG MA TRẬN ĐỀ KIỂM TRA ĐỊNH KỲ'));
       assert.ok(docText.includes('BẢNG ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KỲ'));
-      assert.ok(docText.includes('mso-page-orientation: landscape'));
-      assert.ok(docText.includes('class="WordSection1"'));
+      assert.ok(docText.includes('<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>'), 'Khổ ngang A4');
+      assert.ok(docText.includes('w:top="567"') && docText.includes('w:bottom="567"'), 'Lề trên/dưới 1,0 cm');
+      assert.ok(docText.includes('w:left="1616"') && docText.includes('w:right="1616"'), 'Vùng chữ rộng 24 cm');
+      assert.ok(docText.includes(' NUMPAGES '), 'Chân trang Trang X/Y');
+      assert.ok(docText.includes('<w:tblHeader/>'), 'Dòng tiêu đề bảng lặp lại mỗi trang');
+      assert.ok(docText.includes('<w:vMerge w:val="restart"/>') && docText.includes('<w:gridSpan w:val="'), 'Gộp ô dọc và ngang thành bảng Word gốc');
+      assert.ok(docText.includes('<w:tblW w:w="13606" w:type="dxa"/>'), 'Bảng rộng đúng 24 cm');
+      assert.ok(!docText.includes('altChunk') && !docText.includes('<table'), 'Không nhúng HTML: mở được cả ở Google Docs, Pages');
       console.log('PASS matrix UI: downloadMatrixWord xuất đúng nội dung Web khổ Landscape ngay cả trên bản Pages');
     } finally {
       global.window = prevWin;

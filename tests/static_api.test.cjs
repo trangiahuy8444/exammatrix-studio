@@ -269,6 +269,14 @@ async function main(){
  },savedSimRev.data,env);
  assert.equal(sim50Exam.response.exam.questions.length,2);
  assert.equal(sim50Exam.response.exam.revision_match_count,1);
+ // Mặc định (không gửi chế độ) là "Bám sát": đúng tỉ lệ, không tự lấy hết câu đề cương.
+ const simDefault=await api.handle('/api/exams/generate',{
+  matrix_id:'M1',grade:9,exam_type:'GK1',duration:45,seed:'sim-default',
+  title:'Đề mặc định bám sát',flexible:true,
+  revision_id:savedSimRev.response.revision.id,similarity_percent:50
+ },savedSimRev.data,env);
+ assert.equal(simDefault.response.exam.revision_match_count,1);
+ assert.equal(simDefault.response.exam.similarity_mode,'exact');
 
  console.log('PASS static API: ma trận → đề cương → sinh thật → khóa → phát hành; lỗi nguyên tử, bất biến snapshot và không tự duyệt câu');
 }

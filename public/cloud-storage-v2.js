@@ -86,6 +86,11 @@
       active_grades: activeGrades,
       active_grade: activeGrade,
       active_subject: activeSubject,
+      // Ngưỡng của tổ cho kho luật kiểm định (Bản đồ tri thức): tỉ lệ đề cương 90–100%, thời gian kiểm tra định kì.
+      ...(p.rule_config && typeof p.rule_config === 'object' ? { rule_config: {
+        de_cuong_min_percent: Math.max(90, Math.min(100, Math.round(Number(p.rule_config.de_cuong_min_percent)) || 90)),
+        thoi_gian_dinh_ki_phut: Math.max(15, Math.min(180, Math.round(Number(p.rule_config.thoi_gian_dinh_ki_phut)) || 45))
+      } } : {}),
       updated_at: String(p.updated_at || new Date().toISOString())
     };
   }

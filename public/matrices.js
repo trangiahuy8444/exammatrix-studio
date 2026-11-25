@@ -4421,6 +4421,7 @@ Quy ước:
       exam_type:g.matrix.exam_type,
       subject_name:subject(g.matrix),
       duration:Number(g.matrix.duration||45),
+      scope_week:(typeof window!=='undefined'&&typeof window.currentScopeWeek==='function')?window.currentScopeWeek():undefined,
       flexible:Boolean(g.flexibleMode),
       revision_id:qs('#mx-exam-revision')?.value||'',
       title:qs('#mx-exam-title')?.value||'',

@@ -8,7 +8,7 @@
   const C = window.BankCore;
   const esc = (s) => (C && C.escapeHtml ? C.escapeHtml(s) : String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])));
   const LEVELS = ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'];
-  const state = { grade: null, scopeWeek: '', examId: '', loading: false, data: null, rules: null, examReport: null, error: '', norm: null, normBusy: false, normMsg: '' };
+  const state = { grade: null, scopeWeek: '', examId: '', loading: false, data: null, rules: null, examReport: null, error: '', norm: null, normBusy: false, normMsg: '', parity: null, cfgMsg: '' };
 
   const call = (path, body) => (typeof window.request === 'function' ? window.request(path, body) : Promise.reject(new Error('Ứng dụng chưa sẵn sàng.')));
   const store = () => window.store || {};
@@ -36,7 +36,7 @@
       ? '<p class="badge approved">Kho luật: không phát hiện vi phạm</p>'
       : `<p class="badge draft">Kho luật: ${k.errors.length} vi phạm cần sửa</p>`;
     return `<div class="card kg-verify"><h3>Kiểm tra theo kho luật (có giải thích)</h3>
-      <p class="muted small">Chạy song song với kiểm định hiện có để chỉ rõ câu nào sai, vì sao và căn cứ văn bản nào. Quyết định duyệt vẫn theo kiểm định hiện có.</p>
+      <p class="muted small">Kho luật quyết định đề có được duyệt hay không, kèm câu nào sai, vì sao và căn cứ văn bản nào.${record.verification.decision === 'kho_luat' ? (record.verification.parity === false ? ` <strong>Lưu ý:</strong> kiểm định cũ kết luận ${record.verification.legacy?.passed ? 'đạt' : 'chưa đạt'}, khác kho luật; hãy báo người quản trị.` : ' Kết luận khớp với kiểm định cũ.') : ' Kho luật chưa chạy được nên đang dùng kiểm định cũ.'}</p>
       ${head}${findingList(k.errors, 'kg-error')}${k.warnings && k.warnings.length ? '<h4>Cảnh báo (không chặn)</h4>' + findingList(k.warnings, 'kg-warning') : ''}</div>`;
   }
 
@@ -80,6 +80,28 @@
       <div class="table-wrap"><table class="small"><thead><tr><th>Bài</th><th>Mức độ</th><th>Dạng</th><th>Cần</th><th>Đã duyệt</th><th>Thiếu</th></tr></thead><tbody>${m.cells.map(c => `<tr><td>${esc(c.lesson_code)}</td><td>${esc(c.level)}</td><td>${esc(kind[c.kind] || c.kind)}</td><td>${c.need}</td><td>${c.approved}${c.other ? ` <span class="muted">(+${c.other} chưa duyệt)</span>` : ''}</td><td${c.short ? ' style="color:#b91c1c;font-weight:700"' : ''}>${c.short || '—'}</td></tr>`).join('')}</tbody></table></div></details>`).join('')}</div>`;
   }
 
+  // Ngưỡng của tổ (lưu trong hồ sơ): tỉ lệ đề cương tối thiểu (90–100%, không thấp hơn quy định tổ) và thời gian kiểm tra định kì.
+  function configCard() {
+    const c = (store().profile && store().profile.rule_config) || { de_cuong_min_percent: 90, thoi_gian_dinh_ki_phut: 45 };
+    return `<div class="card"><h3>Ngưỡng của tổ cho kho luật</h3>
+      <p class="muted small">Đổi ngưỡng ở đây, không cần sửa mã. Tỉ lệ đề cương không đặt dưới 90% (rules/01_phan_cong_va_bien_soan_de.md). Thời gian 45 phút là mức của TT 22/2021 cho môn có từ 70 tiết/năm trở xuống; chỉ đổi khi môn khác mức đó.</p>
+      <div class="filters" style="align-items:flex-end">
+        <div class="field"><label for="kg-cfg-pct">Tỉ lệ câu lấy từ đề cương, tối thiểu (%)</label><input id="kg-cfg-pct" type="number" min="90" max="100" step="1" value="${esc(c.de_cuong_min_percent)}"></div>
+        <div class="field"><label for="kg-cfg-min">Thời gian kiểm tra định kì (phút)</label><input id="kg-cfg-min" type="number" min="15" max="180" step="5" value="${esc(c.thoi_gian_dinh_ki_phut)}"></div>
+        <button type="button" id="kg-cfg-save">Lưu ngưỡng</button></div>${state.cfgMsg ? `<p class="small">${esc(state.cfgMsg)}</p>` : ''}</div>`;
+  }
+
+  function parityCard() {
+    const p = state.parity;
+    const body = !p ? '<p class="muted small">Chạy kho luật và kiểm định cũ trên mọi đề của khối, rồi so kết luận.</p>'
+      : !p.total ? '<p class="muted">Khối này chưa có đề.</p>'
+      : `<p>${p.mismatched ? `<strong style="color:#b91c1c">${p.mismatched}/${p.total} đề hai bên kết luận khác nhau.</strong>` : `<span class="badge approved">${p.total}/${p.total} đề: hai bên kết luận giống nhau.</span>`}</p>
+        <div class="table-wrap"><table class="small"><thead><tr><th>Đề</th><th>Kiểm định cũ</th><th>Kho luật</th><th>Lỗi chỉ một bên thấy</th></tr></thead><tbody>
+        ${p.rows.map(r => `<tr${r.same ? '' : ' style="background:#fff0f1"'}><td>${esc(r.title)}${r.exam_code ? ' · ' + esc(r.exam_code) : ''}</td><td>${r.legacy_passed ? 'Đạt' : 'Chưa đạt'}</td><td>${r.rules_passed ? 'Đạt' : 'Chưa đạt'}</td><td>${[...r.only_legacy.map(c => 'cũ: ' + c), ...r.only_rules.map(c => 'kho luật: ' + c)].map(esc).join(', ') || '—'}</td></tr>`).join('')}
+        </tbody></table></div>`;
+    return `<div class="card"><h3>Đối chiếu kho luật với kiểm định cũ</h3>${body}<div class="actions"><button type="button" id="kg-parity">Đối chiếu các đề của khối</button></div></div>`;
+  }
+
   function render() {
     const root = document.getElementById('knowledge');
     if (!root) return;
@@ -116,7 +138,7 @@
       <div class="card"><h3>Bảng phủ yêu cầu cần đạt × mức độ</h3>${coverageTable(d.coverage)}</div>
       <div class="card"><h3>Câu hỏi gần trùng</h3>${dups}</div>
       <div class="card"><h3>Thứ tự ôn tập theo bài tiền đề</h3><p class="muted small">Ghi “Bài tiền đề” cho từng bài trong màn hình Phân phối chương trình để ứng dụng sắp thứ tự ôn và cảnh báo câu thuộc bài chưa học.</p>${order}</div>` : ''}
-      <div class="card"><h3>Kiểm tra một đề theo kho luật</h3>${examBox}</div>
+      <div class="card"><h3>Kiểm tra một đề theo kho luật</h3>${examBox}</div>${parityCard()}${configCard()}
       <details class="card"><summary><strong>Danh sách luật và căn cứ</strong></summary>${rules}</details>`;
 
     document.getElementById('kg-grade').onchange = (e) => { state.grade = Number(e.target.value); state.data = null; state.examReport = null; state.examId = ''; run(); };
@@ -126,6 +148,13 @@
     document.getElementById('kg-check-exam').onclick = checkExam;
     const pv = document.getElementById('kg-norm-preview'); if (pv) pv.onclick = () => normalize(false);
     const ap = document.getElementById('kg-norm-apply'); if (ap) ap.onclick = () => normalize(true);
+    const pb = document.getElementById('kg-parity'); if (pb) pb.onclick = async () => { try { state.parity = await call('/api/knowledge/parity', { grade: state.grade }); } catch (err) { state.error = err.message; } render(); };
+    const cs = document.getElementById('kg-cfg-save'); if (cs) cs.onclick = async () => {
+      const rule_config = { de_cuong_min_percent: Number(document.getElementById('kg-cfg-pct').value), thoi_gian_dinh_ki_phut: Number(document.getElementById('kg-cfg-min').value) };
+      try { const res = await call('/api/profile/save', { profile: { rule_config } }); if (window.store && res && res.profile) window.store.profile = res.profile; const c = res?.profile?.rule_config || rule_config; state.cfgMsg = `Đã lưu: đề cương tối thiểu ${c.de_cuong_min_percent}%, kiểm tra định kì ${c.thoi_gian_dinh_ki_phut} phút. Áp dụng cho lần kiểm định tiếp theo.`; }
+      catch (err) { state.cfgMsg = err && err.message ? err.message : 'Chưa lưu được ngưỡng.'; }
+      render();
+    };
   }
 
   async function normalize(apply) {

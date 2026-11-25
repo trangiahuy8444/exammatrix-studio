@@ -34,7 +34,11 @@
     PHU_YCCD: 'Quyết định giáo viên 26/10/2026 (docs/BOI_CANH.md mục 4): tiêu chí đề cương phủ YCCĐ 100%',
     CAU_DA_DUYET: 'Quyết định giáo viên 26/10/2026 (docs/BOI_CANH.md mục 4): đề chính thức chỉ dùng câu đã duyệt',
     KHONG_TRUNG: 'Bất biến nghiệp vụ (docs/THIET_KE.md): đề không có câu trùng',
-    PHAM_VI_TUAN: 'PPCT của giáo viên (CV 5512/BGDĐT-GDTrH, Phụ lục 1): chỉ kiểm tra nội dung đã học tới thời điểm kiểm tra'
+    PHAM_VI_TUAN: 'PPCT của giáo viên (CV 5512/BGDĐT-GDTrH, Phụ lục 1): chỉ kiểm tra nội dung đã học tới thời điểm kiểm tra',
+    KY_THUAT: 'Bất biến nghiệp vụ (docs/THIET_KE.md): câu đủ phương án, đáp án, hướng dẫn chấm và có điểm dương',
+    BAN_CHUP: 'Bất biến nghiệp vụ (docs/THIET_KE.md): đề gắn với bản chụp câu hỏi, ma trận, đề cương, PPCT lúc tạo; không sửa ngầm sau đó',
+    CAN_MA_TRAN: 'Quy ước ứng dụng (docs/THIET_KE.md): đề duyệt và phát hành phải theo ma trận đã khóa; phân bố tự thiết lập chỉ dùng bản nháp',
+    HO_SO: 'Quy ước hồ sơ của ứng dụng: đề có tên, số câu khai báo khớp số câu thực có'
   };
 
   // ------------------------------------------------------------------------------------------
@@ -57,47 +61,56 @@
       neu: [['?d', 'loai_kiem_tra', '?t'], { thu: 'in', a: '?t', b: ['GK1', 'CK1', 'GK2', 'CK2'] }], thi: [['?d', 'la', 'dinh_ki']] },
 
     // --- Luật vi phạm (chặn) ---
-    { id: 'R-TONG-10', muc: 'chan', can_cu: CAN_CU.THANG_DIEM_10,
+    { id: 'R-TONG-10', muc: 'chan', ma_cu: 'points', can_cu: CAN_CU.THANG_DIEM_10,
       neu: [['?d', 'la', 'de'], ['?d', 'tong_diem', '?t'], { thu: 'ne_num', a: '?t', b: 10 }],
       vi_pham: 'Tổng điểm của đề là {?t}, phải đúng 10 điểm.' },
-    { id: 'R-DANG-CAU', muc: 'chan', can_cu: [CAN_CU.DANG_CAU_THPT, CAN_CU.DANG_CAU_THCS],
+    { id: 'R-DANG-CAU', muc: 'chan', ma_cu: 'matrix_cell', can_cu: [CAN_CU.DANG_CAU_THPT, CAN_CU.DANG_CAU_THCS],
       neu: [['?d', 'co_cau', '?c'], ['?c', 'la_dang', '?k'], { khong: ['?d', 'cho_phep_dang', '?k'] }, ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n} là dạng {?k}, không thuộc các dạng câu được dùng cho đề này.' },
-    { id: 'R-CHUA-DUYET', muc: 'chan', can_cu: CAN_CU.CAU_DA_DUYET,
+    { id: 'R-CHUA-DUYET', muc: 'chan', ma_cu: 'questions_not_approved', can_cu: CAN_CU.CAU_DA_DUYET,
       neu: [['?d', 'co_cau', '?c'], ['?c', 'trang_thai', '?s'], { thu: 'ne', a: '?s', b: 'approved' }, ['?c', 'trang_thai_ten', '?ten'], ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n} chưa được duyệt (trạng thái: {?ten}).' },
-    { id: 'R-KHAC-KHOI', muc: 'chan', can_cu: CAN_CU.MA_TRAN_YCCD,
+    { id: 'R-KHAC-KHOI', muc: 'chan', ma_cu: 'scope', can_cu: CAN_CU.MA_TRAN_YCCD,
       neu: [['?d', 'khoi', '?k'], ['?d', 'co_cau', '?c'], ['?c', 'khoi', '?kc'], { thu: 'ne_num', a: '?kc', b: '?k' }, ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n} thuộc Khối {?kc}, khác khối của đề (Khối {?k}).' },
-    { id: 'R-KHAC-MON', muc: 'chan', can_cu: CAN_CU.MA_TRAN_YCCD,
+    { id: 'R-KHAC-MON', muc: 'chan', ma_cu: 'scope', can_cu: CAN_CU.MA_TRAN_YCCD,
       neu: [['?d', 'mon', '?m'], ['?d', 'co_cau', '?c'], ['?c', 'mon', '?mc'], { thu: 'ne', a: '?mc', b: '?m' }, ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n} thuộc môn {?mc}, khác môn của đề ({?m}).' },
-    { id: 'R-TRUNG', muc: 'chan', can_cu: CAN_CU.KHONG_TRUNG,
+    { id: 'R-TRUNG', muc: 'chan', ma_cu: 'duplicate', can_cu: CAN_CU.KHONG_TRUNG,
       neu: [['?c1', 'trung_voi', '?c2'], ['?c1', 'muc_trung', '?m'], ['?c1', 'so_thu_tu', '?n1'], ['?c2', 'so_thu_tu', '?n2']],
       vi_pham: 'Câu {?n1} trùng với câu {?n2} ({?m}).' },
-    { id: 'R-NGOAI-PPCT', muc: 'chan', can_cu: CAN_CU.MA_TRAN_YCCD,
+    { id: 'R-NGOAI-PPCT', muc: 'chan', ma_cu: 'matrix_cell', can_cu: CAN_CU.MA_TRAN_YCCD,
       neu: [['?d', 'co_cau', '?c'], { khong: ['?c', 'thuoc_bai_ppct', true] }, ['?c', 'ma_bai', '?b'], ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n}: bài “{?b}” không có trong PPCT của khối.' },
-    { id: 'R-NGOAI-YCCD', muc: 'chan', can_cu: CAN_CU.MA_TRAN_YCCD,
+    { id: 'R-NGOAI-YCCD', muc: 'chan', ma_cu: 'matrix_cell', can_cu: CAN_CU.MA_TRAN_YCCD,
       neu: [['?d', 'co_cau', '?c'], ['?c', 'thuoc_bai_ppct', true], { khong: ['?c', 'danh_gia_yccd_ppct', true] }, ['?c', 'ma_bai', '?b'], ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n}: YCCĐ của câu không khớp YCCĐ nào của bài {?b} trong PPCT.' },
-    { id: 'R-CHUA-DE-CUONG', muc: 'chan', can_cu: CAN_CU.DE_CUONG_90,
+    { id: 'R-CHUA-DE-CUONG', muc: 'chan', ma_cu: 'revision', can_cu: CAN_CU.DE_CUONG_90,
       neu: [['?d', 'la', 'de'], ['?d', 'co_de_cuong', false]],
       vi_pham: 'Đề chưa gắn đề cương ôn tập nên chưa kiểm được tỉ lệ 90%.' },
-    { id: 'R-TI-LE-DE-CUONG', muc: 'chan', can_cu: CAN_CU.DE_CUONG_90,
+    { id: 'R-TI-LE-DE-CUONG', muc: 'chan', ma_cu: 'revision_criterion', can_cu: CAN_CU.DE_CUONG_90,
       neu: [['?d', 'co_de_cuong', true], ['?d', 'so_cau_trong_de_cuong', '?x'], ['?d', 'so_cau_can_tu_de_cuong', '?y'], { thu: 'lt', a: '?x', b: '?y' }, ['?d', 'so_cau', '?n']],
       vi_pham: 'Mới có {?x}/{?n} câu lấy từ đề cương; cần ít nhất {?y} câu.' },
-    { id: 'R-PHU-YCCD', muc: 'chan', can_cu: CAN_CU.PHU_YCCD,
+    { id: 'R-PHU-YCCD', muc: 'chan', ma_cu: 'revision_criterion', can_cu: CAN_CU.PHU_YCCD,
       neu: [['?d', 'co_de_cuong', true], ['?d', 'co_cau', '?c'], { khong: ['?c', 'yccd_trong_de_cuong', true] }, ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n} kiểm tra YCCĐ không có trong đề cương ôn tập.' },
+
+    // --- Kết quả tính bằng thủ tục gắn kèm (procedural attachment): engine tính, kho luật quyết định ---
+    ...[
+      ['R-TEN-DE', 'title', CAN_CU.HO_SO], ['R-SO-CAU', 'points', CAN_CU.HO_SO], ['R-TI-LE-KHAI-BAO', 'similarity', CAN_CU.DE_CUONG_90],
+      ['R-KY-THUAT', 'technical', CAN_CU.KY_THUAT], ['R-BAN-CHUP', 'snapshot', CAN_CU.BAN_CHUP],
+      ['R-MA-TRAN', 'matrix', CAN_CU.MA_TRAN_YCCD], ['R-O-MA-TRAN', 'matrix_cell', CAN_CU.MA_TRAN_YCCD], ['R-CAN-MA-TRAN', 'matrix_required', CAN_CU.CAN_MA_TRAN],
+      ['R-DE-CUONG-HOP-LE', 'revision_invalid', CAN_CU.DE_CUONG_90]
+    ].map(([id, code, cc]) => ({ id, muc: 'chan', can_cu: cc, ma_cu: code,
+      neu: [['?d', 'thu_tuc', '?x'], ['?x', 'ma', code], ['?x', 'mo_ta', '?m']], vi_pham: '{?m}' })),
 
     // --- Cảnh báo (không chặn) ---
     { id: 'W-NGOAI-DE-CUONG', muc: 'canh_bao', can_cu: CAN_CU.DE_CUONG_90,
       neu: [['?d', 'co_de_cuong', true], ['?d', 'co_cau', '?c'], ['?c', 'trong_de_cuong', false], ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n} không có trong đề cương (được phép trong giới hạn 10%).' },
     { id: 'W-THOI-GIAN', muc: 'canh_bao', can_cu: CAN_CU.THOI_GIAN,
-      neu: [['?d', 'la', 'dinh_ki'], ['?d', 'mon_tin_hoc', true], ['?d', 'thoi_gian', '?p'], { thu: 'ne_num', a: '?p', b: 45 }],
-      vi_pham: 'Môn Tin học có từ 70 tiết/năm trở xuống: bài kiểm tra định kì làm trong 45 phút, đề đang ghi {?p} phút.' },
+      neu: [['?d', 'la', 'dinh_ki'], ['?d', 'mon_tin_hoc', true], ['?d', 'thoi_gian', '?p'], ['?d', 'thoi_gian_chuan', '?c'], { thu: 'ne_num', a: '?p', b: '?c' }],
+      vi_pham: 'Bài kiểm tra định kì môn Tin học làm trong {?c} phút (ngưỡng của tổ), đề đang ghi {?p} phút.' },
     { id: 'W-NGOAI-PHAM-VI', muc: 'canh_bao', can_cu: CAN_CU.PHAM_VI_TUAN,
       neu: [['?d', 'kiem_tra_den_tuan', '?w'], ['?d', 'co_cau', '?c'], ['?c', 'tuan_bat_dau', '?t'], { thu: 'gt', a: '?t', b: '?w' }, ['?c', 'ma_bai', '?b'], ['?c', 'so_thu_tu', '?n']],
       vi_pham: 'Câu {?n} thuộc bài {?b}, theo PPCT bắt đầu học ở tuần {?t}, sau tuần {?w} là thời điểm kiểm tra.' },
@@ -190,24 +203,56 @@
     return String(template).replace(/\{(\?[A-Za-z0-9_]+)\}/g, (_, v) => (v in b ? String(b[v]) : v));
   }
 
-  // Suy diễn tiến tới điểm bất động; ghi lại nguồn gốc mỗi sự kiện suy ra để giải thích.
+  // Phân tầng luật suy ra theo phủ định (stratified negation): vị từ bị phủ định phải được suy ra xong ở tầng trước.
+  // Kho luật có phủ định vòng (p cần "không q", q lại suy từ p) thì báo lỗi ngay khi nạp, không chạy suy diễn sai.
+  function stratify(rules = RULES) {
+    const derive = rules.filter(r => r.thi);
+    const heads = new Set(derive.flatMap(r => r.thi.map(t => t[1])).filter(p => !isVar(p)));
+    const level = new Map([...heads].map(p => [p, 0]));
+    const deps = derive.flatMap(r => r.thi.map(t => t[1]).filter(h => !isVar(h)).flatMap(h => list(r.neu).flatMap(c => {
+      if (Array.isArray(c)) return isVar(c[1]) ? [...heads].map(q => ({ h, q, neg: false })) : [{ h, q: c[1], neg: false }];
+      if (c && c.khong) return isVar(c.khong[1]) ? [...heads].map(q => ({ h, q, neg: true })) : [{ h, q: c.khong[1], neg: true }];
+      return [];
+    })));
+    const limit = heads.size + 1;
+    for (let changed = true, n = 0; changed; n++) {
+      changed = false;
+      for (const { h, q, neg } of deps) {
+        if (!heads.has(q)) continue;
+        const need = (level.get(q) || 0) + (neg ? 1 : 0);
+        if (need > (level.get(h) || 0)) { level.set(h, need); changed = true; if (need > limit) throw new Error(`Kho luật có phủ định vòng ở vị từ “${h}” (luật suy ra dựa vào điều phủ định của chính nó). Hãy sửa luật trước khi dùng.`); }
+      }
+      if (n > limit * deps.length + 1) break;
+    }
+    const strata = [];
+    for (const r of derive) { const s = Math.max(0, ...r.thi.map(t => level.get(t[1]) || 0)); (strata[s] = strata[s] || []).push(r); }
+    return strata.filter(Boolean);
+  }
+  const RULE_STRATA = stratify(RULES); // kiểm khi nạp mô-đun
+
+  // Suy diễn tiến tới điểm bất động theo từng tầng; ghi lại nguồn gốc mỗi sự kiện suy ra để giải thích.
   function infer(initialFacts, rules = RULES, opts = {}) {
     const fb = createFactBase(initialFacts);
     const derivedBy = new Map();
-    const deriveRules = rules.filter(r => r.thi);
+    const strata = rules === RULES ? RULE_STRATA : stratify(rules);
     const maxRounds = opts.maxRounds || 20;
-    for (let round = 0; round < maxRounds; round++) {
-      let added = 0;
-      for (const r of deriveRules) {
-        for (const st of matchConditions(r.neu, fb)) {
-          for (const tpl of r.thi) {
-            const f = tpl.map(t => resolve(t, st.b));
-            if (f.some(x => x === undefined)) continue;
-            if (fb.add(f)) { added++; derivedBy.set(factKey(f), { rule: r.id, from: st.used }); }
+    let truncated = false;
+    for (const layer of strata) {
+      let round = 0;
+      for (; round < maxRounds; round++) {
+        let added = 0;
+        for (const r of layer) {
+          for (const st of matchConditions(r.neu, fb)) {
+            for (const tpl of r.thi) {
+              const f = tpl.map(t => resolve(t, st.b));
+              if (f.some(x => x === undefined)) continue;
+              if (fb.add(f)) { added++; derivedBy.set(factKey(f), { rule: r.id, from: st.used }); }
+            }
           }
         }
+        if (!added) break;
       }
-      if (!added) break;
+      if (round >= maxRounds) truncated = true;
     }
     const findings = [];
     const seen = new Set();
@@ -231,7 +276,8 @@
         });
       }
     }
-    return { facts: fb.facts, findings, derivedBy };
+    if (truncated) findings.push({ rule: 'W-GIOI-HAN-SUY-DIEN', muc: 'canh_bao', message: `Suy diễn dừng ở giới hạn ${maxRounds} vòng khi chưa xong; kết luận có thể thiếu. Hãy báo người quản trị kho luật.`, can_cu: [], bindings: {}, because: [], absent: [] });
+    return { facts: fb.facts, findings, derivedBy, truncated };
   }
 
   // Câu giải thích "vì sao" cho một kết luận: luật, sự kiện dẫn tới, luật suy ra trung gian, căn cứ.
@@ -293,11 +339,32 @@
     return best;
   }
 
-  // opts: { revision (đề cương), ppct, scopeWeek (kiểm tra đến hết tuần), threshold (%) }
+  // Ngưỡng tổ chuyên môn đặt được (hồ sơ: profile.rule_config). Tỉ lệ đề cương không dưới 90% (rules/01).
+  const DEFAULT_CONFIG = Object.freeze({ de_cuong_min_percent: 90, thoi_gian_dinh_ki_phut: 45 });
+  function normalizeConfig(c) {
+    const x = c && typeof c === 'object' ? c : {};
+    const pct = Math.round(Number(x.de_cuong_min_percent)), min = Math.round(Number(x.thoi_gian_dinh_ki_phut));
+    return { de_cuong_min_percent: Number.isFinite(pct) ? Math.max(90, Math.min(100, pct)) : 90, thoi_gian_dinh_ki_phut: Number.isFinite(min) ? Math.max(15, Math.min(180, min)) : 45 };
+  }
+  // Mã lỗi của kiểm định thủ tục (static-exam-engine.verifyExam) được đưa vào kho luật thành sự kiện; mã đã có luật gốc thì bỏ qua.
+  const PROCEDURAL_CODES = new Set(['title', 'points', 'similarity', 'technical', 'snapshot', 'matrix', 'matrix_cell', 'matrix_required', 'revision']);
+
+  // opts: { revision (đề cương), ppct, scopeWeek (kiểm tra đến hết tuần), threshold (%), config (ngưỡng của tổ), procedural (lỗi thủ tục) }
   function examFacts(exam, opts = {}) {
     const e = exam || {};
     const d = 'de:' + (e.id || 'moi');
     const F = [];
+    const cfg = normalizeConfig(opts.config);
+    F.push([d, 'thoi_gian_chuan', cfg.thoi_gian_dinh_ki_phut]);
+    const totalPts = list(e.questions).reduce((n, q) => n + (Number(q?.points) || 0), 0);
+    list(opts.procedural).forEach((err, i) => {
+      let code = err && err.code;
+      if (!PROCEDURAL_CODES.has(code)) return;
+      if (code === 'points' && Math.abs(totalPts - 10) > 1e-9) return; // tổng điểm sai: luật R-TONG-10 đã báo
+      if (code === 'revision') { if (!text(e.revision_id)) return; code = 'revision_invalid'; } // chưa gắn: luật R-CHUA-DE-CUONG đã báo
+      const x = 'thu_tuc:' + i;
+      F.push([d, 'thu_tuc', x], [x, 'ma', code], [x, 'mo_ta', String(err.message || code)]);
+    });
     const subj = text(e.subject_name) || 'Tin học';
     F.push([d, 'la', 'de'], [d, 'khoi', Number(e.grade)], [d, 'mon', norm(subj)]);
     if (norm(subj) === norm('Tin học')) F.push([d, 'mon_tin_hoc', true]);
@@ -357,7 +424,7 @@
       }
     });
     if (rev) {
-      const threshold = Number(opts.threshold ?? e.similarity_target_percent ?? 90);
+      const threshold = Math.max(cfg.de_cuong_min_percent, Number(opts.threshold ?? e.similarity_target_percent ?? 90) || 0);
       F.push([d, 'so_cau_trong_de_cuong', inRev], [d, 'so_cau_can_tu_de_cuong', Math.ceil(qs.length * threshold / 100)]);
     }
     return F;
@@ -372,15 +439,21 @@
     }
     const ppct = opts.ppct || e.ppct_snapshot || data?.bank?.ppct;
     const facts = examFacts(e, { ...opts, revision, ppct });
-    const result = infer(facts, opts.rules || RULES);
+    const rules = opts.rules || RULES;
+    const result = infer(facts, rules);
+    const byId = new Map(rules.map(r => [r.id, r]));
     const blocking = result.findings.filter(f => f.muc === 'chan');
     const warnings = result.findings.filter(f => f.muc !== 'chan');
+    // code: mã lỗi quen thuộc của báo cáo kiểm định cũ (vd 'snapshot'), để màn hình và luồng duyệt đọc như trước.
+    const shape = f => ({ rule: f.rule, code: byId.get(f.rule)?.ma_cu || f.rule, message: f.message, can_cu: f.can_cu, explanation: explain(f, rules) });
     return {
       passed: blocking.length === 0,
-      errors: blocking.map(f => ({ rule: f.rule, message: f.message, can_cu: f.can_cu, explanation: explain(f, opts.rules || RULES) })),
-      warnings: warnings.map(f => ({ rule: f.rule, message: f.message, can_cu: f.can_cu, explanation: explain(f, opts.rules || RULES) })),
+      errors: blocking.map(shape),
+      warnings: warnings.map(shape),
       facts_count: result.facts.length,
-      derived_count: result.derivedBy.size
+      derived_count: result.derivedBy.size,
+      truncated: Boolean(result.truncated),
+      config: normalizeConfig(opts.config)
     };
   }
 
@@ -392,5 +465,5 @@
     }));
   }
 
-  return { RULES, CAN_CU, infer, explain, examFacts, checkExam, describeRules, matchConditions, createFactBase, contentKey };
+  return { RULES, CAN_CU, DEFAULT_CONFIG, normalizeConfig, stratify, infer, explain, examFacts, checkExam, describeRules, matchConditions, createFactBase, contentKey };
 });

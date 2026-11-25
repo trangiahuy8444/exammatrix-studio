@@ -1,3 +1,13 @@
+## 25/11/2026 — Kho luật nắm quyền chặn duyệt (phần còn lại)
+
+Nửa đầu đã lẫn vào e610494 (`verification()` trong `static-api.js` cho kho luật quyết định, `/api/knowledge/parity`, ô "Kiểm tra đến hết tuần"). Commit này bổ sung nửa còn lại; trước commit này, trên bản chạy thật các lỗi chỉ kiểm định cũ phát hiện (bản chụp bị sửa, câu thiếu nội dung kỹ thuật, câu lệch ô ma trận…) không còn chặn duyệt.
+
+- **Thủ tục gắn kèm:** lỗi do `engine.verifyExam` tính (tên đề, số câu khai báo, tỉ lệ khai báo, nội dung kỹ thuật, bản chụp, ma trận, ô ma trận, cần ma trận đã khóa, đề cương không hợp lệ) vào kho luật thành sự kiện; mỗi loại một luật chặn kèm căn cứ (R-TEN-DE, R-SO-CAU, R-TI-LE-KHAI-BAO, R-KY-THUAT, R-BAN-CHUP, R-MA-TRAN, R-O-MA-TRAN, R-CAN-MA-TRAN, R-DE-CUONG-HOP-LE). Vi phạm giữ mã lỗi cũ (`code`, vd `snapshot`).
+- **Ngưỡng của tổ** (`profile.rule_config`, khu "Ngưỡng của tổ cho kho luật" ở Bản đồ tri thức): tỉ lệ đề cương tối thiểu 90–100%, thời gian kiểm tra định kì (mặc định 45 phút).
+- **Suy diễn:** phân tầng phủ định (`stratify`, kiểm khi nạp mô-đun, từ chối luật phủ định vòng); cảnh báo `W-GIOI-HAN-SUY-DIEN` khi chạm giới hạn vòng.
+- **Đối chiếu với kiểm định cũ:** khu "Đối chiếu kho luật với kiểm định cũ" ở Bản đồ tri thức; báo cáo kiểm định cho biết hai bên có khớp. Chạy trên 36 đề do mô phỏng 9 môn tạo: 0 đề lệch.
+- Tạo đề từ ma trận 2D gửi kèm tuần kiểm tra.
+
 ## 25/11/2026 — Nền móng tri thức: mã YCCĐ cố định, một định nghĩa câu trùng, ô ma trận 2D trong đồ thị
 
 Làm theo đánh giá hệ cơ sở tri thức (mục 1–4).

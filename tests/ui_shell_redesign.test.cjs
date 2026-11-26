@@ -33,10 +33,10 @@ test('index.html preserves required shell, header, toast, and sidebar IDs', () =
   assert(!indexHtml.includes('class="page-crumb"'), 'Redundant breadcrumb should be removed from topbar');
   assert(indexHtml.includes('id="app-modal-dialog"'), 'Missing #app-modal-dialog in public/index.html');
   assert(indexHtml.includes('./styles.css?v=20261126c'));
-  assert(indexHtml.includes('./core.js?v=20261126c'));
-  assert(indexHtml.includes('./matrices.js?v=20261126e'));
+  assert(indexHtml.includes('./core.js?v=20261126f'));
+  assert(indexHtml.includes('./matrices.js?v=20261126f'));
   assert(indexHtml.includes('./firebase-bridge.js?v=20261126c'));
-  assert(indexHtml.includes('./app.js?v=20261126e'));
+  assert(indexHtml.includes('./app.js?v=20261126f'));
   assert(indexHtml.includes('./knowledge-ui.js?v=20261126c'));
 });
 
@@ -69,6 +69,7 @@ test('app.js notify uses auto-dismiss top-layer floating toast without scrollInt
   assert(appJs.includes('const activeRev=shownRevs.find('), 'renderRevisions must select activeRev strictly from grade/subject-filtered shownRevs');
   assert(!appJs.includes('store.revisions[0]'), 'renderRevisions must not fall back to cross-grade store.revisions[0]');
   assert(appJs.includes("store.activeRevisionViewId=null;store.revCoverageExamId=null;"), 'setActiveGrade must clear cross-grade activeRevisionViewId');
+  assert(appJs.includes('async function createRevisionFromExam(') && appJs.includes('data-create-rev-from-exam'), 'app.js must provide createRevisionFromExam two-way workflow button');
   assert(stylesCss.includes('.rev-vis-cell') && stylesCss.includes('.rev-vis-compare'));
 });
 

@@ -508,12 +508,12 @@
   }
   function revisionReport(exam,rev,ppct) {
     const ok=outcomeKeyFn(ppct||exam?.ppct_snapshot),qs=list(exam.questions),rs=list(rev?.questions),hashes=new Set(rs.map(matchKey)),outcomes=new Set(rs.map(ok));const exact=[],outside=[],missing=[];let matchedPoints=0,coveredPoints=0,total=0;
-    qs.forEach(q=>{const points=Number(q.points)||0;total+=points;if(outcomes.has(ok(q)))coveredPoints+=points;else missing.push({question_id:q.id,lesson_code:q.lesson_code,learning_outcome:q.learning_outcome});if(hashes.has(matchKey(q))){exact.push(q.id);matchedPoints+=points;}else outside.push(q.id);});
+    qs.forEach((q,i)=>{const points=Number(q.points)||0;total+=points;if(rev&&outcomes.has(ok(q)))coveredPoints+=points;else if(rev)missing.push({question_id:q.id,slot_number:q.slot_number??(i+1),label:qLabel(q,i),lesson_code:q.lesson_code,learning_outcome:q.learning_outcome});if(rev&&hashes.has(matchKey(q))){exact.push(q.id);matchedPoints+=points;}else outside.push(q.id);});
     const rawOverall=rev?.overall_target_percent??exam?.overall_target_percent??null;
-    const threshold=exam.similarity_target_percent||90,required=rawOverall!=null?requiredRevCount(qs.length,threshold):Math.ceil(qs.length*threshold/100),count=exact.length,coverage={ok:!!qs.length&&!missing.length,percent:total?100*coveredPoints/total:0,missing};
+    const threshold=exam.similarity_target_percent||90,required=rawOverall!=null?requiredRevCount(qs.length,threshold):Math.ceil(qs.length*threshold/100),count=exact.length,coverage={ok:!!rev&&!!qs.length&&!missing.length,percent:total?100*coveredPoints/total:0,missing};
     const typeTargets=rev?.coverage_targets||exam?.coverage_targets||null;
     let typeTargetsOk=true;
-    if(typeTargets&&typeof typeTargets==='object'){
+    if(rev&&typeTargets&&typeof typeTargets==='object'){
       const countsByType={};['MC','YN','SHORT','ES'].forEach(t=>{const n=qs.filter(q=>q.type===t).length;if(n)countsByType[t]=n;});
       const plan=revisionPlanFor(countsByType,{overallPercent:rawOverall,typeTargets});
       for(const t of Object.keys(plan?.by_type||{})){
@@ -589,8 +589,8 @@
         if(bad.length)add('matrix_cell','Câu không khớp vị trí ma trận: '+listLabels(bad)+'.',{cells:bad});
       }else{const matching=src.slots.map(s=>({...s,candidates:qs.filter(q=>s.candidates.some(c=>fingerprint(c)===fingerprint(q)))}));assign(matching,{});}
     }catch(err){add('matrix',err.message);}
-    let rev=null;try{rev=revisionFor(data,{...e,revision_id:e.revision_id});if(!rev)fail('Chưa gắn đề cương; chưa đủ điều kiện duyệt.');}catch(err){errors.push({code:'revision',message:err.message});}
-    const rc=revisionReport(e,rev,e.ppct_snapshot||data?.bank?.ppct);if(!rc.passed)errors.push({code:'revision_criterion',message:'Chưa đạt 100% YCCĐ và tỉ lệ đề cương theo quy định.'});
+    let rev=null;try{rev=revisionFor(data,{...e,revision_id:e.revision_id});if(!rev)fail('Chưa gắn đề cương; hãy chọn đề cương có sẵn hoặc bấm "Tạo & gắn Đề cương từ đề này" trước khi duyệt.');}catch(err){errors.push({code:'revision',message:err.message});}
+    const rc=revisionReport(e,rev,e.ppct_snapshot||data?.bank?.ppct);if(rev&&!rc.passed)errors.push({code:'revision_criterion',message:'Chưa đạt 100% YCCĐ và tỉ lệ đề cương theo quy định.'});
     if(!e.matrix_id)errors.push({code:'matrix_required',message:'Phân bố tự thiết lập chỉ dùng bản nháp. Chọn ma trận đã khóa để duyệt và phát hành trên Pages.'});
     return {passed:!errors.length,valid:!errors.length,errors,warnings:[],matrix_id:e.matrix_id||null,matrix_title:matrix?.title||'',matrix_locked:matrix?.status==='locked',total_questions:qs.length,total_points:qs.reduce((n,q)=>n+Number(q.points||0),0),revision_criterion:rc,revision_check:{revision_id:e.revision_id,total_questions:qs.length,matched_questions:rc.exact_count,matched_points:rc.points_percent/10,coverage_percent_count:rc.t_percent,coverage_percent_points:rc.points_percent,matched:rc.passed},summary:errors.length?'Chưa đủ điều kiện duyệt: '+errors.map(x=>x.message).join(' '):'Đạt kiểm tra kỹ thuật ma trận và đề cương; cần duyệt chuyên môn.'};
   }

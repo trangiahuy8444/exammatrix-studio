@@ -1,3 +1,8 @@
+## 26/11/2026 — Quy trình linh hoạt hai chiều (không khóa cứng phải tạo Đề cương trước Đề thi)
+
+- **Endpoint `/api/revisions/from-exam` (`static-api.js`) & UI 1 chạm (`app.js`, `matrices.js`, `core.js`):** cho phép giáo viên tạo đề kiểm tra trước (không cần đề cương có sẵn), rồi bấm **`📝 Tạo & gắn Đề cương từ đề này`** ngay trên thẻ đề thi, khung kết quả Ma trận 2D hoặc tab Báo cáo kiểm định để hệ thống tự rút câu hỏi gốc trong ngân hàng thành Đề cương ôn tập (phủ 100% YCCĐ, mặc định `90%` hoặc tùy chọn), gắn luôn vào đề và cập nhật kết quả kiểm định đạt chuẩn.
+- **Thông điệp kiểm định sạch rõ (`static-exam-engine.js`, `app.js`):** khi đề chưa gắn đề cương, không còn liệt kê hàng loạt dòng *"YCCĐ không có trong đề cương: Câu (...)"* hay lặp thông báo trùng; thay bằng hướng dẫn kèm nút tạo đề cương ngay tại chỗ. Khi có đề cương mà thiếu YCCĐ, nhãn câu (`TN câu 1`, `TL câu 2`) được hiển thị đầy đủ.
+
 ## 26/11/2026 — Cho phép xóa ma trận đã khóa khi chưa gắn với đề kiểm tra nào
 
 - **`/api/matrices/delete` (`static-api.js`, `matrices.js`, `app.js`):** bỏ điều kiện chặn xóa theo `status === 'locked'`; chỉ chặn (`409`) khi thực sự có đề kiểm tra gắn `matrix_id` tương ứng và nêu rõ số lượng + tên các đề đang liên kết để giáo viên biết chính xác. Đồng thời tự động làm sạch `store.examDraft.matrix_id` khi ma trận vừa chọn bị xóa.

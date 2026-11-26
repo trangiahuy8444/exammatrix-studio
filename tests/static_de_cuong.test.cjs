@@ -394,3 +394,54 @@ test('/api/matrices/delete cho phep xoa ma tran da khoa khi chua co de lien ket 
     err => err.status === 409 && /1 đề kiểm tra.*Đề CK1 Tin 8/.test(err.message)
   );
 });
+
+test('Quy trinh linh hoat: tao de truoc khong can de cuong -> /api/revisions/from-exam -> kiem dinh dat 100% YCCD & >= 90%', async () => {
+  const KR = require('../public/knowledge-rules.js');
+  const { fixture } = require('./static_api.test.cjs');
+  let data = fixture();
+  let r = await api.handle('/api/matrices/lock', {
+    id: 'M1',
+    expected_revision: 1,
+    confirmation: { confirmed_by: 'GV', confirmed_at: '2026-11-26', external_agreement: true }
+  }, data, env);
+  data = r.data;
+
+  // 1. Tạo đề trước mà CHƯA có đề cương nào (revision_id: null) -> hoàn toàn cho phép!
+  const gen = await api.handle('/api/exams/generate', {
+    title: 'Đề GK1 · Tin 9 (tạo trước)',
+    grade: 9,
+    subject_name: 'Tin học',
+    exam_type: 'GK1',
+    duration: 45,
+    matrix_id: 'M1',
+    revision_id: null,
+    seed: 'flex-rev-test'
+  }, data, env);
+  data = gen.data;
+  const exBefore = gen.response.exam;
+  assert.equal(exBefore.revision_id, null);
+
+  // Khi chưa gắn đề cương: verifyExam chỉ báo mã `revision` (không đổ hàng loạt câu vào coverage.missing hay lặp `revision_criterion`)
+  const vBefore = engine.verifyExam(data, exBefore);
+  assert.equal(vBefore.passed, false);
+  assert.deepEqual(vBefore.errors.map(e => e.code), ['revision']);
+  assert.deepEqual(vBefore.revision_criterion.coverage.missing, []);
+
+  // 2. Bấm tạo & gắn Đề cương từ chính đề vừa tạo (90%)
+  const revRes = await api.handle('/api/revisions/from-exam', {
+    exam_id: exBefore.id,
+    title: 'Đề cương GK1 Tin 9 (rút từ đề)',
+    percent: 90
+  }, data, env);
+  data = revRes.data;
+  const rev = revRes.response.revision;
+  const exAfter = revRes.response.exam;
+  assert.ok(rev.id);
+  assert.equal(exAfter.revision_id, rev.id);
+  assert.equal(exAfter.verification.passed, true, JSON.stringify(exAfter.verification.errors));
+  assert.equal(exAfter.verification.revision_criterion.coverage.ok, true);
+  assert.ok(exAfter.revision_match_count >= exAfter.revision_required_count);
+
+  const krAfter = KR.checkExam(data, exAfter);
+  assert.equal(krAfter.passed, true, JSON.stringify(krAfter.errors));
+});

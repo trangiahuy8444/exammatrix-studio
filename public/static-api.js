@@ -675,6 +675,171 @@
    if(!p.exam_id&&!exams.length)exams=data.exams.filter(e=>sameSubject(e)&&Number(e.grade)===Number(rev.grade));
    return result({revision:{id:rev.id,title:rev.title,grade:rev.grade,question_count:(rev.questions||[]).length},reports:exams.map(e=>engine.revisionCoverage(e,rev,data.bank.ppct))});
   }
+  if(path==='/api/revisions/from-exam'){
+   const primaryExam=own(find(data.exams,p.exam_id));
+   const primaryQs=primaryExam.questions||[];
+   if(!primaryQs.length)fail('Đề kiểm tra chưa có câu hỏi nào để lập đề cương.');
+   const sameSubj=e=>(e.subject_name||'Tin học')===(primaryExam.subject_name||subject);
+   const setPeers=(primaryExam.exam_set?.id&&p.include_set!==false)
+    ?data.exams.filter(e=>sameSubj(e)&&e.exam_set?.id===primaryExam.exam_set.id&&!['locked','published'].includes(e.status)&&!e.revision_id&&(e.questions||[]).length)
+    :[];
+   const targetExams=[primaryExam,...setPeers.filter(e=>e.id!==primaryExam.id)];
+   const pct=Math.max(0,Math.min(100,Math.round(Number(p.percent??90))));
+   const mk=engine.questionMatchKey||engine.fingerprint;
+   const coreLib=root.BankCore||(typeof require==='function'?require('./core.js'):null);
+   const computePlan=(countsByType,opts)=>coreLib&&typeof coreLib.computeRevisionPlan==='function'?coreLib.computeRevisionPlan(countsByType,opts):null;
+   const TYPES=['MC','YN','SHORT','ES'];
+   const eGrade=Number(primaryExam.grade),eSubj=primaryExam.subject_name||subject;
+   const normSubjCmp=s=>String(s||'Tin học').normalize('NFC').trim().toLowerCase();
+   const bankGradeQs=bank.filter(q=>q&&q.review_status!=='archived'&&Number(q.grade)===eGrade&&normSubjCmp(q.subject_name)===normSubjCmp(eSubj));
+   const bankByFp=new Map(),bankById=new Map();
+   bankGradeQs.forEach(q=>{
+    bankById.set(q.id,q);
+    const k=mk(q);
+    const prev=bankByFp.get(k);
+    if(!prev||(prev.review_status!=='approved'&&q.review_status==='approved'))bankByFp.set(k,q);
+   });
+   const resolveBankOrigin=q=>bankByFp.get(mk(q))||bankById.get(q.id)||q;
+   const outcomeKeyOf=(q,examCtx)=>{
+    const ppctSrc=examCtx?.ppct_snapshot||data.bank.ppct;
+    if(coreLib&&typeof coreLib.resolveOutcome==='function'){
+     const les=(ppctSrc?.lessons||[]).find(l=>Number(l.grade)===eGrade&&normSubjCmp(l.subject_name)===normSubjCmp(eSubj)&&normLesson(l.lesson_code)===normLesson(q.lesson_code));
+     const hit=coreLib.resolveOutcome(les,{id:q.learning_outcome_id,text:q.learning_outcome});
+     if(hit?.id)return 'id:'+hit.id;
+    }
+    return normLesson(q.lesson_code)+'|'+normText(q.learning_outcome||'');
+   };
+   const chosenByFp=new Map();
+   const addChoice=(q)=>{
+    const origin=resolveBankOrigin(q);
+    const k=mk(origin);
+    if(!chosenByFp.has(k))chosenByFp.set(k,{origin,fp:k});
+    return chosenByFp.get(k);
+   };
+   const coverageCounts={},coverageTargets={};
+   for(const ex of targetExams){
+    const exQs=ex.questions||[];
+    const countsByType={};
+    TYPES.forEach(t=>{const n=exQs.filter(q=>q.type===t).length;if(n)countsByType[t]=n;});
+    const plan=computePlan(countsByType,{overallPercent:pct,typeTargets:countsByType.ES?{ES:100}:null});
+    const wantByType={};
+    TYPES.forEach(t=>{
+     if(!countsByType[t])return;
+     const want=plan?.by_type?.[t]?.want??Math.ceil(countsByType[t]*pct/100);
+     wantByType[t]=want;
+     if(ex.id===primaryExam.id){
+      coverageCounts[t]=want;
+      coverageTargets[t]=plan?.by_type?.[t]?.target_percent??(countsByType[t]?Math.round(100*want/countsByType[t]):pct);
+     }
+    });
+    const pickedExFps=new Set();
+    const keptOutcomes=new Set();
+    for(const t of TYPES){
+     const ofType=exQs.filter(q=>q.type===t);
+     if(!ofType.length)continue;
+     const want=wantByType[t]||0;
+     // Ưu tiên chọn các câu giúp phủ đa dạng YCCĐ trước, rồi lấp đủ số lượng want
+     const seenOc=new Set();
+     const priority=[],rest=[];
+     ofType.forEach(q=>{
+      const k=mk(q);
+      if(chosenByFp.has(k)){priority.push(q);return;}
+      const oc=outcomeKeyOf(q,ex);
+      if(!seenOc.has(oc)){seenOc.add(oc);priority.push(q);}
+      else rest.push(q);
+     });
+     const ordered=[...priority,...rest];
+     let have=0;
+     for(const q of ordered){
+      const k=mk(q);
+      if(chosenByFp.has(k)&&!pickedExFps.has(k)){
+       pickedExFps.add(k);keptOutcomes.add(outcomeKeyOf(q,ex));have++;
+      }
+     }
+     for(const q of ordered){
+      if(have>=want)break;
+      const k=mk(q);
+      if(pickedExFps.has(k))continue;
+      addChoice(q);pickedExFps.add(k);keptOutcomes.add(outcomeKeyOf(q,ex));have++;
+     }
+    }
+    // Bảo đảm phủ 100% YCCĐ: nếu có câu ngoài đề cương mang YCCĐ chưa có trong đề cương,
+    // ưu tiên lấy 1 câu cùng YCCĐ khác trong ngân hàng; nếu không có thì giữ chính câu đó.
+    const examFpSet=new Set(exQs.map(q=>mk(q)));
+    for(const q of exQs){
+     const oc=outcomeKeyOf(q,ex);
+     if(keptOutcomes.has(oc))continue;
+     const alt=bankGradeQs.find(bq=>!examFpSet.has(mk(bq))&&!chosenByFp.has(mk(bq))&&outcomeKeyOf(bq,ex)===oc)
+      ||bankGradeQs.find(bq=>!chosenByFp.has(mk(bq))&&outcomeKeyOf(bq,ex)===oc);
+     if(alt){addChoice(alt);keptOutcomes.add(oc);}
+     else{addChoice(q);keptOutcomes.add(oc);}
+    }
+   }
+   const chosenList=[...chosenByFp.values()].map(x=>x.origin);
+   const revTitle=String(p.title||'').trim()||`Đề cương ôn tập · ${primaryExam.title||`Khối ${eGrade}`}`;
+   const allInBank=chosenList.every(q=>bankById.has(q.id));
+   let revision;
+   if(allInBank){
+    revision=saveRevision({
+     title:revTitle,
+     grade:eGrade,
+     exam_type:primaryExam.exam_type||'GK1',
+     question_ids:chosenList.map(q=>q.id),
+     similarity_target_percent:pct,
+     overall_target_percent:pct,
+     coverage_counts:coverageCounts,
+     coverage_targets:coverageTargets
+    });
+    revision.source_exam_id=primaryExam.id;
+    put(data.revisions,revision);
+   }else{
+    const revQs=chosenList.map(q=>({...clone(q),content_hash:engine.contentHash(q),source_snapshot_hash:engine.fingerprint(q)}));
+    const codes=new Set(revQs.map(q=>q.lesson_code));
+    const scope=(ppct.lessons||[]).filter(l=>Number(l.grade)===eGrade&&(l.subject_name||'Tin học')===eSubj&&codes.has(l.lesson_code)).map(l=>({lesson_code:l.lesson_code,title:l.title||l.lesson_name_source||l.lesson_name||l.lesson_code,topic:l.topic||l.topic_source||l.topic_name||''}));
+    revision=put(data.revisions,{
+     id:id('REV'),
+     title:revTitle,
+     grade:eGrade,
+     subject_name:eSubj,
+     exam_type:primaryExam.exam_type||'GK1',
+     lessons:scope,
+     status:'drafting',
+     source_exam_id:primaryExam.id,
+     similarity_target_percent:pct,
+     overall_target_percent:pct,
+     coverage_counts:clone(coverageCounts),
+     coverage_targets:clone(coverageTargets),
+     created_at:now(),
+     updated_at:now(),
+     question_ids:revQs.map(q=>q.id),
+     questions:revQs,
+     question_count:revQs.length
+    });
+   }
+   const revFpSet=new Set((revision.questions||[]).map(rq=>mk(rq)));
+   for(const ex of targetExams){
+    ex.revision_id=revision.id;
+    ex.revision_snapshot=clone(revision);
+    ex.similarity_target_percent=Math.max(90,pct);
+    ex.overall_target_percent=pct;
+    ex.coverage_counts=clone(coverageCounts);
+    ex.coverage_targets=clone(coverageTargets);
+    ex.updated_at=now();
+    (ex.questions||[]).forEach(q=>{q.in_revision=revFpSet.has(mk(q));});
+    if(globalThis.crypto&&globalThis.crypto.subtle){await refreshIntegrity(ex);}
+    else if(typeof engine.jsonDigest==='function'){
+     ex.snapshot_integrity=engine.jsonDigest({questions:ex.questions,matrix:ex.matrix_snapshot||null,blueprint:ex.blueprint,revision:ex.revision_snapshot,ppct:ex.ppct_snapshot});
+    }
+    ex.verification=verification(ex);
+    if(ex.verification?.revision_criterion){
+     ex.revision_check=ex.verification.revision_criterion;
+     ex.revision_match_count=ex.verification.revision_criterion.exact_count;
+     ex.revision_required_count=ex.verification.revision_criterion.required;
+    }
+    put(data.exams,ex);
+   }
+   return result({revision,exam:primaryExam,exams:data.exams,revisions:data.revisions,linked_count:targetExams.length},true);
+  }
   if(path==='/api/revisions/trim-to-exam'||path==='/api/revisions/align-to-exam'){
    // Cân chỉnh đề cương theo tỉ lệ câu của một đề hoặc toàn bộ các đề liên kết với đề cương, riêng từng dạng (VD: TN 85%, TL 100%).
    // Thiếu thì THÊM câu của đề (lấy câu gốc trong Ngân hàng, kể cả bản đã trộn phương án); dư thì BỚT câu của đề,

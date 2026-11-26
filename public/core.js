@@ -795,7 +795,7 @@ function syncEditedQuestionsFromSheet(sheet,record){
     exams:{title:'Tạo đề kiểm tra',purpose:'Sinh đề từ ngân hàng theo ma trận và đề cương, kiểm định, duyệt – khóa, phát hành và xuất hồ sơ.',
       steps:['Điền tên đề, khối, kì kiểm tra, thời gian; chọn ma trận (ma trận đã khóa ở "Ma trận & đặc tả" hiện bảng từng ô kèm YCCĐ) và đề cương nếu đã có.',
         'Bấm "Tạo và lưu đề kiểm tra". Nếu thiếu câu, ứng dụng báo rõ ô thiếu (không tự hạ mức độ hay đổi bài).',
-        'Chưa có đề cương vẫn tạo được đề (chọn "Chưa gắn đề cương"); trước khi gửi duyệt, mở đề → chọn đề cương cạnh nút "Kiểm định lại" rồi kiểm định.',
+        'Chưa có đề cương vẫn tạo đề bình thường (chọn "Chưa gắn đề cương"); sau khi có đề, bấm "📝 Tạo & gắn Đề cương từ đề này" hoặc chọn đề cương sẵn có để hoàn tất kiểm định.',
         '"Tạo đề tự động theo ma trận": chọn số đề (1–6) và đề cương (tự lập, chỉnh số câu từng ô; hoặc bản đã lưu). Mỗi đề lấy 90% câu từ đề cương, 10% còn lại (ưu tiên Vận dụng) để phân hóa.',
         'Mở đề đã lưu, xem kết quả "Kiểm định": tổng 10 điểm, khớp từng ô ma trận, tiêu chí đề cương T ≥ 90%, bao phủ YCCĐ 100%.',
         'Vòng đời: "Gửi duyệt đề" → "Duyệt & khóa" → "Phát hành". Đề đã khóa không sửa được; muốn sửa tạo bản chỉnh sửa mới và duyệt lại.',

@@ -2235,7 +2235,15 @@ const syncEditedQuestionsFromSheet=C.syncEditedQuestionsFromSheet;
 // B6: tiêu chí đề cương T = (trùng + bám sát đã duyệt) / tổng ≥ 90%, độ bao phủ YCCĐ 100%.
 function revisionCriterionHtml(record){
  const c=record.revision_check||(record.verification&&record.verification.revision_criterion);if(!c)return '';
- const rev=store.revisions.find(r=>r.id===record.revision_id),revQs=rev?.questions||[],marks=record.close_matches||{},editable=C.examEditable(record);
+ const editable=C.examEditable(record);
+ if(!record.revision_id){
+  return `<div class="doc-sheet"><h4>TIÊU CHÍ ĐỀ CƯƠNG <span class="badge draft">Chưa gắn đề cương</span></h4>
+   <div class="callout" style="background:#f8fbff;border-color:#93c5fd">
+    <p style="margin:0 0 8px">Đề kiểm tra này được tạo trước khi lập đề cương (hoàn toàn hợp lệ khi xem hoặc xuất bản nháp). Để đủ điều kiện duyệt &amp; khóa chính thức (≥ 90% câu thuộc đề cương &amp; 100% YCCĐ), thầy/cô có thể chọn đề cương sẵn có ở thanh trên hoặc bấm nút bên dưới để rút ngay Đề cương từ chính đề này:</p>
+    ${record.id&&editable?`<div class="actions"><button type="button" class="primary" data-create-rev-from-exam="${esc(record.id)}">📝 Tạo &amp; gắn Đề cương từ đề này</button></div>`:''}
+   </div></div>`;
+ }
+ const rev=store.revisions.find(r=>r.id===record.revision_id),revQs=rev?.questions||[],marks=record.close_matches||{};
  const qById=Object.fromEntries((record.questions||[]).map(q=>[q.id,q]));
  const statusName={pending:'Chờ duyệt',approved:'Đã duyệt',rejected:'Không công nhận'};
  const row=qid=>{const q=qById[qid]||{},m=marks[qid],same=revQs.filter(r=>r.lesson_code===q.lesson_code),choices=(same.length?same:revQs);
@@ -2246,7 +2254,7 @@ function revisionCriterionHtml(record){
  return `<div class="doc-sheet"><h4>TIÊU CHÍ ĐỀ CƯƠNG ${c.passed?'<span class="badge approved">Đạt</span>':'<span class="badge needs_review">Chưa đạt</span>'}</h4>
   <p><strong>T = ${esc(String(c.t_percent).replace('.',','))}%</strong> = (${c.exact_count} câu trùng + ${c.close_count} câu bám sát đã duyệt) / ${c.total} câu · cần ≥ ${esc(c.threshold)}% (${c.required} câu).
   Tỉ lệ theo điểm (tham khảo): ${esc(String(c.points_percent).replace('.',','))}%. Độ bao phủ YCCĐ: <strong>${esc(String(c.coverage.percent).replace('.',','))}%</strong> điểm (cần 100%).</p>
-  ${c.coverage.missing.length?`<div class="callout error">YCCĐ không có trong đề cương: ${c.coverage.missing.map(m=>`Câu ${esc(m.slot_number??'')} (${esc(m.lesson_code||'')} · ${esc(m.learning_outcome||'')})`).join('; ')}</div>`:''}
+  ${c.coverage.missing.length?`<div class="callout error">YCCĐ không có trong đề cương: ${c.coverage.missing.map(m=>`${esc(m.label||('Câu '+(m.slot_number??'')))} (${esc(m.lesson_code||'')} · ${esc(m.learning_outcome||'')})`).join('; ')}</div>`:''}
   <p class="small">Cách tính: <select data-rev-policy aria-label="Cách tính tiêu chí đề cương"${editable?'':' disabled'}>${opt('trung_va_bam_sat','Trùng + bám sát đã duyệt',c.mode==='trung_va_bam_sat')}${opt('chi_trung','Chỉ tính câu trùng',c.mode==='chi_trung')}</select>${editable?' <button type="button" class="export-link" data-rev-policy-save>Lưu cách tính</button>':''}</p>
   ${listed.length?`<div class="table-wrap"><table><thead><tr><th>Câu</th><th>Nội dung</th><th>Bám sát</th><th></th></tr></thead><tbody>${listed.map(row).join('')}</tbody></table></div>`:'<p class="small muted">Tất cả câu đều trùng với đề cương.</p>'}
   <p class="small muted">Câu bám sát chỉ được tính sau khi được duyệt. Đề đã khóa không đổi được câu bám sát.</p></div>`;
@@ -2391,10 +2399,13 @@ function mountExamViewerContent(hostEl,record,mode='student',isInline=false){
  const fmt=window.DocFormatter||C.DocFormatter;
  const body=buildExamSheetHtml(record,mode);
  hostEl.innerHTML=`<div class="dialog-heading"><div><p class="eyebrow">XEM TOÀN BỘ ĐỀ KIỂM TRA & ĐỐI CHIẾU MA TRẬN</p><h2 id="${isInline?'inline-exam-title':'detail-title'}">${esc(record.title||'Đề kiểm tra')}</h2><p class="small muted">${meta}</p></div><div class="actions">${isInline?`<button type="button" class="export-link" data-modal-exam="${esc(record.id)}" data-mode="${esc(mode)}">⤢ Mở rộng toàn màn hình</button><button type="button" class="quiet" id="close-inline-exam">Đóng khung xem</button>`:`<button data-close="detail-dialog" class="quiet">Đóng</button>`}</div></div>`+
- `<div class="viewer-toolbar"><div class="viewer-tabs"><button type="button" class="${mode==='student'?'primary':''}" data-switch-exam-mode="student">📄 Xem đề học sinh</button>${store.canViewAnswers!==false?`<button type="button" class="${mode==='answers'?'primary':''}" data-switch-exam-mode="answers">🔑 Xem đáp án & HDC</button>`:''}<button type="button" class="${mode==='verify'?'primary':''}" data-switch-exam-mode="verify">🛡️ Báo cáo Kiểm định Ma trận</button></div><div class="actions">${record.id&&C.examEditable(record)?`<select data-verify-revision aria-label="Đề cương đối chiếu">${opt('',record.revision_id?'Giữ đề cương đã gắn':'Chọn đề cương để gắn…',true)}${store.revisions.filter(r=>Number(r.grade)===Number(record.grade)).map(r=>opt(r.id,(r.id===record.revision_id?'✓ ':'')+r.title+' · '+countRecord(r)+' câu',false)).join('')}</select>`:''}${record.id?`<button type="button" class="export-link" data-reverify-exam="${esc(record.id)}">🔄 Kiểm định lại với Ma trận</button>`:''}${base?`<button type="button" class="button export-link primary" data-open-custom-export="${esc(record.id)}" style="background:#0267b1;border-color:#0267b1;font-weight:700">⚙️ Tùy biến xuất hồ sơ (.docx / ZIP)</button><a class="button export-link" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button export-link" href="${base}?format=tex&answers=0" title="Xuất mã nguồn XeLaTeX chuẩn">LaTeX đề thi</a>${store.canViewAnswers!==false?`<a class="button export-link" href="${base}?format=docx&answers=1">Word đáp án</a><a class="button export-link" href="${base}?format=tex&answers=1" title="Xuất mã nguồn XeLaTeX Đáp án & HDC">LaTeX đáp án</a><a class="button export-link" href="${base}?format=docx&target=lms">📤 Tải tệp LMS</a>`:''}<a class="button export-link" href="${base}?format=html&answers=${mode==='answers'?1:0}" target="_blank" rel="noopener">Mở trang in</a>`:''}</div></div>`+
+ `<div class="viewer-toolbar"><div class="viewer-tabs"><button type="button" class="${mode==='student'?'primary':''}" data-switch-exam-mode="student">📄 Xem đề học sinh</button>${store.canViewAnswers!==false?`<button type="button" class="${mode==='answers'?'primary':''}" data-switch-exam-mode="answers">🔑 Xem đáp án & HDC</button>`:''}<button type="button" class="${mode==='verify'?'primary':''}" data-switch-exam-mode="verify">🛡️ Báo cáo Kiểm định Ma trận</button></div><div class="actions">${record.id&&C.examEditable(record)?`<select data-verify-revision aria-label="Đề cương đối chiếu">${opt('',record.revision_id?'Giữ đề cương đã gắn':'Chọn đề cương để gắn…',true)}${store.revisions.filter(r=>Number(r.grade)===Number(record.grade)).map(r=>opt(r.id,(r.id===record.revision_id?'✓ ':'')+r.title+' · '+countRecord(r)+' câu',false)).join('')}</select>${!record.revision_id?`<button type="button" class="export-link primary" data-create-rev-from-exam="${esc(record.id)}" style="background:#166534;border-color:#166534;font-weight:700">📝 Tạo ĐC từ đề này</button>`:''}`:''}${record.id?`<button type="button" class="export-link" data-reverify-exam="${esc(record.id)}">🔄 Kiểm định lại với Ma trận</button>`:''}${base?`<button type="button" class="button export-link primary" data-open-custom-export="${esc(record.id)}" style="background:#0267b1;border-color:#0267b1;font-weight:700">⚙️ Tùy biến xuất hồ sơ (.docx / ZIP)</button><a class="button export-link" href="${base}?format=docx&answers=0">Word học sinh</a><a class="button export-link" href="${base}?format=tex&answers=0" title="Xuất mã nguồn XeLaTeX chuẩn">LaTeX đề thi</a>${store.canViewAnswers!==false?`<a class="button export-link" href="${base}?format=docx&answers=1">Word đáp án</a><a class="button export-link" href="${base}?format=tex&answers=1" title="Xuất mã nguồn XeLaTeX Đáp án & HDC">LaTeX đáp án</a><a class="button export-link" href="${base}?format=docx&target=lms">📤 Tải tệp LMS</a>`:''}<a class="button export-link" href="${base}?format=html&answers=${mode==='answers'?1:0}" target="_blank" rel="noopener">Mở trang in</a>`:''}</div></div>`+
  (fmt?fmt.toolbarHtml(fmtKey,false):'')+body;
  hostEl.querySelectorAll('[data-switch-exam-mode]').forEach(btn=>{
   btn.onclick=()=>mountExamViewerContent(hostEl,record,btn.dataset.switchExamMode,isInline);
+ });
+ hostEl.querySelectorAll('[data-create-rev-from-exam]').forEach(btn=>{
+  btn.onclick=ev=>{ev.stopPropagation();createRevisionFromExam(btn.dataset.createRevFromExam,{hostEl,isInline});};
  });
  const closeInlineBtn=hostEl.querySelector('#close-inline-exam');
  if(closeInlineBtn)closeInlineBtn.onclick=()=>{store.activeExamViewId=null;hostEl.hidden=true;hostEl.innerHTML='';};
@@ -5672,8 +5683,8 @@ function wizardNav(activeStep=3){
  ];
  return `<div class="card wizard-nav-card" style="margin-bottom:16px;padding:12px 16px;background:#f8fafc;border:1px solid #d0dbe5;border-radius:8px">`+
   `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">`+
-   `<strong style="color:var(--navy,#102d4a);font-size:13px">🎯 QUY TRÌNH RA ĐỀ CHUẨN 6 BƯỚC (MỐC C1)</strong>`+
-   `<span class="small muted">Trình tự nghiệp vụ: Ma trận → Đề cương → Bộ đề → Khóa cả bộ → Phát hành → Xuất bản</span>`+
+   `<strong style="color:var(--navy,#102d4a);font-size:13px">🎯 QUY TRÌNH RA ĐỀ LINH HOẠT (MỐC C1)</strong>`+
+   `<span class="small muted">Linh hoạt hai chiều: Ma trận → Đề thi hoặc Đề cương trước đều được → Gắn &amp; Kiểm định → Khóa &amp; Xuất bản</span>`+
   `</div>`+
   `<div class="wizard-steps-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">`+
    steps.map(s=>{
@@ -5737,6 +5748,7 @@ function examLinks(r){
  const base='/api/exams/'+encodeURIComponent(r.id)+'/export',ans=store.canViewAnswers!==false,editable=C.examEditable(r);
  return examLifecycle(r)+`<div class="card-actions">`+
   `<button type="button" class="export-link primary" data-view-exam="${esc(r.id)}" data-mode="student">👁 Xem toàn bộ đề</button>`+
+  (!r.revision_id&&editable?`<button type="button" class="button" data-create-rev-from-exam="${esc(r.id)}" style="background:#166534;color:#fff;border-color:#166534;font-weight:700">📝 Tạo đề cương từ đề này</button>`:'')+
   `<button type="button" class="button" data-export-spec-to-matrix="${esc(r.id)}" style="background:#0267B1;color:#fff;border-color:#0267B1;font-weight:700">📋 Trích xuất sang Bảng 2 Đặc tả</button>`+
   `<button type="button" class="button" data-open-custom-export="${esc(r.id)}" style="background:#0267B1;color:#fff;border-color:#0267B1;font-weight:700">⚙️ Tùy biến xuất hồ sơ</button>`+
   `<button type="button" data-compare-exam="${esc(r.id)}">So sánh với đề khác</button>`+
@@ -5914,7 +5926,7 @@ function renderExams(){
     `<div class="field"><label for="exam-duration">Thời gian (phút)</label><input id="exam-duration" type="number" min="1" max="240" value="${esc(d.duration)}" required></div>`+
     `<div class="field span2"><label for="exam-title">Tên đề kiểm tra</label><input id="exam-title" value="${esc(d.title)}" placeholder="${esc(periodNames[d.exam_type])} · ${esc(subject())} ${d.grade}" required></div>`+
     `<div class="field full"><label for="exam-template">Ma trận áp dụng</label><select id="exam-template">${mxs.map(m=>opt('mx:'+m.id,`Ma trận & đặc tả · ${m.title} · V${m.version}`,m.id===d.matrix_id)).join('')}${!required?opt('','Tự thiết lập phân bố câu hỏi',!d.template_id&&!d.matrix_id):''}${templates.map(t=>opt(t.id,'Mẫu ma trận · '+t.title+(t.unsupported?' · Chưa hỗ trợ đầy đủ':''),t.id===d.template_id&&!d.matrix_id)).join('')}${required&&!templates.length&&!mxs.length?opt('','Chưa có ma trận đã khóa phù hợp',true):''}</select>${(!mxs.length&&!templates.length)?`<a href="#matrices" class="button export-link" style="margin-top:6px;width:fit-content">📐 Mở Ma trận & đặc tả để khóa ma trận</a>`:''}</div>`+
-    `<div class="field full"><label for="exam-revision">Phiên bản đề cương dùng đối chiếu</label><select id="exam-revision">${opt('','Chưa gắn đề cương (có thể gắn sau khi kiểm định)',!d.revision_id)}${currentRevisions().filter(r=>Number(r.grade)===Number(d.grade)).map(r=>opt(r.id,`${r.title} · ${countRecord(r)} câu${r.similarity_target_percent!=null?` · mục tiêu ${r.similarity_target_percent}%`:''} · ${date(r.created_at)}`,r.id===d.revision_id)).join('')}</select></div>`+
+    `<div class="field full"><label for="exam-revision">Phiên bản đề cương dùng đối chiếu</label><select id="exam-revision">${opt('','Chưa gắn đề cương — Tạo đề trước, lập đề cương từ đề sau (không bắt buộc có trước)',!d.revision_id)}${currentRevisions().filter(r=>Number(r.grade)===Number(d.grade)).map(r=>opt(r.id,`${r.title} · ${countRecord(r)} câu${r.similarity_target_percent!=null?` · mục tiêu ${r.similarity_target_percent}%`:''} · ${date(r.created_at)}`,r.id===d.revision_id)).join('')}</select></div>`+
     `<div class="callout" style="grid-column:1/-1;margin:4px 0;background:#f8fbff;border-color:#93c5fd">`+
      `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">`+
       `<strong id="exam-sim-label" style="color:var(--navy)">🎯 Mức độ tương đồng giữa Đề cương và Đề thi (${simVal}%)</strong>`+
@@ -6265,8 +6277,46 @@ async function generateExam(event){
   if(genBtn&&document.body.contains(genBtn)){genBtn.textContent=origTxt||'✨ Tạo và lưu đề kiểm tra';updateGenerationState();}
  }
 }
+async function createRevisionFromExam(examId,{hostEl=null,isInline=false}={}){
+ const ex=store.exams.find(e=>e.id===examId);if(!ex)return;
+ const askMulti=C.uiMultiPrompt||window.uiMultiPrompt;
+ const defTitle=`Đề cương ôn tập · ${ex.title||`Khối ${ex.grade}`}`;
+ let title=defTitle,pct=90;
+ if(typeof askMulti==='function'){
+  const ans=await askMulti({
+   title:'Tạo & gắn Đề cương ôn tập từ Đề kiểm tra',
+   description:`Hệ thống sẽ rút câu hỏi từ đề "${ex.title||ex.id}" (ưu tiên lấy câu gốc trong Ngân hàng, bảo đảm phủ 100% YCCĐ) rồi tự động gắn vào đề và kiểm định lại.`,
+   fields:[
+    {name:'title',label:'Tên phiên bản đề cương',value:defTitle,required:true},
+    {name:'percent',label:'Tỉ lệ câu của đề đưa vào đề cương (%) — khuyến nghị ≥ 90%',value:'90',required:true}
+   ],
+   confirmText:'Tạo & gắn Đề cương'
+  });
+  if(!ans)return;
+  title=String(ans.title||defTitle).trim()||defTitle;
+  const rawPct=ans.percent!==''&&Number.isFinite(Number(ans.percent))?Math.round(Number(ans.percent)):90;
+  pct=Math.max(0,Math.min(100,rawPct));
+ }
+ await mutate('/api/revisions/from-exam',{exam_id:ex.id,title,percent:pct},res=>{
+  if(Array.isArray(res.revisions))store.revisions=res.revisions;
+  else if(res.revision&&!store.revisions.some(r=>r.id===res.revision.id))store.revisions.push(res.revision);
+  if(Array.isArray(res.exams))store.exams=res.exams;
+  if(res.revision?.id)store.activeRevisionViewId=res.revision.id;
+  const updated=res.exam||store.exams.find(x=>x.id===ex.id)||ex;
+  if(hostEl&&hostEl.isConnected){
+   mountExamViewerContent(hostEl,updated,'verify',isInline);
+  }else if(store.tab==='exams'){
+   renderExams();
+  }else if(store.tab==='revisions'){
+   renderRevisions();
+  }
+  const nRev=res.revision?.question_count||(res.revision?.questions||[]).length;
+  notify(`Đã tạo đề cương "${res.revision?.title}" (${nRev} câu, phủ 100% YCCĐ) và tự động gắn vào ${res.linked_count>1?`${res.linked_count} đề`:'đề kiểm tra'}.`);
+ });
+}
 // Delegate controls that are re-rendered as the filter, list or matrix changes.
 document.addEventListener('click',event=>{
+ const createRev=event.target.closest('[data-create-rev-from-exam]');if(createRev){createRevisionFromExam(createRev.dataset.createRevFromExam);return;}
  const menuItem=event.target.closest('.dropdown-menu .dropdown-content button, .dropdown-menu .dropdown-content a');
  if(menuItem)menuItem.closest('.dropdown-menu')?.removeAttribute('open');
  const close=event.target.closest('[data-close]');if(close){$('#'+close.dataset.close).close();return;}

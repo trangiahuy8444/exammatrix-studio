@@ -839,6 +839,94 @@ Khối: 9
       global.URL.revokeObjectURL = prevRevokeUrl;
     }
   }
+
+  // Kiểm tra liên kết lại ma trận gốc khi trích xuất Bảng 2 Đặc tả từ đề & mở lại từ KHKTĐG (không tạo phiên bản trùng)
+  {
+    const prevDoc = global.document;
+    const workEl = { innerHTML: '', scrollIntoView: () => {}, querySelector: () => null, querySelectorAll: () => [] };
+    const listEl = { innerHTML: '', querySelector: () => null, querySelectorAll: () => [] };
+    const noticeEl = { hidden: true, className: '', textContent: '' };
+    const stubEls = { '#mx-work': workEl, '#mx-list': listEl, '#mx-notice': noticeEl };
+    const host = {
+      innerHTML: '',
+      querySelector: sel => stubEls[sel] || { innerHTML: '', textContent: '', hidden: false, value: '', disabled: false, querySelector: () => null, querySelectorAll: () => [] },
+      querySelectorAll: () => [],
+      addEventListener: () => {}
+    };
+    global.document = {
+      getElementById: () => null,
+      createElement: () => ({ innerHTML: '', style: {}, querySelector: () => null, querySelectorAll: () => [] })
+    };
+    try {
+      const unlockedCalls = [];
+      let records = [
+        {
+          id: 'MX-ORIG-1',
+          family_id: 'FAM-ORIG',
+          version: 1,
+          revision: 2,
+          status: 'locked',
+          matrix_locked: true,
+          spec_locked: false,
+          title: 'Ma trận GK1 Tin 8 gốc',
+          grade: 8,
+          subject_name: 'Tin học',
+          exam_type: 'GK1',
+          duration: 45,
+          assessment_plan_id: 'AP-8-GK1',
+          profile: 'THCS',
+          lessons: [{ lesson_code: 'B1', title: 'Thông tin', topic: 'Chủ đề 1' }],
+          requirements: [{ id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'YCCĐ gốc' }],
+          slots: [{ id: 'S1', number: 1, kind: 'MC', parts: [{ id: 'P1', requirement_id: 'R1', points: 0.25 }] }]
+        }
+      ];
+      await ui.mount(host, {
+        context: { subject_name: 'Tin học' },
+        ppct: { lessons: [{ grade: 8, subject_name: 'Tin học', lesson_code: 'B1', lesson_name_source: 'Thông tin', topic_source: 'Chủ đề 1', outcomes: ['Nhận biết thông tin số'] }] },
+        activeGrade: 8,
+        activeGrades: [8, 9],
+        request: async (url, body) => {
+          if (url === '/api/matrices') return { matrices: records };
+          if (url === '/api/matrices/unlock') {
+            unlockedCalls.push(body.id);
+            const cur = records.find(m => m.id === body.id);
+            cur.status = 'draft';
+            cur.revision = (cur.revision || 0) + 1;
+            return { matrix: cur, validation: { valid: true, errors: [] } };
+          }
+          if (url.startsWith('/api/matrices/MX-ORIG-1')) {
+            return { matrix: records[0] };
+          }
+          return {};
+        },
+        notify: () => {}
+      });
+      const resPlan = await ui.createFromPlan({ id: 'AP-8-GK1', name: 'Giữa kì 1', grade: 8, subject_name: 'Tin học', exam_type: 'GK1', duration: 45 });
+      assert.equal(resPlan.reused, true, 'Lập ma trận từ KHKTĐG phải mở lại ma trận đã gắn AP-8-GK1');
+      assert.equal(resPlan.matrix.id, 'MX-ORIG-1');
+      const resSpec = await ui.openEditorWithExamSpec({
+        id: 'EX-FROM-ORIG',
+        matrix_id: 'MX-ORIG-1',
+        title: 'Đề GK1 · Mã 101',
+        exam_code: '101',
+        grade: 8,
+        subject_name: 'Tin học',
+        exam_type: 'GK1',
+        duration: 45,
+        questions: [
+          { slot_number: 1, lesson_code: 'B1', level: 'Biết', learning_outcome: 'Nhận biết thông tin số', competency: 'NLa', type: 'MC', points: 0.25 }
+        ]
+      });
+      assert.equal(resSpec.reused, true, 'Trích xuất Bảng 2 Đặc tả phải liên kết lại ma trận gốc MX-ORIG-1');
+      assert.equal(resSpec.matrix.id, 'MX-ORIG-1', 'ID ma trận gốc phải được giữ nguyên, không tạo phiên bản mới');
+      assert.equal(resSpec.matrix.matrix_locked, true, 'Bảng 1 Ma trận đã chốt vẫn giữ nguyên khóa');
+      assert.equal(resSpec.matrix.source_exam_id, 'EX-FROM-ORIG');
+      assert.deepEqual(unlockedCalls, ['MX-ORIG-1'], 'Ma trận locked gốc phải được mở khóa tại chỗ để ghi Bảng 2');
+      console.log('PASS matrix UI: trích xuất Bảng 2 Đặc tả và KHKTĐG liên kết lại đúng ma trận gốc, không tạo phiên bản trùng');
+    } finally {
+      global.document = prevDoc;
+    }
+  }
 })().catch(err => {
   console.error(err);
   process.exit(1);

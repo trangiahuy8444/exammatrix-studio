@@ -1833,6 +1833,16 @@
   }
   async function save(silent=false){
     normalizeSlotNumbers(ui.editing);
+    if(ui.editing?.id&&ui.editing.status==='locked'&&ui.ctx?.request){
+      const keepMatrixLock=Boolean(ui.editing.matrix_locked);
+      const uRes=await ui.ctx.request('/api/matrices/unlock',{id:ui.editing.id});
+      if(uRes?.matrix){
+        ui.editing.status=uRes.matrix.status||'draft';
+        ui.editing.revision=uRes.matrix.revision;
+        delete ui.editing.content_sha256;
+        if(keepMatrixLock)ui.editing.matrix_locked=true;
+      }
+    }
     (ui.editing.requirements||[]).forEach(r=>{
       if(/^(Biết|Hiểu|Vận dụng|Vận dụng cao):\s*Yêu cầu cần đạt về/i.test(String(r.text||'').trim())){
         const pl=lessons(ui.editing.grade).find(l=>l.lesson_code===r.lesson_code);
@@ -3581,13 +3591,23 @@
       }else if(action==='apply-exam-to-spec'){
         const examId=b.dataset.examId;
         const ex=(ui.ctx?.exams||[]).find(x=>x.id===examId)||ui.lastCreatedExam;
-        const targetMatrix=ui.editingMatrixBackup||(ui.generation&&ui.generation.matrix)||ui.editing;
+        const savedById=ex?.matrix_id?(ui.records||[]).find(m=>m.id===ex.matrix_id):null;
+        let targetMatrix=savedById||ui.editingMatrixBackup||(ui.generation&&ui.generation.matrix)||ui.editing;
         if(ex&&targetMatrix){
+          targetMatrix=JSON.parse(JSON.stringify(targetMatrix));
+          if(targetMatrix.id&&targetMatrix.status==='locked'&&ui.ctx?.request){
+            const uRes=await ui.ctx.request('/api/matrices/unlock',{id:targetMatrix.id});
+            if(uRes?.matrix){
+              targetMatrix=JSON.parse(JSON.stringify(uRes.matrix));
+              targetMatrix.matrix_locked=true;
+            }
+          }
           syncSpecFromExam(targetMatrix,ex);
-          ui.editing=targetMatrix;ui.generation=null;ui.dirty=true;render();
-          message(`Đã trích xuất Bảng 2 Đặc tả thành công từ ${ex.questions.length} câu hỏi của đề "${ex.title||ex.exam_code||ex.id}". Thầy/Cô có thể xem và chỉnh sửa ở Bảng 2 phía dưới.`);
+          targetMatrix.source_exam_id=ex.id;
+          ui.editing=targetMatrix;ui.generation=null;ui.dirty=true;await refresh();render();
+          message(`Đã trích xuất Bảng 2 Đặc tả từ ${ex.questions.length} câu hỏi của đề "${ex.title||ex.exam_code||ex.id}" vào đúng ma trận gốc "${targetMatrix.title||'Ma trận'}". Bấm "Lưu bản nháp" hoặc "Lưu & Chốt" để cập nhật.`);
           setTimeout(()=>{
-            const el=document.getElementById('mx-spec-table-container');
+            const el=(typeof document!=='undefined'&&document)?document.getElementById('mx-spec-table-container'):null;
             if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
           },100);
         }
@@ -3600,10 +3620,20 @@
           return;
         }
         if(ui.editing.spec_locked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
+        if(ui.editing.id&&ui.editing.status==='locked'&&ui.ctx?.request){
+          const uRes=await ui.ctx.request('/api/matrices/unlock',{id:ui.editing.id});
+          if(uRes?.matrix){
+            ui.editing.status=uRes.matrix.status||'draft';
+            ui.editing.revision=uRes.matrix.revision;
+            delete ui.editing.content_sha256;
+            ui.editing.matrix_locked=true;
+          }
+        }
         syncSpecFromExam(ui.editing,ex);
+        ui.editing.source_exam_id=ex.id;
         ui.dirty=true;
         render();
-        message(`Đã trích xuất Bảng 2 Đặc tả thành công từ ${ex.questions.length} câu hỏi của đề "${ex.title||ex.exam_code||ex.id}".`);
+        message(`Đã trích xuất Bảng 2 Đặc tả thành công từ ${ex.questions.length} câu hỏi của đề "${ex.title||ex.exam_code||ex.id}" vào ma trận hiện tại.`);
       }else if(action==='suggest'){suggest();}
       else if(action==='generate'){await generate();}
     });
@@ -4455,18 +4485,92 @@ Quy ước:
     ui.shortfall=null;
     render();
   }
-  function openEditorWithExamSpec(exam){
-    if(!exam||!Array.isArray(exam.questions))return;
+  async function findLinkedMatrixForExam(exam){
+    if(!exam)return null;
+    const pool=(ui.records||[]).filter(m=>m&&m.status!=='archived');
+    if(exam.matrix_id){
+      const hit=pool.find(m=>m.id===exam.matrix_id);
+      if(hit)return hit;
+      if(ui.ctx?.request){
+        try{
+          const d=await ui.ctx.request('/api/matrices/'+encodeURIComponent(exam.matrix_id));
+          if(d?.matrix&&d.matrix.status!=='archived')return d.matrix;
+        }catch(_){}
+      }
+    }
+    const g=Number(exam.grade),subj=subject(exam),et=exam.exam_type||'';
+    const byPlan=(exam.assessment_plan_id&&pool.find(m=>m.assessment_plan_id===exam.assessment_plan_id))||null;
+    if(byPlan)return byPlan;
+    const matches=pool.filter(m=>Number(m.grade)===g&&subject(m)===subj&&(!et||m.exam_type===et));
+    return matches[matches.length-1]||null;
+  }
+  async function openEditorWithExamSpec(exam){
+    if(!exam||!Array.isArray(exam.questions))return null;
+    if(!(ui.records||[]).length&&ui.ctx?.request){
+      try{await refresh();}catch(_){}
+    }
+    const linked=await findLinkedMatrixForExam(exam);
+    if(linked){
+      let target=JSON.parse(JSON.stringify(linked));
+      if(target.id&&target.status==='locked'&&ui.ctx?.request){
+        const uRes=await ui.ctx.request('/api/matrices/unlock',{id:target.id});
+        if(uRes?.matrix){
+          target=JSON.parse(JSON.stringify(uRes.matrix));
+          target.matrix_locked=true;
+        }
+      }
+      syncSpecFromExam(target,exam);
+      target.source_exam_id=exam.id;
+      ui.editing=target;
+      ui.dirty=true;
+      ui.report=null;
+      ui.shortfall=null;
+      ui.generation=null;
+      ui.previewState=null;
+      ui.comparison=null;
+      ui.importing=null;
+      if(ui.ctx?.request){try{await refresh();}catch(_){}}
+      render();
+      if(typeof document!=='undefined'){
+        setTimeout(()=>{
+          const el=(typeof document!=='undefined'&&document)?document.getElementById('mx-spec-table-container'):null;
+          if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+        },100);
+      }
+      message(`Đã liên kết và trích xuất Bảng 2 Đặc tả từ đề "${exam.title||exam.exam_code||exam.id}" vào ma trận gốc "${target.title||'Ma trận'}" (không tạo phiên bản mới). Bấm "Lưu bản nháp" hoặc "Lưu & Chốt" để cập nhật.`);
+      return {reused:true,matrix:target};
+    }
     const g=Number(exam.grade)||8;
     const draft=newDraft(g,false);
     draft.title=`Ma trận & Đặc tả theo đề ${exam.title||exam.exam_code||exam.id}`;
     draft.exam_type=exam.exam_type||'GK1';
     draft.duration=exam.duration||45;
+    draft.source_exam_id=exam.id;
     syncSpecFromExam(draft,exam);
     openEditorWithDraft(draft);
+    return {reused:false,matrix:draft};
   }
-  function createFromPlan(plan){
+  async function createFromPlan(plan){
+    if(!plan)return null;
+    if(!(ui.records||[]).length&&ui.ctx?.request){
+      try{await refresh();}catch(_){}
+    }
     const g=Number(plan.grade)||8;
+    const subj=String(plan.subject_name||subject({grade:g})).trim().toLowerCase();
+    const pool=(ui.records||[]).filter(m=>m&&m.status!=='archived');
+    const existing=pool.find(m=>m.assessment_plan_id===plan.id)
+      ||pool.find(m=>Number(m.grade)===g&&subject(m).toLowerCase()===subj&&m.exam_type===plan.exam_type);
+    if(existing&&existing.id){
+      if(ui.ctx?.request){
+        await openRecord(existing.id,true);
+      }else{
+        ui.editing=JSON.parse(JSON.stringify(existing));
+        ui.dirty=false;
+        render();
+      }
+      message(`Đã mở lại ma trận "${existing.title}" liên kết với "${plan.name}" (không tạo phiên bản trùng).`);
+      return {reused:true,matrix:existing};
+    }
     const draft=newDraft(g,false);
     draft.title=`Ma trận & Đặc tả ${plan.name} Khối ${g}`;
     draft.exam_type=plan.exam_type||'GK1';
@@ -4478,6 +4582,7 @@ Quy ước:
       root.BankAssessmentPlan.syncLessonsFromAssessmentPlan(draft,plan,allLs);
     }
     openEditorWithDraft(draft);
+    return {reused:false,matrix:draft};
   }
   const api={matrixDocxBytes,htmlToOoxml,syncSpecFromExam,shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,STANDARD_PRESETS,newDraft,openEditorWithDraft,openEditorWithExamSpec,createFromPlan,getAssessmentPlansForMatrix,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,mergeQuestionRequirements,syncSpecFromExam,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;

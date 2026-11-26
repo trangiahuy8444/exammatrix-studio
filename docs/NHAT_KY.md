@@ -1,3 +1,8 @@
+## 26/11/2026 — Liên kết lại ma trận gốc khi trích xuất Bảng 2 & khóa đúng Khối 8/9 ở Đề cương
+
+- **Không tạo phiên bản ma trận trùng (`matrices.js`, `app.js`):** `openEditorWithExamSpec` và `apply-exam-to-spec` tìm lại đúng ma trận gốc (`exam.matrix_id` hoặc cùng khối/môn/kì), tự động mở khóa tại chỗ nếu đang `locked` (vẫn giữ `matrix_locked = true` cho Bảng 1) và cập nhật Bảng 2 Đặc tả trực tiếp lên đúng ma trận đó thay vì sinh bản nháp thứ hai; `createFromPlan` cũng mở lại ma trận đã gắn `assessment_plan_id` nếu đã tồn tại.
+- **Khóa phạm vi khối và môn ở tab Đề cương (`app.js`):** `renderRevisions()` lọc `subjRevs = currentRevisions()` theo khối đang chọn (`shownRevs`), chỉ lấy `activeRev` / `editingRev` trong `shownRevs` (bỏ fallback sang `store.revisions[0]` của khối khác) và tự ẩn `#revision-coverage` / `#revision-inline-viewer` khi khối hiện tại chưa có đề cương; `setActiveGrade()` tự xóa `activeRevisionViewId`, `editingRevisionId`, `activeExamViewId` khi chuyển khối.
+
 ## 26/11/2026 — Thay thế 100% `alert / confirm / prompt` gốc trình duyệt bằng modal tùy biến
 
 - **Hệ thống modal chuẩn Asian School (`core.js`, `index.html`, `styles.css`):** bổ sung `#app-modal-dialog` cùng `uiConfirm`, `uiPrompt`, `uiMultiPrompt` (hỗ trợ Escape, bấm backdrop, nhấn nút đóng `✕`, kiểm tra bắt buộc nội tuyến không cần alert, và phân biệt màu đỏ cảnh báo `danger-solid` cho các thao tác xóa / ghi đè).

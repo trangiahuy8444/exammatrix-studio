@@ -34,9 +34,9 @@ test('index.html preserves required shell, header, toast, and sidebar IDs', () =
   assert(indexHtml.includes('id="app-modal-dialog"'), 'Missing #app-modal-dialog in public/index.html');
   assert(indexHtml.includes('./styles.css?v=20261126c'));
   assert(indexHtml.includes('./core.js?v=20261126c'));
-  assert(indexHtml.includes('./matrices.js?v=20261126d'));
+  assert(indexHtml.includes('./matrices.js?v=20261126e'));
   assert(indexHtml.includes('./firebase-bridge.js?v=20261126c'));
-  assert(indexHtml.includes('./app.js?v=20261126d'));
+  assert(indexHtml.includes('./app.js?v=20261126e'));
   assert(indexHtml.includes('./knowledge-ui.js?v=20261126c'));
 });
 

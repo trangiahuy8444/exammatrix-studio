@@ -6347,7 +6347,7 @@ function openMatrixInExamCreator(m){
   notify(msg);
  }
 }
-function renderMatrices(){window.MatrixUI.mount($("#matrices"),{request,notify,context:store.context,ppct:store.bank.ppct,questions:store.bank?.questions||[],revisions:store.revisions,exams:store.exams,assessmentPlans:store.assessmentPlans||[],activeGrade:store.activeGrade,activeGrades:availableGrades(),onGradeChange:g=>setActiveGrade(g,{skipRender:true}),onExamCreated:e=>{if(e&&!store.exams.some(x=>x.id===e.id))store.exams.push(e);},onMatricesChanged:list=>{if(Array.isArray(list))store.matrixRecords=list;},onOpenInExamCreator:openMatrixInExamCreator,
+function renderMatrices(){window.MatrixUI.mount($("#matrices"),{request,notify,context:store.context,ppct:store.bank.ppct,questions:store.bank?.questions||[],revisions:store.revisions,exams:store.exams,assessmentPlans:store.assessmentPlans||[],activeGrade:store.activeGrade,activeGrades:availableGrades(),onGradeChange:g=>setActiveGrade(g,{skipRender:true}),onExamCreated:e=>{if(e&&!store.exams.some(x=>x.id===e.id))store.exams.push(e);},onMatricesChanged:list=>{if(Array.isArray(list)){store.matrixRecords=list;if(store.examDraft?.matrix_id&&!list.some(m=>m.id===store.examDraft.matrix_id)){store.examDraft.matrix_id='';}}},onOpenInExamCreator:openMatrixInExamCreator,
  openReview:cell=>{if(cell?.grade)setActiveGrade(Number(cell.grade),{skipRender:true});store.reviewFilters=C.reviewFiltersForCell(cell);store.reviewIndex=0;location.hash='#review';}});}
 
 // Keep download URLs tied to this tab's course, including newly rendered links.

@@ -372,3 +372,25 @@ test('revisionCoverage tra ve vi tri trong de & de cuong, option_map va tom tat 
   assert.equal(rep.items[4].revision_label, 'TL câu 1');
   assert.equal(rep.items[4].revision_detail.rubric.length, 2);
 });
+
+test('/api/matrices/delete cho phep xoa ma tran da khoa khi chua co de lien ket va bao ro ten de neu con lien ket', async () => {
+  let data = workspace({ mcB1: 5, mcB2: 0, es: 0 });
+  data.matrices = [
+    { id: 'MX-LOCKED-UNUSED', title: 'Ma trận CK1 chưa tạo đề', grade: 8, subject_name: 'Tin học', status: 'locked', slots: [] },
+    { id: 'MX-LOCKED-USED', title: 'Ma trận CK1 đã gắn đề', grade: 8, subject_name: 'Tin học', status: 'locked', slots: [] }
+  ];
+  data.exams = [
+    { id: 'EX-LINKED', title: 'Đề CK1 Tin 8 · Mã 101', exam_code: '101', grade: 8, subject_name: 'Tin học', matrix_id: 'MX-LOCKED-USED' }
+  ];
+
+  // Ma trận đang khóa nhưng chưa có đề thi nào dùng -> xóa thành công
+  const rOk = await api.handle('/api/matrices/delete', { id: 'MX-LOCKED-UNUSED' }, data, env);
+  assert.equal(rOk.response.success, true);
+  assert.equal(rOk.data.matrices.some(m => m.id === 'MX-LOCKED-UNUSED'), false);
+
+  // Ma trận đang gắn với đề EX-LINKED -> bị chặn 409 kèm tên đề cụ thể
+  await assert.rejects(
+    api.handle('/api/matrices/delete', { id: 'MX-LOCKED-USED' }, rOk.data, env),
+    err => err.status === 409 && /1 đề kiểm tra.*Đề CK1 Tin 8/.test(err.message)
+  );
+});

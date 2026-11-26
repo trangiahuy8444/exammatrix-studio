@@ -3507,7 +3507,11 @@
         const target=ui.records.find(x=>x.id===id)||(ui.editing?.id===id?ui.editing:null);
         const label=target?.title||'Ma trận này';
         const ask=root.uiConfirm||root.BankCore?.uiConfirm;
-        if(typeof ask==='function'&&!(await ask(`Xóa vĩnh viễn hồ sơ ma trận "${label}"?`,{title:'Xóa hồ sơ ma trận',confirmText:'Xóa vĩnh viễn',danger:true})))return;
+        const msg=target?.status==='locked'
+          ?`Ma trận "${label}" hiện đang ở trạng thái Đã khóa. Nếu chưa có đề thi nào dùng ma trận này, hệ thống sẽ xóa vĩnh viễn. Tiếp tục?`
+          :`Xóa vĩnh viễn hồ sơ ma trận "${label}"?`;
+        const askTitle=target?.status==='locked'?'Xóa ma trận đã khóa':'Xóa hồ sơ ma trận';
+        if(typeof ask==='function'&&!(await ask(msg,{title:askTitle,confirmText:'Xóa vĩnh viễn',danger:true})))return;
         await ui.ctx.request('/api/matrices/delete',{id});
         if(ui.editing?.id===id){ui.editing=null;ui.dirty=false;}
         if(ui.previewState?.id===id)ui.previewState=null;

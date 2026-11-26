@@ -1435,7 +1435,12 @@
    put(data.matrices,matrix);return result({matrix,validation:engine.validateMatrix(matrix,ppct)},true);
   }
   if(path==='/api/matrices/delete'){
-   const old=checkedMatrix(p.id);if(old.status==='locked'||data.exams.some(e=>e.matrix_id===old.id))fail('Ma trận đã khóa hoặc đã dùng tạo đề; không thể xóa.',409);
+   const old=checkedMatrix(p.id);
+   const usedBy=data.exams.filter(e=>e.matrix_id===old.id);
+   if(usedBy.length){
+    const names=usedBy.slice(0,3).map(e=>e.title||(e.exam_code?`Mã ${e.exam_code}`:e.id)).join(', ');
+    fail(`Ma trận đang được liên kết với ${usedBy.length} đề kiểm tra (${names}${usedBy.length>3?'…':''}); cần xóa các đề liên kết trước khi xóa ma trận.`,409);
+   }
    data.matrices=data.matrices.filter(m=>m.id!==old.id);return result({success:true,matrices:data.matrices},true);
   }
   if(path==='/api/matrices/archive'){

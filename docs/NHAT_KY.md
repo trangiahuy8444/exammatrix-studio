@@ -1,3 +1,7 @@
+## 26/11/2026 — Cho phép xóa ma trận đã khóa khi chưa gắn với đề kiểm tra nào
+
+- **`/api/matrices/delete` (`static-api.js`, `matrices.js`, `app.js`):** bỏ điều kiện chặn xóa theo `status === 'locked'`; chỉ chặn (`409`) khi thực sự có đề kiểm tra gắn `matrix_id` tương ứng và nêu rõ số lượng + tên các đề đang liên kết để giáo viên biết chính xác. Đồng thời tự động làm sạch `store.examDraft.matrix_id` khi ma trận vừa chọn bị xóa.
+
 ## 26/11/2026 — Liên kết lại ma trận gốc khi trích xuất Bảng 2 & khóa đúng Khối 8/9 ở Đề cương
 
 - **Không tạo phiên bản ma trận trùng (`matrices.js`, `app.js`):** `openEditorWithExamSpec` và `apply-exam-to-spec` tìm lại đúng ma trận gốc (`exam.matrix_id` hoặc cùng khối/môn/kì), tự động mở khóa tại chỗ nếu đang `locked` (vẫn giữ `matrix_locked = true` cho Bảng 1) và cập nhật Bảng 2 Đặc tả trực tiếp lên đúng ma trận đó thay vì sinh bản nháp thứ hai; `createFromPlan` cũng mở lại ma trận đã gắn `assessment_plan_id` nếu đã tồn tại.

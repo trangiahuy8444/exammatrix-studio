@@ -1698,3 +1698,143 @@ nav a[aria-current=page] {
   font-size: 14.5px;
   color: #102d4a;
 }
+
+/* Modal xác nhận & nhập liệu tùy biến (thay thế dialog gốc của trình duyệt) */
+dialog.app-modal-dialog {
+  width: min(460px, 92vw);
+  max-width: 92vw;
+  padding: 0;
+  border: 1px solid #d5e4f3;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 22px 60px rgba(16, 45, 74, 0.28);
+  overflow: hidden;
+}
+dialog.app-modal-dialog::backdrop {
+  background: rgba(16, 45, 74, 0.45);
+  backdrop-filter: blur(3px);
+}
+.app-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 18px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fbff;
+}
+.app-modal-head.is-danger {
+  background: #fff8f8;
+  border-bottom-color: #fee2e2;
+}
+.app-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.app-modal-title-wrap h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #102d4a;
+  line-height: 1.3;
+}
+.app-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: #eaf3fb;
+  color: #0267b1;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.app-modal-head.is-danger .app-modal-icon {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.app-modal-close {
+  min-height: 30px !important;
+  min-width: 30px !important;
+  padding: 2px 8px !important;
+  border: none !important;
+  background: transparent !important;
+  color: #64748b !important;
+  font-size: 15px;
+  border-radius: 7px !important;
+}
+.app-modal-close:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+.app-modal-body {
+  padding: 16px 18px;
+}
+.app-modal-msg {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1e293b;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.app-modal-field {
+  margin-bottom: 12px;
+}
+.app-modal-field:last-of-type {
+  margin-bottom: 0;
+}
+.app-modal-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #102d4a;
+}
+.app-modal-field input,
+.app-modal-field textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #ffffff;
+}
+.app-modal-field input:focus,
+.app-modal-field textarea:focus {
+  outline: none;
+  border-color: #0267b1;
+  box-shadow: 0 0 0 3px rgba(2, 103, 177, 0.16);
+}
+.app-modal-error {
+  margin: 10px 0 0;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.app-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px 15px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+button.danger-solid {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+  color: #ffffff !important;
+  font-weight: 700;
+}
+button.danger-solid:hover {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+}

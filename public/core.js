@@ -1323,6 +1323,154 @@ function syncEditedQuestionsFromSheet(sheet,record){
       by_type
     };
   }
-  const api={syncOutcomeIds,normalizeOutcomeIds,questionKeys,questionRelation,RELATION_LABELS,textSimilarity,questionBigrams,VI_STOPWORDS,parsePrerequisite,detectPrerequisiteCycle,requiredRevisionCount,computeRevisionPlan,outcomeIdPrefix,lessonOutcomeIds,assignOutcomeIds,resolveOutcome,suggestOutcomes,kyStepperModel,dossierStatus,permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter};
-  if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;}
+  let _activeModalResolve=null;
+  function ensureAppModalDialog(){
+    if(typeof document==='undefined')return null;
+    let dlg=document.getElementById('app-modal-dialog');
+    if(!dlg&&document.body&&typeof document.createElement==='function'){
+      dlg=document.createElement('dialog');
+      dlg.id='app-modal-dialog';
+      dlg.className='app-modal-dialog';
+      dlg.setAttribute('aria-modal','true');
+      document.body.appendChild(dlg);
+    }
+    return dlg||null;
+  }
+  function closeStaleModal(){
+    const prevResolve=_activeModalResolve;
+    _activeModalResolve=null;
+    const dlg=typeof document!=='undefined'?document.getElementById('app-modal-dialog'):null;
+    if(dlg&&dlg.open&&typeof dlg.close==='function'){try{dlg.close();}catch{}}
+    if(typeof prevResolve==='function'){try{prevResolve(undefined);}catch{}}
+  }
+  function isLikelyDangerMessage(msg){
+    const s=String(msg||'').trim();
+    return /^(xóa|bạn có chắc chắn muốn xóa|bạn có chắc chắn muốn làm trống|khôi phục sẽ thay thế)/i.test(s)||/xóa vĩnh viễn|thay thế toàn bộ/i.test(s);
+  }
+  function uiConfirm(message,opts={}){
+    const dlg=ensureAppModalDialog();
+    if(!dlg||typeof dlg.showModal!=='function')return Promise.resolve(false);
+    closeStaleModal();
+    const danger=opts.danger!==undefined?Boolean(opts.danger):isLikelyDangerMessage(message);
+    const title=opts.title||(danger?'Xác nhận thao tác quan trọng':'Xác nhận');
+    const cancelText=opts.cancelText||'Hủy';
+    const confirmText=opts.confirmText||(danger?'Xác nhận xóa':'Đồng ý');
+    return new Promise(resolve=>{
+      let settled=false;
+      const done=val=>{
+        if(settled)return;
+        settled=true;
+        if(_activeModalResolve===cancelDone)_activeModalResolve=null;
+        dlg.oncancel=null;dlg.onclick=null;
+        if(dlg.open&&typeof dlg.close==='function'){try{dlg.close();}catch{}}
+        resolve(Boolean(val));
+      };
+      const cancelDone=()=>done(false);
+      _activeModalResolve=cancelDone;
+      dlg.innerHTML=`<div class="app-modal-head${danger?' is-danger':''}">`
+        +`<div class="app-modal-title-wrap"><span class="app-modal-icon" aria-hidden="true">${danger?'⚠️':'❓'}</span><h3 id="app-modal-title">${escapeHtml(title)}</h3></div>`
+        +`<button type="button" class="app-modal-close" data-app-modal-cancel aria-label="Đóng">✕</button>`
+        +`</div>`
+        +`<div class="app-modal-body"><p class="app-modal-msg">${escapeHtml(message)}</p></div>`
+        +`<div class="app-modal-foot">`
+        +`<button type="button" class="quiet" data-app-modal-cancel>${escapeHtml(cancelText)}</button>`
+        +`<button type="button" class="${danger?'danger-solid':'primary'}" data-app-modal-ok>${escapeHtml(confirmText)}</button>`
+        +`</div>`;
+      dlg.setAttribute('aria-labelledby','app-modal-title');
+      dlg.querySelectorAll('[data-app-modal-cancel]').forEach(btn=>{btn.onclick=()=>done(false);});
+      const okBtn=dlg.querySelector('[data-app-modal-ok]');
+      if(okBtn)okBtn.onclick=()=>done(true);
+      dlg.oncancel=e=>{e.preventDefault();done(false);};
+      dlg.onclick=e=>{if(e.target===dlg)done(false);};
+      dlg.showModal();
+      setTimeout(()=>{try{(danger?dlg.querySelector('[data-app-modal-cancel]'):okBtn)?.focus();}catch{}},0);
+    });
+  }
+  function uiMultiPrompt(opts={}){
+    const dlg=ensureAppModalDialog();
+    if(!dlg||typeof dlg.showModal!=='function')return Promise.resolve(null);
+    closeStaleModal();
+    const fields=Array.isArray(opts.fields)?opts.fields:[];
+    const title=opts.title||'Nhập thông tin';
+    const description=opts.description||'';
+    const cancelText=opts.cancelText||'Hủy';
+    const confirmText=opts.confirmText||'Xác nhận';
+    return new Promise(resolve=>{
+      let settled=false;
+      const done=val=>{
+        if(settled)return;
+        settled=true;
+        if(_activeModalResolve===cancelDone)_activeModalResolve=null;
+        dlg.oncancel=null;dlg.onclick=null;
+        if(dlg.open&&typeof dlg.close==='function'){try{dlg.close();}catch{}}
+        resolve(val);
+      };
+      const cancelDone=()=>done(null);
+      _activeModalResolve=cancelDone;
+      const fieldsHtml=fields.map((f,idx)=>{
+        const fid=`app-modal-f-${idx}`;
+        const val=String(f.value??'');
+        const ph=String(f.placeholder??'');
+        const ctrl=f.multiline
+          ?`<textarea id="${fid}" name="${escapeHtml(f.name)}" rows="3" placeholder="${escapeHtml(ph)}">${escapeHtml(val)}</textarea>`
+          :`<input id="${fid}" name="${escapeHtml(f.name)}" type="text" value="${escapeHtml(val)}" placeholder="${escapeHtml(ph)}">`;
+        return `<div class="app-modal-field"><label for="${fid}">${escapeHtml(f.label||f.name)}${f.required?' <span style="color:#dc2626">*</span>':''}</label>${ctrl}</div>`;
+      }).join('');
+      dlg.innerHTML=`<form id="app-modal-form" novalidate>`
+        +`<div class="app-modal-head">`
+        +`<div class="app-modal-title-wrap"><span class="app-modal-icon" aria-hidden="true">✏️</span><h3 id="app-modal-title">${escapeHtml(title)}</h3></div>`
+        +`<button type="button" class="app-modal-close" data-app-modal-cancel aria-label="Đóng">✕</button>`
+        +`</div>`
+        +`<div class="app-modal-body">${description?`<p class="app-modal-msg" style="margin-bottom:10px">${escapeHtml(description)}</p>`:''}${fieldsHtml}<p id="app-modal-error" class="app-modal-error" role="alert" hidden></p></div>`
+        +`<div class="app-modal-foot">`
+        +`<button type="button" class="quiet" data-app-modal-cancel>${escapeHtml(cancelText)}</button>`
+        +`<button type="submit" class="primary">${escapeHtml(confirmText)}</button>`
+        +`</div></form>`;
+      dlg.setAttribute('aria-labelledby','app-modal-title');
+      dlg.querySelectorAll('[data-app-modal-cancel]').forEach(btn=>{btn.onclick=()=>done(null);});
+      const form=dlg.querySelector('#app-modal-form');
+      const errBox=dlg.querySelector('#app-modal-error');
+      if(form){
+        form.onsubmit=e=>{
+          e.preventDefault();
+          const out={};
+          for(let idx=0;idx<fields.length;idx++){
+            const f=fields[idx];
+            const el=dlg.querySelector(`#app-modal-f-${idx}`);
+            const raw=el?String(el.value??''):'';
+            if(f.required&&!raw.trim()){
+              if(errBox){errBox.textContent=`Vui lòng nhập ${(f.label||f.name||'thông tin').toLowerCase()}.`;errBox.hidden=false;}
+              try{el?.focus();}catch{}
+              return;
+            }
+            out[f.name]=raw;
+          }
+          done(out);
+        };
+      }
+      dlg.oncancel=e=>{e.preventDefault();done(null);};
+      dlg.onclick=e=>{if(e.target===dlg)done(null);};
+      dlg.showModal();
+      setTimeout(()=>{try{const first=dlg.querySelector('#app-modal-f-0');if(first){first.focus();if(typeof first.select==='function'&&first.tagName==='INPUT')first.select();}}catch{}},0);
+    });
+  }
+  async function uiPrompt(message,defaultValue='',opts={}){
+    const res=await uiMultiPrompt({
+      title:opts.title||'Nhập thông tin',
+      description:opts.description||'',
+      confirmText:opts.confirmText||'Xác nhận',
+      cancelText:opts.cancelText||'Hủy',
+      fields:[{
+        name:'value',
+        label:message||'Nội dung',
+        value:defaultValue,
+        placeholder:opts.placeholder||'',
+        multiline:Boolean(opts.multiline),
+        required:Boolean(opts.required)
+      }]
+    });
+    return res?res.value:null;
+  }
+  const api={syncOutcomeIds,normalizeOutcomeIds,questionKeys,questionRelation,RELATION_LABELS,textSimilarity,questionBigrams,VI_STOPWORDS,parsePrerequisite,detectPrerequisiteCycle,requiredRevisionCount,computeRevisionPlan,outcomeIdPrefix,lessonOutcomeIds,assignOutcomeIds,resolveOutcome,suggestOutcomes,kyStepperModel,dossierStatus,permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter,uiConfirm,uiPrompt,uiMultiPrompt};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;root.uiConfirm=uiConfirm;root.uiPrompt=uiPrompt;root.uiMultiPrompt=uiMultiPrompt;}
 })(typeof window!=='undefined'?window:globalThis);

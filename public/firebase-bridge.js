@@ -1758,7 +1758,10 @@
           showToast('Tệp không phải bản sao lưu ngoại tuyến hợp lệ của ExamMatrix Studio.', 'error');
           return;
         }
-        if (!confirm('Khôi phục sẽ THAY THẾ toàn bộ dữ liệu của tài khoản đang dùng bằng nội dung trong tệp (lưu lên đám mây). Tiếp tục?')) return;
+        const okRestore = typeof window.uiConfirm === 'function'
+          ? await window.uiConfirm('Khôi phục sẽ THAY THẾ toàn bộ dữ liệu của tài khoản đang dùng bằng nội dung trong tệp (lưu lên đám mây). Tiếp tục?', { title: 'Khôi phục dữ liệu từ tệp', confirmText: 'Khôi phục & thay thế', danger: true })
+          : false;
+        if (!okRestore) return;
         try {
           await window.FirebaseClient.replaceWorkspaceData(payload.data);
           showToast('Đã khôi phục dữ liệu từ tệp sao lưu.');
@@ -2080,7 +2083,10 @@
           if (accountMenu) accountMenu.open = false;
           const curUser = window.FirebaseState.user;
           if (curUser && !curUser.isAnonymous) {
-            if (confirm('Thầy/Cô có muốn đăng xuất khỏi tài khoản Google hiện tại? Dữ liệu đã được lưu an toàn trên Đám mây.')) {
+            const okSignOut = typeof window.uiConfirm === 'function'
+              ? await window.uiConfirm('Thầy/Cô có muốn đăng xuất khỏi tài khoản Google hiện tại? Dữ liệu đã được lưu an toàn trên Đám mây.', { title: 'Đăng xuất tài khoản Google', confirmText: 'Đăng xuất', danger: true })
+              : false;
+            if (okSignOut) {
               await helpers.signOut(auth);
               saveRuntimeDriveToken(null, '', 0);
               lastSyncedSlicesV2 = null;

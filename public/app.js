@@ -1,6 +1,6 @@
 /* Saved records live on the server; unfinished exam form choices stay in this browser. */
 'use strict';
-const C=window.BankCore,$=s=>document.querySelector(s),esc=C.escapeHtml;
+const C=window.BankCore,$=s=>document.querySelector(s),esc=C.escapeHtml,uiConfirm=(...a)=>C.uiConfirm(...a),uiPrompt=(...a)=>C.uiPrompt(...a);
 
 function renderLatex(element) {
   if (typeof renderMathInElement === 'function') {
@@ -758,7 +758,7 @@ function renderReview(){
  if(bulkApproveBtn)bulkApproveBtn.onclick=async()=>{
   if(!unapprovedInScope.length)return;
   const scopeDesc=f.grade?`Khối ${f.grade}${f.lesson?' · '+f.lesson:''}`:(f.lesson||'tất cả các khối đang lọc');
-  if(!confirm(`Xác nhận duyệt nhanh ${unapprovedInScope.length} câu hỏi chưa duyệt (${scopeDesc})?\n\nHệ thống sẽ tự kiểm tra điều kiện kỹ thuật của từng câu trước khi chuyển sang Đã duyệt.`))return;
+  if(!(await uiConfirm(`Xác nhận duyệt nhanh ${unapprovedInScope.length} câu hỏi chưa duyệt (${scopeDesc})?\n\nHệ thống sẽ tự kiểm tra điều kiện kỹ thuật của từng câu trước khi chuyển sang Đã duyệt.`,{title:'Xác nhận duyệt nhanh câu hỏi',confirmText:'Duyệt nhanh'})))return;
   await mutate('/api/questions/bulk',{ids:unapprovedInScope.map(x=>x.id),action:'bulk_approve',confirmed:true},res=>{
    const approvedCnt=Number(res.approved_count||0),skippedCnt=Number(res.skipped_count||0);
    const skipNote=skippedCnt?` Bỏ qua ${skippedCnt} câu chưa đủ nội dung kỹ thuật${res.skipped?.[0]?.reason?' ('+res.skipped[0].reason+')':''}.`:'';
@@ -864,7 +864,7 @@ async function renderKttx(){
   const done=await mutate('/api/kttx/save',{activity:payload});if(done){store.kttxDraft=null;notify(`Đã lưu ${done.activity.title}.`);renderKttx();}};
  const cancel=$('#kt-cancel');if(cancel)cancel.onclick=()=>{store.kttxDraft=null;renderKttx();};
  el.querySelectorAll('[data-kt-edit]').forEach(b=>b.onclick=()=>{const act=st.activities.find(a=>a.id===b.dataset.ktEdit);if(!act)return;store.kttxDraft={...act,lesson_codes:[...(act.lesson_codes||[])],orientation:act.orientation||'',exam_id:act.exam_id||''};renderKttx();});
- el.querySelectorAll('[data-kt-del]').forEach(b=>b.onclick=async()=>{const a=st.activities.find(x=>x.id===b.dataset.ktDel);if(!a||!confirm(`Xóa ${a.title}?`))return;const done=await mutate('/api/kttx/delete',{id:a.id});if(done){notify('Đã xóa hoạt động KTTX.');renderKttx();}});
+ el.querySelectorAll('[data-kt-del]').forEach(b=>b.onclick=async()=>{const a=st.activities.find(x=>x.id===b.dataset.ktDel);if(!a||!(await uiConfirm(`Xóa ${a.title}?`,{title:'Xóa hoạt động KTTX',confirmText:'Xóa',danger:true})))return;const done=await mutate('/api/kttx/delete',{id:a.id});if(done){notify('Đã xóa hoạt động KTTX.');renderKttx();}});
 }
 function renderOverview(){
  const s=subject();
@@ -2246,7 +2246,7 @@ async function closeMatchAct(hostEl,record,isInline,el){
   if(!reason)return notify('Cần ghi lý do câu bám sát đề cương.',true);
   done=await mutate('/api/exams/close-match',{id:record.id,question_id:qid,revision_question_id:rid,reason},r=>{if(r.exams)store.exams=r.exams;});}
  else if(el.dataset.closeReview){const payload={id:record.id,question_id:el.dataset.qid,action:el.dataset.closeReview};
-  if(payload.action==='reject'){const reason=prompt('Lý do không công nhận bám sát (bắt buộc):');if(!reason||!reason.trim())return notify('Cần ghi lý do.',true);payload.reason=reason.trim();}
+  if(payload.action==='reject'){const reason=await uiPrompt('Nhập lý do không công nhận bám sát (bắt buộc):','',{title:'Không công nhận bám sát',multiline:true,required:true,confirmText:'Xác nhận'});if(!reason||!reason.trim())return notify('Cần ghi lý do.',true);payload.reason=reason.trim();}
   done=await mutate('/api/exams/close-match/review',payload,r=>{if(r.exams)store.exams=r.exams;});}
  else if(el.dataset.revPolicySave!==undefined){done=await mutate('/api/exams/update',{id:record.id,revision_policy:hostEl.querySelector('[data-rev-policy]').value},r=>{if(r.exams)store.exams=r.exams;else if(r.exam)store.exams=store.exams.map(x=>x.id===r.exam.id?r.exam:x);});}
  if(done){await refresh();notify('Đã cập nhật tiêu chí đề cương.');}
@@ -2651,21 +2651,21 @@ async function saveQuestion(event){
   const dup=res.duplicates||[];
   notify(dup.length?`Đã lưu câu hỏi. Lưu ý: nội dung trùng nguyên văn với ${dup.map(d=>isTechId(d.id)?`1 câu khác (Khối ${d.grade})`:`${d.id} (Khối ${d.grade})`).join(', ')}. Chỉ là cảnh báo.`:'Đã lưu câu hỏi vào ngân hàng.');});return result;
 }
-async function archiveQuestion(id){const q=questions().find(q=>q.id===id);const lbl=isTechId(id)?'câu hỏi này':`câu ${id}`;if(!q||!confirm(`Lưu trữ ${lbl}? Câu sẽ ngừng được chọn tạo đề; nội dung và lịch sử vẫn được giữ.`))return;await mutate('/api/questions/archive',{id},()=>{store.selected.delete(id);$('#detail-dialog').close();render();notify('Đã lưu trữ câu hỏi. Có thể tìm lại qua bộ lọc “Đã lưu trữ”.');});}
+async function archiveQuestion(id){const q=questions().find(q=>q.id===id);const lbl=isTechId(id)?'câu hỏi này':`câu ${id}`;if(!q||!(await uiConfirm(`Lưu trữ ${lbl}? Câu sẽ ngừng được chọn tạo đề; nội dung và lịch sử vẫn được giữ.`,{title:'Lưu trữ câu hỏi',confirmText:'Lưu trữ'})))return;await mutate('/api/questions/archive',{id},()=>{store.selected.delete(id);$('#detail-dialog').close();render();notify('Đã lưu trữ câu hỏi. Có thể tìm lại qua bộ lọc “Đã lưu trữ”.');});}
 async function restoreQuestion(id){
  const q=questions().find(q=>q.id===id);if(!q)return;
  const lbl=isTechId(id)?'câu hỏi':`câu hỏi ${id}`;
  await mutate('/api/questions/restore',{id},()=>{$('#detail-dialog').close();render();notify(`Đã khôi phục ${lbl}. Hãy kiểm tra trạng thái duyệt trước khi sử dụng.`);});
 }
 async function deleteQuestion(id){
- const q=questions().find(q=>q.id===id);const lbl=isTechId(id)?'câu hỏi này':`câu hỏi ${id}`;if(!q||!confirm(`Xóa vĩnh viễn ${lbl}? Hãy tải bản sao lưu trước nếu cần khôi phục.`))return;
+ const q=questions().find(q=>q.id===id);const lbl=isTechId(id)?'câu hỏi này':`câu hỏi ${id}`;if(!q||!(await uiConfirm(`Xóa vĩnh viễn ${lbl}? Hãy tải bản sao lưu trước nếu cần khôi phục.`,{title:'Xóa vĩnh viễn câu hỏi',confirmText:'Xóa vĩnh viễn',danger:true})))return;
  await mutate('/api/questions/delete',{id},()=>{store.selected.delete(id);$('#detail-dialog').close();render();notify('Đã xóa câu hỏi khỏi ngân hàng.');});
 }
 async function bulkUpdateSelected(action,status='pending_review'){
  const ids=[...store.selected];
  if(!ids.length){notify('Hãy đánh dấu chọn ít nhất một câu hỏi trước.',true);return;}
  if(action==='bulk_approve'){
-  if(!confirm(`Xác nhận duyệt nhanh ${ids.length} câu hỏi đã chọn?\n\nHệ thống sẽ tự kiểm tra điều kiện kỹ thuật của từng câu trước khi chuyển sang Đã duyệt.`))return;
+  if(!(await uiConfirm(`Xác nhận duyệt nhanh ${ids.length} câu hỏi đã chọn?\n\nHệ thống sẽ tự kiểm tra điều kiện kỹ thuật của từng câu trước khi chuyển sang Đã duyệt.`,{title:'Xác nhận duyệt nhanh câu hỏi',confirmText:'Duyệt nhanh'})))return;
   await mutate('/api/questions/bulk',{ids,action:'bulk_approve',confirmed:true},res=>{
    const approvedCnt=Number(res.approved_count||0),alreadyCnt=Number(res.already_approved_count||0),skippedCnt=Number(res.skipped_count||0);
    store.selected.clear();render();
@@ -2680,7 +2680,7 @@ async function bulkUpdateSelected(action,status='pending_review'){
  let confirmMsg = `Chuyển trạng thái ${ids.length} câu hỏi?`;
  if (action === 'delete') confirmMsg = `Xóa vĩnh viễn ${ids.length} câu hỏi?`;
  else if (action === 'grade') confirmMsg = `Chuyển ${ids.length} câu hỏi đã chọn sang Khối ${status}?`;
- if(!confirm(confirmMsg))return;
+ if(!(await uiConfirm(confirmMsg,{title:action==='delete'?'Xóa hàng loạt câu hỏi':'Xác nhận cập nhật hàng loạt',confirmText:action==='delete'?'Xóa vĩnh viễn':'Xác nhận',danger:action==='delete'})))return;
  await mutate('/api/questions/bulk',{ids,action,status},()=>{store.selected.clear();render();notify('Đã cập nhật các câu hỏi đã chọn.');});
 }
 
@@ -2713,7 +2713,7 @@ async function autoSplitK8K9Questions() {
     return;
   }
 
-  const ok = confirm(`Hệ thống phân tích và phát hiện ${candidatesForK9.length} / ${k8Qs.length} câu hỏi có nội dung đặc trưng Tin học Khối 9 (thiết bị mạng, mô phỏng, hàm IF/COUNTIF/SUMIF, v.v...) nhưng đang bị gán Khối 8.\n\nThầy/Cô có muốn tự động chuyển ${candidatesForK9.length} câu này sang Khối 9 không?`);
+  const ok = await uiConfirm(`Hệ thống phân tích và phát hiện ${candidatesForK9.length} / ${k8Qs.length} câu hỏi có nội dung đặc trưng Tin học Khối 9 (thiết bị mạng, mô phỏng, hàm IF/COUNTIF/SUMIF, v.v...) nhưng đang bị gán Khối 8.\n\nThầy/Cô có muốn tự động chuyển ${candidatesForK9.length} câu này sang Khối 9 không?`, { title: 'Tự động phân loại câu hỏi Khối 9', confirmText: 'Chuyển sang Khối 9' });
   if (!ok) return;
 
   const idsToMove = candidatesForK9.map(q => q.id);
@@ -3087,7 +3087,7 @@ async function importBank(event){
           return;
         }
 
-        if(!confirm('Khôi phục ngân hàng từ tệp JSON này? Toàn bộ câu hỏi hiện có sẽ được THAY bằng câu trong tệp. Ứng dụng kiểm tra dữ liệu và sao lưu trước khi ghi; PPCT gốc được giữ nguyên.')) return;
+        if(!(await uiConfirm('Khôi phục ngân hàng từ tệp JSON này? Toàn bộ câu hỏi hiện có sẽ được THAY bằng câu trong tệp. Ứng dụng kiểm tra dữ liệu và sao lưu trước khi ghi; PPCT gốc được giữ nguyên.',{title:'Khôi phục ngân hàng câu hỏi',confirmText:'Khôi phục & thay thế',danger:true}))) return;
         await mutate('/api/bank/import', { bank }, () => {
           render();
           notify('Đã nhập ngân hàng từ JSON thành công và lưu bản sao trước thay đổi.');
@@ -3123,7 +3123,7 @@ async function importBank(event){
         openImportDedupDialog({ filename: file.name, questions: bank.questions, grade: g, subjectName: s, detectedGrade });
         return;
       }
-      if(!confirm('Khôi phục ngân hàng từ tệp JSON này? Toàn bộ câu hỏi hiện có sẽ được THAY bằng câu trong tệp. Ứng dụng kiểm tra dữ liệu và sao lưu trước khi ghi; PPCT gốc được giữ nguyên.'))return;
+      if(!(await uiConfirm('Khôi phục ngân hàng từ tệp JSON này? Toàn bộ câu hỏi hiện có sẽ được THAY bằng câu trong tệp. Ứng dụng kiểm tra dữ liệu và sao lưu trước khi ghi; PPCT gốc được giữ nguyên.',{title:'Khôi phục ngân hàng câu hỏi',confirmText:'Khôi phục & thay thế',danger:true})))return;
       await mutate('/api/bank/import',{bank},()=>{render();notify('Đã nhập ngân hàng và lưu bản sao trước thay đổi.');});
     }
   }catch(e){
@@ -3286,7 +3286,7 @@ function renderPPCT(){
  if(addElectiveBtn)addElectiveBtn.onclick=()=>openPPCTEditor(g,'',s,'elective_topic');
  const clearGradeBtn=$('#btn-clear-grade-ppct');
  if(clearGradeBtn)clearGradeBtn.onclick=async()=>{
-   if(!confirm(`Bạn có chắc chắn muốn xóa toàn bộ mục PPCT môn ${s} Khối ${g} (không dạy khối này)?\n\nDữ liệu PPCT Khối ${g} sẽ được làm trống hoàn toàn.`))return;
+   if(!(await uiConfirm(`Bạn có chắc chắn muốn xóa toàn bộ mục PPCT môn ${s} Khối ${g} (không dạy khối này)?\n\nDữ liệu PPCT Khối ${g} sẽ được làm trống hoàn toàn.`,{title:'Xóa toàn bộ PPCT của khối',confirmText:'Xóa toàn bộ',danger:true})))return;
    if(store.bank?.ppct?.lessons){
      store.bank.ppct.lessons=store.bank.ppct.lessons.filter(l=>!(((l.subject_name||'Tin học')===s)&&Number(l.grade)===g));
    }
@@ -3301,7 +3301,7 @@ function renderPPCT(){
  };
  const restoreDefaultBtn=$('#btn-restore-default-ppct');
  if(restoreDefaultBtn)restoreDefaultBtn.onclick=async()=>{
-   if(!confirm(`Khôi phục lại phân phối chương trình mẫu GDPT 2018 cho môn ${s} Khối ${g}?`))return;
+   if(!(await uiConfirm(`Khôi phục lại phân phối chương trình mẫu GDPT 2018 cho môn ${s} Khối ${g}?`,{title:'Khôi phục PPCT mẫu GDPT 2018',confirmText:'Khôi phục'})))return;
    if(store.bank?.ppct?.cleared_grades){
      store.bank.ppct.cleared_grades = store.bank.ppct.cleared_grades.filter(x => Number(x) !== g && x !== `${s}:${g}`);
    }
@@ -4173,7 +4173,7 @@ function openPPCTEditor(grade,code='',subj='',defaultSection=''){
  $('#edit-dialog').showModal();
 }
 async function deletePPCTLesson(grade,code){
- if(!confirm(`Xóa bài ${code} (Khối ${grade}) khỏi Phân phối chương trình?`))return;
+ if(!(await uiConfirm(`Xóa bài ${code} (Khối ${grade}) khỏi Phân phối chương trình?`,{title:'Xóa bài học khỏi PPCT',confirmText:'Xóa bài học',danger:true})))return;
  await mutate('/api/ppct/delete-lesson',{grade:Number(grade),lesson_code:code},()=>{
   renderPPCT();notify(`Đã xóa bài ${code} khỏi PPCT.`);
  });
@@ -4735,7 +4735,7 @@ function renderAssessmentPlans() {
 
   const btnReset = $('#btn-reset-default-assessment-plan');
   if (btnReset) btnReset.onclick = async () => {
-    if (!confirm(`Khôi phục 4 đợt kiểm tra định kỳ (GK1, CK1, GK2, CK2) chuẩn GDPT 2018 cho môn ${s} Khối ${g}?`)) return;
+    if (!(await uiConfirm(`Khôi phục 4 đợt kiểm tra định kỳ (GK1, CK1, GK2, CK2) chuẩn GDPT 2018 cho môn ${s} Khối ${g}?`, { title: 'Khôi phục 4 mốc KTĐG chuẩn', confirmText: 'Khôi phục' }))) return;
     if (store.apClearedKeys) store.apClearedKeys.delete(`${g}|${s}`);
     await mutate('/api/assessment-plans/reset-defaults', { grade: g, subject_name: s }, () => {
       notify(`Đã khôi phục kế hoạch KTĐG chuẩn GDPT 2018 cho Khối ${g}.`);
@@ -4764,7 +4764,7 @@ function renderAssessmentPlans() {
   document.querySelectorAll('#assessment-plans [data-plan-delete]').forEach(btn => {
     btn.onclick = async () => {
       const pid = btn.dataset.planDelete;
-      if (!confirm('Xóa đợt kiểm tra đánh giá này khỏi kế hoạch?')) return;
+      if (!(await uiConfirm('Xóa đợt kiểm tra đánh giá này khỏi kế hoạch?', { title: 'Xóa đợt kiểm tra đánh giá', confirmText: 'Xóa đợt kiểm tra', danger: true }))) return;
       try {
         await ensurePersistedAssessmentPlans(g, s);
       } catch (err) {
@@ -5600,7 +5600,7 @@ async function duplicateRevision(id){
  renderRevisions();notify('Đã nhân bản phiên bản đề cương.');
 }
 async function deleteRevision(id){
- const r=store.revisions.find(x=>x.id===id);if(!r||!confirm(`Xóa phiên bản đề cương "${r.title}"?`))return;
+ const r=store.revisions.find(x=>x.id===id);if(!r||!(await uiConfirm(`Xóa phiên bản đề cương "${r.title}"?`,{title:'Xóa phiên bản đề cương',confirmText:'Xóa đề cương',danger:true})))return;
  await mutate('/api/revisions/delete',{id},result=>{
   store.revisions=result.revisions||store.revisions.filter(x=>x.id!==id);
   if(store.editingRevisionId===id){store.editingRevisionId=null;store.revisionTitleDraft='';}
@@ -5693,21 +5693,21 @@ function examLifecycle(r){
 }
 async function examAct(id,action){
  const payload={id,action};
- if(action==='return'){const reason=prompt('Lý do trả lại đề (bắt buộc):');if(!reason||!reason.trim())return notify('Khi trả lại đề phải ghi lý do.',true);payload.reason=reason.trim();}
- if(action==='publish'&&!confirm('Phát hành đề? Sau khi phát hành, đề được giữ nguyên và ghi nhận lịch sử sử dụng câu hỏi.'))return;
+ if(action==='return'){const reason=await uiPrompt('Nhập lý do trả lại đề (bắt buộc):','',{title:'Trả lại đề kiểm tra',multiline:true,required:true,confirmText:'Trả lại đề'});if(!reason||!reason.trim())return notify('Khi trả lại đề phải ghi lý do.',true);payload.reason=reason.trim();}
+ if(action==='publish'&&!(await uiConfirm('Phát hành đề? Sau khi phát hành, đề được giữ nguyên và ghi nhận lịch sử sử dụng câu hỏi.',{title:'Phát hành đề kiểm tra',confirmText:'Phát hành đề'})))return;
  const done=await mutate('/api/exams/transition',payload,result=>{store.exams=result.exams||store.exams;});
  if(done){notify({submit:'Đã gửi duyệt đề.',approve:'Đã duyệt và khóa đề.',return:'Đã trả lại đề.',publish:'Đã phát hành đề.',new_revision:'Đã tạo bản chỉnh sửa mới (đang soạn).'}[action]);renderExams();}
 }
 async function examSetAct(setId,action){
  const payload={set_id:setId,action};
- if(action==='return'){const reason=prompt('Lý do trả lại toàn bộ đề trong bộ (bắt buộc):');if(!reason||!reason.trim())return notify('Khi trả lại đề phải ghi lý do.',true);payload.reason=reason.trim();}
- if(action==='publish'&&!confirm('Phát hành toàn bộ các đề trong bộ đề này? Sau khi phát hành, đề được giữ nguyên nội dung và ghi nhận lịch sử câu hỏi.'))return;
+ if(action==='return'){const reason=await uiPrompt('Nhập lý do trả lại toàn bộ đề trong bộ (bắt buộc):','',{title:'Trả lại bộ đề kiểm tra',multiline:true,required:true,confirmText:'Trả lại bộ đề'});if(!reason||!reason.trim())return notify('Khi trả lại đề phải ghi lý do.',true);payload.reason=reason.trim();}
+ if(action==='publish'&&!(await uiConfirm('Phát hành toàn bộ các đề trong bộ đề này? Sau khi phát hành, đề được giữ nguyên nội dung và ghi nhận lịch sử câu hỏi.',{title:'Phát hành bộ đề kiểm tra',confirmText:'Phát hành bộ đề'})))return;
  const done=await mutate('/api/exams/set/transition',payload,result=>{store.exams=result.exams_all||store.exams;});
  if(done){notify({submit:'Đã gửi duyệt toàn bộ các đề trong bộ.',approve:'Đã duyệt và khóa toàn bộ các đề trong bộ đề.',return:'Đã trả lại toàn bộ các đề trong bộ.',publish:'Đã phát hành toàn bộ các đề trong bộ đề.'}[action]);renderExams();}
 }
 async function revisionAct(id,action){
  const payload={id,action};
- if(action==='publish'&&!confirm('Phát hành đề cương ôn tập cho học sinh? Đề cương chỉ nên phát hành sau khi các đề kiểm tra căn cứ đã được duyệt và khóa.'))return;
+ if(action==='publish'&&!(await uiConfirm('Phát hành đề cương ôn tập cho học sinh? Đề cương chỉ nên phát hành sau khi các đề kiểm tra căn cứ đã được duyệt và khóa.',{title:'Phát hành đề cương ôn tập',confirmText:'Phát hành đề cương'})))return;
  const done=await mutate('/api/revisions/transition',payload,result=>{store.revisions=result.revisions||store.revisions;});
  if(done){notify({publish:'Đã phát hành đề cương ôn tập cho học sinh.',lock:'Đã khóa đề cương ôn tập.',unlock:'Đã mở khóa đề cương.'}[action]);renderRevisions();}
 }
@@ -5972,7 +5972,7 @@ function renderExams(){
   btn.onclick=()=>{readExamInputs();d.create_mode=btn.dataset.examCreateMode||'single';renderExams();};
  });
  if($('#dedupe-exams-btn'))$('#dedupe-exams-btn').onclick=async()=>{
-  if(!dupExamIds.length||!confirm(`Xóa ${dupExamIds.length} bản đề nháp bị trùng lặp (giữ lại 1 bản mới nhất cho mỗi đề)?`))return;
+  if(!dupExamIds.length||!(await uiConfirm(`Xóa ${dupExamIds.length} bản đề nháp bị trùng lặp (giữ lại 1 bản mới nhất cho mỗi đề)?`,{title:'Xóa các bản đề nháp trùng lặp',confirmText:'Xóa đề trùng',danger:true})))return;
   await mutate('/api/exams/delete',{ids:dupExamIds},res=>{
    if(dupExamIds.includes(store.activeExamViewId))store.activeExamViewId=null;
    store.exams=res.exams||store.exams.filter(x=>!dupExamIds.includes(x.id));
@@ -6164,7 +6164,7 @@ function loadExamConfig(id){
  notify('Đã nạp cấu hình đề lên biểu mẫu. Bạn có thể đổi Mã xáo trộn để tạo đề mới.');
 }
 async function deleteExam(id){
- const ex=store.exams.find(x=>x.id===id);if(!ex||!confirm(`Xóa đề kiểm tra "${ex.title}" (Khối ${ex.grade} · Mã đề ${ex.exam_code||'101'})?`))return;
+ const ex=store.exams.find(x=>x.id===id);if(!ex||!(await uiConfirm(`Xóa đề kiểm tra "${ex.title}" (Khối ${ex.grade} · Mã đề ${ex.exam_code||'101'})?`,{title:'Xóa đề kiểm tra',confirmText:'Xóa đề',danger:true})))return;
  await mutate('/api/exams/delete',{id},res=>{
   if(store.activeExamViewId===id)store.activeExamViewId=null;
   store.exams=res.exams||store.exams.filter(x=>x.id!==id);
@@ -7608,7 +7608,7 @@ function initBackupManager() {
           }
 
           const msg = `Thầy/Cô có muốn khôi phục dữ liệu từ tệp này không?\n\n• ${bankQs.length} câu hỏi ngân hàng\n• ${revs.length} đề cương ôn tập\n• ${exams.length} đề kiểm tra\n• ${mats.length} ma trận & đặc tả\n• ${kttxs.length} hoạt động KTTX\n\nDữ liệu hiện tại sẽ được cập nhật đồng bộ.`;
-          if (!confirm(msg)) return;
+          if (!(await uiConfirm(msg, { title: 'Khôi phục dữ liệu từ tệp sao lưu', confirmText: 'Khôi phục dữ liệu', danger: true }))) return;
 
           const restoredPpct = (payload.bank?.ppct && Array.isArray(payload.bank.ppct.lessons))
             ? payload.bank.ppct

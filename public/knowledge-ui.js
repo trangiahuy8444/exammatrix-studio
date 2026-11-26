@@ -290,7 +290,12 @@
   async function normalize(apply) {
     const mappings = {};
     if (apply) document.querySelectorAll('[data-norm-map]').forEach(sel => { if (sel.value) mappings[sel.dataset.normMap] = sel.value; });
-    if (apply && !window.confirm(`Lưu mã YCCĐ cho Khối ${state.grade}: PPCT, câu hỏi khớp chữ${Object.keys(mappings).length ? `, ${Object.keys(mappings).length} câu đã chọn YCCĐ` : ''} và ma trận chưa khóa? Câu đã chọn sẽ được đổi chữ YCCĐ theo đúng PPCT.`)) return;
+    if (apply) {
+      const okApply = typeof window.uiConfirm === 'function'
+        ? await window.uiConfirm(`Lưu mã YCCĐ cho Khối ${state.grade}: PPCT, câu hỏi khớp chữ${Object.keys(mappings).length ? `, ${Object.keys(mappings).length} câu đã chọn YCCĐ` : ''} và ma trận chưa khóa? Câu đã chọn sẽ được đổi chữ YCCĐ theo đúng PPCT.`, { title: 'Xác nhận lưu mã YCCĐ', confirmText: 'Lưu mã YCCĐ' })
+        : false;
+      if (!okApply) return;
+    }
     state.normBusy = true; state.normMsg = ''; render();
     try {
       const res = await call('/api/knowledge/normalize-outcomes', { grade: state.grade, apply, mappings });

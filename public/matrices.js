@@ -1686,9 +1686,13 @@
     }
     render();
   }
-  function guard(){
+  async function guard(){
     if(ui.dirty){
-      if(confirm('Bạn đang có thay đổi chưa lưu trên ma trận hiện tại. Bạn có muốn bỏ thay đổi để tiếp tục không?')){
+      const ask=root.uiConfirm||root.BankCore?.uiConfirm;
+      const ok=typeof ask==='function'
+        ?await ask('Bạn đang có thay đổi chưa lưu trên ma trận hiện tại. Bạn có muốn bỏ thay đổi để tiếp tục không?',{title:'Thay đổi chưa được lưu',confirmText:'Bỏ thay đổi',danger:true})
+        :true;
+      if(ok){
         ui.dirty=false;
         return true;
       }
@@ -1799,7 +1803,7 @@
     return changedAny;
   }
   async function openRecord(id,discard=false){
-    if(!discard&&!guard())return;
+    if(!discard&&!(await guard()))return;
     const d=await ui.ctx.request('/api/matrices/'+encodeURIComponent(id));
     ui.editing=d.matrix;
     const hadSlotFix=normalizeSlotNumbers(ui.editing);
@@ -3048,7 +3052,7 @@
     if(action==='preview-id'){await run(()=>openPreview(b.dataset.id,'all','web'));return;}
     if(action==='compare-id'){await run(()=>openComparison(b.dataset.id));return;}
     if(action==='new'){
-      if(!guard())return;
+      if(!(await guard()))return;
       const g=Number(b.dataset.grade||qs('#mx-create-grade')?.value||ui.createGrade||ui.filter.grade)||8;
       ui.createGrade=g;
       ui.filter.grade=String(g);
@@ -3066,7 +3070,7 @@
       return;
     }
     if(action==='import'){
-      if(!guard())return;
+      if(!(await guard()))return;
       ui.editing=null;
       ui.generation=null;
       ui.report=null;
@@ -3157,7 +3161,9 @@
     }
     if(action==='clear-slots'&&ui.editing){
       if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
-      if(!confirm('Bạn có chắc chắn muốn làm trống toàn bộ bài học và câu hỏi phân bố trong ma trận để tự thiết lập lại từ đầu?'))return;
+      const ask=root.uiConfirm||root.BankCore?.uiConfirm;
+      const okClear=typeof ask==='function'?await ask('Bạn có chắc chắn muốn làm trống toàn bộ bài học và câu hỏi phân bố trong ma trận để tự thiết lập lại từ đầu?',{title:'Làm trống bảng ma trận',confirmText:'Làm trống toàn bộ',danger:true}):false;
+      if(!okClear)return;
       ui.editing.lessons=[];
       ui.editing.requirements=[];
       ui.editing.slots=[];
@@ -3182,9 +3188,20 @@
       if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
       const nextNum=(ui.editing.lessons?.length||0)+1;
       const defaultCode='B'+nextNum;
-      const title=prompt('Nhập tên bài học / nội dung kiểm tra:', 'Bài ' + nextNum);
+      const askMulti=root.uiMultiPrompt||root.BankCore?.uiMultiPrompt;
+      const ans=typeof askMulti==='function'
+        ?await askMulti({
+          title:'Thêm bài học vào bảng ma trận',
+          fields:[
+            {name:'title',label:'Tên bài học / nội dung kiểm tra',value:'Bài '+nextNum,required:true},
+            {name:'topic',label:'Tên Chủ đề (tùy chọn)',value:'Chủ đề '+nextNum}
+          ],
+          confirmText:'Thêm bài học'
+        })
+        :null;
+      const title=ans?.title||'';
       if(!title||!title.trim())return;
-      const topic=prompt('Nhập tên Chủ đề (tùy chọn):', 'Chủ đề ' + nextNum)||'';
+      const topic=ans?.topic||'';
       let code=defaultCode;
       while((ui.editing.lessons||[]).some(x=>x.lesson_code===code)){
         code='B'+Math.floor(Math.random()*900+100);
@@ -3479,7 +3496,8 @@
         const id=b.dataset.id||ui.editing?.id;if(!id)return;
         const target=ui.records.find(x=>x.id===id)||(ui.editing?.id===id?ui.editing:null);
         const label=target?.title||'Ma trận này';
-        if(typeof window!=='undefined'&&window.confirm&&!window.confirm(`Xóa vĩnh viễn hồ sơ ma trận "${label}"?`))return;
+        const ask=root.uiConfirm||root.BankCore?.uiConfirm;
+        if(typeof ask==='function'&&!(await ask(`Xóa vĩnh viễn hồ sơ ma trận "${label}"?`,{title:'Xóa hồ sơ ma trận',confirmText:'Xóa vĩnh viễn',danger:true})))return;
         await ui.ctx.request('/api/matrices/delete',{id});
         if(ui.editing?.id===id){ui.editing=null;ui.dirty=false;}
         if(ui.previewState?.id===id)ui.previewState=null;

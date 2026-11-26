@@ -1,3 +1,8 @@
+## 26/11/2026 — Thay thế 100% `alert / confirm / prompt` gốc trình duyệt bằng modal tùy biến
+
+- **Hệ thống modal chuẩn Asian School (`core.js`, `index.html`, `styles.css`):** bổ sung `#app-modal-dialog` cùng `uiConfirm`, `uiPrompt`, `uiMultiPrompt` (hỗ trợ Escape, bấm backdrop, nhấn nút đóng `✕`, kiểm tra bắt buộc nội tuyến không cần alert, và phân biệt màu đỏ cảnh báo `danger-solid` cho các thao tác xóa / ghi đè).
+- **Loại bỏ toàn bộ 31 lệnh `confirm()` / `prompt()` ở client (`app.js`, `matrices.js`, `firebase-bridge.js`, `knowledge-ui.js`):** giữ đầy đủ ngữ cảnh xác nhận và gộp 2 hộp thoại `prompt` nhập tên bài + chủ đề trong trình soạn ma trận thành 1 modal 2 trường gọn gàng. Mở rộng kiểm thử tĩnh ở `tests/ui_shell_redesign.test.cjs` cấm tuyệt đối `alert(`, `confirm(`, `prompt(` trong `public/`.
+
 ## 26/11/2026 — So sánh trực quan vị trí câu hỏi (Đề thi ↔ Đề cương & giữa các đề)
 
 - **Dữ liệu đối chiếu giàu vị trí (`static-exam-engine.js`):** `revisionCoverage` đánh chỉ số vị trí từng câu theo phần (`TN câu k`, `Đ/S câu k`, `TLN câu k`, `TL câu k`), phân loại quan hệ (`exact`, `shuffled`, `similar`, `outside`) qua `core.questionRelation`, tạo `option_map` ánh xạ từng phương án A–D / mệnh đề a–d trước–sau trộn, kèm `exam_detail`, `revision_detail` và `match_summary`.

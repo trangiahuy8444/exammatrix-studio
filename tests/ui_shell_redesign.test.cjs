@@ -31,10 +31,13 @@ test('index.html preserves required shell, header, toast, and sidebar IDs', () =
   }
   assert(indexHtml.includes('id="notice" popover="manual"'), '#notice must use popover="manual" for top-layer visibility');
   assert(!indexHtml.includes('class="page-crumb"'), 'Redundant breadcrumb should be removed from topbar');
-  assert(indexHtml.includes('./styles.css?v=20261126b'));
-  assert(indexHtml.includes('./matrices.js?v=20261125n'));
-  assert(indexHtml.includes('./firebase-bridge.js?v=20261125q'));
-  assert(indexHtml.includes('./app.js?v=20261126b'));
+  assert(indexHtml.includes('id="app-modal-dialog"'), 'Missing #app-modal-dialog in public/index.html');
+  assert(indexHtml.includes('./styles.css?v=20261126c'));
+  assert(indexHtml.includes('./core.js?v=20261126c'));
+  assert(indexHtml.includes('./matrices.js?v=20261126c'));
+  assert(indexHtml.includes('./firebase-bridge.js?v=20261126c'));
+  assert(indexHtml.includes('./app.js?v=20261126c'));
+  assert(indexHtml.includes('./knowledge-ui.js?v=20261126c'));
 });
 
 test('styles.css styles #notice as floating fixed toast, full nav collapse, and single-line topbar', () => {
@@ -73,10 +76,13 @@ test('firebase-bridge.js renders streamlined account dropdown, preserves auth/Dr
   assert(bridgeJs.includes("typeof window.notify === 'function'"), 'showToast must delegate to window.notify');
 });
 
-test('no browser alert() calls remain anywhere in public/ JS or HTML files', () => {
+test('no browser alert(), confirm(), or prompt() calls remain anywhere in public/ JS or HTML files', () => {
+  const coreJs = fs.readFileSync(path.join(publicDir, 'core.js'), 'utf8');
+  assert(coreJs.includes('function uiConfirm(') && coreJs.includes('function uiPrompt(') && coreJs.includes('function uiMultiPrompt('));
+  assert(stylesCss.includes('dialog.app-modal-dialog') && stylesCss.includes('button.danger-solid'));
   const files = fs.readdirSync(publicDir).filter(f => /\.(js|html)$/i.test(f));
   for (const f of files) {
     const content = fs.readFileSync(path.join(publicDir, f), 'utf8');
-    assert(!/\balert\s*\(/.test(content), `Found forbidden alert() call in public/${f}`);
+    assert(!/\b(alert|confirm|prompt)\s*\(/.test(content), `Found forbidden native dialog call in public/${f}`);
   }
 });

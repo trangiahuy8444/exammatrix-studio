@@ -1891,6 +1891,42 @@
   }
   window.FirebaseClient.syncDriveV2Now = syncDriveV2Now;
 
+  // Mở web ngay trong Zalo, Messenger…: Google chặn đăng nhập (Error 403: disallowed_useragent).
+  // Hiện hướng dẫn mở bằng Chrome/Safari ngay trên nút Google; không khóa nút vì việc nhận diện có thể sai.
+  function addInAppBrowserNotice(googleBtn) {
+    const detect = window.BankCore?.inAppBrowserName;
+    const appName = detect ? detect(window.navigator?.userAgent) : null;
+    if (!appName || !googleBtn) return;
+    const link = window.location.origin + window.location.pathname;
+    const box = document.createElement('div');
+    box.id = 'fb-inapp-notice';
+    box.setAttribute('role', 'alert');
+    box.style.cssText = 'background:#fff7e6;border:1px solid #f0b429;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#5c3d00;line-height:1.5;display:flex;flex-direction:column;gap:8px;';
+    box.innerHTML = `
+      <strong>Thầy/Cô đang mở trang này trong ${appName}. Google không cho đăng nhập tại đây.</strong>
+      <span>Bấm dấu <strong>⋯</strong> hoặc <strong>⋮</strong> ở góc màn hình, chọn <strong>“Mở bằng trình duyệt”</strong>. Nếu không thấy, hãy chép địa chỉ dưới đây rồi dán vào <strong>Chrome</strong> hoặc <strong>Safari</strong>.</span>
+      <span style="display:flex;gap:6px;">
+        <input type="text" id="fb-inapp-link" readonly aria-label="Địa chỉ trang web" style="flex:1;min-width:0;padding:6px 8px;border:1px solid #f0b429;border-radius:6px;font-size:12px;background:#ffffff;">
+        <button type="button" id="fb-inapp-copy" class="button" style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap;">Chép địa chỉ</button>
+      </span>`;
+    googleBtn.parentNode.insertBefore(box, googleBtn);
+    const input = box.querySelector('#fb-inapp-link');
+    const copyBtn = box.querySelector('#fb-inapp-copy');
+    input.value = link;
+    copyBtn.onclick = async () => {
+      input.focus();
+      input.select();
+      let copied = false;
+      try {
+        await window.navigator.clipboard.writeText(link);
+        copied = true;
+      } catch {
+        try { copied = document.execCommand('copy'); } catch { copied = false; }
+      }
+      copyBtn.textContent = copied ? 'Đã chép' : 'Nhấn giữ để chép';
+    };
+  }
+
   function createUnifiedCloudLoginModal(auth, helpers) {
     if (typeof document === 'undefined' || !document.body) return;
     const existing = document.getElementById('firebase-login-modal');
@@ -1945,6 +1981,7 @@
 
     const errBox = modal.querySelector('#fb-auth-error');
     const googleBtn = modal.querySelector('#fb-btn-google');
+    addInAppBrowserNotice(googleBtn);
     const form = modal.querySelector('#fb-login-form');
     const emailInput = modal.querySelector('#fb-email');
     const passInput = modal.querySelector('#fb-password');

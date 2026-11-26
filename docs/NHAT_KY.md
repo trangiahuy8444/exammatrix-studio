@@ -1,3 +1,10 @@
+## 26/11/2026 — Hướng dẫn đăng nhập khi mở web từ Zalo, Messenger
+
+Giáo viên khác báo bị chặn đăng nhập. Một nguyên nhân khả dĩ: Google chặn đăng nhập trong trình duyệt nhúng của ứng dụng chat. Chưa có ảnh mã lỗi thực tế; các trường hợp khác (email trường bị quản trị chặn, cửa sổ bật lên, tên miền) chưa xử lí trong mã.
+
+- `core.inAppBrowserName`: nhận ra Zalo, Messenger, Facebook, Instagram, LINE, TikTok, webview Android.
+- Hộp đăng nhập hiện khung hướng dẫn "Mở bằng trình duyệt" kèm địa chỉ trang và nút chép; nút Google vẫn bấm được.
+
 ## 26/11/2026 — Quy trình linh hoạt hai chiều (không khóa cứng phải tạo Đề cương trước Đề thi)
 
 - **Endpoint `/api/revisions/from-exam` (`static-api.js`) & UI 1 chạm (`app.js`, `matrices.js`, `core.js`):** cho phép giáo viên tạo đề kiểm tra trước (không cần đề cương có sẵn), rồi bấm **`📝 Tạo & gắn Đề cương từ đề này`** ngay trên thẻ đề thi, khung kết quả Ma trận 2D hoặc tab Báo cáo kiểm định để hệ thống tự rút câu hỏi gốc trong ngân hàng thành Đề cương ôn tập (phủ 100% YCCĐ, mặc định `90%` hoặc tùy chọn), gắn luôn vào đề và cập nhật kết quả kiểm định đạt chuẩn.

@@ -1471,6 +1471,18 @@ function syncEditedQuestionsFromSheet(sheet,record){
     });
     return res?res.value:null;
   }
-  const api={syncOutcomeIds,normalizeOutcomeIds,questionKeys,questionRelation,RELATION_LABELS,textSimilarity,questionBigrams,VI_STOPWORDS,parsePrerequisite,detectPrerequisiteCycle,requiredRevisionCount,computeRevisionPlan,outcomeIdPrefix,lessonOutcomeIds,assignOutcomeIds,resolveOutcome,suggestOutcomes,kyStepperModel,dossierStatus,permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter,uiConfirm,uiPrompt,uiMultiPrompt};
+  // Trình duyệt nhúng trong ứng dụng (Google chặn đăng nhập tại đây). Trả tên ứng dụng, hoặc null nếu là trình duyệt thường.
+  function inAppBrowserName(agent){
+    const a=String(agent||'');
+    if(/zalo/i.test(a))return 'Zalo';
+    if(/Messenger|MessengerForiOS|FB_IAB\/Orca|FBAN\/Orca/i.test(a))return 'Messenger';
+    if(/FBAN|FBAV|FB_IAB/.test(a))return 'Facebook';
+    if(/Instagram/.test(a))return 'Instagram';
+    if(/\bLine\//.test(a))return 'LINE';
+    if(/TikTok|musical_ly|BytedanceWebview/i.test(a))return 'TikTok';
+    if(/Android.*;\s*wv\)/.test(a))return 'một ứng dụng khác';
+    return null;
+  }
+  const api={inAppBrowserName,syncOutcomeIds,normalizeOutcomeIds,questionKeys,questionRelation,RELATION_LABELS,textSimilarity,questionBigrams,VI_STOPWORDS,parsePrerequisite,detectPrerequisiteCycle,requiredRevisionCount,computeRevisionPlan,outcomeIdPrefix,lessonOutcomeIds,assignOutcomeIds,resolveOutcome,suggestOutcomes,kyStepperModel,dossierStatus,permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter,uiConfirm,uiPrompt,uiMultiPrompt};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;root.uiConfirm=uiConfirm;root.uiPrompt=uiPrompt;root.uiMultiPrompt=uiMultiPrompt;}
 })(typeof window!=='undefined'?window:globalThis);

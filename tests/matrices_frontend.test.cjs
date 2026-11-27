@@ -164,56 +164,84 @@ Khối: 9
   assert.ok(htmlSame.includes('rowspan="2"'), 'Cả Khung Ma trận và Bản đặc tả phải gộp ô TT và Chủ đề (rowspan=2)');
   console.log('PASS matrix UI: buildMatrixView & generateMatrixWordHtml xuất chuẩn bố cục Word 2 bảng và tự động gộp ô theo chủ đề');
 
-  // Test web-native matrix creation & presets
-  assert.ok(ui.STANDARD_PRESETS, 'STANDARD_PRESETS must exist');
-  assert.ok(ui.STANDARD_PRESETS['8'], 'Preset for grade 8 must exist');
-  assert.ok(ui.STANDARD_PRESETS['9'], 'Preset for grade 9 must exist');
-  assert.ok(ui.STANDARD_PRESETS['10'], 'Preset for grade 10 must exist');
+  // Helper tạo fixture ma trận kiểm thử sạch (không còn STANDARD_PRESETS viết sẵn)
+  function buildSampleThcsMatrix(grade) {
+    const lessons = [
+      { lesson_code: 'B1', title: 'Bài 1', topic: 'Chủ đề 1' },
+      { lesson_code: 'B2', title: 'Bài 2', topic: 'Chủ đề 2' },
+      { lesson_code: 'B3', title: 'Bài 3', topic: 'Chủ đề 2' },
+      { lesson_code: 'B4', title: 'Bài 4', topic: 'Chủ đề 3' },
+      { lesson_code: 'B12', title: 'Bài 12', topic: 'Chủ đề 4' }
+    ];
+    const requirements = [
+      { id: 'R1', lesson_code: 'B1', level: 'Biết', text: 'YCCĐ B1 Biết', ppct_outcome_index: 0, competency: 'NLa' },
+      { id: 'R2', lesson_code: 'B1', level: 'Hiểu', text: 'YCCĐ B1 Hiểu', ppct_outcome_index: 1, competency: 'NLa' },
+      { id: 'R3', lesson_code: 'B2', level: 'Biết', text: 'YCCĐ B2 Biết', ppct_outcome_index: 0, competency: 'NLa' },
+      { id: 'R4', lesson_code: 'B2', level: 'Hiểu', text: 'YCCĐ B2 Hiểu', ppct_outcome_index: 1, competency: 'NLa' },
+      { id: 'R5', lesson_code: 'B2', level: 'Vận dụng', text: 'YCCĐ B2 VD', ppct_outcome_index: 0, competency: 'NLa' },
+      { id: 'R6', lesson_code: 'B3', level: 'Biết', text: 'YCCĐ B3 Biết', ppct_outcome_index: 0, competency: 'NLa' },
+      { id: 'R7', lesson_code: 'B3', level: 'Hiểu', text: 'YCCĐ B3 Hiểu', ppct_outcome_index: 0, competency: 'NLa' },
+      { id: 'R8', lesson_code: 'B3', level: 'Vận dụng', text: 'YCCĐ B3 VD', ppct_outcome_index: 0, competency: 'NLa' },
+      { id: 'R9', lesson_code: 'B4', level: 'Biết', text: 'YCCĐ B4 Biết', ppct_outcome_index: 0, competency: 'NLb' },
+      { id: 'R10', lesson_code: 'B4', level: 'Hiểu', text: 'YCCĐ B4 Hiểu', ppct_outcome_index: 0, competency: 'NLb' },
+      { id: 'R11', lesson_code: 'B4', level: 'Vận dụng', text: 'YCCĐ B4 VD', ppct_outcome_index: 0, competency: 'NLb' },
+      { id: 'R12', lesson_code: 'B12', level: 'Biết', text: 'YCCĐ B12 Biết', ppct_outcome_index: 0, competency: 'NLc' },
+      { id: 'R13', lesson_code: 'B12', level: 'Hiểu', text: 'YCCĐ B12 Hiểu', ppct_outcome_index: 0, competency: 'NLc' }
+    ];
+    const mcReqIds = [
+      'R1','R1','R1','R1',
+      'R2','R2','R2',
+      'R3','R3','R3',
+      'R4','R4','R4',
+      'R6','R6','R6',
+      'R7','R7',
+      'R9','R9','R9','R9',
+      'R10','R10','R10',
+      'R12','R12',
+      'R13'
+    ];
+    const slots = mcReqIds.map((rid, i) => ({
+      id: 'S' + (i + 1),
+      kind: 'MC',
+      number: i + 1,
+      parts: [{ id: 'P' + (i + 1), label: '', requirement_id: rid, points: 0.25, indicator: '' }],
+      scoring: { mode: 'sum_parts' }
+    }));
+    ['R5', 'R8', 'R11'].forEach((rid, i) => {
+      const idx = slots.length + 1;
+      slots.push({
+        id: 'S' + idx,
+        kind: 'ES',
+        number: i + 1,
+        parts: [{ id: 'P' + idx, label: '', requirement_id: rid, points: 1, indicator: '' }],
+        scoring: { mode: 'sum_parts' }
+      });
+    });
+    return {
+      ...ui.newDraft(grade),
+      lessons,
+      requirements,
+      slots
+    };
+  }
 
-  // Test newDraft for Grade 8
-  const draft8 = ui.newDraft(8, true);
-  assert.equal(draft8.grade, 8);
-  assert.equal(draft8.profile, 'THCS');
-  assert.equal(draft8.total_points, 10);
-  assert.equal(draft8.lessons.length, 5);
-  assert.equal(draft8.slots.length, 31);
-  const total8 = draft8.slots.flatMap(s => s.parts).reduce((sum, p) => sum + Number(p.points), 0);
-  assert.equal(total8, 10, 'Grade 8 preset must equal 10.0 points');
-
-  // Test newDraft for Grade 9
-  const draft9 = ui.newDraft(9, true);
-  assert.equal(draft9.grade, 9);
-  assert.equal(draft9.profile, 'THCS');
-  assert.equal(draft9.total_points, 10);
-  assert.equal(draft9.lessons.length, 5);
-  assert.equal(draft9.slots.length, 31);
-  const total9 = draft9.slots.flatMap(s => s.parts).reduce((sum, p) => sum + Number(p.points), 0);
-  assert.equal(total9, 10, 'Grade 9 preset must equal 10.0 points');
-
-  // Test newDraft presets for all grades 6 to 12
+  // Xác nhận đã bỏ hoàn toàn bộ mẫu viết sẵn STANDARD_PRESETS; newDraft luôn tạo nháp trắng
+  assert.equal(ui.STANDARD_PRESETS, undefined, 'STANDARD_PRESETS must be completely removed');
   for (const g of [6, 7, 8, 9, 10, 11, 12]) {
-    assert.ok(ui.STANDARD_PRESETS[String(g)], `Preset for grade ${g} must exist`);
-    const d = ui.newDraft(g, true);
+    const d = ui.newDraft(g);
     assert.equal(d.grade, g);
     assert.equal(d.total_points, 10);
     assert.equal(d.profile, g >= 10 ? 'THPT' : 'THCS');
-    const tot = d.slots.flatMap(s => s.parts).reduce((sum, p) => sum + Number(p.points), 0);
-    assert.equal(tot, 10, `Grade ${g} preset must sum to 10.0 points`);
+    assert.equal(d.lessons.length, 0, `Grade ${g} newDraft must start empty without preset`);
+    assert.equal(d.slots.length, 0, `Grade ${g} newDraft must start with 0 slots`);
+    assert.equal(d.requirements.length, 0, `Grade ${g} newDraft must start with 0 requirements`);
   }
-  console.log('PASS matrix UI: presets for all grades 6-12 verified at 10.0 points');
-
-  // Test clean draft creation (no initial pre-filled lessons or slots)
-  const cleanDraft = ui.newDraft(10, false);
-  assert.equal(cleanDraft.grade, 10);
-  assert.equal(cleanDraft.profile, 'THPT');
-  assert.equal(cleanDraft.lessons.length, 0, 'Clean draft must start with 0 lessons');
-  assert.equal(cleanDraft.slots.length, 0, 'Clean draft must start with 0 slots');
-  assert.equal(cleanDraft.requirements.length, 0, 'Clean draft must start with 0 requirements');
-  console.log('PASS matrix UI: clean draft creation starts empty with 0 lessons and 0 slots');
+  console.log('PASS matrix UI: clean draft creation across grades 6-12 with STANDARD_PRESETS removed');
 
   // Test updateSlotsFromGrid interactive adjustments
-  const testMatrix = ui.newDraft(8, true);
+  const testMatrix = buildSampleThcsMatrix(8);
   const initialSlots = testMatrix.slots.length;
+  assert.equal(initialSlots, 31);
   // Reduce MC_B for B1 from 4 to 2
   ui.updateSlotsFromGrid(testMatrix, 'B1', 'MC_B', 2);
   assert.equal(testMatrix.slots.length, initialSlots - 2, 'Slots count should decrease by 2');
@@ -223,7 +251,7 @@ Khối: 9
   assert.equal(testMatrix.slots[0].id, 'S1');
   assert.equal(testMatrix.slots[0].number, 1);
   // Test sortLessonsByPpct when B2 is removed and re-added at the end (B1, B3, B4, B5, B2 -> B1, B2, B3, B4, B5)
-  const sortMatrix = ui.newDraft(9, false);
+  const sortMatrix = ui.newDraft(9);
   sortMatrix.lessons = [
     { lesson_code: 'B1', title: 'Thế giới kĩ thuật số', topic: 'Chủ đề 1' },
     { lesson_code: 'B3', title: 'Thực hành: Đánh giá chất lượng thông tin', topic: 'Chủ đề 2' },
@@ -237,15 +265,28 @@ Khối: 9
     ['B1', 'B2', 'B3', 'B4', 'B5'],
     'Lessons should be sorted in natural PPCT order B1..B5'
   );
-  console.log('PASS matrix UI: web-native matrix creation, Asian School presets, lesson sorting & 2D grid updates passed');
+  console.log('PASS matrix UI: web-native matrix creation, lesson sorting & 2D grid updates passed');
 
-  // Test interactive specGridHtml & fillLessonPpctRequirements & Grade 8 Word 100% exact format
-  const g8Preset = ui.STANDARD_PRESETS['8'];
+  // Test interactive specGridHtml with new 2-button bank workflow & Word export
+  const g8Matrix = buildSampleThcsMatrix(8);
   assert(typeof ui.specGridHtml === 'function', 'specGridHtml should be exported');
-  assert(typeof ui.fillLessonPpctRequirements === 'function', 'fillLessonPpctRequirements should be exported');
-  const specHtml = ui.specGridHtml(g8Preset, false, false);
+  assert(typeof ui.autoFillSpecFromBank === 'function', 'autoFillSpecFromBank should be exported');
+  assert(typeof ui.bankOutcomesForLesson === 'function', 'bankOutcomesForLesson should be exported');
+  assert(typeof ui.applySpecBankSelections === 'function', 'applySpecBankSelections should be exported');
+  assert(typeof ui.reconcileSpecRequirements === 'function', 'reconcileSpecRequirements should be exported');
+
+  const g8GridHtml = ui.matrixGridHtml(g8Matrix, false, false);
+  assert(!g8GridHtml.includes('apply-preset'), 'Matrix 1 must not render apply-preset button');
+
+  const specHtml = ui.specGridHtml(g8Matrix, false, false);
   assert(specHtml.includes('Bảng 2: Bảng đặc tả đề kiểm tra trực quan'), 'Should render Table 2 header');
-  assert(specHtml.includes('Tự điền toàn bộ YCCĐ từ PPCT'), 'Should render 1-click auto-fill button');
+  assert(specHtml.includes('data-action="random-fill-spec-from-bank"'), 'Should render random-fill-from-bank button');
+  assert(specHtml.includes('data-action="open-spec-bank-picker"'), 'Should render open-spec-bank-picker button');
+  assert(specHtml.includes('data-action="random-fill-lesson-from-bank"'), 'Should render per-lesson random bank button');
+  assert(!specHtml.includes('auto-fill-all-ppct-reqs'), 'Must not render old auto-fill PPCT button');
+  assert(!specHtml.includes('fill-lesson-ppct-reqs'), 'Must not render old per-lesson fill PPCT button');
+  assert(!specHtml.includes('split-all-question-reqs'), 'Must not render manual split button');
+  assert(!specHtml.includes('merge-all-question-reqs'), 'Must not render manual merge button');
   assert(specHtml.includes('mx-spec-req-input'), 'Should render editable textareas for requirements');
   assert(specHtml.includes('MC (B)'), 'Should format question count with level and competency');
   assert(specHtml.includes('mx-spec-lesson-row'), 'Should render lesson row highlight classes');
@@ -253,7 +294,7 @@ Khối: 9
   assert(specHtml.includes('mx-spec-topic-start'), 'Should render topic boundary marker');
   assert(specHtml.includes('mx-spec-level-block'), 'Should render level separator block inside lesson');
 
-  const g8WordHtml = ui.generateMatrixWordHtml(g8Preset, 'all');
+  const g8WordHtml = ui.generateMatrixWordHtml(g8Matrix, 'all');
   assert(g8WordHtml.includes('KHUNG MA TRẬN ĐỀ KIỂM TRA ĐỊNH KỲ'), 'Word should include Khung ma trận');
   assert(g8WordHtml.includes('BẢNG ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KỲ'), 'Word should include Bảng đặc tả');
   assert(g8WordHtml.includes('Lưu ý:'), 'Word should include notice notes under tables');
@@ -263,10 +304,7 @@ Khối: 9
   console.log('PASS matrix UI: specGridHtml and Grade 8 exact layout Word export passed');
 
   // Test two-stage locking: Table 1 (Matrix 2D) lock and Table 2 (Spec) lock
-  const draftMatrix = ui.newDraft(8, false);
-  draftMatrix.lessons = g8Preset.lessons;
-  draftMatrix.requirements = g8Preset.requirements;
-  draftMatrix.slots = g8Preset.slots;
+  const draftMatrix = buildSampleThcsMatrix(8);
 
   // Unlocked state
   const gridUnlockedHtml = ui.matrixGridHtml(draftMatrix, false, false);
@@ -315,10 +353,7 @@ Khối: 9
   console.log('PASS matrix UI: two-stage independent locking for Matrix 2D and Spec Grid passed');
 
   // Test customizable question numbers by level and competency input in Spec Grid
-  const customSpecMatrix = ui.newDraft(8, false);
-  customSpecMatrix.lessons = g8Preset.lessons;
-  customSpecMatrix.requirements = JSON.parse(JSON.stringify(g8Preset.requirements));
-  customSpecMatrix.slots = g8Preset.slots;
+  const customSpecMatrix = buildSampleThcsMatrix(8);
 
   // Unlocked editable state should have mx-spec-refs-input and exactly 1 mx-spec-comp-input per level
   const editableSpecHtml = ui.specGridHtml(customSpecMatrix, false, false);
@@ -350,8 +385,8 @@ Khối: 9
   assert(updatedWordHtml.includes('Câu 1 - 4 (Tùy chỉnh)'), 'Word export must reflect custom question refs');
   assert(updatedWordHtml.includes('4 MC (B) (NLb)'), 'Word export must reflect customized competency (NLb)');
 
-  // Test splitting requirements into per-question objectives (đặc tả theo mục tiêu của từng câu hỏi)
-  const perQuestionMatrix = ui.newDraft(9, true);
+  // Test per-question objectives automatically separated & rendered cleanly
+  const perQuestionMatrix = buildSampleThcsMatrix(9);
   const splitCount = ui.splitQuestionRequirements(perQuestionMatrix, 'B1', 'Biết');
   assert.equal(splitCount, 4, 'B1 - Biết has 4 MC questions so splitting must create 4 per-question objective rows');
   const b1BietReqs = perQuestionMatrix.requirements.filter(r => r.lesson_code === 'B1' && r.level === 'Biết');
@@ -359,7 +394,7 @@ Khối: 9
   b1BietReqs[0].text = 'Mục tiêu riêng của Câu 1';
   b1BietReqs[1].text = 'Mục tiêu riêng của Câu 2';
   const perQSpecHtml = ui.specGridHtml(perQuestionMatrix, false, false);
-  assert(perQSpecHtml.includes('4 mục tiêu câu hỏi'), 'Spec grid must show count of per-question objectives');
+  assert(perQSpecHtml.includes('4 mục tiêu (tự động tách theo YCCĐ)'), 'Spec grid must show count of per-question objectives');
   assert(perQSpecHtml.includes('Mục tiêu riêng của Câu 1'), 'Spec grid must render objective of Question 1');
   assert(perQSpecHtml.includes('Mục tiêu riêng của Câu 2'), 'Spec grid must render objective of Question 2');
   const perQWordHtml = ui.generateMatrixWordHtml(perQuestionMatrix, 'specification');
@@ -370,7 +405,7 @@ Khối: 9
 
 // Khung hướng dẫn nhập số liệu trên bảng ma trận 2D (hiện cả khi đã khóa) và thu phóng khung xem trước.
 {
-  const draft = ui.newDraft(8, false);
+  const draft = ui.newDraft(8);
   for (const locked of [false, true]) {
     const html = ui.matrixGridHtml(draft, locked, false);
     assert(html.includes('class="mx-help"'), 'Matrix 2D must render the help panel (locked=' + locked + ')');
@@ -389,11 +424,6 @@ Khối: 9
   }
   // Thu phóng chỉ là hiển thị: không được chèn style trực tiếp vào phần thân bảng sẽ được lưu/xuất.
   assert(!/mx-sheet-body[^`]{0,40}style=/.test(js.slice(js.indexOf('function renderPreviewBox'), js.indexOf('function renderComparisonBox'))), 'Zoom must not add inline style to .mx-sheet-body');
-  for (const g of [6, 7]) {
-    const p = ui.STANDARD_PRESETS[String(g)];
-    assert(p && p.requirements.length > 0, `Preset grade ${g} must exist`);
-    assert(p.requirements.every(r => ['NLa', 'NLb', 'NLc', 'NLd', 'NLe'].includes(r.competency)), `Preset grade ${g} must only use Informatics competencies NLa..NLe (no TDLL)`);
-  }
   assert(js.includes("function switchGradeContext(rawGrade,source='create')"), 'switchGradeContext must exist to refresh UI and clear old grade preview/editor');
   assert(js.includes("if(el.id==='mx-create-grade')"), 'Changing #mx-create-grade must invoke switchGradeContext');
   assert(js.includes("ui.editing.requirements=[];\n      ui.editing.slots=[];"), 'Switching grade in editor must always clear old requirements and slots even if new grade has no PPCT');
@@ -927,6 +957,103 @@ Khối: 9
       assert.equal(resSpec.matrix.source_exam_id, 'EX-FROM-ORIG');
       assert.deepEqual(unlockedCalls, ['MX-ORIG-1'], 'Ma trận locked gốc phải được mở khóa tại chỗ để ghi Bảng 2');
       console.log('PASS matrix UI: trích xuất Bảng 2 Đặc tả và KHKTĐG liên kết lại đúng ma trận gốc, không tạo phiên bản trùng');
+    } finally {
+      global.document = prevDoc;
+    }
+  }
+
+  // Kiểm tra Bảng 2 lấy YCCĐ + NL từ Ngân hàng đề & tự động gom/tách
+  {
+    const prevDoc = global.document;
+    const stubHost = {
+      innerHTML: '',
+      querySelector: () => ({ innerHTML: '', textContent: '', hidden: false, value: '', disabled: false, querySelector: () => null, querySelectorAll: () => [] }),
+      querySelectorAll: () => [],
+      addEventListener: () => {}
+    };
+    global.document = {
+      getElementById: () => null,
+      createElement: () => ({ innerHTML: '', style: {}, querySelector: () => null, querySelectorAll: () => [] })
+    };
+    try {
+      const bankQuestions = [
+        { id: 'Q1', grade: 8, subject_name: 'Tin học', lesson_code: 'B1', type: 'MC', level: 'Biết', review_status: 'approved', learning_outcome: 'Trình bày được sơ lược lịch sử phát triển máy tính.', competency: 'NLa' },
+        { id: 'Q2', grade: 8, subject_name: 'Tin học', lesson_code: 'B1', type: 'MC', level: 'Biết', review_status: 'approved', learning_outcome: 'Nêu được ví dụ thay đổi xã hội do máy tính mang lại.', competency: 'NLb' },
+        { id: 'Q3', grade: 8, subject_name: 'Tin học', lesson_code: 'B1', type: 'MC', level: 'Hiểu', review_status: 'approved', learning_outcome: 'Trình bày được sơ lược lịch sử phát triển máy tính.', competency: 'NLa' },
+        { id: 'Q4', grade: 9, subject_name: 'Tin học', lesson_code: 'B1', type: 'MC', level: 'Biết', review_status: 'approved', learning_outcome: 'YCCĐ khối 9 không được lẫn vào khối 8.', competency: 'NLd' },
+        { id: 'Q5', grade: 8, subject_name: 'Toán học', lesson_code: 'B1', type: 'MC', level: 'Biết', review_status: 'approved', learning_outcome: 'YCCĐ môn Toán không được lẫn vào Tin học.', competency: 'TDLL' }
+      ];
+      await ui.mount(stubHost, {
+        context: { subject_name: 'Tin học' },
+        ppct: {
+          lessons: [
+            {
+              grade: 8,
+              subject_name: 'Tin học',
+              lesson_code: 'B1',
+              lesson_name_source: 'Lược sử công cụ tính toán',
+              topic_source: 'Chủ đề 1',
+              outcomes: [
+                'Trình bày được sơ lược lịch sử phát triển máy tính.',
+                'Nêu được ví dụ thay đổi xã hội do máy tính mang lại.',
+                'YCCĐ thứ 3 chưa có câu trong ngân hàng đề.'
+              ],
+              outcome_ids: ['TIN8-B1-YC1', 'TIN8-B1-YC2', 'TIN8-B1-YC3']
+            }
+          ]
+        },
+        questions: bankQuestions,
+        activeGrade: 8,
+        activeGrades: [8],
+        request: async url => (url === '/api/matrices' ? { matrices: [] } : {}),
+        notify: () => {}
+      });
+
+      const m = ui.newDraft(8);
+      m.lessons = [{ lesson_code: 'B1', title: 'Lược sử công cụ tính toán', topic: 'Chủ đề 1' }];
+      ui.updateSlotsFromGrid(m, 'B1', 'MC_B', 3);
+      // Mặc định updateSlotsFromGrid tạo outcome_mode: 'any'
+      assert.equal(m.requirements[0].outcome_mode, 'any');
+
+      const bankInfo = ui.bankOutcomesForLesson(m, 'B1', { kind: 'MC', level: 'Biết' });
+      assert.equal(bankInfo.bankItems.length, 2, 'Chỉ lấy 2 YCCĐ thuộc đúng Khối 8 · Tin học · B1 từ Ngân hàng đề');
+      assert.equal(bankInfo.ppctOnly.length, 1, 'Tách riêng 1 YCCĐ PPCT chưa có câu hỏi nào trong Ngân hàng đề');
+      assert.equal(bankInfo.ppctOnly[0].ppct_outcome_index, 2);
+      assert(bankInfo.bankItems.every(x => !x.text.includes('khối 9') && !x.text.includes('Toán')), 'Không lẫn dữ liệu khác khối/môn');
+
+      // 1) Chọn 2 câu cùng YCCĐ+NL (YC1, NLa) và 1 câu khác YCCĐ+NL (YC2, NLb) -> tự động tách thành 2 dòng (Câu 1, Câu 2) và (Câu 3)
+      const sel1 = new Map([
+        [m.slots[0].id, { lesson_code: 'B1', level: 'Biết', text: bankInfo.bankItems[0].text, competency: 'NLa', ppct_outcome_index: 0, ppct_outcome_id: 'TIN8-B1-YC1' }],
+        [m.slots[1].id, { lesson_code: 'B1', level: 'Biết', text: bankInfo.bankItems[0].text, competency: 'NLa', ppct_outcome_index: 0, ppct_outcome_id: 'TIN8-B1-YC1' }],
+        [m.slots[2].id, { lesson_code: 'B1', level: 'Biết', text: bankInfo.bankItems[1].text, competency: 'NLb', ppct_outcome_index: 1, ppct_outcome_id: 'TIN8-B1-YC2' }]
+      ]);
+      const r1 = ui.applySpecBankSelections(m, sel1);
+      assert.equal(r1.updatedSlots, 3);
+      assert.equal(m.requirements.length, 2, 'Tự động gom 2 câu chung YCCĐ+NL và tách 1 câu khác YCCĐ+NL thành 2 dòng');
+      assert.equal(m.requirements[0].outcome_mode, undefined, 'Phải xóa outcome_mode: any khi đã gắn YCCĐ PPCT cụ thể');
+      assert.equal(m.requirements[0].ppct_outcome_index, 0);
+      assert.equal(m.requirements[1].ppct_outcome_index, 1);
+      const specRendered = ui.specGridHtml(m, false, false);
+      assert(specRendered.includes('2 mục tiêu (tự động tách theo YCCĐ)'));
+      assert(specRendered.includes('(NLa, NLb)'), 'Cột MC phải hiển thị đủ cả 2 mã NL khi mức độ có nhiều NL');
+
+      // 2) Chuyển câu 3 sang cùng YCCĐ+NL với câu 1 & 2 -> tự động gom còn đúng 1 dòng
+      const sel2 = new Map([
+        [m.slots[2].id, { lesson_code: 'B1', level: 'Biết', text: bankInfo.bankItems[0].text, competency: 'NLa', ppct_outcome_index: 0, ppct_outcome_id: 'TIN8-B1-YC1' }]
+      ]);
+      ui.applySpecBankSelections(m, sel2);
+      assert.equal(m.requirements.length, 1, 'Tự động gom cả 3 câu cùng YCCĐ+NL về 1 dòng duy nhất');
+      const vMerged = ui.buildMatrixView(m);
+      assert.deepEqual(vMerged.requirements[0].refs, ['Câu 1', 'Câu 2', 'Câu 3']);
+
+      // 3) Kiểm tra autoFillSpecFromBank (ngẫu nhiên có kiểm soát từ ngân hàng đề)
+      let seq = 0;
+      const fillRes = ui.autoFillSpecFromBank(m, { randomFn: () => ((seq++) % 2) * 0.6 });
+      assert.equal(fillRes.totalSlots, 3);
+      assert.equal(fillRes.fromBankSlots, 3);
+      assert.equal(fillRes.missingSlots, 0);
+      assert(m.requirements.every(r => r.ppct_outcome_index !== null && !r.outcome_mode), 'Tất cả dòng được điền từ Ngân hàng đề phải ánh xạ chính xác sang PPCT');
+      console.log('PASS matrix UI: Bảng 2 lấy YCCĐ + NL từ Ngân hàng đề & tự động gom/tách chính xác');
     } finally {
       global.document = prevDoc;
     }

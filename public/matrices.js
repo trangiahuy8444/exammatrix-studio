@@ -25,8 +25,6 @@
   const periods={TX:'Thường xuyên',GK1:'Giữa học kì I',CK1:'Cuối học kì I',GK2:'Giữa học kì II',CK2:'Cuối học kì II'};
   const levels=['Biết','Hiểu','Vận dụng','Vận dụng cao'];
   function requirementLevelOptions(value){return levels.map(l=>opt(l,l,l===value)).join('');}
-    const STANDARD_PRESETS = JSON.parse("{\"6\": {\"profile\": \"THCS\", \"grade\": 6, \"exam_type\": \"GK1\", \"duration\": 45, \"school_year\": \"2026-2027\", \"title\": \"Ma tr\u1eadn & \u0111\u1eb7c t\u1ea3 Ki\u1ec3m tra Gi\u1eefa HK1 \u00b7 M\u00f4n Tin h\u1ecdc Kh\u1ed1i 6\", \"owner_name\": \"T\u1ed5 Tin h\u1ecdc \u00c1 Ch\u00e2u\", \"campus\": \"Cao Th\u1eafng\", \"total_points\": 10, \"lessons\": [{\"lesson_code\": \"B1\", \"title\": \"Th\u00f4ng tin v\u00e0 d\u1eef li\u1ec7u\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1. M\u00e1y t\u00ednh v\u00e0 c\u1ed9ng \u0111\u1ed3ng\"}, {\"lesson_code\": \"B2\", \"title\": \"X\u1eed l\u00fd th\u00f4ng tin\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1. M\u00e1y t\u00ednh v\u00e0 c\u1ed9ng \u0111\u1ed3ng\"}, {\"lesson_code\": \"B3\", \"title\": \"Th\u00f4ng tin trong m\u00e1y t\u00ednh\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1. M\u00e1y t\u00ednh v\u00e0 c\u1ed9ng \u0111\u1ed3ng\"}, {\"lesson_code\": \"B4\", \"title\": \"M\u1ea1ng m\u00e1y t\u00ednh\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2. M\u1ea1ng m\u00e1y t\u00ednh v\u00e0 Internet\"}, {\"lesson_code\": \"B5\", \"title\": \"Internet\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2. M\u1ea1ng m\u00e1y t\u00ednh v\u00e0 Internet\"}], \"requirements\": [{\"id\": \"R1\", \"lesson_code\": \"B1\", \"level\": \"Bi\u1ebft\", \"text\": \"Nh\u1eadn bi\u1ebft \u0111\u01b0\u1ee3c s\u1ef1 kh\u00e1c nhau gi\u1eefa th\u00f4ng tin v\u00e0 d\u1eef li\u1ec7u.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R2\", \"lesson_code\": \"B1\", \"level\": \"Hi\u1ec3u\", \"text\": \"Ph\u00e2n bi\u1ec7t \u0111\u01b0\u1ee3c th\u00f4ng tin v\u00e0 v\u1eadt mang tin.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R3\", \"lesson_code\": \"B1\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"N\u00eau \u0111\u01b0\u1ee3c v\u00ed d\u1ee5 minh hoa m\u1ed1i quan h\u1ec7 gi\u1eefa th\u00f4ng tin v\u00e0 d\u1eef li\u1ec7u.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R4\", \"lesson_code\": \"B2\", \"level\": \"Bi\u1ebft\", \"text\": \"N\u00eau \u0111\u01b0\u1ee3c c\u00e1c ho\u1ea1t \u0111\u1ed9ng c\u01a1 b\u1ea3n trong x\u1eed l\u00ed th\u00f4ng tin.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R5\", \"lesson_code\": \"B2\", \"level\": \"Hi\u1ec3u\", \"text\": \"Gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c m\u00e1y t\u00ednh l\u00e0 c\u00f4ng c\u1ee5 hi\u1ec7u qu\u1ea3 \u0111\u1ec3 x\u1eed l\u00ed th\u00f4ng tin. N\u00eau \u0111\u01b0\u1ee3c v\u00ed d\u1ee5 minh hoa c\u1ee5 th\u1ec3.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R6\", \"lesson_code\": \"B2\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"Gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c m\u00e1y t\u00ednh l\u00e0 c\u00f4ng c\u1ee5 hi\u1ec7u qu\u1ea3 \u0111\u1ec3 x\u1eed l\u00ed th\u00f4ng tin. N\u00eau \u0111\u01b0\u1ee3c v\u00ed d\u1ee5 minh hoa c\u1ee5 th\u1ec3.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R7\", \"lesson_code\": \"B3\", \"level\": \"Bi\u1ebft\", \"text\": \"Gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c vi\u1ec7c c\u00f3 th\u1ec3 bi\u1ec3u di\u1ec5n th\u00f4ng tin ch\u1ec9 v\u1edbi hai k\u00ed hi\u1ec7u 0 v\u00e0 1.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R8\", \"lesson_code\": \"B3\", \"level\": \"Hi\u1ec3u\", \"text\": \"Bi\u1ebft \u0111\u01b0\u1ee3c bit l\u00e0 \u0111\u01a1n v\u1ecb nh\u1ecf nh\u1ea5t trong l\u01b0u tr\u1eef th\u00f4ng tin.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R9\", \"lesson_code\": \"B3\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"N\u00eau \u0111\u01b0\u1ee3c t\u00ean v\u00e0 \u0111\u1ed9 l\u1edbn c\u1ee7a c\u00e1c \u0111\u01a1n v\u1ecb c\u01a1 b\u1ea3n \u0111o dung l\u01b0\u1ee3ng th\u00f4ng tin.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R10\", \"lesson_code\": \"B4\", \"level\": \"Bi\u1ebft\", \"text\": \"N\u00eau \u0111\u01b0\u1ee3c m\u1ea1ng m\u00e1y t\u00ednh l\u00e0 g\u00ec v\u00e0 l\u1ee3i \u00edch c\u1ee7a n\u00f3 trong cu\u1ed9c s\u1ed1ng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R11\", \"lesson_code\": \"B4\", \"level\": \"Hi\u1ec3u\", \"text\": \"K\u1ec3 \u0111\u01b0\u1ee3c t\u00ean nh\u1eefng th\u00e0nh ph\u1ea7n ch\u00ednh c\u1ee7a m\u1ed9t m\u1ea1ng m\u00e1y t\u00ednh.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R12\", \"lesson_code\": \"B4\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"N\u00eau \u0111\u01b0\u1ee3c v\u00ed d\u1ee5 c\u1ee5 th\u1ec3 v\u1ec1 tr\u01b0\u1eddng h\u1ee3p m\u1ea1ng kh\u00f4ng d\u00e2y ti\u1ec7n d\u1ee5ng h\u01a1n m\u1ea1ng c\u00f3 d\u00e2y.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R13\", \"lesson_code\": \"B5\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft Internet l\u00e0 g\u00ec.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R14\", \"lesson_code\": \"B5\", \"level\": \"Hi\u1ec3u\", \"text\": \"N\u00eau \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 \u0111\u1eb7c \u0111i\u1ec3m ch\u00ednh c\u1ee7a Internet.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R15\", \"lesson_code\": \"B5\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"N\u00eau \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 l\u1ee3i \u00edch ch\u00ednh c\u1ee7a Internet.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R16\", \"lesson_code\": \"B5\", \"level\": \"V\u1eadn d\u1ee5ng cao\", \"text\": \"V\u1eadn d\u1ee5ng ki\u1ebfn th\u1ee9c, k\u0129 n\u0103ng t\u1ed5ng h\u1ee3p \u0111\u1ec3 gi\u1ea3i quy\u1ebft t\u00ecnh hu\u1ed1ng th\u1ef1c t\u1ebf.\", \"ppct_outcome_index\": 0, \"competency\": \"NLc\"}], \"slots\": [{\"id\": \"S1\", \"kind\": \"MC\", \"number\": 1, \"parts\": [{\"id\": \"P1\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S2\", \"kind\": \"MC\", \"number\": 2, \"parts\": [{\"id\": \"P2\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S3\", \"kind\": \"MC\", \"number\": 3, \"parts\": [{\"id\": \"P3\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S4\", \"kind\": \"MC\", \"number\": 4, \"parts\": [{\"id\": \"P4\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S5\", \"kind\": \"MC\", \"number\": 5, \"parts\": [{\"id\": \"P5\", \"label\": \"\", \"requirement_id\": \"R13\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S6\", \"kind\": \"MC\", \"number\": 6, \"parts\": [{\"id\": \"P6\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S7\", \"kind\": \"MC\", \"number\": 7, \"parts\": [{\"id\": \"P7\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S8\", \"kind\": \"MC\", \"number\": 8, \"parts\": [{\"id\": \"P8\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S9\", \"kind\": \"MC\", \"number\": 9, \"parts\": [{\"id\": \"P9\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S10\", \"kind\": \"MC\", \"number\": 10, \"parts\": [{\"id\": \"P10\", \"label\": \"\", \"requirement_id\": \"R13\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S11\", \"kind\": \"MC\", \"number\": 11, \"parts\": [{\"id\": \"P11\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S12\", \"kind\": \"MC\", \"number\": 12, \"parts\": [{\"id\": \"P12\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S13\", \"kind\": \"MC\", \"number\": 13, \"parts\": [{\"id\": \"P13\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S14\", \"kind\": \"MC\", \"number\": 14, \"parts\": [{\"id\": \"P14\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S15\", \"kind\": \"MC\", \"number\": 15, \"parts\": [{\"id\": \"P15\", \"label\": \"\", \"requirement_id\": \"R13\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S16\", \"kind\": \"MC\", \"number\": 16, \"parts\": [{\"id\": \"P16\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S17\", \"kind\": \"MC\", \"number\": 17, \"parts\": [{\"id\": \"P17\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S18\", \"kind\": \"MC\", \"number\": 18, \"parts\": [{\"id\": \"P18\", \"label\": \"\", \"requirement_id\": \"R5\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S19\", \"kind\": \"MC\", \"number\": 19, \"parts\": [{\"id\": \"P19\", \"label\": \"\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S20\", \"kind\": \"MC\", \"number\": 20, \"parts\": [{\"id\": \"P20\", \"label\": \"\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S21\", \"kind\": \"MC\", \"number\": 21, \"parts\": [{\"id\": \"P21\", \"label\": \"\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S22\", \"kind\": \"MC\", \"number\": 22, \"parts\": [{\"id\": \"P22\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S23\", \"kind\": \"MC\", \"number\": 23, \"parts\": [{\"id\": \"P23\", \"label\": \"\", \"requirement_id\": \"R5\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S24\", \"kind\": \"MC\", \"number\": 24, \"parts\": [{\"id\": \"P24\", \"label\": \"\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S25\", \"kind\": \"MC\", \"number\": 25, \"parts\": [{\"id\": \"P25\", \"label\": \"\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S26\", \"kind\": \"MC\", \"number\": 26, \"parts\": [{\"id\": \"P26\", \"label\": \"\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S27\", \"kind\": \"MC\", \"number\": 27, \"parts\": [{\"id\": \"P27\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S28\", \"kind\": \"MC\", \"number\": 28, \"parts\": [{\"id\": \"P28\", \"label\": \"\", \"requirement_id\": \"R5\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S29\", \"kind\": \"ES\", \"number\": 1, \"parts\": [{\"id\": \"P29\", \"label\": \"\", \"requirement_id\": \"R3\", \"points\": 1, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S30\", \"kind\": \"ES\", \"number\": 2, \"parts\": [{\"id\": \"P30\", \"label\": \"\", \"requirement_id\": \"R6\", \"points\": 1, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S31\", \"kind\": \"ES\", \"number\": 3, \"parts\": [{\"id\": \"P31\", \"label\": \"\", \"requirement_id\": \"R16\", \"points\": 1, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}], \"indicator_catalog\": []}, \"7\": {\"profile\": \"THCS\", \"grade\": 7, \"exam_type\": \"GK1\", \"duration\": 45, \"school_year\": \"2026-2027\", \"title\": \"Ma tr\u1eadn & \u0111\u1eb7c t\u1ea3 Ki\u1ec3m tra Gi\u1eefa HK1 \u00b7 M\u00f4n Tin h\u1ecdc Kh\u1ed1i 7\", \"owner_name\": \"T\u1ed5 Tin h\u1ecdc \u00c1 Ch\u00e2u\", \"campus\": \"Cao Th\u1eafng\", \"total_points\": 10, \"lessons\": [{\"lesson_code\": \"B1\", \"title\": \"Thi\u1ebft b\u1ecb v\u00e0o - ra\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1. M\u00e1y t\u00ednh v\u00e0 c\u1ed9ng \u0111\u1ed3ng\"}, {\"lesson_code\": \"B2\", \"title\": \"Ph\u1ea7n m\u1ec1m m\u00e1y t\u00ednh\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1. M\u00e1y t\u00ednh v\u00e0 c\u1ed9ng \u0111\u1ed3ng\"}, {\"lesson_code\": \"B3\", \"title\": \"Qu\u1ea3n l\u00fd d\u1eef li\u1ec7u trong m\u00e1y t\u00ednh\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1. M\u00e1y t\u00ednh v\u00e0 c\u1ed9ng \u0111\u1ed3ng\"}, {\"lesson_code\": \"B4\", \"title\": \"M\u1ea1ng x\u00e3 h\u1ed9i v\u00e0 m\u1ed9t s\u1ed1 k\u00eanh trao \u0111\u1ed5i th\u00f4ng tin tr\u00ean Internet\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2. T\u1ed5 ch\u1ee9c l\u01b0u tr\u1eef, t\u00ecm ki\u1ebfm v\u00e0 trao \u0111\u1ed5i th\u00f4ng tin\"}, {\"lesson_code\": \"B5\", \"title\": \"\u1ee8ng x\u1eed tr\u00ean m\u1ea1ng\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 3. \u0110\u1ea1o \u0111\u1ee9c, ph\u00e1p lu\u1eadt v\u00e0 v\u0103n h\u00f3a trong m\u00f4i tr\u01b0\u1eddng s\u1ed1\"}], \"requirements\": [{\"id\": \"R1\", \"lesson_code\": \"B1\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft v\u00e0 nh\u1eadn ra \u0111\u01b0\u1ee3c c\u00e1c thi\u1ebft b\u1ecb v\u00e0o\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R2\", \"lesson_code\": \"B1\", \"level\": \"Hi\u1ec3u\", \"text\": \"ra c\u00f3 nhi\u1ec1u lo\u1ea1i, h\u00ecnh d\u1ea1ng kh\u00e1c nhau.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R3\", \"lesson_code\": \"B1\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"Bi\u1ebft \u0111\u01b0\u1ee3c ch\u1ee9c n\u0103ng c\u1ee7a c\u00e1c thi\u1ebft b\u1ecb v\u00e0o\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R4\", \"lesson_code\": \"B2\", \"level\": \"Bi\u1ebft\", \"text\": \"Gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c s\u01a1 l\u01b0\u1ee3c ch\u1ee9c n\u0103ng \u0111i\u1ec1u khi\u1ec3n v\u00e0 qu\u1ea3n l\u00ed c\u1ee7a h\u1ec7 \u0111i\u1ec1u h\u00e0nh.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R5\", \"lesson_code\": \"B2\", \"level\": \"Hi\u1ec3u\", \"text\": \"Ph\u00e2n bi\u1ec7t \u0111\u01b0\u1ee3c h\u1ec7 \u0111i\u1ec1u h\u00e0nh v\u1edbi ph\u1ea7n m\u1ec1m \u1ee9ng d\u1ee5ng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R6\", \"lesson_code\": \"B2\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"N\u00eau \u0111\u01b0\u1ee3c t\u00ean m\u1ed9t s\u1ed1 ph\u1ea7n m\u1ec1m \u1ee9ng d\u1ee5ng \u0111\u00e3 s\u1eed d\u1ee5ng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R7\", \"lesson_code\": \"B3\", \"level\": \"Bi\u1ebft\", \"text\": \"Thao t\u00e1c th\u00e0nh th\u1ea1o v\u1edbi t\u1ec7p v\u00e0 th\u01b0 m\u1ee5c: t\u1ea1o, sao ch\u00e9p, di chuy\u1ec3n, \u0111\u1ed5i t\u00ean, xo\u00e1 t\u1ec7p v\u00e0 th\u01b0 m\u1ee5c.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R8\", \"lesson_code\": \"B3\", \"level\": \"Hi\u1ec3u\", \"text\": \"Bi\u1ebft \u0111\u01b0\u1ee3c t\u1ec7p ch\u01b0\u01a1ng tr\u00ecnh c\u0169ng l\u00e0 d\u1eef li\u1ec7u, c\u00f3 th\u1ec3 \u0111\u01b0\u1ee3c l\u01b0u tr\u1eef trong m\u00e1y t\u00ednh.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R9\", \"lesson_code\": \"B3\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"N\u00eau \u0111\u01b0\u1ee3c v\u00ed d\u1ee5 v\u1ec1 bi\u1ec7n ph\u00e1p b\u1ea3o v\u1ec7 d\u1eef li\u1ec7u nh\u01b0 sao l\u01b0u, ph\u00f2ng ch\u1ed1ng virus, ...\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R10\", \"lesson_code\": \"B4\", \"level\": \"Bi\u1ebft\", \"text\": \"N\u00eau \u0111\u01b0\u1ee3c t\u00ean m\u1ed9t k\u00eanh trao \u0111\u1ed5i th\u00f4ng tin th\u00f4ng d\u1ee5ng tr\u00ean Internet v\u00e0 lo\u1ea1i th\u00f4ng tin trao \u0111\u1ed5i tr\u00ean k\u00eanh \u0111\u00f3.\", \"ppct_outcome_index\": 0, \"competency\": \"NLe\"}, {\"id\": \"R11\", \"lesson_code\": \"B4\", \"level\": \"Hi\u1ec3u\", \"text\": \"N\u00eau \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 ch\u1ee9c n\u0103ng c\u01a1 b\u1ea3n c\u1ee7a m\u1ea1ng x\u00e3 h\u1ed9i. Nh\u1eadn bi\u1ebft \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 website l\u00e0 m\u1ea1ng x\u00e3 h\u1ed9i.\", \"ppct_outcome_index\": 0, \"competency\": \"NLe\"}, {\"id\": \"R12\", \"lesson_code\": \"B4\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"S\u1eed d\u1ee5ng \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 ch\u1ee9c n\u0103ng c\u01a1 b\u1ea3n c\u1ee7a m\u1ed9t m\u1ea1ng x\u00e3 h\u1ed9i \u0111\u1ec3 giao l\u01b0u v\u00e0 chias\u1ebb th\u00f4ng tin.\", \"ppct_outcome_index\": 0, \"competency\": \"NLe\"}, {\"id\": \"R13\", \"lesson_code\": \"B5\", \"level\": \"Bi\u1ebft\", \"text\": \"Th\u1ef1c hi\u1ec7n \u0111\u01b0\u1ee3c giao ti\u1ebfp qua m\u1ea1ng theo \u0111\u00fang quy t\u1eafc v\u00e0 b\u1eb1ng ng\u00f4n ng\u1eef l\u1ecbch s\u1ef1, th\u1ec3 hi\u1ec7n \u1ee9ng x\u1eed c\u00f3 v\u0103n hoa.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R14\", \"lesson_code\": \"B5\", \"level\": \"Hi\u1ec3u\", \"text\": \"N\u00eau \u0111\u01b0\u1ee3c v\u00ed d\u1ee5 truy c\u1eadp kh\u00f4ng h\u1ee3p l\u1ec7 v\u00e0o c\u00e1c ngu\u1ed3n th\u00f4ng tin; bi\u1ebft c\u00e1ch \u1ee9ng x\u1eed h\u1ee3p l\u00ed khi g\u1eb7p nh\u1eefng th\u00f4ng tin tr\u00ean m\u1ea1ng c\u00f3 n\u1ed9i dung x\u1ea5u, kh\u00f4ng ph\u00f9 h\u1ee3p l\u1ee9a tu\u1ed5i.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R15\", \"lesson_code\": \"B5\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"Bi\u1ebft \u0111\u01b0\u1ee3c t\u00e1c h\u1ea1i c\u1ee7a b\u1ec7nh nghi\u1ec7n Internet, t\u1eeb \u0111\u00f3 c\u00f3 \u00fd th\u1ee9c ph\u00f2ng tr\u00e1nh.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R16\", \"lesson_code\": \"B5\", \"level\": \"V\u1eadn d\u1ee5ng cao\", \"text\": \"V\u1eadn d\u1ee5ng ki\u1ebfn th\u1ee9c, k\u0129 n\u0103ng t\u1ed5ng h\u1ee3p \u0111\u1ec3 gi\u1ea3i quy\u1ebft t\u00ecnh hu\u1ed1ng th\u1ef1c t\u1ebf.\", \"ppct_outcome_index\": 0, \"competency\": \"NLc\"}], \"slots\": [{\"id\": \"S1\", \"kind\": \"MC\", \"number\": 1, \"parts\": [{\"id\": \"P1\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S2\", \"kind\": \"MC\", \"number\": 2, \"parts\": [{\"id\": \"P2\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S3\", \"kind\": \"MC\", \"number\": 3, \"parts\": [{\"id\": \"P3\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S4\", \"kind\": \"MC\", \"number\": 4, \"parts\": [{\"id\": \"P4\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S5\", \"kind\": \"MC\", \"number\": 5, \"parts\": [{\"id\": \"P5\", \"label\": \"\", \"requirement_id\": \"R13\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S6\", \"kind\": \"MC\", \"number\": 6, \"parts\": [{\"id\": \"P6\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S7\", \"kind\": \"MC\", \"number\": 7, \"parts\": [{\"id\": \"P7\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S8\", \"kind\": \"MC\", \"number\": 8, \"parts\": [{\"id\": \"P8\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S9\", \"kind\": \"MC\", \"number\": 9, \"parts\": [{\"id\": \"P9\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S10\", \"kind\": \"MC\", \"number\": 10, \"parts\": [{\"id\": \"P10\", \"label\": \"\", \"requirement_id\": \"R13\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S11\", \"kind\": \"MC\", \"number\": 11, \"parts\": [{\"id\": \"P11\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S12\", \"kind\": \"MC\", \"number\": 12, \"parts\": [{\"id\": \"P12\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S13\", \"kind\": \"MC\", \"number\": 13, \"parts\": [{\"id\": \"P13\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S14\", \"kind\": \"MC\", \"number\": 14, \"parts\": [{\"id\": \"P14\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S15\", \"kind\": \"MC\", \"number\": 15, \"parts\": [{\"id\": \"P15\", \"label\": \"\", \"requirement_id\": \"R13\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S16\", \"kind\": \"MC\", \"number\": 16, \"parts\": [{\"id\": \"P16\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S17\", \"kind\": \"MC\", \"number\": 17, \"parts\": [{\"id\": \"P17\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S18\", \"kind\": \"MC\", \"number\": 18, \"parts\": [{\"id\": \"P18\", \"label\": \"\", \"requirement_id\": \"R5\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S19\", \"kind\": \"MC\", \"number\": 19, \"parts\": [{\"id\": \"P19\", \"label\": \"\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S20\", \"kind\": \"MC\", \"number\": 20, \"parts\": [{\"id\": \"P20\", \"label\": \"\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S21\", \"kind\": \"MC\", \"number\": 21, \"parts\": [{\"id\": \"P21\", \"label\": \"\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S22\", \"kind\": \"MC\", \"number\": 22, \"parts\": [{\"id\": \"P22\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S23\", \"kind\": \"MC\", \"number\": 23, \"parts\": [{\"id\": \"P23\", \"label\": \"\", \"requirement_id\": \"R5\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S24\", \"kind\": \"MC\", \"number\": 24, \"parts\": [{\"id\": \"P24\", \"label\": \"\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S25\", \"kind\": \"MC\", \"number\": 25, \"parts\": [{\"id\": \"P25\", \"label\": \"\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S26\", \"kind\": \"MC\", \"number\": 26, \"parts\": [{\"id\": \"P26\", \"label\": \"\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S27\", \"kind\": \"MC\", \"number\": 27, \"parts\": [{\"id\": \"P27\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S28\", \"kind\": \"MC\", \"number\": 28, \"parts\": [{\"id\": \"P28\", \"label\": \"\", \"requirement_id\": \"R5\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S29\", \"kind\": \"ES\", \"number\": 1, \"parts\": [{\"id\": \"P29\", \"label\": \"\", \"requirement_id\": \"R3\", \"points\": 1, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S30\", \"kind\": \"ES\", \"number\": 2, \"parts\": [{\"id\": \"P30\", \"label\": \"\", \"requirement_id\": \"R6\", \"points\": 1, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S31\", \"kind\": \"ES\", \"number\": 3, \"parts\": [{\"id\": \"P31\", \"label\": \"\", \"requirement_id\": \"R16\", \"points\": 1, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}], \"indicator_catalog\": []}, \"8\": {\"profile\": \"THCS\", \"grade\": 8, \"exam_type\": \"GK1\", \"duration\": 45, \"school_year\": \"2026-2027\", \"title\": \"Ma tr\u1eadn & \u0111\u1eb7c t\u1ea3 Ki\u1ec3m tra Gi\u1eefa HK1 \u00b7 M\u00f4n Tin h\u1ecdc Kh\u1ed1i 8\", \"owner_name\": \"T\u1ed5 Tin h\u1ecdc \u00c1 Ch\u00e2u\", \"campus\": \"Cao Th\u1eafng\", \"total_points\": 10, \"lessons\": [{\"lesson_code\": \"B1\", \"title\": \"L\u01b0\u1ee3c s\u1eed c\u00f4ng c\u1ee5 t\u00ednh to\u00e1n\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1: M\u00e1y t\u00ednh v\u00e0 c\u1ed9ng \u0111\u1ed3ng\"}, {\"lesson_code\": \"B2\", \"title\": \"Th\u00f4ng tin trong m\u00f4i tr\u01b0\u1eddng s\u1ed1\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2: T\u1ed5 ch\u1ee9c l\u01b0u tr\u1eef, t\u00ecm ki\u1ebfm v\u00e0 trao \u0111\u1ed5i th\u00f4ng tin\"}, {\"lesson_code\": \"B3\", \"title\": \"Th\u1ef1c h\u00e0nh: Khai th\u00e1c th\u00f4ng tin s\u1ed1\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2: T\u1ed5 ch\u1ee9c l\u01b0u tr\u1eef, t\u00ecm ki\u1ebfm v\u00e0 trao \u0111\u1ed5i th\u00f4ng tin\"}, {\"lesson_code\": \"B4\", \"title\": \"\u0110\u1ea1o \u0111\u1ee9c v\u00e0 v\u0103n h\u00f3a trong s\u1eed d\u1ee5ng k\u0129 thu\u1eadt s\u1ed1\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 3: \u0110\u1ea1o \u0111\u1ee9c, ph\u00e1p lu\u1eadt v\u00e0 v\u0103n h\u00f3a trong m\u00f4i tr\u01b0\u1eddng s\u1ed1\"}, {\"lesson_code\": \"B12\", \"title\": \"T\u1eeb thu\u1eadt to\u00e1n \u0111\u1ebfn ch\u01b0\u01a1ng tr\u00ecnh\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 5: Gi\u1ea3i quy\u1ebft v\u1ea5n \u0111\u1ec1 v\u1edbi s\u1ef1 tr\u1ee3 gi\u00fap c\u1ee7a m\u00e1y t\u00ednh\"}], \"requirements\": [{\"id\": \"R1\", \"lesson_code\": \"B1\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft \u0111\u01b0\u1ee3c s\u1ef1 ra \u0111\u1eddi c\u1ee7a nh\u1eefng chi\u1ebfc m\u00e1y t\u00ednh \u0111\u1ea7u ti\u00ean v\u00e0 ng\u01b0\u1eddi \u0111\u1eb7t n\u1ec1n m\u00f3ng cho s\u1ef1 ph\u00e1t tri\u1ec3n c\u1ee7a m\u00e1y t\u00ednh; bi\u1ebft \u0111\u01b0\u1ee3c c\u00e1c c\u00f4ng ngh\u1ec7 s\u1eed d\u1ee5ng trong t\u1eebng th\u1ebf h\u1ec7 m\u00e1y t\u00ednh.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R2\", \"lesson_code\": \"B1\", \"level\": \"Hi\u1ec3u\", \"text\": \"Hi\u1ec3u \u0111\u01b0\u1ee3c \u0111\u1eb7c \u0111i\u1ec3m c\u1ee7a c\u00e1c m\u00e1y t\u00ednh trong c\u00f9ng m\u1ed9t giai \u0111o\u1ea1n; gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c s\u1ef1 ph\u00e1t tri\u1ec3n c\u1ee7a m\u00e1y t\u00ednh qua c\u00e1c th\u1ebf h\u1ec7.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R3\", \"lesson_code\": \"B2\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft \u0111\u01b0\u1ee3c \u0111\u1eb7c \u0111i\u1ec3m c\u1ee7a th\u00f4ng tin s\u1ed1 v\u00e0 ph\u1ea7n m\u1edf r\u1ed9ng c\u1ee7a c\u00e1c lo\u1ea1i t\u1eadp tin kh\u00e1c nhau.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R4\", \"lesson_code\": \"B2\", \"level\": \"Hi\u1ec3u\", \"text\": \"Gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c v\u00ec sao th\u00f4ng tin s\u1ed1 chi\u1ebfm t\u1ec9 l\u1ec7 r\u1ea5t l\u1edbn.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R5\", \"lesson_code\": \"B2\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"Hi\u1ec3u \u0111\u01b0\u1ee3c \u0111\u1eb7c \u0111i\u1ec3m c\u1ee7a th\u00f4ng tin s\u1ed1, t\u1eeb \u0111\u00f3 v\u1eadn d\u1ee5ng v\u00e0o th\u1ef1c ti\u1ec5n \u0111\u1ec3 n\u00e2ng cao ch\u1ea5t l\u01b0\u1ee3ng cu\u1ed9c s\u1ed1ng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R6\", \"lesson_code\": \"B3\", \"level\": \"Bi\u1ebft\", \"text\": \"Nh\u1eadn bi\u1ebft \u0111\u01b0\u1ee3c th\u00f4ng tin n\u00e0o \u0111\u00e1ng tin c\u1eady v\u00e0 kh\u00f4ng \u0111\u00e1ng tin c\u1eady.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R7\", \"lesson_code\": \"B3\", \"level\": \"Hi\u1ec3u\", \"text\": \"Hi\u1ec3u \u0111\u01b0\u1ee3c th\u00f4ng tin c\u00f3 gi\u00e1 tr\u1ecb v\u1ec1 m\u1eb7t ph\u00e1p l\u00fd.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R8\", \"lesson_code\": \"B3\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"T\u00ecm ki\u1ebfm v\u00e0 cho v\u00ed d\u1ee5 v\u1ec1 th\u00f4ng tin h\u1ee3p l\u00fd, \u0111\u00e1ng tin c\u1eady.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R9\", \"lesson_code\": \"B4\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft m\u1ed9t s\u1ed1 bi\u1ec3u hi\u1ec7n vi ph\u1ea1m \u0111\u1ea1o \u0111\u1ee9c v\u00e0 ph\u00e1p lu\u1eadt, bi\u1ec3u hi\u1ec7n thi\u1ebfu v\u0103n h\u00f3a khi s\u1eed d\u1ee5ng c\u00f4ng ngh\u1ec7 k\u0129 thu\u1eadt s\u1ed1.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R10\", \"lesson_code\": \"B4\", \"level\": \"Hi\u1ec3u\", \"text\": \"Gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 bi\u1ec3u hi\u1ec7n vi ph\u1ea1m \u0111\u1ea1o \u0111\u1ee9c v\u00e0 ph\u00e1p lu\u1eadt, bi\u1ec3u hi\u1ec7n thi\u1ebfu v\u0103n h\u00f3a khi s\u1eed d\u1ee5ng c\u00f4ng ngh\u1ec7 k\u0129 thu\u1eadt s\u1ed1.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R11\", \"lesson_code\": \"B4\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"\u0110\u1ea3m b\u1ea3o c\u00e1c s\u1ea3n ph\u1ea9m s\u1ed1 do b\u1ea3n th\u00e2n t\u1ea1o ra th\u1ec3 hi\u1ec7n \u0111\u1ea1o \u0111\u1ee9c, t\u00ednh v\u0103n h\u00f3a, kh\u00f4ng vi ph\u1ea1m ph\u00e1p lu\u1eadt v\u00e0 v\u1eadn d\u1ee5ng v\u00e0o cu\u1ed9c s\u1ed1ng th\u1ef1c ti\u1ec5n.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R12\", \"lesson_code\": \"B12\", \"level\": \"Bi\u1ebft\", \"text\": \"Nh\u1eadn bi\u1ebft \u0111\u01b0\u1ee3c kh\u00e1i ni\u1ec7m thu\u1eadt to\u00e1n, ch\u01b0\u01a1ng tr\u00ecnh v\u00e0 m\u1ed1i quan h\u1ec7 gi\u1eefa thu\u1eadt to\u00e1n v\u00e0 ch\u01b0\u01a1ng tr\u00ecnh.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R13\", \"lesson_code\": \"B12\", \"level\": \"Hi\u1ec3u\", \"text\": \"Gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c m\u1ed1i quan h\u1ec7 gi\u1eefa thu\u1eadt to\u00e1n v\u00e0 ch\u01b0\u01a1ng tr\u00ecnh; m\u00f4 t\u1ea3 \u0111\u01b0\u1ee3c c\u00e1ch chuy\u1ec3n m\u1ed9t thu\u1eadt to\u00e1n \u0111\u01a1n gi\u1ea3n th\u00e0nh ch\u01b0\u01a1ng tr\u00ecnh.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}], \"slots\": [{\"id\": \"S1\", \"kind\": \"MC\", \"number\": 1, \"parts\": [{\"id\": \"P1\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S2\", \"kind\": \"MC\", \"number\": 2, \"parts\": [{\"id\": \"P2\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S3\", \"kind\": \"MC\", \"number\": 3, \"parts\": [{\"id\": \"P3\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S4\", \"kind\": \"MC\", \"number\": 4, \"parts\": [{\"id\": \"P4\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S5\", \"kind\": \"MC\", \"number\": 5, \"parts\": [{\"id\": \"P5\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S6\", \"kind\": \"MC\", \"number\": 6, \"parts\": [{\"id\": \"P6\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S7\", \"kind\": \"MC\", \"number\": 7, \"parts\": [{\"id\": \"P7\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S8\", \"kind\": \"MC\", \"number\": 8, \"parts\": [{\"id\": \"P8\", \"label\": \"\", \"requirement_id\": \"R3\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S9\", \"kind\": \"MC\", \"number\": 9, \"parts\": [{\"id\": \"P9\", \"label\": \"\", \"requirement_id\": \"R3\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S10\", \"kind\": \"MC\", \"number\": 10, \"parts\": [{\"id\": \"P10\", \"label\": \"\", \"requirement_id\": \"R3\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S11\", \"kind\": \"MC\", \"number\": 11, \"parts\": [{\"id\": \"P11\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S12\", \"kind\": \"MC\", \"number\": 12, \"parts\": [{\"id\": \"P12\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S13\", \"kind\": \"MC\", \"number\": 13, \"parts\": [{\"id\": \"P13\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S14\", \"kind\": \"MC\", \"number\": 14, \"parts\": [{\"id\": \"P14\", \"label\": \"\", \"requirement_id\": \"R6\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S15\", \"kind\": \"MC\", \"number\": 15, \"parts\": [{\"id\": \"P15\", \"label\": \"\", \"requirement_id\": \"R6\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S16\", \"kind\": \"MC\", \"number\": 16, \"parts\": [{\"id\": \"P16\", \"label\": \"\", \"requirement_id\": \"R6\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S17\", \"kind\": \"MC\", \"number\": 17, \"parts\": [{\"id\": \"P17\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S18\", \"kind\": \"MC\", \"number\": 18, \"parts\": [{\"id\": \"P18\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S19\", \"kind\": \"MC\", \"number\": 19, \"parts\": [{\"id\": \"P19\", \"label\": \"\", \"requirement_id\": \"R9\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S20\", \"kind\": \"MC\", \"number\": 20, \"parts\": [{\"id\": \"P20\", \"label\": \"\", \"requirement_id\": \"R9\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S21\", \"kind\": \"MC\", \"number\": 21, \"parts\": [{\"id\": \"P21\", \"label\": \"\", \"requirement_id\": \"R9\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S22\", \"kind\": \"MC\", \"number\": 22, \"parts\": [{\"id\": \"P22\", \"label\": \"\", \"requirement_id\": \"R9\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S23\", \"kind\": \"MC\", \"number\": 23, \"parts\": [{\"id\": \"P23\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S24\", \"kind\": \"MC\", \"number\": 24, \"parts\": [{\"id\": \"P24\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S25\", \"kind\": \"MC\", \"number\": 25, \"parts\": [{\"id\": \"P25\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S26\", \"kind\": \"MC\", \"number\": 26, \"parts\": [{\"id\": \"P26\", \"label\": \"\", \"requirement_id\": \"R12\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S27\", \"kind\": \"MC\", \"number\": 27, \"parts\": [{\"id\": \"P27\", \"label\": \"\", \"requirement_id\": \"R12\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S28\", \"kind\": \"MC\", \"number\": 28, \"parts\": [{\"id\": \"P28\", \"label\": \"\", \"requirement_id\": \"R13\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S29\", \"kind\": \"ES\", \"number\": 29, \"parts\": [{\"id\": \"P29\", \"label\": \"\", \"requirement_id\": \"R5\", \"points\": 1, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S30\", \"kind\": \"ES\", \"number\": 30, \"parts\": [{\"id\": \"P30\", \"label\": \"\", \"requirement_id\": \"R8\", \"points\": 1, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S31\", \"kind\": \"ES\", \"number\": 31, \"parts\": [{\"id\": \"P31\", \"label\": \"\", \"requirement_id\": \"R11\", \"points\": 1, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}]}, \"9\": {\"profile\": \"THCS\", \"grade\": 9, \"exam_type\": \"GK1\", \"duration\": 45, \"school_year\": \"2026-2027\", \"title\": \"Ma tr\u1eadn & \u0111\u1eb7c t\u1ea3 Ki\u1ec3m tra Gi\u1eefa HK1 \u00b7 M\u00f4n Tin h\u1ecdc Kh\u1ed1i 9\", \"owner_name\": \"T\u1ed5 Tin h\u1ecdc \u00c1 Ch\u00e2u\", \"campus\": \"Cao Th\u1eafng\", \"total_points\": 10, \"lessons\": [{\"lesson_code\": \"B1\", \"title\": \"Th\u1ebf gi\u1edbi k\u0129 thu\u1eadt s\u1ed1\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1: M\u00e1y t\u00ednh v\u00e0 c\u1ed9ng \u0111\u1ed3ng\"}, {\"lesson_code\": \"B2\", \"title\": \"Th\u00f4ng tin trong gi\u1ea3i quy\u1ebft v\u1ea5n \u0111\u1ec1\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2: T\u1ed5 ch\u1ee9c l\u01b0u tr\u1eef, t\u00ecm ki\u1ebfm v\u00e0 trao \u0111\u1ed5i th\u00f4ng tin\"}, {\"lesson_code\": \"B3\", \"title\": \"Th\u1ef1c h\u00e0nh: \u0110\u00e1nh gi\u00e1 ch\u1ea5t l\u01b0\u1ee3ng th\u00f4ng tin\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2: T\u1ed5 ch\u1ee9c l\u01b0u tr\u1eef, t\u00ecm ki\u1ebfm v\u00e0 trao \u0111\u1ed5i th\u00f4ng tin\"}, {\"lesson_code\": \"B4\", \"title\": \"M\u1ed9t s\u1ed1 v\u1ea5n \u0111\u1ec1 ph\u00e1p l\u00fd v\u1ec1 s\u1eed d\u1ee5ng d\u1ecbch v\u1ee5 Internet\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 3: \u0110\u1ea1o \u0111\u1ee9c, ph\u00e1p lu\u1eadt v\u00e0 v\u0103n h\u00f3a s\u1ed1\"}, {\"lesson_code\": \"B5\", \"title\": \"T\u00ecm hi\u1ec3u ph\u1ea7n m\u1ec1m m\u00f4 ph\u1ecfng\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 4: \u1ee8ng d\u1ee5ng tin h\u1ecdc\"}], \"requirements\": [{\"id\": \"R1\", \"lesson_code\": \"B1\", \"level\": \"Bi\u1ebft\", \"text\": \"Nh\u1eadn bi\u1ebft \u0111\u01b0\u1ee3c c\u00e1c thi\u1ebft b\u1ecb c\u00f3 t\u00edch h\u1ee3p b\u1ed9 x\u1eed l\u00ed th\u00f4ng tin trong \u0111\u1eddi s\u1ed1ng, th\u01b0\u01a1ng m\u1ea1i; nh\u1eadn bi\u1ebft th\u00e0nh ph\u1ea7n c\u1ed1t l\u00f5i v\u00e0 ch\u1ee9c n\u0103ng c\u1ee7a CPU.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R2\", \"lesson_code\": \"B1\", \"level\": \"Hi\u1ec3u\", \"text\": \"Hi\u1ec3u y\u00eau c\u1ea7u s\u1ed1 h\u00f3a d\u1eef li\u1ec7u th\u00e0nh d\u00e3y bit; ph\u00e2n t\u00edch \u01b0u th\u1ebf c\u1ee7a m\u00e1y t\u00ednh v\u1ec1 dung l\u01b0\u1ee3ng l\u01b0u tr\u1eef v\u00e0 truy\u1ec1n th\u00f4ng tin t\u1ed1c \u0111\u1ed9 cao to\u00e0n c\u1ea7u.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R3\", \"lesson_code\": \"B2\", \"level\": \"Bi\u1ebft\", \"text\": \"Nh\u1eadn bi\u1ebft b\u1ed1n ti\u00eau ch\u00ed \u0111\u00e1nh gi\u00e1 ch\u1ea5t l\u01b0\u1ee3ng th\u00f4ng tin, ti\u00eau ch\u00ed quan tr\u1ecdng h\u00e0ng \u0111\u1ea7u, vai tr\u00f2 c\u1ee7a ch\u1ea5t l\u01b0\u1ee3ng th\u00f4ng tin v\u00e0 t\u00ednh s\u1eed d\u1ee5ng \u0111\u01b0\u1ee3c.\", \"ppct_outcome_index\": 0, \"competency\": \"NLc\"}, {\"id\": \"R4\", \"lesson_code\": \"B2\", \"level\": \"Hi\u1ec3u\", \"text\": \"Gi\u1ea3i th\u00edch s\u1ef1 c\u1ea7n thi\u1ebft c\u1ee7a vi\u1ec7c ki\u1ec3m tra ch\u1ea5t l\u01b0\u1ee3ng th\u00f4ng tin tr\u00ean Internet; ph\u00e2n t\u00edch th\u00f4ng tin sai l\u1ec7ch ho\u1eb7c thi\u1ebfu s\u00f3t theo ti\u00eau ch\u00ed t\u00ednh m\u1edbi, \u0111\u1ea7y \u0111\u1ee7, ch\u00ednh x\u00e1c.\", \"ppct_outcome_index\": 0, \"competency\": \"NLc\"}, {\"id\": \"R5\", \"lesson_code\": \"B3\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"V\u1eadn d\u1ee5ng ti\u00eau ch\u00ed t\u00ednh m\u1edbi, ch\u00ednh x\u00e1c, \u0111\u1ea7y \u0111\u1ee7, s\u1eed d\u1ee5ng \u0111\u01b0\u1ee3c \u0111\u1ec3 \u0111\u00e1nh gi\u00e1 th\u00f4ng tin; x\u00e1c \u0111\u1ecbnh th\u00f4ng tin c\u1ea7n thu th\u1eadp v\u00e0 ngu\u1ed3n tin c\u1eady khi l\u1eadp k\u1ebf ho\u1ea1ch ho\u1ea1t \u0111\u1ed9ng d\u00e3 ngo\u1ea1i h\u1ecdc t\u1eadp.\", \"ppct_outcome_index\": 0, \"competency\": \"NLc\"}, {\"id\": \"R6\", \"lesson_code\": \"B4\", \"level\": \"Bi\u1ebft\", \"text\": \"Nh\u1eadn di\u1ec7n t\u00e1c \u0111\u1ed9ng ti\u00eau c\u1ef1c do l\u1ea1m d\u1ee5ng thi\u1ebft b\u1ecb s\u1ed1, r\u00e1c th\u1ea3i \u0111i\u1ec7n t\u1eed; h\u00e0nh vi x\u00e2m ph\u1ea1m quy\u1ec1n ri\u00eang t\u01b0 v\u00e0 quy t\u1eafc \u1ee9ng x\u1eed tr\u00ean m\u1ea1ng x\u00e3 h\u1ed9i.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R7\", \"lesson_code\": \"B4\", \"level\": \"Hi\u1ec3u\", \"text\": \"Hi\u1ec3u tr\u00e1ch nhi\u1ec7m ph\u00e1p l\u00fd tr\u00ean kh\u00f4ng gian m\u1ea1ng, ch\u1ebf t\u00e0i \u0111\u1ed1i v\u1edbi tin gi\u1ea3 v\u00e0 chu\u1ea9n m\u1ef1c t\u00f4n tr\u1ecdng b\u1ea3n quy\u1ec1n, tr\u00edch d\u1eabn ngu\u1ed3n t\u00e0i nguy\u00ean s\u1ed1.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R8\", \"lesson_code\": \"B4\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"\u1ee8ng x\u1eed c\u00f3 v\u0103n h\u00f3a, t\u00f4n tr\u1ecdng quy\u1ec1n ri\u00eang t\u01b0 \u0111\u1ed1i v\u1edbi t\u00e0i kho\u1ea3n ch\u01b0a \u0111\u0103ng xu\u1ea5t; ph\u00e2n t\u00edch h\u1eadu qu\u1ea3 t\u00e2m l\u00fd v\u00e0 ph\u00e1p l\u00fd c\u1ee7a b\u1ea1o l\u1ef1c m\u1ea1ng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R9\", \"lesson_code\": \"B5\", \"level\": \"Bi\u1ebft\", \"text\": \"Nh\u1eadn bi\u1ebft kh\u00e1i ni\u1ec7m, v\u00ed d\u1ee5 v\u00e0 m\u1ee5c \u0111\u00edch s\u1eed d\u1ee5ng ph\u1ea7n m\u1ec1m m\u00f4 ph\u1ecfng PhET; x\u00e1c \u0111\u1ecbnh l\u0129nh v\u1ef1c khoa h\u1ecdc c\u1ee7a m\u00f4 ph\u1ecfng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLd\"}, {\"id\": \"R10\", \"lesson_code\": \"B5\", \"level\": \"Hi\u1ec3u\", \"text\": \"Ph\u00e2n t\u00edch l\u1ee3i \u00edch c\u1ee7a m\u00f4 ph\u1ecfng th\u00ed nghi\u1ec7m \u1ea3o \u0111\u1ed1i v\u1edbi hi\u1ec7n t\u01b0\u1ee3ng nguy hi\u1ec3m, vi m\u00f4 ho\u1eb7c t\u1ed1n k\u00e9m; hi\u1ec3u \u1ee9ng d\u1ee5ng m\u00f4 ph\u1ecfng giao th\u00f4ng trong quy ho\u1ea1ch \u0111\u00f4 th\u1ecb.\", \"ppct_outcome_index\": 0, \"competency\": \"NLd\"}, {\"id\": \"R11\", \"lesson_code\": \"B5\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"Gi\u1ea3i th\u00edch \u01b0u th\u1ebf m\u00f4 ph\u1ecfng m\u1ea1ch \u0111i\u1ec7n m\u1ed9t chi\u1ec1u so v\u1edbi th\u00ed nghi\u1ec7m th\u1eadt; m\u00f4 t\u1ea3 thao t\u00e1c l\u1eafp m\u1ea1ch, \u0111\u00f3ng c\u00f4ng t\u1eafc v\u00e0 \u0111o c\u01b0\u1eddng \u0111\u1ed9 d\u00f2ng \u0111i\u1ec7n tr\u00ean PhET.\", \"ppct_outcome_index\": 0, \"competency\": \"NLd\"}], \"slots\": [{\"id\": \"S1\", \"kind\": \"MC\", \"number\": 1, \"parts\": [{\"id\": \"P1\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S2\", \"kind\": \"MC\", \"number\": 2, \"parts\": [{\"id\": \"P2\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S3\", \"kind\": \"MC\", \"number\": 3, \"parts\": [{\"id\": \"P3\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S4\", \"kind\": \"MC\", \"number\": 4, \"parts\": [{\"id\": \"P4\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S5\", \"kind\": \"MC\", \"number\": 5, \"parts\": [{\"id\": \"P5\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S6\", \"kind\": \"MC\", \"number\": 6, \"parts\": [{\"id\": \"P6\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S7\", \"kind\": \"MC\", \"number\": 7, \"parts\": [{\"id\": \"P7\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S8\", \"kind\": \"MC\", \"number\": 8, \"parts\": [{\"id\": \"P8\", \"label\": \"\", \"requirement_id\": \"R3\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S9\", \"kind\": \"MC\", \"number\": 9, \"parts\": [{\"id\": \"P9\", \"label\": \"\", \"requirement_id\": \"R3\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S10\", \"kind\": \"MC\", \"number\": 10, \"parts\": [{\"id\": \"P10\", \"label\": \"\", \"requirement_id\": \"R3\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S11\", \"kind\": \"MC\", \"number\": 11, \"parts\": [{\"id\": \"P11\", \"label\": \"\", \"requirement_id\": \"R3\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S12\", \"kind\": \"MC\", \"number\": 12, \"parts\": [{\"id\": \"P12\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S13\", \"kind\": \"MC\", \"number\": 13, \"parts\": [{\"id\": \"P13\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S14\", \"kind\": \"MC\", \"number\": 14, \"parts\": [{\"id\": \"P14\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S15\", \"kind\": \"MC\", \"number\": 15, \"parts\": [{\"id\": \"P15\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S16\", \"kind\": \"MC\", \"number\": 16, \"parts\": [{\"id\": \"P16\", \"label\": \"\", \"requirement_id\": \"R6\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S17\", \"kind\": \"MC\", \"number\": 17, \"parts\": [{\"id\": \"P17\", \"label\": \"\", \"requirement_id\": \"R6\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S18\", \"kind\": \"MC\", \"number\": 18, \"parts\": [{\"id\": \"P18\", \"label\": \"\", \"requirement_id\": \"R6\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S19\", \"kind\": \"MC\", \"number\": 19, \"parts\": [{\"id\": \"P19\", \"label\": \"\", \"requirement_id\": \"R6\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S20\", \"kind\": \"MC\", \"number\": 20, \"parts\": [{\"id\": \"P20\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S21\", \"kind\": \"MC\", \"number\": 21, \"parts\": [{\"id\": \"P21\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S22\", \"kind\": \"MC\", \"number\": 22, \"parts\": [{\"id\": \"P22\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S23\", \"kind\": \"MC\", \"number\": 23, \"parts\": [{\"id\": \"P23\", \"label\": \"\", \"requirement_id\": \"R9\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S24\", \"kind\": \"MC\", \"number\": 24, \"parts\": [{\"id\": \"P24\", \"label\": \"\", \"requirement_id\": \"R9\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S25\", \"kind\": \"MC\", \"number\": 25, \"parts\": [{\"id\": \"P25\", \"label\": \"\", \"requirement_id\": \"R9\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S26\", \"kind\": \"MC\", \"number\": 26, \"parts\": [{\"id\": \"P26\", \"label\": \"\", \"requirement_id\": \"R9\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S27\", \"kind\": \"MC\", \"number\": 27, \"parts\": [{\"id\": \"P27\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S28\", \"kind\": \"MC\", \"number\": 28, \"parts\": [{\"id\": \"P28\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S29\", \"kind\": \"ES\", \"number\": 1, \"parts\": [{\"id\": \"P29\", \"label\": \"\", \"requirement_id\": \"R5\", \"points\": 1, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S30\", \"kind\": \"ES\", \"number\": 2, \"parts\": [{\"id\": \"P30\", \"label\": \"\", \"requirement_id\": \"R8\", \"points\": 1, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S31\", \"kind\": \"ES\", \"number\": 3, \"parts\": [{\"id\": \"P31\", \"label\": \"\", \"requirement_id\": \"R11\", \"points\": 1, \"indicator\": \"\"}], \"scoring\": {\"mode\": \"sum_parts\"}}]}, \"10\": {\"profile\": \"THPT\", \"grade\": 10, \"exam_type\": \"GK1\", \"duration\": 45, \"school_year\": \"2026-2027\", \"title\": \"Ma tr\u1eadn & \u0111\u1eb7c t\u1ea3 Ki\u1ec3m tra Gi\u1eefa HK1 \u00b7 M\u00f4n Tin h\u1ecdc Kh\u1ed1i 10\", \"owner_name\": \"T\u1ed5 Tin h\u1ecdc \u00c1 Ch\u00e2u\", \"campus\": \"Cao Th\u1eafng\", \"total_points\": 10, \"lessons\": [{\"lesson_code\": \"B1\", \"title\": \"Th\u00f4ng tin v\u00e0 x\u1eed l\u00ed th\u00f4ng tin\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1: M\u00e1y t\u00ednh v\u00e0 x\u00e3 h\u1ed9i tri th\u1ee9c\"}, {\"lesson_code\": \"B2\", \"title\": \"Vai tr\u00f2 c\u1ee7a thi\u1ebft b\u1ecb th\u00f4ng minh v\u00e0 tin h\u1ecdc \u0111\u1ed1i v\u1edbi x\u00e3 h\u1ed9i\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1: M\u00e1y t\u00ednh v\u00e0 x\u00e3 h\u1ed9i tri th\u1ee9c\"}, {\"lesson_code\": \"B3\", \"title\": \"Th\u1ef1c h\u00e0nh s\u1eed d\u1ee5ng thi\u1ebft b\u1ecb th\u00f4ng d\u1ee5ng\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1: M\u00e1y t\u00ednh v\u00e0 x\u00e3 h\u1ed9i tri th\u1ee9c\"}, {\"lesson_code\": \"B4\", \"title\": \"M\u1ea1ng m\u00e1y t\u00ednh trong cu\u1ed9c s\u1ed1ng hi\u1ec7n \u0111\u1ea1i\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2: M\u1ea1ng m\u00e1y t\u00ednh v\u00e0 Internet\"}, {\"lesson_code\": \"B5\", \"title\": \"An to\u00e0n tr\u00ean kh\u00f4ng gian m\u1ea1ng\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2: M\u1ea1ng m\u00e1y t\u00ednh v\u00e0 Internet\"}, {\"lesson_code\": \"B6\", \"title\": \"Th\u1ef1c h\u00e0nh khai th\u00e1c t\u00e0i nguy\u00ean tr\u00ean Internet\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2: M\u1ea1ng m\u00e1y t\u00ednh v\u00e0 Internet\"}, {\"lesson_code\": \"B7\", \"title\": \"\u1ee8ng x\u1eed tr\u00ean m\u00f4i tr\u01b0\u1eddng s\u1ed1. Ngh\u0129a v\u1ee5 t\u00f4n tr\u1ecdng b\u1ea3n quy\u1ec1n\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 3: \u0110\u1ea1o \u0111\u1ee9c, ph\u00e1p lu\u1eadt v\u00e0 v\u0103n h\u00f3a trong m\u00f4i tr\u01b0\u1eddng s\u1ed1\"}, {\"lesson_code\": \"B8\", \"title\": \"Ph\u1ea7n m\u1ec1m thi\u1ebft k\u1ebf \u0111\u1ed3 h\u1ecda\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 4: \u1ee8ng d\u1ee5ng tin h\u1ecdc\"}], \"requirements\": [{\"id\": \"R1\", \"lesson_code\": \"B1\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft \u0111\u01b0\u1ee3c th\u00f4ng tin, d\u1eef li\u1ec7u v\u00e0 c\u00e1c b\u01b0\u1edbc c\u01a1 b\u1ea3n trong x\u1eed l\u00ed th\u00f4ng tin.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R2\", \"lesson_code\": \"B1\", \"level\": \"Hi\u1ec3u\", \"text\": \"Hi\u1ec3u \u0111\u01b0\u1ee3c \u01b0u \u0111i\u1ec3m c\u1ee7a thi\u1ebft b\u1ecb s\u1ed1.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R3\", \"lesson_code\": \"B1\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"Gi\u1ea3i th\u00edch c\u00e1c t\u00ecnh hu\u1ed1ng li\u00ean quan \u0111\u1ebfn vi\u1ec7c l\u01b0u tr\u1eef th\u00f4ng tin.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R4\", \"lesson_code\": \"B2\", \"level\": \"Bi\u1ebft\", \"text\": \"Nh\u1eadn bi\u1ebft thi\u1ebft b\u1ecb th\u00f4ng minh; n\u00eau \u0111\u01b0\u1ee3c vai tr\u00f2 c\u1ee7a thi\u1ebft b\u1ecb th\u00f4ng minh trong cu\u1ed9c c\u00e1ch m\u1ea1ng c\u00f4ng nghi\u1ec7p l\u1ea7n th\u1ee9 t\u01b0.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R5\", \"lesson_code\": \"B2\", \"level\": \"Hi\u1ec3u\", \"text\": \"Hi\u1ec3u \u0111\u01b0\u1ee3c \u0111\u1eb7c \u0111i\u1ec3m c\u1ee7a Internet v\u1ea1n v\u1eadt (IoT) trong h\u1ec7 th\u1ed1ng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R6\", \"lesson_code\": \"B3\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 \u1ee9ng d\u1ee5ng tr\u00ean \u0111i\u1ec7n tho\u1ea1i th\u00f4ng minh.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R7\", \"lesson_code\": \"B3\", \"level\": \"Hi\u1ec3u\", \"text\": \"Hi\u1ec3u \u0111\u01b0\u1ee3c l\u1ee3i \u00edch c\u1ee7a vi\u1ec7c l\u01b0u tr\u1eef \u0111\u00e1m m\u00e2y.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R8\", \"lesson_code\": \"B3\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"\u00c1p d\u1ee5ng \u0111\u01b0\u1ee3c vi\u1ec7c l\u01b0u tr\u1eef d\u1eef li\u1ec7u tr\u00ean Internet.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R9\", \"lesson_code\": \"B4\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft \u0111\u01b0\u1ee3c m\u1ea1ng LAN, Internet v\u00e0 c\u00e1c lo\u1ea1i d\u1ecbch v\u1ee5 \u0111\u00e1m m\u00e2y c\u01a1 b\u1ea3n.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R10\", \"lesson_code\": \"B4\", \"level\": \"Hi\u1ec3u\", \"text\": \"Hi\u1ec3u \u0111\u01b0\u1ee3c l\u1ee3i \u00edch c\u1ee7a vi\u1ec7c t\u1ef1 \u0111\u1ecdc d\u1eef li\u1ec7u c\u1ee7a c\u00e1c thi\u1ebft b\u1ecb.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R11\", \"lesson_code\": \"B4\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"V\u1eadn d\u1ee5ng ki\u1ebfn th\u1ee9c trong c\u00e1c t\u00ecnh hu\u1ed1ng li\u00ean quan \u0111\u1ebfn l\u01b0u tr\u1eef d\u1eef li\u1ec7u \u0111\u00e1m m\u00e2y.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R12\", \"lesson_code\": \"B5\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft nguy c\u01a1 khi t\u1ea3i ph\u1ea7n m\u1ec1m b\u1ebb kh\u00f3a, kh\u1ea3 n\u0103ng l\u00e2y nhi\u1ec5m c\u1ee7a virus v\u00e0 c\u00e1ch l\u1ef1a ch\u1ecdn qu\u00e9t virus.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R13\", \"lesson_code\": \"B5\", \"level\": \"Hi\u1ec3u\", \"text\": \"Hi\u1ec3u t\u1ea7m quan tr\u1ecdng c\u1ee7a vi\u1ec7c x\u00e1c minh th\u00f4ng tin v\u00e0 kh\u1ea3 n\u0103ng l\u00e2y nhi\u1ec5m virus.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R14\", \"lesson_code\": \"B5\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"V\u1eadn d\u1ee5ng c\u00e1ch qu\u00e9t virus ph\u00f9 h\u1ee3p trong th\u1ef1c t\u1ebf.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R15\", \"lesson_code\": \"B6\", \"level\": \"Hi\u1ec3u\", \"text\": \"Hi\u1ec3u c\u00e1ch th\u1ee9c ho\u1ea1t \u0111\u1ed9ng c\u1ee7a Google Translate v\u00e0 b\u1ed1 c\u1ee5c t\u1ed5 ch\u1ee9c kho d\u1eef li\u1ec7u s\u1ed1.\", \"ppct_outcome_index\": 0, \"competency\": \"NLc\"}, {\"id\": \"R16\", \"lesson_code\": \"B7\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft quy\u1ec1n khi mua b\u1ea3n quy\u1ec1n ph\u1ea7n m\u1ec1m, quy\u1ec1n t\u00e1c gi\u1ea3 v\u00e0 \u0111i\u1ec1u ki\u1ec7n tr\u1edf th\u00e0nh ch\u1ee7 s\u1edf h\u1eefu b\u1ea3n quy\u1ec1n ph\u1ea7n m\u1ec1m.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R17\", \"lesson_code\": \"B7\", \"level\": \"Hi\u1ec3u\", \"text\": \"Hi\u1ec3u c\u00e1c h\u00e0nh vi, tr\u01b0\u1eddng h\u1ee3p vi ph\u1ea1m b\u1ea3n quy\u1ec1n.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R18\", \"lesson_code\": \"B7\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"V\u1eadn d\u1ee5ng hi\u1ec3u bi\u1ebft v\u1ec1 gi\u1ea5y ph\u00e9p b\u1ea3n quy\u1ec1n khi s\u1eed d\u1ee5ng t\u00e0i nguy\u00ean s\u1ed1.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R19\", \"lesson_code\": \"B8\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft h\u00ecnh \u1ea3nh \u0111\u1ed3 h\u1ecda \u0111\u01b0\u1ee3c t\u1ea1o th\u00e0nh t\u1eeb \u0111i\u1ec3m \u1ea3nh v\u00e0 ph\u1ea7n m\u1edf r\u1ed9ng t\u1ec7p c\u1ee7a Inkscape.\", \"ppct_outcome_index\": 0, \"competency\": \"NLc\"}, {\"id\": \"R20\", \"lesson_code\": \"B8\", \"level\": \"Hi\u1ec3u\", \"text\": \"Hi\u1ec3u t\u00ednh n\u0103ng c\u1ee7a m\u1ed9t s\u1ed1 l\u1ec7nh c\u01a1 b\u1ea3n trong Inkscape.\", \"ppct_outcome_index\": 0, \"competency\": \"NLc\"}, {\"id\": \"R21\", \"lesson_code\": \"B8\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"V\u1ebd \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 h\u00ecnh \u0111\u01a1n gi\u1ea3n trong ph\u1ea7n m\u1ec1m Inkscape.\", \"ppct_outcome_index\": 0, \"competency\": \"NLc\"}], \"slots\": [{\"id\": \"S1\", \"kind\": \"MC\", \"number\": 1, \"parts\": [{\"id\": \"P1\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S2\", \"kind\": \"MC\", \"number\": 2, \"parts\": [{\"id\": \"P2\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S3\", \"kind\": \"MC\", \"number\": 3, \"parts\": [{\"id\": \"P3\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S4\", \"kind\": \"MC\", \"number\": 4, \"parts\": [{\"id\": \"P4\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S5\", \"kind\": \"MC\", \"number\": 5, \"parts\": [{\"id\": \"P5\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S6\", \"kind\": \"MC\", \"number\": 6, \"parts\": [{\"id\": \"P6\", \"label\": \"\", \"requirement_id\": \"R5\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S7\", \"kind\": \"MC\", \"number\": 7, \"parts\": [{\"id\": \"P7\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S8\", \"kind\": \"MC\", \"number\": 8, \"parts\": [{\"id\": \"P8\", \"label\": \"\", \"requirement_id\": \"R9\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S9\", \"kind\": \"MC\", \"number\": 9, \"parts\": [{\"id\": \"P9\", \"label\": \"\", \"requirement_id\": \"R9\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S10\", \"kind\": \"MC\", \"number\": 10, \"parts\": [{\"id\": \"P10\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S11\", \"kind\": \"MC\", \"number\": 11, \"parts\": [{\"id\": \"P11\", \"label\": \"\", \"requirement_id\": \"R12\", \"points\": 0.25, \"indicator\": \"NLb.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S12\", \"kind\": \"MC\", \"number\": 12, \"parts\": [{\"id\": \"P12\", \"label\": \"\", \"requirement_id\": \"R13\", \"points\": 0.25, \"indicator\": \"NLb.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S13\", \"kind\": \"MC\", \"number\": 13, \"parts\": [{\"id\": \"P13\", \"label\": \"\", \"requirement_id\": \"R15\", \"points\": 0.25, \"indicator\": \"NLc.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S14\", \"kind\": \"MC\", \"number\": 14, \"parts\": [{\"id\": \"P14\", \"label\": \"\", \"requirement_id\": \"R15\", \"points\": 0.25, \"indicator\": \"NLc.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S15\", \"kind\": \"MC\", \"number\": 15, \"parts\": [{\"id\": \"P15\", \"label\": \"\", \"requirement_id\": \"R16\", \"points\": 0.25, \"indicator\": \"NLb.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S16\", \"kind\": \"MC\", \"number\": 16, \"parts\": [{\"id\": \"P16\", \"label\": \"\", \"requirement_id\": \"R17\", \"points\": 0.25, \"indicator\": \"NLb.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S17\", \"kind\": \"MC\", \"number\": 17, \"parts\": [{\"id\": \"P17\", \"label\": \"\", \"requirement_id\": \"R19\", \"points\": 0.25, \"indicator\": \"NLc.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S18\", \"kind\": \"MC\", \"number\": 18, \"parts\": [{\"id\": \"P18\", \"label\": \"\", \"requirement_id\": \"R19\", \"points\": 0.25, \"indicator\": \"NLc.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S19\", \"kind\": \"MC\", \"number\": 19, \"parts\": [{\"id\": \"P19\", \"label\": \"\", \"requirement_id\": \"R20\", \"points\": 0.25, \"indicator\": \"NLc.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S20\", \"kind\": \"YN\", \"number\": 1, \"parts\": [{\"id\": \"P20\", \"label\": \"a\", \"requirement_id\": \"R6\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P21\", \"label\": \"b\", \"requirement_id\": \"R6\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P22\", \"label\": \"c\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P23\", \"label\": \"d\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S21\", \"kind\": \"YN\", \"number\": 2, \"parts\": [{\"id\": \"P24\", \"label\": \"a\", \"requirement_id\": \"R12\", \"points\": 0.25, \"indicator\": \"NLb.1\"}, {\"id\": \"P25\", \"label\": \"b\", \"requirement_id\": \"R12\", \"points\": 0.25, \"indicator\": \"NLb.1\"}, {\"id\": \"P26\", \"label\": \"c\", \"requirement_id\": \"R13\", \"points\": 0.25, \"indicator\": \"NLb.1\"}, {\"id\": \"P27\", \"label\": \"d\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"NLb.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S22\", \"kind\": \"YN\", \"number\": 3, \"parts\": [{\"id\": \"P28\", \"label\": \"a\", \"requirement_id\": \"R16\", \"points\": 0.25, \"indicator\": \"NLb.1\"}, {\"id\": \"P29\", \"label\": \"b\", \"requirement_id\": \"R16\", \"points\": 0.25, \"indicator\": \"NLb.1\"}, {\"id\": \"P30\", \"label\": \"c\", \"requirement_id\": \"R17\", \"points\": 0.25, \"indicator\": \"NLb.1\"}, {\"id\": \"P31\", \"label\": \"d\", \"requirement_id\": \"R18\", \"points\": 0.25, \"indicator\": \"NLb.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S23\", \"kind\": \"ES\", \"number\": 1, \"parts\": [{\"id\": \"P32\", \"label\": \"\", \"requirement_id\": \"R3\", \"points\": 0.75, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S24\", \"kind\": \"ES\", \"number\": 2, \"parts\": [{\"id\": \"P33\", \"label\": \"\", \"requirement_id\": \"R11\", \"points\": 0.75, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S25\", \"kind\": \"ES\", \"number\": 3, \"parts\": [{\"id\": \"P34\", \"label\": \"\", \"requirement_id\": \"R21\", \"points\": 0.75, \"indicator\": \"NLc.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}], \"competency_catalog\": [{\"code\": \"NLa\", \"name\": \"S\u1eed d\u1ee5ng v\u00e0 qu\u1ea3n l\u00ed c\u00e1c ph\u01b0\u01a1ng ti\u1ec7n c\u00f4ng ngh\u1ec7 th\u00f4ng tin v\u00e0 truy\u1ec1n th\u00f4ng\"}, {\"code\": \"NLb\", \"name\": \"\u1ee8ng x\u1eed ph\u00f9 h\u1ee3p trong m\u00f4i tr\u01b0\u1eddng s\u1ed1\"}, {\"code\": \"NLc\", \"name\": \"Gi\u1ea3i quy\u1ebft v\u1ea5n \u0111\u1ec1 v\u1edbi s\u1ef1 h\u1ed7 tr\u1ee3 c\u1ee7a c\u00f4ng ngh\u1ec7 th\u00f4ng tin v\u00e0 truy\u1ec1n th\u00f4ng\"}, {\"code\": \"NLd\", \"name\": \"\u1ee8ng d\u1ee5ng c\u00f4ng ngh\u1ec7 th\u00f4ng tin v\u00e0 truy\u1ec1n th\u00f4ng trong h\u1ecdc v\u00e0 t\u1ef1 h\u1ecdc\"}, {\"code\": \"NLe\", \"name\": \"H\u1ee3p t\u00e1c trong m\u00f4i tr\u01b0\u1eddng s\u1ed1\"}], \"indicator_catalog\": [{\"code\": \"NLa.1\", \"competency\": \"NLa\", \"text\": \"Nh\u1eadn di\u1ec7n, ph\u00e2n bi\u1ec7t c\u1ea5u t\u1ea1o, ch\u1ee9c n\u0103ng c\u1ee7a thi\u1ebft b\u1ecb s\u1ed1, ph\u1ea7n m\u1ec1m h\u1ec7 th\u1ed1ng v\u00e0 ph\u1ea7n m\u1ec1m \u1ee9ng d\u1ee5ng.\"}, {\"code\": \"NLa.2\", \"competency\": \"NLa\", \"text\": \"Th\u1ef1c hi\u1ec7n thao t\u00e1c qu\u1ea3n l\u00ed d\u1eef li\u1ec7u, t\u1ec7p, th\u01b0 m\u1ee5c v\u00e0 khai th\u00e1c t\u00e0i nguy\u00ean m\u1ea1ng m\u00e1y t\u00ednh an to\u00e0n.\"}, {\"code\": \"NLa.3\", \"competency\": \"NLa\", \"text\": \"Thi\u1ebft l\u1eadp, v\u1eadn h\u00e0nh c\u01a1 b\u1ea3n c\u00e1c thi\u1ebft b\u1ecb ngo\u1ea1i vi, k\u1ebft n\u1ed1i m\u1ea1ng ho\u1eb7c h\u1ec7 c\u01a1 s\u1edf d\u1eef li\u1ec7u \u0111\u00fang quy tr\u00ecnh.\"}, {\"code\": \"NLa.4\", \"competency\": \"NLa\", \"text\": \"Ph\u00e2n t\u00edch th\u00f4ng s\u1ed1 k\u0129 thu\u1eadt ph\u1ea7n c\u1ee9ng, m\u1ea1ng ho\u1eb7c c\u1ea5u tr\u00fac d\u1eef li\u1ec7u \u0111\u1ec3 l\u1ef1a ch\u1ecdn ph\u01b0\u01a1ng \u00e1n ph\u00f9 h\u1ee3p.\"}, {\"code\": \"NLb.1\", \"competency\": \"NLb\", \"text\": \"Nh\u1eadn bi\u1ebft c\u00e1c quy \u0111\u1ecbnh ph\u00e1p lu\u1eadt, b\u1ea3n quy\u1ec1n s\u1ed1, quy t\u1eafc an to\u00e0n v\u00e0 v\u0103n ho\u00e1 giao ti\u1ebfp tr\u00ean m\u1ea1ng.\"}, {\"code\": \"NLb.2\", \"competency\": \"NLb\", \"text\": \"Gi\u1ea3i th\u00edch nguy c\u01a1 m\u1ea5t an to\u00e0n th\u00f4ng tin, vi ph\u1ea1m b\u1ea3n quy\u1ec1n v\u00e0 bi\u1ec7n ph\u00e1p ph\u00f2ng tr\u00e1nh.\"}, {\"code\": \"NLc.1\", \"competency\": \"NLc\", \"text\": \"M\u00f4 t\u1ea3 \u00fd t\u01b0\u1edfng thu\u1eadt to\u00e1n, ph\u00e2n t\u00edch b\u00e0i to\u00e1n v\u00e0 bi\u1ec3u di\u1ec5n c\u1ea5u tr\u00fac d\u1eef li\u1ec7u ph\u00f9 h\u1ee3p.\"}, {\"code\": \"NLc.2\", \"competency\": \"NLc\", \"text\": \"Theo d\u00f5i v\u1ebft thu\u1eadt to\u00e1n, ki\u1ec3m th\u1eed, ph\u00e1t hi\u1ec7n l\u1ed7i v\u00e0 gi\u1ea3i th\u00edch k\u1ebft qu\u1ea3 th\u1ef1c thi ch\u01b0\u01a1ng tr\u00ecnh/truy v\u1ea5n.\"}, {\"code\": \"NLc.3\", \"competency\": \"NLc\", \"text\": \"Thi\u1ebft k\u1ebf thu\u1eadt to\u00e1n, vi\u1ebft ch\u01b0\u01a1ng tr\u00ecnh, t\u1ea1o s\u1ea3n ph\u1ea9m s\u1ed1 ho\u1eb7c thi\u1ebft k\u1ebf CSDL gi\u1ea3i quy\u1ebft v\u1ea5n \u0111\u1ec1 c\u1ee5 th\u1ec3.\"}, {\"code\": \"NLc.4\", \"competency\": \"NLc\", \"text\": \"\u0110\u00e1nh gi\u00e1 \u0111\u1ed9 ph\u1ee9c t\u1ea1p, t\u1ed1i \u01b0u thu\u1eadt to\u00e1n ho\u1eb7c c\u1ea3i ti\u1ebfn gi\u1ea3i ph\u00e1p tin h\u1ecdc cho b\u00e0i to\u00e1n th\u1ef1c ti\u1ec5n.\"}, {\"code\": \"NLd.1\", \"competency\": \"NLd\", \"text\": \"Khai th\u00e1c h\u1ecdc li\u1ec7u s\u1ed1, ph\u1ea7n m\u1ec1m m\u00f4 ph\u1ecfng, c\u00f4ng c\u1ee5 t\u00ecm ki\u1ebfm \u0111\u1ec3 t\u00ecm hi\u1ec3u tri th\u1ee9c m\u00f4n h\u1ecdc.\"}, {\"code\": \"NLd.2\", \"competency\": \"NLd\", \"text\": \"\u0110\u00e1nh gi\u00e1 \u0111\u1ed9 tin c\u1eady c\u1ee7a ngu\u1ed3n th\u00f4ng tin/c\u00f4ng c\u1ee5 AI v\u00e0 t\u1ef1 h\u1ecdc, m\u1edf r\u1ed9ng ki\u1ebfn th\u1ee9c b\u1eb1ng CNTT.\"}, {\"code\": \"NLe.1\", \"competency\": \"NLe\", \"text\": \"S\u1eed d\u1ee5ng c\u00f4ng c\u1ee5 tr\u1ef1c tuy\u1ebfn \u0111\u1ec3 trao \u0111\u1ed5i, chia s\u1ebb th\u00f4ng tin v\u00e0 ph\u1ea3n h\u1ed3i v\u0103n minh.\"}, {\"code\": \"NLe.2\", \"competency\": \"NLe\", \"text\": \"T\u1ed5 ch\u1ee9c c\u1ed9ng t\u00e1c, ph\u00e2n c\u00f4ng v\u00e0 \u0111\u1ed3ng t\u1ea1o l\u1eadp s\u1ea3n ph\u1ea9m s\u1ed1 qua n\u1ec1n t\u1ea3ng l\u00e0m vi\u1ec7c nh\u00f3m.\"}], \"catalog_revision\": 1}, \"11\": {\"profile\": \"THPT\", \"grade\": 11, \"exam_type\": \"GK1\", \"duration\": 45, \"school_year\": \"2026-2027\", \"title\": \"Ma tr\u1eadn & \u0111\u1eb7c t\u1ea3 Ki\u1ec3m tra Gi\u1eefa HK1 \u00b7 M\u00f4n Tin h\u1ecdc Kh\u1ed1i 11\", \"owner_name\": \"T\u1ed5 Tin h\u1ecdc \u00c1 Ch\u00e2u\", \"campus\": \"Cao Th\u1eafng\", \"total_points\": 10, \"lessons\": [{\"lesson_code\": \"B1\", \"title\": \"H\u1ec7 \u0111i\u1ec1u h\u00e0nh\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1. M\u00e1y t\u00ednh v\u00e0 x\u00e3 h\u1ed9i tri th\u1ee9c\"}, {\"lesson_code\": \"B2\", \"title\": \"Th\u1ef1c h\u00e0nh s\u1eed d\u1ee5ng h\u1ec7 \u0111i\u1ec1u h\u00e0nh\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1. M\u00e1y t\u00ednh v\u00e0 x\u00e3 h\u1ed9i tri th\u1ee9c\"}, {\"lesson_code\": \"B3\", \"title\": \"Ph\u1ea7n m\u1ec1m ngu\u1ed3n m\u1edf v\u00e0 ph\u1ea7n m\u1ec1m ch\u1ea1y tr\u00ean Internet\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1. M\u00e1y t\u00ednh v\u00e0 x\u00e3 h\u1ed9i tri th\u1ee9c\"}, {\"lesson_code\": \"B4\", \"title\": \"B\u00ean trong m\u00e1y t\u00ednh\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1. M\u00e1y t\u00ednh v\u00e0 x\u00e3 h\u1ed9i tri th\u1ee9c\"}, {\"lesson_code\": \"B5\", \"title\": \"K\u1ebft n\u1ed1i m\u00e1y t\u00ednh v\u1edbi c\u00e1c thi\u1ebft b\u1ecb s\u1ed1\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1. M\u00e1y t\u00ednh v\u00e0 x\u00e3 h\u1ed9i tri th\u1ee9c\"}, {\"lesson_code\": \"B6\", \"title\": \"L\u01b0u tr\u1eef v\u00e0 chia s\u1ebb t\u1ec7p tin tr\u00ean Internet\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2. T\u1ed5 ch\u1ee9c l\u01b0u tr\u1eef, t\u00ecm ki\u1ebfm v\u00e0 trao \u0111\u1ed5i th\u00f4ng tin\"}, {\"lesson_code\": \"B7\", \"title\": \"Th\u1ef1c h\u00e0nh t\u00ecm ki\u1ebfm th\u00f4ng tin tr\u00ean Internet\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2. T\u1ed5 ch\u1ee9c l\u01b0u tr\u1eef, t\u00ecm ki\u1ebfm v\u00e0 trao \u0111\u1ed5i th\u00f4ng tin\"}, {\"lesson_code\": \"B8\", \"title\": \"Th\u1ef1c h\u00e0nh n\u00e2ng cao s\u1eed d\u1ee5ng th\u01b0 \u0111i\u1ec7n t\u1eed v\u00e0 m\u1ea1ng x\u00e3 h\u1ed9i\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2. T\u1ed5 ch\u1ee9c l\u01b0u tr\u1eef, t\u00ecm ki\u1ebfm v\u00e0 trao \u0111\u1ed5i th\u00f4ng tin\"}], \"requirements\": [{\"id\": \"R1\", \"lesson_code\": \"B1\", \"level\": \"Bi\u1ebft\", \"text\": \"Tr\u00ecnh b\u00e0y \u0111\u01b0\u1ee3c s\u01a1 l\u01b0\u1ee3c l\u1ecbch s\u1eed ph\u00e1t tri\u1ec3n c\u1ee7a c\u00e1c h\u1ec7 \u0111i\u1ec1u h\u00e0nh th\u00f4ng d\u1ee5ng cho m\u00e1y t\u00ednh c\u00e1 nh\u00e2n (PC).\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R2\", \"lesson_code\": \"B1\", \"level\": \"Hi\u1ec3u\", \"text\": \"Ch\u1ec9 ra \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 \u0111\u1eb7c \u0111i\u1ec3m c\u1ee7a h\u1ec7 \u0111i\u1ec1u h\u00e0nh cho thi\u1ebft b\u1ecb di \u0111\u1ed9ng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R3\", \"lesson_code\": \"B1\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"Tr\u00ecnh b\u00e0y \u0111\u01b0\u1ee3c m\u1ed9t c\u00e1ch kh\u00e1i qu\u00e1t m\u1ed1i quan h\u1ec7 gi\u1eefa ph\u1ea7n c\u1ee9ng, h\u1ec7 \u0111i\u1ec1u h\u00e0nh v\u00e0 ph\u1ea7n m\u1ec1m \u1ee9ng d\u1ee5ng c\u0169ng nh\u01b0 vai tr\u00f2 c\u1ee7a m\u1ed7i th\u00e0nh ph\u1ea7n trong ho\u1ea1t \u0111\u1ed9ng chung c\u1ee7a c\u1ea3 h\u1ec7 th\u1ed1ng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R4\", \"lesson_code\": \"B2\", \"level\": \"Bi\u1ebft\", \"text\": \"S\u1eed d\u1ee5ng \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 ch\u1ee9c n\u0103ng c\u01a1 b\u1ea3n c\u1ee7a h\u1ec7 \u0111i\u1ec1u h\u00e0nh cho m\u00e1y t\u00ednh c\u00e1 nh\u00e2n.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R5\", \"lesson_code\": \"B2\", \"level\": \"Hi\u1ec3u\", \"text\": \"S\u1eed d\u1ee5ng \u0111\u01b0\u1ee3c m\u1ed9t v\u00e0i ti\u1ec7n \u00edch c\u1ee7a h\u1ec7 \u0111i\u1ec1u h\u00e0nh n\u00e2ng cao hi\u1ec7u qu\u1ea3 c\u1ee7a m\u00e1y t\u00ednh c\u00e1 nh\u00e2n.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R6\", \"lesson_code\": \"B2\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"S\u1eed d\u1ee5ng \u0111\u01b0\u1ee3c m\u1ed9t v\u00e0i ti\u1ec7n \u00edch c\u01a1 b\u1ea3n c\u1ee7a h\u1ec7 \u0111i\u1ec1u h\u00e0nh tr\u00ean thi\u1ebft b\u1ecb di \u0111\u1ed9ng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R7\", \"lesson_code\": \"B3\", \"level\": \"Bi\u1ebft\", \"text\": \"Tr\u00ecnh b\u00e0y \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 kh\u00e1i ni\u1ec7m v\u00e0 so s\u00e1nh ph\u1ea7n m\u1ec1m ngu\u1ed3n m\u1edf v\u1edbi ph\u1ea7n m\u1ec1m th\u01b0\u01a1ng m\u1ea1i; n\u00eau \u0111\u01b0\u1ee3c vai tr\u00f2 c\u1ee7a ph\u1ea7n m\u1ec1m ngu\u1ed3n m\u1edf v\u00e0 ph\u1ea7n m\u1ec1m th\u01b0\u01a1ng m\u1ea1i \u0111\u1ed1i v\u1edbi s\u1ef1 ph\u00e1t tri\u1ec3n c\u1ee7a c\u00f4ng ngh\u1ec7 th\u00f4ng tin.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R8\", \"lesson_code\": \"B3\", \"level\": \"Hi\u1ec3u\", \"text\": \"L\u00e0m quen v\u1edbi ph\u1ea7n m\u1ec1m ch\u1ea1y tr\u00ean Internet.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R9\", \"lesson_code\": \"B3\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"L\u00e0m quen v\u1edbi ph\u1ea7n m\u1ec1m ch\u1ea1y tr\u00ean Internet.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R10\", \"lesson_code\": \"B4\", \"level\": \"Bi\u1ebft\", \"text\": \"Nh\u1eadn di\u1ec7n \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 thi\u1ebft b\u1ecb b\u00ean trong m\u00e1y t\u00ednh v\u1edbi ch\u1ee9c n\u0103ng v\u00e0 c\u00e1c th\u00f4ng s\u1ed1 \u0111o hi\u1ec7u n\u0103ng c\u1ee7a ch\u00fang.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R11\", \"lesson_code\": \"B4\", \"level\": \"Hi\u1ec3u\", \"text\": \"Nh\u1eadn bi\u1ebft \u0111\u01b0\u1ee3c s\u01a1 \u0111\u1ed3 c\u1ee7a c\u00e1c m\u1ea1ch logic AND, OR, NOT v\u00e0 gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c vai tr\u00f2 c\u1ee7a c\u00e1c m\u1ea1ch logic \u0111\u00f3 trong th\u1ef1c hi\u1ec7n c\u00e1c t\u00ednh to\u00e1n nh\u1ecb ph\u00e2n.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R12\", \"lesson_code\": \"B4\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"Nh\u1eadn bi\u1ebft \u0111\u01b0\u1ee3c s\u01a1 \u0111\u1ed3 c\u1ee7a c\u00e1c m\u1ea1ch logic AND, OR, NOT v\u00e0 gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c vai tr\u00f2 c\u1ee7a c\u00e1c m\u1ea1ch logic \u0111\u00f3 trong th\u1ef1c hi\u1ec7n c\u00e1c t\u00ednh to\u00e1n nh\u1ecb ph\u00e2n.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R13\", \"lesson_code\": \"B5\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft m\u1ed9t s\u1ed1 th\u00f4ng s\u1ed1 c\u01a1 b\u1ea3n c\u1ee7a thi\u1ebft b\u1ecb v\u00e0o \u2013 ra th\u00f4ng d\u1ee5ng, c\u00e1ch k\u1ebft n\u1ed1i v\u1edbi m\u00e1y t\u00ednh v\u00e0 t\u00f9y ch\u1ec9nh ch\u1ee9c n\u0103ng \u0111\u1ec3 t\u1ed1i \u01b0u h\u00f3a hi\u1ec7u qu\u1ea3 s\u1eed d\u1ee5ng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R14\", \"lesson_code\": \"B5\", \"level\": \"Hi\u1ec3u\", \"text\": \"\u0110\u1ecdc hi\u1ec3u v\u00e0 gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 th\u00f4ng s\u1ed1 c\u01a1 b\u1ea3n c\u1ee7a c\u00e1c thi\u1ebft b\u1ecb s\u1ed1 th\u00f4ng d\u1ee5ng trong c\u00e1c t\u00e0i li\u1ec7u \u0111\u1ec3 k\u1ebft n\u1ed1i ch\u00fang v\u1edbi m\u00e1y t\u00ednh.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R15\", \"lesson_code\": \"B5\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"\u0110\u1ecdc hi\u1ec3u v\u00e0 gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 th\u00f4ng s\u1ed1 c\u01a1 b\u1ea3n c\u1ee7a c\u00e1c thi\u1ebft b\u1ecb s\u1ed1 th\u00f4ng d\u1ee5ng trong c\u00e1c t\u00e0i li\u1ec7u \u0111\u1ec3 k\u1ebft n\u1ed1i ch\u00fang v\u1edbi m\u00e1y t\u00ednh.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R16\", \"lesson_code\": \"B6\", \"level\": \"Bi\u1ebft\", \"text\": \"S\u1eed d\u1ee5ng \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 c\u00f4ng c\u1ee5 tr\u1ef1c tuy\u1ebfn nh\u01b0 Google Drive, Dropbox, \u2026 \u0111\u1ec3 l\u01b0u tr\u1eef v\u00e0 chia s\u1ebb t\u1ec7p tin.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R17\", \"lesson_code\": \"B6\", \"level\": \"Hi\u1ec3u\", \"text\": \"S\u1eed d\u1ee5ng \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 c\u00f4ng c\u1ee5 tr\u1ef1c tuy\u1ebfn nh\u01b0 Google Drive, Dropbox, \u2026 \u0111\u1ec3 l\u01b0u tr\u1eef v\u00e0 chia s\u1ebb t\u1ec7p tin.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R18\", \"lesson_code\": \"B6\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"S\u1eed d\u1ee5ng \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 c\u00f4ng c\u1ee5 tr\u1ef1c tuy\u1ebfn nh\u01b0 Google Drive, Dropbox, \u2026 \u0111\u1ec3 l\u01b0u tr\u1eef v\u00e0 chia s\u1ebb t\u1ec7p tin.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R19\", \"lesson_code\": \"B7\", \"level\": \"Bi\u1ebft\", \"text\": \"S\u1eed d\u1ee5ng \u0111\u01b0\u1ee3c m\u00e1y t\u00ecm ki\u1ebfm tr\u00ean PC v\u00e0 thi\u1ebft b\u1ecb s\u1ed1 th\u00f4ng minh b\u1eb1ng c\u00e1ch g\u00f5 t\u1eeb kh\u00f3a ho\u1eb7c b\u1eb1ng ti\u1ebfng n\u00f3i.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R20\", \"lesson_code\": \"B7\", \"level\": \"Hi\u1ec3u\", \"text\": \"X\u00e1c l\u1eadp \u0111\u01b0\u1ee3c c\u00e1c l\u1ef1a ch\u1ecdn theo ti\u00eau ch\u00ed t\u00ecm ki\u1ebfm \u0111\u1ec3 n\u00e2ng cao hi\u1ec7u qu\u1ea3 t\u00ecm ki\u1ebfm th\u00f4ng tin.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R21\", \"lesson_code\": \"B7\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"X\u00e1c l\u1eadp \u0111\u01b0\u1ee3c c\u00e1c l\u1ef1a ch\u1ecdn theo ti\u00eau ch\u00ed t\u00ecm ki\u1ebfm \u0111\u1ec3 n\u00e2ng cao hi\u1ec7u qu\u1ea3 t\u00ecm ki\u1ebfm th\u00f4ng tin.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R22\", \"lesson_code\": \"B8\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft \u0111\u00e1nh d\u1ea5u v\u00e0 ph\u00e2n lo\u1ea1i th\u01b0 \u0111i\u1ec7n t\u1eed.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R23\", \"lesson_code\": \"B8\", \"level\": \"Hi\u1ec3u\", \"text\": \"Khai th\u00e1c \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 ch\u1ee9c n\u0103ng n\u00e2ng cao c\u1ee7a m\u1ea1ng x\u00e3 h\u1ed9i.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R24\", \"lesson_code\": \"B8\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"Khai th\u00e1c \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 ch\u1ee9c n\u0103ng n\u00e2ng cao c\u1ee7a m\u1ea1ng x\u00e3 h\u1ed9i.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}], \"slots\": [{\"id\": \"S1\", \"kind\": \"MC\", \"number\": 1, \"parts\": [{\"id\": \"P1\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S2\", \"kind\": \"MC\", \"number\": 2, \"parts\": [{\"id\": \"P2\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S3\", \"kind\": \"MC\", \"number\": 3, \"parts\": [{\"id\": \"P3\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S4\", \"kind\": \"MC\", \"number\": 4, \"parts\": [{\"id\": \"P4\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S5\", \"kind\": \"MC\", \"number\": 5, \"parts\": [{\"id\": \"P5\", \"label\": \"\", \"requirement_id\": \"R13\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S6\", \"kind\": \"MC\", \"number\": 6, \"parts\": [{\"id\": \"P6\", \"label\": \"\", \"requirement_id\": \"R16\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S7\", \"kind\": \"MC\", \"number\": 7, \"parts\": [{\"id\": \"P7\", \"label\": \"\", \"requirement_id\": \"R19\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S8\", \"kind\": \"MC\", \"number\": 8, \"parts\": [{\"id\": \"P8\", \"label\": \"\", \"requirement_id\": \"R22\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S9\", \"kind\": \"MC\", \"number\": 9, \"parts\": [{\"id\": \"P9\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S10\", \"kind\": \"MC\", \"number\": 10, \"parts\": [{\"id\": \"P10\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S11\", \"kind\": \"MC\", \"number\": 11, \"parts\": [{\"id\": \"P11\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S12\", \"kind\": \"MC\", \"number\": 12, \"parts\": [{\"id\": \"P12\", \"label\": \"\", \"requirement_id\": \"R5\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S13\", \"kind\": \"MC\", \"number\": 13, \"parts\": [{\"id\": \"P13\", \"label\": \"\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S14\", \"kind\": \"MC\", \"number\": 14, \"parts\": [{\"id\": \"P14\", \"label\": \"\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S15\", \"kind\": \"MC\", \"number\": 15, \"parts\": [{\"id\": \"P15\", \"label\": \"\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S16\", \"kind\": \"MC\", \"number\": 16, \"parts\": [{\"id\": \"P16\", \"label\": \"\", \"requirement_id\": \"R17\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S17\", \"kind\": \"MC\", \"number\": 17, \"parts\": [{\"id\": \"P17\", \"label\": \"\", \"requirement_id\": \"R20\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S18\", \"kind\": \"MC\", \"number\": 18, \"parts\": [{\"id\": \"P18\", \"label\": \"\", \"requirement_id\": \"R23\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S19\", \"kind\": \"MC\", \"number\": 19, \"parts\": [{\"id\": \"P19\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S20\", \"kind\": \"YN\", \"number\": 1, \"parts\": [{\"id\": \"P20a\", \"label\": \"a\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P20b\", \"label\": \"b\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P20c\", \"label\": \"c\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P20d\", \"label\": \"d\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S21\", \"kind\": \"YN\", \"number\": 2, \"parts\": [{\"id\": \"P21a\", \"label\": \"a\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P21b\", \"label\": \"b\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P21c\", \"label\": \"c\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P21d\", \"label\": \"d\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S22\", \"kind\": \"YN\", \"number\": 3, \"parts\": [{\"id\": \"P22a\", \"label\": \"a\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P22b\", \"label\": \"b\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P22c\", \"label\": \"c\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P22d\", \"label\": \"d\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S23\", \"kind\": \"ES\", \"number\": 1, \"parts\": [{\"id\": \"P23\", \"label\": \"\", \"requirement_id\": \"R3\", \"points\": 0.75, \"indicator\": \"NLb.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S24\", \"kind\": \"ES\", \"number\": 2, \"parts\": [{\"id\": \"P24\", \"label\": \"\", \"requirement_id\": \"R6\", \"points\": 0.75, \"indicator\": \"NLb.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S25\", \"kind\": \"ES\", \"number\": 3, \"parts\": [{\"id\": \"P25\", \"label\": \"\", \"requirement_id\": \"R9\", \"points\": 0.75, \"indicator\": \"NLb.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}], \"indicator_catalog\": [{\"code\": \"NLa.1\", \"competency\": \"NLa\", \"text\": \"Nh\u1eadn di\u1ec7n, ph\u00e2n bi\u1ec7t c\u1ea5u t\u1ea1o, ch\u1ee9c n\u0103ng c\u1ee7a thi\u1ebft b\u1ecb s\u1ed1, ph\u1ea7n m\u1ec1m h\u1ec7 th\u1ed1ng v\u00e0 ph\u1ea7n m\u1ec1m \u1ee9ng d\u1ee5ng.\"}, {\"code\": \"NLa.2\", \"competency\": \"NLa\", \"text\": \"Th\u1ef1c hi\u1ec7n thao t\u00e1c qu\u1ea3n l\u00ed d\u1eef li\u1ec7u, t\u1ec7p, th\u01b0 m\u1ee5c v\u00e0 khai th\u00e1c t\u00e0i nguy\u00ean m\u1ea1ng m\u00e1y t\u00ednh an to\u00e0n.\"}, {\"code\": \"NLa.3\", \"competency\": \"NLa\", \"text\": \"Thi\u1ebft l\u1eadp, v\u1eadn h\u00e0nh c\u01a1 b\u1ea3n c\u00e1c thi\u1ebft b\u1ecb ngo\u1ea1i vi, k\u1ebft n\u1ed1i m\u1ea1ng ho\u1eb7c h\u1ec7 c\u01a1 s\u1edf d\u1eef li\u1ec7u \u0111\u00fang quy tr\u00ecnh.\"}, {\"code\": \"NLa.4\", \"competency\": \"NLa\", \"text\": \"Ph\u00e2n t\u00edch th\u00f4ng s\u1ed1 k\u0129 thu\u1eadt ph\u1ea7n c\u1ee9ng, m\u1ea1ng ho\u1eb7c c\u1ea5u tr\u00fac d\u1eef li\u1ec7u \u0111\u1ec3 l\u1ef1a ch\u1ecdn ph\u01b0\u01a1ng \u00e1n ph\u00f9 h\u1ee3p.\"}, {\"code\": \"NLb.1\", \"competency\": \"NLb\", \"text\": \"Nh\u1eadn bi\u1ebft c\u00e1c quy \u0111\u1ecbnh ph\u00e1p lu\u1eadt, b\u1ea3n quy\u1ec1n s\u1ed1, quy t\u1eafc an to\u00e0n v\u00e0 v\u0103n ho\u00e1 giao ti\u1ebfp tr\u00ean m\u1ea1ng.\"}, {\"code\": \"NLb.2\", \"competency\": \"NLb\", \"text\": \"Gi\u1ea3i th\u00edch nguy c\u01a1 m\u1ea5t an to\u00e0n th\u00f4ng tin, vi ph\u1ea1m b\u1ea3n quy\u1ec1n v\u00e0 bi\u1ec7n ph\u00e1p ph\u00f2ng tr\u00e1nh.\"}, {\"code\": \"NLc.1\", \"competency\": \"NLc\", \"text\": \"M\u00f4 t\u1ea3 \u00fd t\u01b0\u1edfng thu\u1eadt to\u00e1n, ph\u00e2n t\u00edch b\u00e0i to\u00e1n v\u00e0 bi\u1ec3u di\u1ec5n c\u1ea5u tr\u00fac d\u1eef li\u1ec7u ph\u00f9 h\u1ee3p.\"}, {\"code\": \"NLc.2\", \"competency\": \"NLc\", \"text\": \"Theo d\u00f5i v\u1ebft thu\u1eadt to\u00e1n, ki\u1ec3m th\u1eed, ph\u00e1t hi\u1ec7n l\u1ed7i v\u00e0 gi\u1ea3i th\u00edch k\u1ebft qu\u1ea3 th\u1ef1c thi ch\u01b0\u01a1ng tr\u00ecnh/truy v\u1ea5n.\"}, {\"code\": \"NLc.3\", \"competency\": \"NLc\", \"text\": \"Thi\u1ebft k\u1ebf thu\u1eadt to\u00e1n, vi\u1ebft ch\u01b0\u01a1ng tr\u00ecnh, t\u1ea1o s\u1ea3n ph\u1ea9m s\u1ed1 ho\u1eb7c thi\u1ebft k\u1ebf CSDL gi\u1ea3i quy\u1ebft v\u1ea5n \u0111\u1ec1 c\u1ee5 th\u1ec3.\"}, {\"code\": \"NLc.4\", \"competency\": \"NLc\", \"text\": \"\u0110\u00e1nh gi\u00e1 \u0111\u1ed9 ph\u1ee9c t\u1ea1p, t\u1ed1i \u01b0u thu\u1eadt to\u00e1n ho\u1eb7c c\u1ea3i ti\u1ebfn gi\u1ea3i ph\u00e1p tin h\u1ecdc cho b\u00e0i to\u00e1n th\u1ef1c ti\u1ec5n.\"}, {\"code\": \"NLd.1\", \"competency\": \"NLd\", \"text\": \"Khai th\u00e1c h\u1ecdc li\u1ec7u s\u1ed1, ph\u1ea7n m\u1ec1m m\u00f4 ph\u1ecfng, c\u00f4ng c\u1ee5 t\u00ecm ki\u1ebfm \u0111\u1ec3 t\u00ecm hi\u1ec3u tri th\u1ee9c m\u00f4n h\u1ecdc.\"}, {\"code\": \"NLd.2\", \"competency\": \"NLd\", \"text\": \"\u0110\u00e1nh gi\u00e1 \u0111\u1ed9 tin c\u1eady c\u1ee7a ngu\u1ed3n th\u00f4ng tin/c\u00f4ng c\u1ee5 AI v\u00e0 t\u1ef1 h\u1ecdc, m\u1edf r\u1ed9ng ki\u1ebfn th\u1ee9c b\u1eb1ng CNTT.\"}, {\"code\": \"NLe.1\", \"competency\": \"NLe\", \"text\": \"S\u1eed d\u1ee5ng c\u00f4ng c\u1ee5 tr\u1ef1c tuy\u1ebfn \u0111\u1ec3 trao \u0111\u1ed5i, chia s\u1ebb th\u00f4ng tin v\u00e0 ph\u1ea3n h\u1ed3i v\u0103n minh.\"}, {\"code\": \"NLe.2\", \"competency\": \"NLe\", \"text\": \"T\u1ed5 ch\u1ee9c c\u1ed9ng t\u00e1c, ph\u00e2n c\u00f4ng v\u00e0 \u0111\u1ed3ng t\u1ea1o l\u1eadp s\u1ea3n ph\u1ea9m s\u1ed1 qua n\u1ec1n t\u1ea3ng l\u00e0m vi\u1ec7c nh\u00f3m.\"}], \"competency_catalog\": [{\"code\": \"NLa\", \"name\": \"S\u1eed d\u1ee5ng v\u00e0 qu\u1ea3n l\u00ed c\u00e1c ph\u01b0\u01a1ng ti\u1ec7n c\u00f4ng ngh\u1ec7 th\u00f4ng tin v\u00e0 truy\u1ec1n th\u00f4ng\"}, {\"code\": \"NLb\", \"name\": \"\u1ee8ng x\u1eed ph\u00f9 h\u1ee3p trong m\u00f4i tr\u01b0\u1eddng s\u1ed1\"}, {\"code\": \"NLc\", \"name\": \"Gi\u1ea3i quy\u1ebft v\u1ea5n \u0111\u1ec1 v\u1edbi s\u1ef1 h\u1ed7 tr\u1ee3 c\u1ee7a c\u00f4ng ngh\u1ec7 th\u00f4ng tin v\u00e0 truy\u1ec1n th\u00f4ng\"}, {\"code\": \"NLd\", \"name\": \"\u1ee8ng d\u1ee5ng c\u00f4ng ngh\u1ec7 th\u00f4ng tin v\u00e0 truy\u1ec1n th\u00f4ng trong h\u1ecdc v\u00e0 t\u1ef1 h\u1ecdc\"}, {\"code\": \"NLe\", \"name\": \"H\u1ee3p t\u00e1c trong m\u00f4i tr\u01b0\u1eddng s\u1ed1\"}], \"catalog_revision\": 1}, \"12\": {\"profile\": \"THPT\", \"grade\": 12, \"exam_type\": \"GK1\", \"duration\": 45, \"school_year\": \"2026-2027\", \"title\": \"Ma tr\u1eadn & \u0111\u1eb7c t\u1ea3 Ki\u1ec3m tra Gi\u1eefa HK1 \u00b7 M\u00f4n Tin h\u1ecdc Kh\u1ed1i 12\", \"owner_name\": \"T\u1ed5 Tin h\u1ecdc \u00c1 Ch\u00e2u\", \"campus\": \"Cao Th\u1eafng\", \"total_points\": 10, \"lessons\": [{\"lesson_code\": \"B1\", \"title\": \"L\u00e0m quen v\u1edbi Tr\u00ed tu\u1ec7 nh\u00e2n t\u1ea1o\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1. M\u00e1y t\u00ednh v\u00e0 x\u00e3 h\u1ed9i tri th\u1ee9c\"}, {\"lesson_code\": \"B2\", \"title\": \"Tr\u00ed tu\u1ec7 nh\u00e2n t\u1ea1o trong khoa h\u1ecdc v\u00e0 \u0111\u1eddi s\u1ed1ng\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 1. M\u00e1y t\u00ednh v\u00e0 x\u00e3 h\u1ed9i tri th\u1ee9c\"}, {\"lesson_code\": \"B3\", \"title\": \"M\u1ed9t s\u1ed1 thi\u1ebft b\u1ecb m\u1ea1ng th\u00f4ng d\u1ee5ng\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2. M\u1ea1ng m\u00e1y t\u00ednh v\u00e0 Internet\"}, {\"lesson_code\": \"B4\", \"title\": \"Giao th\u1ee9c m\u1ea1ng\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2. M\u1ea1ng m\u00e1y t\u00ednh v\u00e0 Internet\"}, {\"lesson_code\": \"B5\", \"title\": \"Th\u1ef1c h\u00e0nh chia s\u1ebb t\u00e0i nguy\u00ean tr\u00ean m\u1ea1ng\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 2. M\u1ea1ng m\u00e1y t\u00ednh v\u00e0 Internet\"}, {\"lesson_code\": \"B6\", \"title\": \"Giao ti\u1ebfp v\u00e0 \u1ee9ng x\u1eed trong kh\u00f4ng gian m\u1ea1ng\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 3. \u0110\u1ea1o \u0111\u1ee9c, ph\u00e1p lu\u1eadt v\u00e0 v\u0103n h\u00f3a trong m\u00f4i tr\u01b0\u1eddng s\u1ed1\"}, {\"lesson_code\": \"B23\", \"title\": \"Chu\u1ea9n b\u1ecb x\u00e2y d\u1ef1ng trang web\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 7. \u1ee8ng d\u1ee5ng tin h\u1ecdc\"}, {\"lesson_code\": \"B24\", \"title\": \"X\u00e2y d\u1ef1ng ph\u1ea7n \u0111\u1ea7u trang web\", \"topic\": \"Ch\u1ee7 \u0111\u1ec1 7. \u1ee8ng d\u1ee5ng tin h\u1ecdc\"}], \"requirements\": [{\"id\": \"R1\", \"lesson_code\": \"B1\", \"level\": \"Bi\u1ebft\", \"text\": \"\u2013 Gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c s\u01a1 l\u01b0\u1ee3c v\u1ec1 kh\u00e1i ni\u1ec7m Tr\u00ed tu\u1ec7 nh\u00e2n t\u1ea1o.\u2013 N\u00eau \u0111\u01b0\u1ee3c v\u00ed d\u1ee5 minh ho\u1ea1 cho m\u1ed9t s\u1ed1 \u1ee9ng d\u1ee5ng \u0111i\u1ec3n h\u00ecnh c\u1ee7a AI nh\u01b0 \u0111i\u1ec1u khi\u1ec3n t\u1ef1 \u0111\u1ed9ng, ch\u1ea9n \u0111o\u00e1n b\u1ec7nh, nh\u1eadn d\u1ea1ng ch\u1eef vi\u1ebft tay, nh\u1eadn d\u1ea1ng ti\u1ebfng n\u00f3i v\u00e0 khu\u00f4n m\u1eb7t, tr\u1ee3 l\u00ed \u1ea3o\u2026\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R2\", \"lesson_code\": \"B1\", \"level\": \"Hi\u1ec3u\", \"text\": \"\u2013 Gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c s\u01a1 l\u01b0\u1ee3c v\u1ec1 kh\u00e1i ni\u1ec7m Tr\u00ed tu\u1ec7 nh\u00e2n t\u1ea1o.\u2013 N\u00eau \u0111\u01b0\u1ee3c v\u00ed d\u1ee5 minh ho\u1ea1 cho m\u1ed9t s\u1ed1 \u1ee9ng d\u1ee5ng \u0111i\u1ec3n h\u00ecnh c\u1ee7a AI nh\u01b0 \u0111i\u1ec1u khi\u1ec3n t\u1ef1 \u0111\u1ed9ng, ch\u1ea9n \u0111o\u00e1n b\u1ec7nh, nh\u1eadn d\u1ea1ng ch\u1eef vi\u1ebft tay, nh\u1eadn d\u1ea1ng ti\u1ebfng n\u00f3i v\u00e0 khu\u00f4n m\u1eb7t, tr\u1ee3 l\u00ed \u1ea3o\u2026\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R3\", \"lesson_code\": \"B1\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"\u2013 Gi\u1ea3i th\u00edch \u0111\u01b0\u1ee3c s\u01a1 l\u01b0\u1ee3c v\u1ec1 kh\u00e1i ni\u1ec7m Tr\u00ed tu\u1ec7 nh\u00e2n t\u1ea1o.\u2013 N\u00eau \u0111\u01b0\u1ee3c v\u00ed d\u1ee5 minh ho\u1ea1 cho m\u1ed9t s\u1ed1 \u1ee9ng d\u1ee5ng \u0111i\u1ec3n h\u00ecnh c\u1ee7a AI nh\u01b0 \u0111i\u1ec1u khi\u1ec3n t\u1ef1 \u0111\u1ed9ng, ch\u1ea9n \u0111o\u00e1n b\u1ec7nh, nh\u1eadn d\u1ea1ng ch\u1eef vi\u1ebft tay, nh\u1eadn d\u1ea1ng ti\u1ebfng n\u00f3i v\u00e0 khu\u00f4n m\u1eb7t, tr\u1ee3 l\u00ed \u1ea3o\u2026\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R4\", \"lesson_code\": \"B2\", \"level\": \"Bi\u1ebft\", \"text\": \"\u2013 Ch\u1ec9 ra \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 l\u0129nh v\u1ef1c c\u1ee7a khoa h\u1ecdc c\u00f4ng ngh\u1ec7 v\u00e0 \u0111\u1eddi s\u1ed1ng \u0111\u00e3 v\u00e0 \u0111ang ph\u00e1t tri\u1ec3n m\u1ea1nh m\u1ebd d\u1ef1a tr\u00ean nh\u1eefng th\u00e0nh t\u1ef1u to l\u1edbn c\u1ee7a AI.\u2013 N\u00eau \u0111\u01b0\u1ee3c v\u00ed d\u1ee5 \u0111\u1ec3 th\u1ea5y m\u1ed9t h\u1ec7 th\u1ed1ng AI c\u00f3 tri th\u1ee9c, c\u00f3 kh\u1ea3 n\u0103ng suy lu\u1eadn v\u00e0 kh\u1ea3 n\u0103ng h\u1ecdc, \u2026\u2013 N\u00eau \u0111\u01b0\u1ee3c c\u1ea3nh b\u00e1o v\u1ec1 s\u1ef1 ph\u00e1t tri\u1ec3n c\u1ee7a AI trong t\u01b0\u01a1ng lai.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R5\", \"lesson_code\": \"B2\", \"level\": \"Hi\u1ec3u\", \"text\": \"\u2013 Ch\u1ec9 ra \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 l\u0129nh v\u1ef1c c\u1ee7a khoa h\u1ecdc c\u00f4ng ngh\u1ec7 v\u00e0 \u0111\u1eddi s\u1ed1ng \u0111\u00e3 v\u00e0 \u0111ang ph\u00e1t tri\u1ec3n m\u1ea1nh m\u1ebd d\u1ef1a tr\u00ean nh\u1eefng th\u00e0nh t\u1ef1u to l\u1edbn c\u1ee7a AI.\u2013 N\u00eau \u0111\u01b0\u1ee3c v\u00ed d\u1ee5 \u0111\u1ec3 th\u1ea5y m\u1ed9t h\u1ec7 th\u1ed1ng AI c\u00f3 tri th\u1ee9c, c\u00f3 kh\u1ea3 n\u0103ng suy lu\u1eadn v\u00e0 kh\u1ea3 n\u0103ng h\u1ecdc, \u2026\u2013 N\u00eau \u0111\u01b0\u1ee3c c\u1ea3nh b\u00e1o v\u1ec1 s\u1ef1 ph\u00e1t tri\u1ec3n c\u1ee7a AI trong t\u01b0\u01a1ng lai.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R6\", \"lesson_code\": \"B2\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"\u2013 Ch\u1ec9 ra \u0111\u01b0\u1ee3c m\u1ed9t s\u1ed1 l\u0129nh v\u1ef1c c\u1ee7a khoa h\u1ecdc c\u00f4ng ngh\u1ec7 v\u00e0 \u0111\u1eddi s\u1ed1ng \u0111\u00e3 v\u00e0 \u0111ang ph\u00e1t tri\u1ec3n m\u1ea1nh m\u1ebd d\u1ef1a tr\u00ean nh\u1eefng th\u00e0nh t\u1ef1u to l\u1edbn c\u1ee7a AI.\u2013 N\u00eau \u0111\u01b0\u1ee3c v\u00ed d\u1ee5 \u0111\u1ec3 th\u1ea5y m\u1ed9t h\u1ec7 th\u1ed1ng AI c\u00f3 tri th\u1ee9c, c\u00f3 kh\u1ea3 n\u0103ng suy lu\u1eadn v\u00e0 kh\u1ea3 n\u0103ng h\u1ecdc, \u2026\u2013 N\u00eau \u0111\u01b0\u1ee3c c\u1ea3nh b\u00e1o v\u1ec1 s\u1ef1 ph\u00e1t tri\u1ec3n c\u1ee7a AI trong t\u01b0\u01a1ng lai.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R7\", \"lesson_code\": \"B3\", \"level\": \"Bi\u1ebft\", \"text\": \"N\u00eau \u0111\u01b0\u1ee3c ch\u1ee9c n\u0103ng ch\u00ednh c\u1ee7a m\u1ed9t s\u1ed1 thi\u1ebft b\u1ecb m\u1ea1ng th\u00f4ng d\u1ee5ng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R8\", \"lesson_code\": \"B3\", \"level\": \"Hi\u1ec3u\", \"text\": \"Bi\u1ebft c\u00e1ch k\u1ebft n\u1ed1i m\u00e1y t\u00ednh, thi\u1ebft b\u1ecb di \u0111\u1ed9ng v\u00e0o m\u1ea1ng m\u00e1y t\u00ednh.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R9\", \"lesson_code\": \"B3\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"Bi\u1ebft c\u00e1ch k\u1ebft n\u1ed1i m\u00e1y t\u00ednh, thi\u1ebft b\u1ecb di \u0111\u1ed9ng v\u00e0o m\u1ea1ng m\u00e1y t\u00ednh.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R10\", \"lesson_code\": \"B4\", \"level\": \"Bi\u1ebft\", \"text\": \"\u2013 Hi\u1ec3u v\u00e0 m\u00f4 t\u1ea3 s\u01a1 l\u01b0\u1ee3c \u0111\u01b0\u1ee3c vai tr\u00f2 v\u00e0 ch\u1ee9c n\u0103ng c\u1ee7a giao th\u1ee9c m\u1ea1ng n\u00f3i chung v\u00e0 giao th\u1ee9c TCP/IP n\u00f3i ri\u00eang.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R11\", \"lesson_code\": \"B4\", \"level\": \"Hi\u1ec3u\", \"text\": \"\u2013 Hi\u1ec3u v\u00e0 m\u00f4 t\u1ea3 s\u01a1 l\u01b0\u1ee3c \u0111\u01b0\u1ee3c vai tr\u00f2 v\u00e0 ch\u1ee9c n\u0103ng c\u1ee7a giao th\u1ee9c m\u1ea1ng n\u00f3i chung v\u00e0 giao th\u1ee9c TCP/IP n\u00f3i ri\u00eang.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R12\", \"lesson_code\": \"B4\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"\u2013 Hi\u1ec3u v\u00e0 m\u00f4 t\u1ea3 s\u01a1 l\u01b0\u1ee3c \u0111\u01b0\u1ee3c vai tr\u00f2 v\u00e0 ch\u1ee9c n\u0103ng c\u1ee7a giao th\u1ee9c m\u1ea1ng n\u00f3i chung v\u00e0 giao th\u1ee9c TCP/IP n\u00f3i ri\u00eang.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R13\", \"lesson_code\": \"B5\", \"level\": \"Bi\u1ebft\", \"text\": \"\u2013 S\u1eed d\u1ee5ng \u0111\u01b0\u1ee3c c\u00e1c ch\u1ee9c n\u0103ng m\u1ea1ng c\u1ee7a h\u1ec7 \u0111i\u1ec1u h\u00e0nh \u0111\u1ec3 chia s\u1ebb t\u00e0i nguy\u00ean.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R14\", \"lesson_code\": \"B5\", \"level\": \"Hi\u1ec3u\", \"text\": \"\u2013 S\u1eed d\u1ee5ng \u0111\u01b0\u1ee3c c\u00e1c ch\u1ee9c n\u0103ng m\u1ea1ng c\u1ee7a h\u1ec7 \u0111i\u1ec1u h\u00e0nh \u0111\u1ec3 chia s\u1ebb t\u00e0i nguy\u00ean.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R15\", \"lesson_code\": \"B5\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"\u2013 S\u1eed d\u1ee5ng \u0111\u01b0\u1ee3c c\u00e1c ch\u1ee9c n\u0103ng m\u1ea1ng c\u1ee7a h\u1ec7 \u0111i\u1ec1u h\u00e0nh \u0111\u1ec3 chia s\u1ebb t\u00e0i nguy\u00ean.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R16\", \"lesson_code\": \"B6\", \"level\": \"Bi\u1ebft\", \"text\": \"Ph\u00e2n t\u00edch \u0111\u01b0\u1ee3c \u01b0u v\u00e0 nh\u01b0\u1ee3c \u0111i\u1ec3m v\u1ec1 giao ti\u1ebfp trong kh\u00f4ng gian m\u1ea1ng qua c\u00e1c v\u00ed d\u1ee5 c\u1ee5 th\u1ec3.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R17\", \"lesson_code\": \"B6\", \"level\": \"Hi\u1ec3u\", \"text\": \"Ph\u00e2n t\u00edch \u0111\u01b0\u1ee3c t\u00ednh nh\u00e2n v\u0103n trong \u1ee9ng x\u1eed \u1edf m\u1ed9t s\u1ed1 t\u00ecnh hu\u1ed1ng tham gia kh\u00f4ng gian m\u1ea1ng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R18\", \"lesson_code\": \"B6\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"Ph\u00e2n t\u00edch \u0111\u01b0\u1ee3c t\u00ednh nh\u00e2n v\u0103n trong \u1ee9ng x\u1eed \u1edf m\u1ed9t s\u1ed1 t\u00ecnh hu\u1ed1ng tham gia kh\u00f4ng gian m\u1ea1ng.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R19\", \"lesson_code\": \"B23\", \"level\": \"Bi\u1ebft\", \"text\": \"C\u00f3 nh\u1eadn th\u1ee9c ban \u0111\u1ea7u v\u1ec1 c\u00e1c th\u00e0nh ph\u1ea7n c\u1ee7a trang web v\u00e0 c\u00e1c b\u01b0\u1edbc thi\u1ebft k\u1ebf trang web.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R20\", \"lesson_code\": \"B23\", \"level\": \"Hi\u1ec3u\", \"text\": \"C\u00f3 nh\u1eadn th\u1ee9c ban \u0111\u1ea7u v\u1ec1 c\u00e1c th\u00e0nh ph\u1ea7n c\u1ee7a trang web v\u00e0 c\u00e1c b\u01b0\u1edbc thi\u1ebft k\u1ebf trang web.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R21\", \"lesson_code\": \"B23\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"C\u00f3 nh\u1eadn th\u1ee9c ban \u0111\u1ea7u v\u1ec1 c\u00e1c th\u00e0nh ph\u1ea7n c\u1ee7a trang web v\u00e0 c\u00e1c b\u01b0\u1edbc thi\u1ebft k\u1ebf trang web.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}, {\"id\": \"R22\", \"lesson_code\": \"B24\", \"level\": \"Bi\u1ebft\", \"text\": \"Bi\u1ebft c\u00e1c b\u01b0\u1edbc x\u00e2y d\u1ef1ng ph\u1ea7n \u0111\u1ea7u trang web v\u1edbi h\u1ed7 tr\u1ee3 c\u1ee7a Google sites.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R23\", \"lesson_code\": \"B24\", \"level\": \"Hi\u1ec3u\", \"text\": \"Bi\u1ebft c\u00e1c b\u01b0\u1edbc x\u00e2y d\u1ef1ng ph\u1ea7n \u0111\u1ea7u trang web v\u1edbi h\u1ed7 tr\u1ee3 c\u1ee7a Google sites.\", \"ppct_outcome_index\": 0, \"competency\": \"NLa\"}, {\"id\": \"R24\", \"lesson_code\": \"B24\", \"level\": \"V\u1eadn d\u1ee5ng\", \"text\": \"Bi\u1ebft c\u00e1c b\u01b0\u1edbc x\u00e2y d\u1ef1ng ph\u1ea7n \u0111\u1ea7u trang web v\u1edbi h\u1ed7 tr\u1ee3 c\u1ee7a Google sites.\", \"ppct_outcome_index\": 0, \"competency\": \"NLb\"}], \"slots\": [{\"id\": \"S1\", \"kind\": \"MC\", \"number\": 1, \"parts\": [{\"id\": \"P1\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S2\", \"kind\": \"MC\", \"number\": 2, \"parts\": [{\"id\": \"P2\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S3\", \"kind\": \"MC\", \"number\": 3, \"parts\": [{\"id\": \"P3\", \"label\": \"\", \"requirement_id\": \"R7\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S4\", \"kind\": \"MC\", \"number\": 4, \"parts\": [{\"id\": \"P4\", \"label\": \"\", \"requirement_id\": \"R10\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S5\", \"kind\": \"MC\", \"number\": 5, \"parts\": [{\"id\": \"P5\", \"label\": \"\", \"requirement_id\": \"R13\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S6\", \"kind\": \"MC\", \"number\": 6, \"parts\": [{\"id\": \"P6\", \"label\": \"\", \"requirement_id\": \"R16\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S7\", \"kind\": \"MC\", \"number\": 7, \"parts\": [{\"id\": \"P7\", \"label\": \"\", \"requirement_id\": \"R19\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S8\", \"kind\": \"MC\", \"number\": 8, \"parts\": [{\"id\": \"P8\", \"label\": \"\", \"requirement_id\": \"R22\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S9\", \"kind\": \"MC\", \"number\": 9, \"parts\": [{\"id\": \"P9\", \"label\": \"\", \"requirement_id\": \"R1\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S10\", \"kind\": \"MC\", \"number\": 10, \"parts\": [{\"id\": \"P10\", \"label\": \"\", \"requirement_id\": \"R4\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S11\", \"kind\": \"MC\", \"number\": 11, \"parts\": [{\"id\": \"P11\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S12\", \"kind\": \"MC\", \"number\": 12, \"parts\": [{\"id\": \"P12\", \"label\": \"\", \"requirement_id\": \"R5\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S13\", \"kind\": \"MC\", \"number\": 13, \"parts\": [{\"id\": \"P13\", \"label\": \"\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S14\", \"kind\": \"MC\", \"number\": 14, \"parts\": [{\"id\": \"P14\", \"label\": \"\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S15\", \"kind\": \"MC\", \"number\": 15, \"parts\": [{\"id\": \"P15\", \"label\": \"\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S16\", \"kind\": \"MC\", \"number\": 16, \"parts\": [{\"id\": \"P16\", \"label\": \"\", \"requirement_id\": \"R17\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S17\", \"kind\": \"MC\", \"number\": 17, \"parts\": [{\"id\": \"P17\", \"label\": \"\", \"requirement_id\": \"R20\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S18\", \"kind\": \"MC\", \"number\": 18, \"parts\": [{\"id\": \"P18\", \"label\": \"\", \"requirement_id\": \"R23\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S19\", \"kind\": \"MC\", \"number\": 19, \"parts\": [{\"id\": \"P19\", \"label\": \"\", \"requirement_id\": \"R2\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S20\", \"kind\": \"YN\", \"number\": 1, \"parts\": [{\"id\": \"P20a\", \"label\": \"a\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P20b\", \"label\": \"b\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P20c\", \"label\": \"c\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P20d\", \"label\": \"d\", \"requirement_id\": \"R8\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S21\", \"kind\": \"YN\", \"number\": 2, \"parts\": [{\"id\": \"P21a\", \"label\": \"a\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P21b\", \"label\": \"b\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P21c\", \"label\": \"c\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P21d\", \"label\": \"d\", \"requirement_id\": \"R11\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S22\", \"kind\": \"YN\", \"number\": 3, \"parts\": [{\"id\": \"P22a\", \"label\": \"a\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P22b\", \"label\": \"b\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P22c\", \"label\": \"c\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"NLa.1\"}, {\"id\": \"P22d\", \"label\": \"d\", \"requirement_id\": \"R14\", \"points\": 0.25, \"indicator\": \"NLa.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S23\", \"kind\": \"ES\", \"number\": 1, \"parts\": [{\"id\": \"P23\", \"label\": \"\", \"requirement_id\": \"R3\", \"points\": 0.75, \"indicator\": \"NLb.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S24\", \"kind\": \"ES\", \"number\": 2, \"parts\": [{\"id\": \"P24\", \"label\": \"\", \"requirement_id\": \"R6\", \"points\": 0.75, \"indicator\": \"NLb.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}, {\"id\": \"S25\", \"kind\": \"ES\", \"number\": 3, \"parts\": [{\"id\": \"P25\", \"label\": \"\", \"requirement_id\": \"R9\", \"points\": 0.75, \"indicator\": \"NLb.1\"}], \"scoring\": {\"mode\": \"sum_parts\"}}], \"indicator_catalog\": [{\"code\": \"NLa.1\", \"competency\": \"NLa\", \"text\": \"Nh\u1eadn di\u1ec7n, ph\u00e2n bi\u1ec7t c\u1ea5u t\u1ea1o, ch\u1ee9c n\u0103ng c\u1ee7a thi\u1ebft b\u1ecb s\u1ed1, ph\u1ea7n m\u1ec1m h\u1ec7 th\u1ed1ng v\u00e0 ph\u1ea7n m\u1ec1m \u1ee9ng d\u1ee5ng.\"}, {\"code\": \"NLa.2\", \"competency\": \"NLa\", \"text\": \"Th\u1ef1c hi\u1ec7n thao t\u00e1c qu\u1ea3n l\u00ed d\u1eef li\u1ec7u, t\u1ec7p, th\u01b0 m\u1ee5c v\u00e0 khai th\u00e1c t\u00e0i nguy\u00ean m\u1ea1ng m\u00e1y t\u00ednh an to\u00e0n.\"}, {\"code\": \"NLa.3\", \"competency\": \"NLa\", \"text\": \"Thi\u1ebft l\u1eadp, v\u1eadn h\u00e0nh c\u01a1 b\u1ea3n c\u00e1c thi\u1ebft b\u1ecb ngo\u1ea1i vi, k\u1ebft n\u1ed1i m\u1ea1ng ho\u1eb7c h\u1ec7 c\u01a1 s\u1edf d\u1eef li\u1ec7u \u0111\u00fang quy tr\u00ecnh.\"}, {\"code\": \"NLa.4\", \"competency\": \"NLa\", \"text\": \"Ph\u00e2n t\u00edch th\u00f4ng s\u1ed1 k\u0129 thu\u1eadt ph\u1ea7n c\u1ee9ng, m\u1ea1ng ho\u1eb7c c\u1ea5u tr\u00fac d\u1eef li\u1ec7u \u0111\u1ec3 l\u1ef1a ch\u1ecdn ph\u01b0\u01a1ng \u00e1n ph\u00f9 h\u1ee3p.\"}, {\"code\": \"NLb.1\", \"competency\": \"NLb\", \"text\": \"Nh\u1eadn bi\u1ebft c\u00e1c quy \u0111\u1ecbnh ph\u00e1p lu\u1eadt, b\u1ea3n quy\u1ec1n s\u1ed1, quy t\u1eafc an to\u00e0n v\u00e0 v\u0103n ho\u00e1 giao ti\u1ebfp tr\u00ean m\u1ea1ng.\"}, {\"code\": \"NLb.2\", \"competency\": \"NLb\", \"text\": \"Gi\u1ea3i th\u00edch nguy c\u01a1 m\u1ea5t an to\u00e0n th\u00f4ng tin, vi ph\u1ea1m b\u1ea3n quy\u1ec1n v\u00e0 bi\u1ec7n ph\u00e1p ph\u00f2ng tr\u00e1nh.\"}, {\"code\": \"NLc.1\", \"competency\": \"NLc\", \"text\": \"M\u00f4 t\u1ea3 \u00fd t\u01b0\u1edfng thu\u1eadt to\u00e1n, ph\u00e2n t\u00edch b\u00e0i to\u00e1n v\u00e0 bi\u1ec3u di\u1ec5n c\u1ea5u tr\u00fac d\u1eef li\u1ec7u ph\u00f9 h\u1ee3p.\"}, {\"code\": \"NLc.2\", \"competency\": \"NLc\", \"text\": \"Theo d\u00f5i v\u1ebft thu\u1eadt to\u00e1n, ki\u1ec3m th\u1eed, ph\u00e1t hi\u1ec7n l\u1ed7i v\u00e0 gi\u1ea3i th\u00edch k\u1ebft qu\u1ea3 th\u1ef1c thi ch\u01b0\u01a1ng tr\u00ecnh/truy v\u1ea5n.\"}, {\"code\": \"NLc.3\", \"competency\": \"NLc\", \"text\": \"Thi\u1ebft k\u1ebf thu\u1eadt to\u00e1n, vi\u1ebft ch\u01b0\u01a1ng tr\u00ecnh, t\u1ea1o s\u1ea3n ph\u1ea9m s\u1ed1 ho\u1eb7c thi\u1ebft k\u1ebf CSDL gi\u1ea3i quy\u1ebft v\u1ea5n \u0111\u1ec1 c\u1ee5 th\u1ec3.\"}, {\"code\": \"NLc.4\", \"competency\": \"NLc\", \"text\": \"\u0110\u00e1nh gi\u00e1 \u0111\u1ed9 ph\u1ee9c t\u1ea1p, t\u1ed1i \u01b0u thu\u1eadt to\u00e1n ho\u1eb7c c\u1ea3i ti\u1ebfn gi\u1ea3i ph\u00e1p tin h\u1ecdc cho b\u00e0i to\u00e1n th\u1ef1c ti\u1ec5n.\"}, {\"code\": \"NLd.1\", \"competency\": \"NLd\", \"text\": \"Khai th\u00e1c h\u1ecdc li\u1ec7u s\u1ed1, ph\u1ea7n m\u1ec1m m\u00f4 ph\u1ecfng, c\u00f4ng c\u1ee5 t\u00ecm ki\u1ebfm \u0111\u1ec3 t\u00ecm hi\u1ec3u tri th\u1ee9c m\u00f4n h\u1ecdc.\"}, {\"code\": \"NLd.2\", \"competency\": \"NLd\", \"text\": \"\u0110\u00e1nh gi\u00e1 \u0111\u1ed9 tin c\u1eady c\u1ee7a ngu\u1ed3n th\u00f4ng tin/c\u00f4ng c\u1ee5 AI v\u00e0 t\u1ef1 h\u1ecdc, m\u1edf r\u1ed9ng ki\u1ebfn th\u1ee9c b\u1eb1ng CNTT.\"}, {\"code\": \"NLe.1\", \"competency\": \"NLe\", \"text\": \"S\u1eed d\u1ee5ng c\u00f4ng c\u1ee5 tr\u1ef1c tuy\u1ebfn \u0111\u1ec3 trao \u0111\u1ed5i, chia s\u1ebb th\u00f4ng tin v\u00e0 ph\u1ea3n h\u1ed3i v\u0103n minh.\"}, {\"code\": \"NLe.2\", \"competency\": \"NLe\", \"text\": \"T\u1ed5 ch\u1ee9c c\u1ed9ng t\u00e1c, ph\u00e2n c\u00f4ng v\u00e0 \u0111\u1ed3ng t\u1ea1o l\u1eadp s\u1ea3n ph\u1ea9m s\u1ed1 qua n\u1ec1n t\u1ea3ng l\u00e0m vi\u1ec7c nh\u00f3m.\"}], \"competency_catalog\": [{\"code\": \"NLa\", \"name\": \"S\u1eed d\u1ee5ng v\u00e0 qu\u1ea3n l\u00ed c\u00e1c ph\u01b0\u01a1ng ti\u1ec7n c\u00f4ng ngh\u1ec7 th\u00f4ng tin v\u00e0 truy\u1ec1n th\u00f4ng\"}, {\"code\": \"NLb\", \"name\": \"\u1ee8ng x\u1eed ph\u00f9 h\u1ee3p trong m\u00f4i tr\u01b0\u1eddng s\u1ed1\"}, {\"code\": \"NLc\", \"name\": \"Gi\u1ea3i quy\u1ebft v\u1ea5n \u0111\u1ec1 v\u1edbi s\u1ef1 h\u1ed7 tr\u1ee3 c\u1ee7a c\u00f4ng ngh\u1ec7 th\u00f4ng tin v\u00e0 truy\u1ec1n th\u00f4ng\"}, {\"code\": \"NLd\", \"name\": \"\u1ee8ng d\u1ee5ng c\u00f4ng ngh\u1ec7 th\u00f4ng tin v\u00e0 truy\u1ec1n th\u00f4ng trong h\u1ecdc v\u00e0 t\u1ef1 h\u1ecdc\"}, {\"code\": \"NLe\", \"name\": \"H\u1ee3p t\u00e1c trong m\u00f4i tr\u01b0\u1eddng s\u1ed1\"}], \"catalog_revision\": 1}}");
-    Object.values(STANDARD_PRESETS).forEach(pr=>{const c={};(pr.slots||[]).forEach(s=>{c[s.kind]=(c[s.kind]||0)+1;s.number=c[s.kind];});});
 
   function renumberAllSlots(m) {
     if (!m || !m.slots) return;
@@ -349,7 +347,6 @@
             <p style="margin:0;font-size:13px;color:var(--muted)">Nhập trực tiếp số câu vào từng ô theo từng mức độ nhận thức. Hệ thống tự động tính điểm và đồng bộ vào danh sách câu hỏi chi tiết.</p>
           </div>
           <div class="actions">
-            <button type="button" data-action="apply-preset" title="${isTHPT ? 'Điền nhanh mẫu chuẩn THPT (Phần 1: 19 câu TN 4,75đ + Phần 2: 3 câu Đ/S 3,0đ + Phần 3: 3 câu TL 2,25đ = 10,0 điểm)' : 'Điền nhanh mẫu 5 bài đầu học kì (28 câu TN 7,0đ + 3 câu TL 3,0đ = 10,0 điểm)'}">${isTHPT ? '⚡ Điền mẫu THPT (19 TN + 3 Đ/S + 3 TL · 10đ)' : '⚡ Điền mẫu tham khảo Giữa kì (5 bài · 10đ)'}</button>
             <button type="button" data-action="sort-lessons-ppct" title="Tự động sắp xếp lại các bài học theo đúng thứ tự B1, B2, B3... của PPCT">⇅ Sắp xếp đúng thứ tự bài</button>
             <button type="button" class="danger quiet" data-action="clear-slots" title="Xóa trắng bài học và câu hỏi phân bố để làm lại từ đầu">🗑️ Làm trống ma trận</button>
           </div>
@@ -399,7 +396,7 @@
               </tr>
             </thead>
             <tbody>
-              ${lessonRows || `<tr><td colspan="${isTHPT ? 8 : 7}" style="text-align:center;padding:24px;color:var(--muted)">Ma trận đang trống. Hãy chọn từng bài học ở thanh phía trên rồi bấm <strong>+ Thêm bài đã chọn</strong> (hoặc bấm <strong>⚡ Điền mẫu ${isTHPT ? 'THPT (19 TN + 3 Đ/S + 3 TL · 10đ)' : 'tham khảo Giữa kì'}</strong>).</td></tr>`}
+              ${lessonRows || `<tr><td colspan="${isTHPT ? 8 : 7}" style="text-align:center;padding:24px;color:var(--muted)">Ma trận đang trống. Hãy chọn từng bài học từ PPCT ở thanh phía trên rồi bấm <strong>+ Thêm bài đã chọn</strong> để phân bố câu hỏi.</td></tr>`}
             </tbody>
             <tfoot>
               <tr style="background:#eaf3fb;font-weight:700">
@@ -596,10 +593,7 @@
   function fillLessonPpctRequirements(m, lessonCode) {
     if (!m) return;
     const pl = lessons(m.grade).find(l => l.lesson_code === lessonCode);
-    const presetLessonReqs = (STANDARD_PRESETS[String(m.grade)]?.requirements || []).filter(r => r.lesson_code === lessonCode);
-    const outcomes = Array.isArray(pl?.outcomes) && pl.outcomes.filter(Boolean).length
-      ? pl.outcomes.filter(Boolean)
-      : presetLessonReqs.map(r => r.text).filter(Boolean);
+    const outcomes = Array.isArray(pl?.outcomes) ? pl.outcomes.filter(Boolean) : [];
     if (!outcomes.length) return;
 
     const reqMap = new Map((m.requirements || []).map(r => [r.id, r]));
@@ -620,13 +614,14 @@
     const activeLevels = order.filter(lvl => usedLevels.has(lvl));
 
     activeLevels.forEach((lvl, idx) => {
-      const presetForLvl = presetLessonReqs.find(r => r.level === lvl);
-      const outcome = presetForLvl?.text || outcomes[idx] || outcomes[outcomes.length - 1] || outcomes[0];
+      const outcomeIdx = Math.min(idx, outcomes.length - 1);
+      const outcome = outcomes[outcomeIdx] || outcomes[0];
       const levelReqs = (m.requirements || []).filter(req => req.lesson_code === lessonCode && req.level === lvl);
       if (levelReqs.length) {
         const primaryReq = levelReqs[0];
         primaryReq.text = outcome;
-        primaryReq.ppct_outcome_index = Math.min(idx, Math.max(0, (pl?.outcomes?.length || 1) - 1));
+        primaryReq.ppct_outcome_index = outcomeIdx;
+        delete primaryReq.outcome_mode;
         delete primaryReq.custom_refs;
         if (levelReqs.length > 1) {
           const oldIds = new Set(levelReqs.map(r => r.id));
@@ -643,11 +638,725 @@
           lesson_code: lessonCode,
           level: lvl,
           text: outcome,
-          competency: presetForLvl?.competency || competencies()[0] || 'NLa',
-          ppct_outcome_index: Math.min(idx, Math.max(0, (pl?.outcomes?.length || 1) - 1))
+          competency: competencies()[0] || 'NLa',
+          ppct_outcome_index: outcomeIdx
         });
       }
     });
+  }
+
+  function normSpecText(t) {
+    return String(t || '').normalize('NFC').toLowerCase().replace(/\s+/gu, ' ').trim();
+  }
+
+  function normSpecLevel(lvl) {
+    const s = String(lvl || '').trim();
+    return s === 'Vận dụng thấp' ? 'Vận dụng' : (s || 'Biết');
+  }
+
+  function resolvePpctOutcomeMatch(m, lessonCode, rawText, outcomeId) {
+    const pl = lessons(m?.grade).find(l => normSpecText(l.lesson_code) === normSpecText(lessonCode));
+    const outcomes = Array.isArray(pl?.outcomes) ? pl.outcomes : [];
+    const resolveCore = root.BankCore?.resolveOutcome;
+    if (pl && outcomeId && typeof resolveCore === 'function') {
+      const hit = resolveCore(pl, { id: outcomeId });
+      if (hit && Number.isInteger(hit.index) && outcomes[hit.index]) {
+        return {
+          text: outcomes[hit.index],
+          ppct_outcome_index: hit.index,
+          ppct_outcome_id: hit.id || outcomeId || null,
+          inPpct: true
+        };
+      }
+    }
+    const target = normSpecText(rawText);
+    if (target && outcomes.length) {
+      const idx = outcomes.findIndex(o => normSpecText(o) === target);
+      if (idx >= 0) {
+        const hit = typeof resolveCore === 'function' ? resolveCore(pl, { index: idx }) : null;
+        return {
+          text: outcomes[idx],
+          ppct_outcome_index: idx,
+          ppct_outcome_id: hit?.id || (Array.isArray(pl?.outcome_ids) ? pl.outcome_ids[idx] || null : null),
+          inPpct: true
+        };
+      }
+    }
+    return {
+      text: String(rawText || '').trim(),
+      ppct_outcome_index: null,
+      ppct_outcome_id: null,
+      inPpct: false
+    };
+  }
+
+  function inferCompetencyFromBankOrPpct(q, pl) {
+    const rawQComp = String(q?.competency || '').trim();
+    if (rawQComp) return rawQComp;
+    const fromPpct = [...(pl?.digital_competencies || []), ...(pl?.competencies || [])].join(' ').match(/\bNL\s*([a-eA-E])\b/);
+    if (fromPpct) return 'NL' + fromPpct[1].toLowerCase();
+    return competencies()[0] || 'NLa';
+  }
+
+  function bankOutcomesForLesson(m, lessonCode, opts = {}) {
+    if (!m) return { bankItems: [], ppctOnly: [], allItems: [] };
+    const { kind = null, level = null, questionsOverride = null } = opts;
+    const pool = Array.isArray(questionsOverride)
+      ? questionsOverride
+      : (Array.isArray(ui.ctx?.questions) ? ui.ctx.questions : []);
+    const targetGrade = Number(m.grade);
+    const targetSubject = normSpecText(subject(m) || 'Tin học');
+    const targetCode = normSpecText(lessonCode);
+    const targetLevel = level ? normSpecLevel(level) : null;
+    const pl = lessons(m.grade).find(l => normSpecText(l.lesson_code) === targetCode);
+
+    const lessonQuestions = pool.filter(q =>
+      q
+      && q.review_status !== 'archived'
+      && Number(q.grade) === targetGrade
+      && normSpecText(q.subject_name || 'Tin học') === targetSubject
+      && normSpecText(q.lesson_code) === targetCode
+      && String(q.learning_outcome || '').trim()
+    );
+
+    const itemMap = new Map();
+    lessonQuestions.forEach(q => {
+      const cleanOutcome = String(q.learning_outcome || '').replace(/\s*\(Mục tiêu\s+Câu[^)]*\)/gi, '').trim();
+      const matched = resolvePpctOutcomeMatch(m, lessonCode, cleanOutcome, q.ppct_outcome_id);
+      const comp = inferCompetencyFromBankOrPpct(q, pl);
+      const itemKey = `${normSpecText(matched.text)}|${comp}`;
+      let item = itemMap.get(itemKey);
+      if (!item) {
+        item = {
+          key: itemKey,
+          text: matched.text,
+          competency: comp,
+          ppct_outcome_index: matched.ppct_outcome_index,
+          ppct_outcome_id: matched.ppct_outcome_id,
+          inPpct: matched.inPpct,
+          source: 'bank',
+          exactApproved: 0,
+          exactTotal: 0,
+          levelApproved: 0,
+          levelTotal: 0,
+          lessonTotal: 0
+        };
+        itemMap.set(itemKey, item);
+      }
+      const isApproved = q.review_status === 'approved';
+      const qLevel = normSpecLevel(q.level);
+      const levelMatch = !targetLevel || qLevel === targetLevel;
+      const kindMatch = !kind || q.type === kind;
+      item.lessonTotal += 1;
+      if (levelMatch) {
+        item.levelTotal += 1;
+        if (isApproved) item.levelApproved += 1;
+        if (kindMatch) {
+          item.exactTotal += 1;
+          if (isApproved) item.exactApproved += 1;
+        }
+      }
+    });
+
+    const bankItems = [...itemMap.values()].sort((a, b) =>
+      (b.exactApproved - a.exactApproved)
+      || (b.exactTotal - a.exactTotal)
+      || (b.levelApproved - a.levelApproved)
+      || (b.levelTotal - a.levelTotal)
+      || (b.lessonTotal - a.lessonTotal)
+      || ((a.ppct_outcome_index ?? 999) - (b.ppct_outcome_index ?? 999))
+    );
+
+    const bankOutcomeTextSet = new Set(bankItems.map(item => normSpecText(item.text)));
+    const defaultComp = inferCompetencyFromBankOrPpct(null, pl);
+    const resolveCore = root.BankCore?.resolveOutcome;
+    const ppctOnly = [];
+    (pl?.outcomes || []).forEach((o, idx) => {
+      const cleanO = String(o || '').trim();
+      if (!cleanO || bankOutcomeTextSet.has(normSpecText(cleanO))) return;
+      const hit = typeof resolveCore === 'function' ? resolveCore(pl, { index: idx }) : null;
+      const oid = hit?.id || (Array.isArray(pl?.outcome_ids) ? pl.outcome_ids[idx] || null : null);
+      ppctOnly.push({
+        key: `${normSpecText(cleanO)}|${defaultComp}`,
+        text: cleanO,
+        competency: defaultComp,
+        ppct_outcome_index: idx,
+        ppct_outcome_id: oid,
+        inPpct: true,
+        source: 'ppct_missing',
+        exactApproved: 0,
+        exactTotal: 0,
+        levelApproved: 0,
+        levelTotal: 0,
+        lessonTotal: 0
+      });
+    });
+
+    return { bankItems, ppctOnly, allItems: [...bankItems, ...ppctOnly] };
+  }
+
+  function reconcileSpecRequirements(m) {
+    if (!m || !Array.isArray(m.requirements) || !Array.isArray(m.slots)) return 0;
+
+    const reqUsage = new Map();
+    const activeLessonLevel = new Set();
+    const reqById = new Map(m.requirements.map(r => [r.id, r]));
+
+    m.slots.forEach(s => {
+      (s.parts || []).forEach(p => {
+        if (!p?.requirement_id) return;
+        reqUsage.set(p.requirement_id, (reqUsage.get(p.requirement_id) || 0) + 1);
+        const r = reqById.get(p.requirement_id);
+        if (r) activeLessonLevel.add(`${r.lesson_code}|${normSpecLevel(r.level)}`);
+      });
+    });
+
+    // Loại bỏ requirement mồ côi ở các nhóm đã có ít nhất 1 requirement đang được slot sử dụng
+    m.requirements = m.requirements.filter(r => {
+      const count = reqUsage.get(r.id) || 0;
+      if (count > 0) return true;
+      return !activeLessonLevel.has(`${r.lesson_code}|${normSpecLevel(r.level)}`);
+    });
+
+    const groups = new Map();
+    m.requirements.forEach(r => {
+      r.level = normSpecLevel(r.level);
+      if (r.text) {
+        r.text = String(r.text).replace(/\s*\(Mục tiêu\s+Câu[^)]*\)/gi, '').trim();
+      }
+      const comp = String(r.competency || '').trim() || (competencies()[0] || 'NLa');
+      r.competency = comp;
+      const key = `${r.lesson_code}|${r.level}|${normSpecText(r.text)}|${comp}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(r);
+    });
+
+    let mergedCount = 0;
+    const dropIds = new Set();
+    groups.forEach(list => {
+      if (list.length <= 1) return;
+      const master = list[0];
+      const dupIds = new Set(list.slice(1).map(r => r.id));
+      list.slice(1).forEach(dup => {
+        dropIds.add(dup.id);
+        if (!Number.isInteger(master.ppct_outcome_index) && Number.isInteger(dup.ppct_outcome_index)) {
+          master.ppct_outcome_index = dup.ppct_outcome_index;
+          if (dup.ppct_outcome_id) master.ppct_outcome_id = dup.ppct_outcome_id;
+          delete master.outcome_mode;
+        }
+      });
+      m.slots.forEach(s => {
+        (s.parts || []).forEach(p => {
+          if (dupIds.has(p.requirement_id)) p.requirement_id = master.id;
+        });
+      });
+      delete master.custom_refs;
+      if (m.custom_level_refs) delete m.custom_level_refs[`${master.lesson_code}|${master.level}`];
+      mergedCount += list.length - 1;
+    });
+
+    if (dropIds.size) {
+      m.requirements = m.requirements.filter(r => !dropIds.has(r.id));
+    }
+
+    // Dọn custom_refs cũ không cần thiết nếu số lượng requirement cùng nhóm > 1 hoặc vẫn dùng tự động từ ma trận
+    const levelGroupCounts = new Map();
+    m.requirements.forEach(r => {
+      const k = `${r.lesson_code}|${r.level}`;
+      levelGroupCounts.set(k, (levelGroupCounts.get(k) || 0) + 1);
+    });
+    m.requirements.forEach(r => {
+      const k = `${r.lesson_code}|${r.level}`;
+      if ((levelGroupCounts.get(k) || 0) > 1 && r.custom_refs) {
+        delete r.custom_refs;
+      }
+    });
+
+    return mergedCount;
+  }
+
+  function applySpecBankSelections(m, slotSelections) {
+    if (!m || !Array.isArray(m.slots)) return { updatedSlots: 0, requirementCount: 0 };
+    if (!Array.isArray(m.requirements)) m.requirements = [];
+    const selMap = slotSelections instanceof Map
+      ? slotSelections
+      : new Map(Object.entries(slotSelections || {}));
+
+    const reqById = new Map(m.requirements.map(r => [r.id, r]));
+    const isHighSchool = m.profile === 'THPT' || Number(m.grade) >= 10;
+    const indByComp = {};
+    if (Array.isArray(m.indicator_catalog)) {
+      m.indicator_catalog.forEach(ind => {
+        if (ind?.code && ind?.competency) {
+          (indByComp[ind.competency] || (indByComp[ind.competency] = [])).push(ind.code);
+        }
+      });
+    }
+
+    const bucketMap = new Map();
+    m.requirements.forEach(r => {
+      const k = `${r.lesson_code}|${normSpecLevel(r.level)}|${normSpecText(r.text)}|${String(r.competency || '').trim()}`;
+      if (!bucketMap.has(k)) bucketMap.set(k, r);
+    });
+
+    let updatedSlots = 0;
+    const touchedLessonLevels = new Set();
+
+    m.slots.forEach(s => {
+      const sel = selMap.get(s.id);
+      if (!sel || !String(sel.text || '').trim()) return;
+      const oldReq = reqById.get(s.parts?.[0]?.requirement_id);
+      const lessonCode = sel.lesson_code || oldReq?.lesson_code || m.lessons?.[0]?.lesson_code || 'B1';
+      const level = normSpecLevel(sel.level || oldReq?.level || 'Biết');
+      const cleanText = String(sel.text || '').replace(/\s*\(Mục tiêu\s+Câu[^)]*\)/gi, '').trim();
+      const comp = String(sel.competency || '').trim() || oldReq?.competency || (competencies()[0] || 'NLa');
+
+      const matched = Number.isInteger(sel.ppct_outcome_index)
+        ? {
+            text: cleanText,
+            ppct_outcome_index: sel.ppct_outcome_index,
+            ppct_outcome_id: sel.ppct_outcome_id || null,
+            inPpct: true
+          }
+        : resolvePpctOutcomeMatch(m, lessonCode, cleanText, sel.ppct_outcome_id);
+
+      const finalKey = `${lessonCode}|${level}|${normSpecText(matched.text)}|${comp}`;
+      let targetReq = bucketMap.get(finalKey);
+      if (!targetReq) {
+        targetReq = {
+          id: uid('R'),
+          lesson_code: lessonCode,
+          level,
+          text: matched.text,
+          competency: comp,
+          ppct_outcome_index: matched.inPpct ? matched.ppct_outcome_index : null,
+          ...(matched.ppct_outcome_id ? { ppct_outcome_id: matched.ppct_outcome_id } : {}),
+          ...(matched.inPpct ? {} : { outcome_mode: 'any' }),
+          choice_group: oldReq?.choice_group ?? null
+        };
+        m.requirements.push(targetReq);
+        reqById.set(targetReq.id, targetReq);
+        bucketMap.set(finalKey, targetReq);
+      } else {
+        targetReq.text = matched.text;
+        targetReq.competency = comp;
+        if (matched.inPpct) {
+          targetReq.ppct_outcome_index = matched.ppct_outcome_index;
+          if (matched.ppct_outcome_id) targetReq.ppct_outcome_id = matched.ppct_outcome_id;
+          delete targetReq.outcome_mode;
+        }
+      }
+
+      (s.parts || []).forEach(p => {
+        p.requirement_id = targetReq.id;
+        if (isHighSchool) {
+          const candCodes = indByComp[comp] || [];
+          const curInd = typeof p.indicator === 'string' ? p.indicator.trim() : '';
+          const valid = curInd && (m.indicator_catalog || []).some(i => i.code === curInd && i.competency === comp);
+          if (!valid && candCodes.length) p.indicator = candCodes[0];
+        }
+      });
+
+      touchedLessonLevels.add(`${lessonCode}|${level}`);
+      updatedSlots++;
+    });
+
+    touchedLessonLevels.forEach(k => {
+      if (m.custom_level_refs) delete m.custom_level_refs[k];
+      if (m.custom_level_comp) delete m.custom_level_comp[k];
+    });
+    m.requirements.forEach(r => {
+      if (touchedLessonLevels.has(`${r.lesson_code}|${normSpecLevel(r.level)}`)) {
+        delete r.custom_refs;
+      }
+    });
+
+    reconcileSpecRequirements(m);
+    return { updatedSlots, requirementCount: m.requirements.length };
+  }
+
+  function autoFillSpecFromBank(m, opts = {}) {
+    if (!m || !Array.isArray(m.slots)) {
+      return { totalSlots: 0, fromBankSlots: 0, fromPpctFallbackSlots: 0, missingSlots: 0, missingBankCells: [] };
+    }
+    const { lessonCode = null, questionsOverride = null, randomFn = Math.random } = opts;
+    const pool = Array.isArray(questionsOverride)
+      ? questionsOverride
+      : (Array.isArray(ui.ctx?.questions) ? ui.ctx.questions : []);
+    const targetGrade = Number(m.grade);
+    const targetSubject = normSpecText(subject(m) || 'Tin học');
+    const reqById = new Map((m.requirements || []).map(r => [r.id, r]));
+
+    const shuffleCopy = arr => {
+      const copy = arr.slice();
+      for (let i = copy.length - 1; i > 0; i--) {
+        const r = Math.min(i, Math.floor((Number(randomFn()) || 0) * (i + 1)));
+        [copy[i], copy[r]] = [copy[r], copy[i]];
+      }
+      return copy;
+    };
+
+    const groups = new Map();
+    m.slots.forEach(s => {
+      const r = reqById.get(s.parts?.[0]?.requirement_id);
+      const lCode = r?.lesson_code || m.lessons?.[0]?.lesson_code || 'B1';
+      if (lessonCode && normSpecText(lCode) !== normSpecText(lessonCode)) return;
+      const lvl = normSpecLevel(r?.level || 'Biết');
+      const kind = s.kind || 'MC';
+      const gKey = `${lCode}|${kind}|${lvl}`;
+      if (!groups.has(gKey)) groups.set(gKey, { lCode, kind, lvl, slots: [] });
+      groups.get(gKey).slots.push(s);
+    });
+
+    const slotSelections = new Map();
+    let totalSlots = 0;
+    let fromBankSlots = 0;
+    let fromPpctFallbackSlots = 0;
+    let missingSlots = 0;
+    const missingBankCells = [];
+
+    groups.forEach(g => {
+      const { lCode, kind, lvl, slots } = g;
+      totalSlots += slots.length;
+      const pl = lessons(m.grade).find(l => normSpecText(l.lesson_code) === normSpecText(lCode));
+      const basePool = pool.filter(q =>
+        q
+        && q.review_status !== 'archived'
+        && Number(q.grade) === targetGrade
+        && normSpecText(q.subject_name || 'Tin học') === targetSubject
+        && normSpecText(q.lesson_code) === normSpecText(lCode)
+        && String(q.learning_outcome || '').trim()
+      );
+
+      let candidates = basePool.filter(q => q.review_status === 'approved' && q.type === kind && normSpecLevel(q.level) === lvl);
+      if (!candidates.length) candidates = basePool.filter(q => q.type === kind && normSpecLevel(q.level) === lvl);
+      if (!candidates.length) candidates = basePool.filter(q => normSpecLevel(q.level) === lvl);
+      if (!candidates.length) candidates = basePool;
+
+      if (candidates.length) {
+        const shuffled = shuffleCopy(candidates);
+        slots.forEach((s, i) => {
+          const pickedQ = shuffled[i % shuffled.length];
+          const cleanOutcome = String(pickedQ.learning_outcome || '').replace(/\s*\(Mục tiêu\s+Câu[^)]*\)/gi, '').trim();
+          const matched = resolvePpctOutcomeMatch(m, lCode, cleanOutcome, pickedQ.ppct_outcome_id);
+          const comp = inferCompetencyFromBankOrPpct(pickedQ, pl);
+          slotSelections.set(s.id, {
+            lesson_code: lCode,
+            level: lvl,
+            text: matched.text,
+            competency: comp,
+            ppct_outcome_index: matched.ppct_outcome_index,
+            ppct_outcome_id: matched.ppct_outcome_id
+          });
+          fromBankSlots++;
+        });
+      } else {
+        const ppctOutcomes = Array.isArray(pl?.outcomes) ? pl.outcomes.filter(Boolean) : [];
+        if (!missingBankCells.includes(`${lCode} (${lvl})`)) missingBankCells.push(`${lCode} (${lvl})`);
+        if (ppctOutcomes.length) {
+          const shuffledOutcomes = shuffleCopy(ppctOutcomes);
+          const defaultComp = inferCompetencyFromBankOrPpct(null, pl);
+          slots.forEach((s, i) => {
+            const text = String(shuffledOutcomes[i % shuffledOutcomes.length] || '').trim();
+            const matched = resolvePpctOutcomeMatch(m, lCode, text, null);
+            slotSelections.set(s.id, {
+              lesson_code: lCode,
+              level: lvl,
+              text: matched.text,
+              competency: defaultComp,
+              ppct_outcome_index: matched.ppct_outcome_index,
+              ppct_outcome_id: matched.ppct_outcome_id
+            });
+            fromPpctFallbackSlots++;
+          });
+        } else {
+          missingSlots += slots.length;
+        }
+      }
+    });
+
+    applySpecBankSelections(m, slotSelections);
+    return { totalSlots, fromBankSlots, fromPpctFallbackSlots, missingSlots, missingBankCells };
+  }
+
+  function openSpecBankPickerDialog(m, opts = {}) {
+    if (!m) return;
+    if (!Array.isArray(m.slots) || !m.slots.length) {
+      message('Chưa có câu hỏi nào trong Bảng ma trận 1. Hãy nhập số câu theo bài và mức độ trước khi chọn YCCĐ.', true);
+      return;
+    }
+    if (typeof document === 'undefined') return;
+    const dlg = document.getElementById('spec-bank-picker-dialog');
+    const container = document.getElementById('spec-bank-picker-content');
+    if (!dlg || !container) return;
+
+    const filterCode = opts.lessonCode || '';
+    const reqById = new Map((m.requirements || []).map(r => [r.id, r]));
+    const LEVELS_ORDER = ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'];
+    const LEVEL_NAMES = { 'Biết': 'Nhận biết', 'Hiểu': 'Thông hiểu', 'Vận dụng': 'Vận dụng', 'Vận dụng cao': 'Vận dụng cao' };
+    const KIND_LABELS = { MC: 'TN 4 lựa chọn', YN: 'Đúng/Sai', SHORT: 'Trả lời ngắn', ES: 'Tự luận' };
+
+    const groupRegistry = new Map();
+    const lessonBlocksHtml = [];
+
+    (m.lessons || []).forEach(lesson => {
+      const lessonSlots = (m.slots || []).filter(s => {
+        const r = reqById.get(s.parts?.[0]?.requirement_id);
+        return (r?.lesson_code || m.lessons?.[0]?.lesson_code) === lesson.lesson_code;
+      });
+      if (!lessonSlots.length) return;
+
+      const levelCardsHtml = [];
+      LEVELS_ORDER.forEach(lvl => {
+        const lvlSlots = lessonSlots.filter(s => normSpecLevel(reqById.get(s.parts?.[0]?.requirement_id)?.level || 'Biết') === lvl);
+        if (!lvlSlots.length) return;
+
+        const groupKey = `${lesson.lesson_code}|${lvl}`;
+        const bankData = bankOutcomesForLesson(m, lesson.lesson_code, { level: lvl });
+        const baseOptions = [...bankData.bankItems, ...bankData.ppctOnly];
+        const slotEntries = lvlSlots.map(s => {
+          const curReq = reqById.get(s.parts?.[0]?.requirement_id);
+          const curText = String(curReq?.text || '').trim();
+          const curComp = String(curReq?.competency || (competencies()[0] || 'NLa')).trim();
+          const isPlaceholder = !curText || /mọi yêu cầu cần đạt của|YCCĐ cụ thể lấy từ đề/i.test(curText);
+          let matchedIdx = baseOptions.findIndex(o => normSpecText(o.text) === normSpecText(curText) && o.competency === curComp);
+          if (matchedIdx < 0 && !isPlaceholder) {
+            matchedIdx = baseOptions.findIndex(o => normSpecText(o.text) === normSpecText(curText));
+          }
+          const slotOptions = baseOptions.slice();
+          let selectedIdx = matchedIdx;
+          if (selectedIdx < 0 && !isPlaceholder) {
+            slotOptions.unshift({
+              key: '__cur__|' + s.id,
+              text: curText,
+              competency: curComp,
+              ppct_outcome_index: Number.isInteger(curReq?.ppct_outcome_index) ? curReq.ppct_outcome_index : null,
+              ppct_outcome_id: curReq?.ppct_outcome_id || null,
+              inPpct: Number.isInteger(curReq?.ppct_outcome_index),
+              source: 'current'
+            });
+            selectedIdx = 0;
+          } else if (selectedIdx < 0) {
+            selectedIdx = slotOptions.length ? 0 : -1;
+          }
+          const slotLabel = s.kind === 'ES' ? `Câu ${s.number} TL` : `Câu ${s.number}`;
+          return { slot: s, slotLabel, kindLabel: KIND_LABELS[s.kind] || s.kind, slotOptions, selectedIdx };
+        });
+
+        groupRegistry.set(groupKey, { lessonCode: lesson.lesson_code, level: lvl, baseOptions, slotEntries });
+
+        const renderOptionLabel = o => {
+          const previewText = o.text.length > 96 ? o.text.slice(0, 93) + '...' : o.text;
+          if (o.source === 'current') return `[Giữ nguyên] [${o.competency}] ${previewText}`;
+          if (o.source === 'ppct_missing') return `[PPCT · Chưa có câu trong NH] [${o.competency}] ${previewText}`;
+          const countHint = o.levelApproved > 0
+            ? `${o.levelApproved} câu duyệt đúng mức / ${o.lessonTotal} câu bài`
+            : `${o.lessonTotal} câu cùng bài`;
+          return `[${o.competency}] ${previewText} (${countHint})`;
+        };
+
+        const renderGroupedOptions = (optionsArr, chosenIdx) => {
+          const curOpts = [];
+          const bankOpts = [];
+          const ppctOpts = [];
+          optionsArr.forEach((o, idx) => {
+            const optHtml = `<option value="${idx}"${idx === chosenIdx ? ' selected' : ''}>${E(renderOptionLabel(o))}</option>`;
+            if (o.source === 'current') curOpts.push(optHtml);
+            else if (o.source === 'ppct_missing') ppctOpts.push(optHtml);
+            else bankOpts.push(optHtml);
+          });
+          let html = curOpts.join('');
+          if (bankOpts.length) html += `<optgroup label="📚 YCCĐ &amp; NL trong Ngân hàng đề (${bankOpts.length})">${bankOpts.join('')}</optgroup>`;
+          if (ppctOpts.length) html += `<optgroup label="📋 YCCĐ PPCT chưa có câu trong Ngân hàng (${ppctOpts.length})">${ppctOpts.join('')}</optgroup>`;
+          if (!html) html = `<option value="-1">-- Bài này chưa có câu hỏi hay YCCĐ PPCT nào --</option>`;
+          return html;
+        };
+
+        levelCardsHtml.push(`
+          <div class="sbp-level-box" data-group-key="${E(groupKey)}">
+            <div class="sbp-level-head">
+              <div>
+                <span class="badge" style="background:#e0f2fe;color:#0267B1;font-weight:700">${E(LEVEL_NAMES[lvl])}</span>
+                <strong style="margin-left:6px;color:#0f2942;font-size:13px">${lvlSlots.length} câu hỏi</strong>
+                ${bankData.bankItems.length
+                  ? `<span class="small" style="margin-left:8px;color:#15803d;font-weight:600">✓ Tìm thấy ${bankData.bankItems.length} YCCĐ trong Ngân hàng đề</span>`
+                  : `<span class="small" style="margin-left:8px;color:#b45309;font-weight:600">⚠ Chưa có câu hỏi bài ${E(lesson.lesson_code)} trong Ngân hàng đề</span>`}
+              </div>
+              ${lvlSlots.length > 1 && baseOptions.length ? `
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                  <span style="font-size:11.5px;font-weight:700;color:#0267B1">⚡ Chọn chung cả ${lvlSlots.length} câu:</span>
+                  <select class="sbp-bulk-select" data-group-key="${E(groupKey)}">
+                    <option value="">-- Áp dụng nhanh cho cả ${lvlSlots.length} câu --</option>
+                    ${renderGroupedOptions(baseOptions, -1)}
+                  </select>
+                </div>
+              ` : ''}
+            </div>
+            <div class="sbp-slot-list">
+              ${slotEntries.map((entry, eIdx) => `
+                <div class="sbp-slot-row">
+                  <span class="sbp-slot-label">${E(entry.slotLabel)}<small>${E(entry.kindLabel)}</small></span>
+                  <select class="sbp-slot-select" data-group-key="${E(groupKey)}" data-slot-id="${E(entry.slot.id)}" data-entry-idx="${eIdx}">
+                    ${renderGroupedOptions(entry.slotOptions, entry.selectedIdx)}
+                  </select>
+                </div>
+              `).join('')}
+            </div>
+            <div class="sbp-group-preview" data-group-key="${E(groupKey)}"></div>
+          </div>
+        `);
+      });
+
+      if (!levelCardsHtml.length) return;
+      const isHidden = filterCode && normSpecText(filterCode) !== normSpecText(lesson.lesson_code);
+      lessonBlocksHtml.push(`
+        <div class="sbp-lesson-card" data-lesson-code="${E(lesson.lesson_code)}"${isHidden ? ' hidden' : ''}>
+          <div class="sbp-lesson-head">
+            <span class="mx-spec-lesson-code">${E(lesson.lesson_code)}</span>
+            <strong>${E(lesson.title)}</strong>
+            <span class="mx-spec-lesson-count">${lessonSlots.length} câu</span>
+          </div>
+          ${levelCardsHtml.join('')}
+        </div>
+      `);
+    });
+
+    const lessonSelectOptions = [
+      opt('', `Tất cả bài học trong ma trận (${(m.lessons || []).length} bài)`, !filterCode),
+      ...(m.lessons || []).map(l => opt(l.lesson_code, `${l.lesson_code} · ${l.title}`, normSpecText(filterCode) === normSpecText(l.lesson_code)))
+    ].join('');
+
+    container.innerHTML = `
+      <div class="sbp-toolbar">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1">
+          <label for="sbp-lesson-filter" style="font-weight:700;font-size:13px;color:var(--navy);margin:0">Lọc theo bài học:</label>
+          <select id="sbp-lesson-filter" style="min-height:34px;padding:4px 10px;border:1px solid #94a3b8;border-radius:6px;background:#fff;max-width:380px">${lessonSelectOptions}</select>
+        </div>
+        <button type="button" id="sbp-random-btn" class="button" style="background:#f0f9ff;border-color:#0267B1;color:#0267B1;font-weight:700">🎲 Gợi ý chọn ngẫu nhiên từ Ngân hàng</button>
+      </div>
+      <div class="sbp-scroll-body">
+        ${lessonBlocksHtml.join('') || '<p class="muted">Không có bài học nào đã phân bố câu hỏi để chọn.</p>'}
+      </div>
+      <div class="dialog-bottom" style="margin-top:14px;padding-top:12px">
+        <button type="button" data-close="spec-bank-picker-dialog">Hủy</button>
+        <button type="button" id="sbp-apply-btn" class="primary">✅ Áp dụng vào Bảng 2 (Tự động gom/tách)</button>
+      </div>
+    `;
+
+    const refreshPreview = groupKey => {
+      const grp = groupRegistry.get(groupKey);
+      const previewEl = container.querySelector(`.sbp-group-preview[data-group-key="${CSS.escape(groupKey)}"]`);
+      if (!grp || !previewEl) return;
+      const buckets = new Map();
+      grp.slotEntries.forEach((entry, idx) => {
+        const selEl = container.querySelector(`.sbp-slot-select[data-slot-id="${CSS.escape(entry.slot.id)}"]`);
+        const optIdx = Number(selEl?.value ?? entry.selectedIdx);
+        const picked = entry.slotOptions[optIdx];
+        if (!picked) return;
+        const bKey = `${normSpecText(picked.text)}|${picked.competency}`;
+        if (!buckets.has(bKey)) buckets.set(bKey, { comp: picked.competency, labels: [], missing: picked.source === 'ppct_missing' });
+        buckets.get(bKey).labels.push(entry.slotLabel);
+      });
+      if (!buckets.size) {
+        previewEl.innerHTML = `<span class="muted small">Chưa có YCCĐ nào được chọn.</span>`;
+        return;
+      }
+      const chips = [...buckets.values()].map(b =>
+        `<span class="sbp-preview-chip${b.missing ? ' warn' : ''}"><strong>${E(b.labels.join(', '))}</strong> · ${E(b.comp)}${b.missing ? ' (chưa có câu NH)' : ''}</span>`
+      ).join(' ');
+      previewEl.innerHTML = `<span style="font-size:11.5px;color:#475569;font-weight:600">→ Bảng 2 sẽ tự động ${buckets.size === 1 ? 'gom chung thành 1 dòng' : `tách thành ${buckets.size} dòng`}:</span> ${chips}`;
+    };
+
+    groupRegistry.forEach((_, gKey) => refreshPreview(gKey));
+
+    const filterEl = container.querySelector('#sbp-lesson-filter');
+    if (filterEl) {
+      filterEl.onchange = () => {
+        const val = normSpecText(filterEl.value);
+        container.querySelectorAll('.sbp-lesson-card').forEach(card => {
+          card.hidden = Boolean(val && normSpecText(card.dataset.lessonCode) !== val);
+        });
+      };
+    }
+
+    container.querySelectorAll('.sbp-slot-select').forEach(sel => {
+      sel.onchange = () => refreshPreview(sel.dataset.groupKey);
+    });
+
+    container.querySelectorAll('.sbp-bulk-select').forEach(bulk => {
+      bulk.onchange = () => {
+        if (bulk.value === '') return;
+        const baseIdx = Number(bulk.value);
+        const grp = groupRegistry.get(bulk.dataset.groupKey);
+        const pickedBase = grp?.baseOptions?.[baseIdx];
+        if (!pickedBase) return;
+        grp.slotEntries.forEach(entry => {
+          const matchIdx = entry.slotOptions.findIndex(o => o.key === pickedBase.key);
+          const selEl = container.querySelector(`.sbp-slot-select[data-slot-id="${CSS.escape(entry.slot.id)}"]`);
+          if (selEl && matchIdx >= 0) selEl.value = String(matchIdx);
+        });
+        refreshPreview(bulk.dataset.groupKey);
+      };
+    });
+
+    const randomBtn = container.querySelector('#sbp-random-btn');
+    if (randomBtn) {
+      randomBtn.onclick = () => {
+        const activeFilter = normSpecText(filterEl?.value || '');
+        groupRegistry.forEach((grp, gKey) => {
+          if (activeFilter && normSpecText(grp.lessonCode) !== activeFilter) return;
+          grp.slotEntries.forEach(entry => {
+            const bankChoices = entry.slotOptions
+              .map((o, idx) => ({ o, idx }))
+              .filter(x => x.o.source === 'bank');
+            const poolChoices = bankChoices.length
+              ? bankChoices
+              : entry.slotOptions.map((o, idx) => ({ o, idx })).filter(x => x.o.source === 'ppct_missing');
+            if (!poolChoices.length) return;
+            const pick = poolChoices[Math.floor(Math.random() * poolChoices.length)];
+            const selEl = container.querySelector(`.sbp-slot-select[data-slot-id="${CSS.escape(entry.slot.id)}"]`);
+            if (selEl) selEl.value = String(pick.idx);
+          });
+          refreshPreview(gKey);
+        });
+      };
+    }
+
+    const applyBtn = container.querySelector('#sbp-apply-btn');
+    if (applyBtn) {
+      applyBtn.onclick = () => {
+        const selections = new Map();
+        groupRegistry.forEach(grp => {
+          grp.slotEntries.forEach(entry => {
+            const selEl = container.querySelector(`.sbp-slot-select[data-slot-id="${CSS.escape(entry.slot.id)}"]`);
+            const optIdx = Number(selEl?.value ?? -1);
+            const picked = entry.slotOptions[optIdx];
+            if (!picked) return;
+            selections.set(entry.slot.id, {
+              lesson_code: grp.lessonCode,
+              level: grp.level,
+              text: picked.text,
+              competency: picked.competency,
+              ppct_outcome_index: picked.ppct_outcome_index,
+              ppct_outcome_id: picked.ppct_outcome_id
+            });
+          });
+        });
+        const res = applySpecBankSelections(m, selections);
+        changed();
+        renderEditor();
+        if (typeof dlg.close === 'function') dlg.close();
+        message(`Đã cập nhật ${res.updatedSlots} câu hỏi theo YCCĐ & Năng lực đã chọn và tự động gom/tách thành ${res.requirementCount} dòng đặc tả!`);
+      };
+    }
+
+    dlg.querySelectorAll('[data-close="spec-bank-picker-dialog"]').forEach(btn => {
+      btn.onclick = () => { if (typeof dlg.close === 'function') dlg.close(); };
+    });
+    dlg.onclick = ev => {
+      if (ev.target === dlg && typeof dlg.close === 'function') dlg.close();
+    };
+    if (!dlg.open && typeof dlg.showModal === 'function') dlg.showModal();
   }
 
   function syncSpecFromExam(m, exam, ppctOverride) {
@@ -799,14 +1508,13 @@
           const autoRefs = levelReqV.flatMap(r => r.refs || []).join(', ');
           const customRefs = rs[0]?.custom_refs ?? m.custom_level_refs?.[lesson.lesson_code + '|' + lvl] ?? '';
           const displayRefs = customRefs || autoRefs;
-          const lvlComp = rs[0]?.competency || m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa;
-          const canSplitLevel = !(locked || received) && slotCountInLevel > 1 && rs.length < slotCountInLevel;
+          const lvlCompsUnique = [...new Set(rs.map(r => r.competency).filter(Boolean))];
+          const lvlComp = lvlCompsUnique[0] || m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa;
 
           reqsHtml += `<div class="mx-spec-level-block">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:6px;flex-wrap:wrap">
               <strong style="color:var(--navy);font-size:12px">${LEVEL_NAMES[lvl]}:</strong>
               <div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">
-                ${canSplitLevel ? `<button type="button" class="quiet" data-action="split-level-question-reqs" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" title="Tách thành ${slotCountInLevel} dòng riêng để viết mục tiêu đánh giá cụ thể cho từng câu hỏi" style="font-size:10.5px;padding:2px 6px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-weight:700">🎯 Tách riêng từng câu (${slotCountInLevel} câu)</button>` : ''}
                 ${!(locked || received)
                   ? `${rs.length <= 1 ? `<div style="display:inline-flex;align-items:center;gap:3px;background:#f0f9ff;border:1px solid #bae6fd;padding:2px 6px;border-radius:5px" title="Số thứ tự câu hỏi thuộc mục tiêu mức ${LEVEL_NAMES[lvl]}">
                        <span style="font-size:10.5px;font-weight:700;color:#0267B1">Câu:</span>
@@ -820,21 +1528,22 @@
                               title="Tùy chỉnh số thứ tự câu hỏi gán cho mục tiêu này (bấm nút ↺ để tự tính lại từ ma trận)"
                               style="font-size:11px;padding:2px 6px;border:1px solid #cbd5e1;border-radius:4px;color:#0267B1;font-weight:700;min-width:130px;background:#fff">
                        ${customRefs ? `<button type="button" class="quiet" data-action="reset-spec-refs" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" title="Khôi phục câu tự động từ ma trận" style="padding:1px 4px;font-size:10px;color:#64748b;line-height:1">↺</button>` : ''}
-                     </div>` : `<span class="badge" style="font-size:10.5px;background:#e0f2fe;color:#0267B1;font-weight:700">${rs.length} mục tiêu câu hỏi</span>${!(locked || received) ? `<button type="button" class="quiet" data-action="merge-level-question-reqs" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" title="Gom ${rs.length} mục tiêu câu hỏi này thành 1 mục tiêu chung (gộp câu hỏi)" style="font-size:10.5px;padding:2px 8px;background:#eff6ff;color:#0267B1;border:1px solid #bfdbfe;border-radius:4px;font-weight:700">🔗 Gom vào 1 mục tiêu chung</button>` : ''}`}
+                     </div>
                      <div style="display:inline-flex;align-items:center;gap:3px;background:#fefce8;border:1px solid #fef08a;padding:2px 6px;border-radius:5px" title="Thành phần năng lực cho mức ${LEVEL_NAMES[lvl]}">
                        <span style="font-size:10.5px;font-weight:700;color:#854d0e">NL:</span>
                        <input type="text"
                               list="mx-competency-datalist"
                               class="mx-spec-comp-input"
+                              data-req-id="${E(rs[0]?.id || '')}"
                               data-lesson-code="${E(lesson.lesson_code)}"
                               data-level="${lvl}"
                               value="${E(lvlComp)}"
                               placeholder="Mã năng lực"
                               title="Chọn mã trong danh mục năng lực đã nạp"
                               style="font-size:11px;font-weight:700;padding:2px 4px;border:1px solid #cbd5e1;border-radius:4px;color:#854d0e;width:55px;background:#fff;text-align:center">
-                     </div>`
+                     </div>` : `<span class="badge" style="font-size:10.5px;background:#e0f2fe;color:#0267B1;font-weight:700">${rs.length} mục tiêu (tự động tách theo YCCĐ)</span>`}`
                   : `<span class="badge" style="font-size:11px;background:#e0f2fe;color:#0267B1;font-weight:600">${E(displayRefs)}</span>
-                     <span class="badge" style="font-size:11px;background:#fef9c3;color:#854d0e;font-weight:700;border:1px solid #fde047">(${E(lvlComp)})</span>`
+                     <span class="badge" style="font-size:11px;background:#fef9c3;color:#854d0e;font-weight:700;border:1px solid #fde047">(${E(lvlCompsUnique.join(', ') || lvlComp)})</span>`
                 }
               </div>
             </div>`;
@@ -845,34 +1554,48 @@
               const rAutoRefs = (vReq?.refs || []).join(', ');
               const rCustomRefs = r.custom_refs ?? (rs.length === 1 ? (m.custom_level_refs?.[lesson.lesson_code + '|' + lvl] ?? '') : '');
               const rDisplayRefs = rCustomRefs || rAutoRefs || (rs.length === 1 ? displayRefs : `Mục tiêu câu ${rIdx + 1}`);
+              const rComp = r.competency || lvlComp;
               reqsHtml += `
                 <div style="display:flex;gap:6px;align-items:flex-start;margin-bottom:5px">
                   ${rs.length > 1
                     ? (!(locked || received)
-                        ? `<div style="display:inline-flex;align-items:center;gap:2px;background:#f0f9ff;border:1px solid #bae6fd;padding:2px 5px;border-radius:4px;flex-shrink:0;margin-top:2px" title="Câu hỏi gắn với mục tiêu này">
-                             <input type="text"
-                                    class="mx-spec-refs-input"
-                                    data-req-id="${E(r.id)}"
-                                    data-lesson-code="${E(lesson.lesson_code)}"
-                                    data-level="${lvl}"
-                                    value="${E(rDisplayRefs)}"
-                                    placeholder="Câu..."
-                                    style="font-size:11px;padding:1px 4px;border:1px solid #cbd5e1;border-radius:3px;color:#0267B1;font-weight:700;width:86px;background:#fff">
-                             ${rCustomRefs ? `<button type="button" class="quiet" data-action="reset-spec-refs" data-req-id="${E(r.id)}" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" title="Khôi phục số thứ tự câu tự động" style="padding:0 3px;font-size:10px;color:#64748b">↺</button>` : ''}
+                        ? `<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;margin-top:2px">
+                             <div style="display:inline-flex;align-items:center;gap:2px;background:#f0f9ff;border:1px solid #bae6fd;padding:2px 5px;border-radius:4px" title="Câu hỏi gắn với mục tiêu này">
+                               <input type="text"
+                                      class="mx-spec-refs-input"
+                                      data-req-id="${E(r.id)}"
+                                      data-lesson-code="${E(lesson.lesson_code)}"
+                                      data-level="${lvl}"
+                                      value="${E(rDisplayRefs)}"
+                                      placeholder="Câu..."
+                                      style="font-size:11px;padding:1px 4px;border:1px solid #cbd5e1;border-radius:3px;color:#0267B1;font-weight:700;width:86px;background:#fff">
+                               ${rCustomRefs ? `<button type="button" class="quiet" data-action="reset-spec-refs" data-req-id="${E(r.id)}" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" title="Khôi phục số thứ tự câu tự động" style="padding:0 3px;font-size:10px;color:#64748b">↺</button>` : ''}
+                             </div>
+                             <div style="display:inline-flex;align-items:center;gap:3px;background:#fefce8;border:1px solid #fef08a;padding:1px 5px;border-radius:4px" title="Thành phần năng lực riêng cho mục tiêu này">
+                               <span style="font-size:10px;font-weight:700;color:#854d0e">NL:</span>
+                               <input type="text"
+                                      list="mx-competency-datalist"
+                                      class="mx-spec-comp-input"
+                                      data-req-id="${E(r.id)}"
+                                      data-lesson-code="${E(lesson.lesson_code)}"
+                                      data-level="${lvl}"
+                                      value="${E(rComp)}"
+                                      placeholder="Mã NL"
+                                      style="font-size:10.5px;font-weight:700;padding:1px 4px;border:1px solid #cbd5e1;border-radius:3px;color:#854d0e;width:54px;background:#fff;text-align:center">
+                             </div>
                            </div>`
-                        : `<span class="badge" style="font-size:10.5px;background:#e0f2fe;color:#0267B1;font-weight:700;flex-shrink:0;margin-top:4px">${E(rDisplayRefs)}</span>`)
+                        : `<div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;margin-top:2px"><span class="badge" style="font-size:10.5px;background:#e0f2fe;color:#0267B1;font-weight:700">${E(rDisplayRefs)}</span><span class="badge" style="font-size:10px;background:#fef9c3;color:#854d0e;font-weight:700;border:1px solid #fde047">${E(rComp)}</span></div>`)
                     : `<span style="font-size:11px;color:#0267B1;font-weight:700;padding-top:4px;flex-shrink:0" title="Mục tiêu đánh giá của ${E(rDisplayRefs || 'câu hỏi')}">🎯</span>`
                   }
-                  <textarea class="mx-spec-req-input" data-req-id="${E(r.id)}" rows="2" style="flex:1;font-size:12px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;line-height:1.35;resize:vertical" placeholder="Nhập mục tiêu kiểm tra, đánh giá của ${E(rDisplayRefs || ('câu hỏi mức ' + LEVEL_NAMES[lvl]))}..."${dis}>${E(r.text)}</textarea>
-                  ${!(locked || received) ? `<button type="button" class="quiet danger" data-action="remove-spec-req" data-req-id="${E(r.id)}" title="Xóa dòng mục tiêu câu hỏi này" style="padding:2px 5px;font-size:11px">✕</button>` : ''}
+                  <textarea class="mx-spec-req-input" data-req-id="${E(r.id)}" rows="2" style="flex:1;font-size:12px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:4px;line-height:1.35;resize:vertical" placeholder="Nhập hoặc chọn YCCĐ từ Ngân hàng đề cho ${E(rDisplayRefs || ('câu hỏi mức ' + LEVEL_NAMES[lvl]))}..."${dis}>${E(r.text)}</textarea>
+                  ${!(locked || received) && rs.length > 1 ? `<button type="button" class="quiet danger" data-action="remove-spec-req" data-req-id="${E(r.id)}" title="Xóa dòng mục tiêu câu hỏi này" style="padding:2px 5px;font-size:11px">✕</button>` : ''}
                 </div>
               `;
             });
           } else {
             reqsHtml += `
               <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
-                <span class="muted" style="font-size:12px;font-style:italic">Chưa có mục tiêu câu hỏi cho mức ${LEVEL_NAMES[lvl]}</span>
-                ${!(locked || received) ? `<button type="button" class="quiet" data-action="add-spec-req" data-lesson-code="${E(lesson.lesson_code)}" data-level="${lvl}" style="font-size:11px;padding:2px 6px">+ Thêm mục tiêu câu hỏi</button>` : ''}
+                <span class="muted" style="font-size:12px;font-style:italic">Chưa gắn YCCĐ từ Ngân hàng đề cho mức ${LEVEL_NAMES[lvl]}</span>
               </div>
             `;
           }
@@ -886,10 +1609,8 @@
         if (!(locked || received)) {
           reqsHtml += `
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-              <button type="button" class="quiet" data-action="split-lesson-question-reqs" data-lesson-code="${E(lesson.lesson_code)}" style="font-size:11px;padding:2px 7px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-weight:600" title="Tách riêng mỗi câu hỏi trong bài này thành một dòng mục tiêu đánh giá độc lập">🎯 Tách mục tiêu từng câu</button>
-              <button type="button" class="quiet" data-action="merge-lesson-question-reqs" data-lesson-code="${E(lesson.lesson_code)}" style="font-size:11px;padding:2px 7px;background:#eff6ff;color:#0267B1;border:1px solid #bfdbfe;border-radius:4px;font-weight:600" title="Gom các câu có cùng mức độ nhận thức của bài này vào 1 mục tiêu chung">🔗 Gom câu cùng YCCĐ bài này</button>
-              <button type="button" class="quiet" data-action="add-spec-req" data-lesson-code="${E(lesson.lesson_code)}" data-level="Biết" style="font-size:11px;padding:2px 7px;border:1px solid #cbd5e1;border-radius:4px">+ Thêm mục tiêu câu hỏi</button>
-              <button type="button" class="quiet" data-action="fill-lesson-ppct-reqs" data-lesson-code="${E(lesson.lesson_code)}" style="font-size:11px;padding:2px 7px;background:#f0f7ff;color:#0267B1;border:1px solid #c2dbf1;border-radius:4px" title="Gợi ý câu chữ khung từ Phân phối chương trình">📥 Lấy YCCĐ từ PPCT</button>
+              <button type="button" class="quiet" data-action="random-fill-lesson-from-bank" data-lesson-code="${E(lesson.lesson_code)}" style="font-size:11px;padding:3px 8px;background:#f0f7ff;color:#0267B1;border:1px solid #bae6fd;border-radius:4px;font-weight:700" title="Chọn ngẫu nhiên câu hỏi của bài này trong Ngân hàng đề để lấy YCCĐ và Năng lực">🎲 Ngẫu nhiên từ Ngân hàng</button>
+              <button type="button" class="quiet" data-action="open-spec-bank-picker" data-lesson-code="${E(lesson.lesson_code)}" style="font-size:11px;padding:3px 8px;background:#fff;color:#0267B1;border:1px solid #0267B1;border-radius:4px;font-weight:700" title="Mở hộp thoại chọn YCCĐ &amp; Năng lực từ Ngân hàng đề cho bài học này">🎯 Chọn YCCĐ từ Ngân hàng</button>
             </div>
           `;
         }
@@ -897,8 +1618,8 @@
         const cellMC = ['Biết', 'Hiểu', 'Vận dụng'].map(lvl => {
           const c = vRow.cells['MC|' + lvl];
           if (!c || !c.count) return '';
-          const rLvl = lessonReqs.find(r => r.level === lvl);
-          const comp = rLvl?.competency || m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa;
+          const rComps = [...new Set(lessonReqs.filter(r => r.level === lvl).map(r => r.competency).filter(Boolean))];
+          const comp = rComps.length ? rComps.join(', ') : (m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa);
           const lvlAbbr = lvl === 'Biết' ? 'B' : lvl === 'Hiểu' ? 'H' : 'VD';
           return `<div style="padding:2px 0;font-size:12px;white-space:nowrap"><strong>${c.count} MC (${lvlAbbr})</strong> <span class="badge" style="background:#fef9c3;color:#854d0e;font-size:11px;font-weight:700;border:1px solid #fde047;padding:1px 5px;border-radius:4px" title="Thành phần năng lực của mức ${LEVEL_NAMES[lvl]} (chỉnh sửa ở ô NL bên trái)">(${E(comp)})</span></div>`;
         }).filter(Boolean).join('') || '0';
@@ -916,8 +1637,8 @@
         const cellES = ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
           const c = vRow.cells['ES|' + lvl];
           if (!c || !c.count) return '';
-          const rLvl = lessonReqs.find(r => r.level === lvl);
-          const comp = rLvl?.competency || m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa;
+          const rComps = [...new Set(lessonReqs.filter(r => r.level === lvl).map(r => r.competency).filter(Boolean))];
+          const comp = rComps.length ? rComps.join(', ') : (m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa);
           return `<div style="padding:2px 0;font-size:12px;white-space:nowrap"><strong>${c.count} ES</strong> <span class="badge" style="background:#fef9c3;color:#854d0e;font-size:11px;font-weight:700;border:1px solid #fde047;padding:1px 5px;border-radius:4px" title="Thành phần năng lực của mức ${LEVEL_NAMES[lvl]} (chỉnh sửa ở ô NL bên trái)">(${E(comp)})</span></div>`;
         }).filter(Boolean).join('') || '0';
 
@@ -986,14 +1707,13 @@
                 </button>
               </div>
             ` : ''}
-            ${!(locked || received) ? `<button type="button" class="primary" data-action="split-all-question-reqs" style="background:#0f766e;border-color:#0f766e;font-weight:700" title="Tách riêng mỗi câu hỏi (Câu 1, Câu 2...) thành một dòng mục tiêu đánh giá độc lập để đặc tả theo mục tiêu từng câu hỏi">🎯 Tách mục tiêu theo từng câu hỏi</button>` : ''}
-            ${!(locked || received) ? `<button type="button" class="button" data-action="merge-all-question-reqs" style="background:#f0f9ff;border-color:#0267B1;color:#0267B1;font-weight:700" title="Gom các câu có cùng yêu cầu cần đạt / mức độ nhận thức vào 1 mục tiêu chung">🔗 Gom câu cùng YCCĐ (Toàn bảng)</button>` : ''}
-            ${!(locked || received) ? `<button type="button" class="primary" data-action="auto-fill-all-ppct-reqs" style="background:#0267B1;font-weight:700" title="Tự động lấy câu chữ YCCĐ từ Phân phối chương trình điền gợi ý vào các dòng">📥 Tự điền toàn bộ YCCĐ từ PPCT</button>` : ''}
+            ${!(locked || received) ? `<button type="button" class="primary" data-action="random-fill-spec-from-bank" style="background:#0267B1;border-color:#0267B1;font-weight:700" title="Tự động chọn ngẫu nhiên câu hỏi từ Ngân hàng đề tương ứng với từng bài để lấy YCCĐ và Năng lực gán vào Bảng 2 (tự động gom/tách)">🎲 Tự điền ngẫu nhiên từ Ngân hàng đề</button>` : ''}
+            ${!(locked || received) ? `<button type="button" class="button" data-action="open-spec-bank-picker" style="background:#f0f9ff;border-color:#0267B1;color:#0267B1;font-weight:700" title="Mở hộp thoại cho phép giáo viên chọn YCCĐ &amp; Năng lực từ Ngân hàng đề cho từng bài/câu hỏi (tự động gom/tách)">🎯 Chọn YCCĐ từ Ngân hàng đề</button>` : ''}
             <button type="button" data-action="preview">👁️ Xem bảng chuẩn Word</button>
           </div>
         </div>
         <p style="font-style:italic;font-size:12px;color:var(--muted);margin:0 0 10px 0">
-          <strong>Lưu ý:</strong> Các câu hỏi có chung Yêu cầu cần đạt được <strong>gộp chung vào một mục tiêu</strong> (ví dụ: Câu 1, Câu 2). Thầy/Cô có thể bấm <strong>"🎯 Tách mục tiêu theo từng câu hỏi"</strong> để viết mục tiêu riêng cho từng câu, hoặc bấm <strong>"🔗 Gom câu cùng YCCĐ"</strong> để gộp lại gọn gàng bất kỳ lúc nào.
+          <strong>Lưu ý:</strong> YCCĐ và Thành phần năng lực ở Bảng 2 được lấy trực tiếp từ <strong>Ngân hàng câu hỏi</strong> theo đúng bài học. Hệ thống sẽ <strong>tự động gom chung</strong> các câu có cùng YCCĐ &amp; NL và <strong>tự động tách riêng</strong> các câu khác nhau.
         </p>
         <div class="table-wrap">
           <table class="matrix-spec-table" style="width:100%;border-collapse:collapse;font-size:13px;background:white">
@@ -1047,7 +1767,6 @@
                  <button type="button" class="quiet" data-action="unlock-spec" style="font-size:12px;padding:5px 10px;border:1px solid #cbd5e1;border-radius:6px">🔓 Mở khóa sửa đặc tả</button>`
               : `<button type="button" class="primary" data-action="lock-spec" style="background:#0267B1;border-color:#0267B1;font-weight:700">🔒 Lưu & Chốt Bảng đặc tả</button>`
             }
-            ${!(locked || received || m.spec_locked) ? `<button type="button" class="quiet" data-action="auto-fill-all-ppct-reqs" style="background:#f0f7ff;color:#0267B1;border:1px solid #c2dbf1;font-weight:600;padding:6px 12px;border-radius:6px" title="Tự động lấy câu chữ YCCĐ từ Phân phối chương trình điền vào tất cả các bài">📥 Nạp lại toàn bộ YCCĐ từ PPCT</button>` : ''}
             <button type="button" data-action="preview">👁️ Xem bảng chuẩn Word</button>
             <button type="button" data-action="quick-export-doc">📄 Xuất Word trọn bộ (.doc)</button>
           </div>
@@ -1278,29 +1997,9 @@
       </div>
     `;
   }
-  function newDraft(grade, usePreset=false){
+  function newDraft(grade){
     const g=Number(grade)||grades()[0];
     const isHigh=g>=10;
-
-    if(usePreset&&STANDARD_PRESETS&&STANDARD_PRESETS[String(g)]){
-      const preset=clone(STANDARD_PRESETS[String(g)]);
-      preset.id='';
-      preset.family_id='';
-      preset.version=1;
-      preset.revision=0;
-      preset.status='draft';
-      preset.mode='authored';
-      // Mẫu chuẩn được soạn cho Tin học; người phụ trách lấy theo môn đang chọn để môn khác không bị ghi "Tổ Tin học".
-      preset.owner_name=(!preset.owner_name||/Tổ Tin học/i.test(preset.owner_name))?defaultOwner():preset.owner_name;
-      preset.campus=preset.campus||(generic()?'':'Cao Thắng');
-      preset.school_year=ui.ctx?.context?.school_year||preset.school_year||'2026-2027';
-      preset.subject_name=subject();
-      preset.requirements.forEach(r=>{if(!competencies().includes(r.competency))r.competency=competencies()[0];});
-      preset.allow_custom_override=true;
-      preset.reconciliation={confirmed:true,issues:[]};
-      preset.audit=[{at:new Date().toISOString(),action:'create_preset'}];
-      return preset;
-    }
 
     return {
       id:'',family_id:'',version:1,revision:0,status:'draft',mode:'authored',
@@ -1523,6 +2222,12 @@
       const r = (ui.editing?.requirements || []).find(x => x.id === reqId);
       if (r) {
         r.text = event.target.value;
+        const hit = resolvePpctOutcomeMatch(ui.editing, r.lesson_code, r.text);
+        if (hit.inPpct) {
+          r.ppct_outcome_index = hit.ppct_outcome_index;
+          if (hit.ppct_outcome_id) r.ppct_outcome_id = hit.ppct_outcome_id;
+          delete r.outcome_mode;
+        }
         ui.dirty = true;
         const mark = qs('#mx-dirty');
         if (mark) mark.textContent = ' · Có thay đổi chưa lưu';
@@ -1553,19 +2258,21 @@
     }
     if (event.target.matches('.mx-spec-comp-input')) {
       if (specLocked) { event.preventDefault(); return; }
+      const reqId = event.target.dataset.reqId;
       const lessonCode = event.target.dataset.lessonCode;
       const level = event.target.dataset.level;
       const val = event.target.value.trim();
-      if (!ui.editing.custom_level_comp) ui.editing.custom_level_comp = {};
-      ui.editing.custom_level_comp[lessonCode + '|' + level] = val;
-      (ui.editing.requirements || []).filter(r => r.lesson_code === lessonCode && r.level === level).forEach(r => {
-        r.competency = val;
-      });
-      ui.container.querySelectorAll(`.mx-spec-comp-input[data-lesson-code="${lessonCode}"][data-level="${level}"]`).forEach(inputEl => {
-        if (inputEl !== event.target && inputEl.value !== val) {
-          inputEl.value = val;
-        }
-      });
+      const levelReqs = (ui.editing.requirements || []).filter(r => r.lesson_code === lessonCode && r.level === level);
+      if (reqId && levelReqs.length > 1) {
+        const targetReq = levelReqs.find(r => r.id === reqId);
+        if (targetReq) targetReq.competency = val;
+      } else {
+        if (!ui.editing.custom_level_comp) ui.editing.custom_level_comp = {};
+        ui.editing.custom_level_comp[lessonCode + '|' + level] = val;
+        levelReqs.forEach(r => {
+          r.competency = val;
+        });
+      }
       ui.dirty = true;
       const mark = qs('#mx-dirty');
       if (mark) mark.textContent = ' · Có thay đổi chưa lưu';
@@ -1594,13 +2301,21 @@
         message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi chỉnh sửa.', true);
         return;
       }
+      const merged = reconcileSpecRequirements(ui.editing);
       changed();
+      if (merged > 0) {
+        renderEditor();
+        message('Đã tự động gom các câu có cùng YCCĐ & Năng lực thành 1 dòng chung!');
+      }
       return;
     }
     if (el.matches('.mx-spec-refs-input') || el.matches('.mx-spec-comp-input')) {
       if (specLocked) {
         message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi chỉnh sửa.', true);
         return;
+      }
+      if (el.matches('.mx-spec-comp-input')) {
+        reconcileSpecRequirements(ui.editing);
       }
       changed();
       renderEditor();
@@ -2343,7 +3058,8 @@
               const c = row.cells['MC|' + lvl];
               if (!c || !c.count) return '';
               const lvlAbbr = lvl === 'Biết' ? 'B' : lvl === 'Hiểu' ? 'H' : lvl === 'Vận dụng cao' ? 'VDC' : 'VD';
-              const comp = (lessonReqs.find(r => r.level === lvl)?.competency) || m?.custom_level_comp?.[row.lesson_code + '|' + lvl] || 'NLa';
+              const rComps = [...new Set(lessonReqs.filter(r => r.level === lvl).map(r => r.competency).filter(Boolean))];
+              const comp = rComps.length ? rComps.join(', ') : (m?.custom_level_comp?.[row.lesson_code + '|' + lvl] || 'NLa');
               return `${c.count} MC (${lvlAbbr}) (${E(comp)})`;
             }).filter(Boolean).join('<br>') : '0';
 
@@ -2363,7 +3079,8 @@
             ['Biết', 'Hiểu', 'Vận dụng', 'Vận dụng cao'].map(lvl => {
               const c = row.cells['ES|' + lvl];
               if (!c || !c.count) return '';
-              const comp = (lessonReqs.find(r => r.level === lvl)?.competency) || m?.custom_level_comp?.[row.lesson_code + '|' + lvl] || 'NLa';
+              const rComps = [...new Set(lessonReqs.filter(r => r.level === lvl).map(r => r.competency).filter(Boolean))];
+              const comp = rComps.length ? rComps.join(', ') : (m?.custom_level_comp?.[row.lesson_code + '|' + lvl] || 'NLa');
               return `${c.count} ES (${E(comp)})`;
             }).filter(Boolean).join('<br>') : '0';
 
@@ -3088,7 +3805,7 @@
       ui.dirty=false;
       render();
       qs('#mx-work')?.scrollIntoView?.({behavior:'smooth',block:'start'});
-      message('Đã mở tạo ma trận mới cho Khối ' + g + '. Bạn có thể nhập số câu trực tiếp vào bảng 2D hoặc bấm "⚡ Nạp mẫu chuẩn Á Châu (10.0đ)".');
+      message('Đã mở tạo ma trận mới cho Khối ' + g + '. Hãy chọn từng bài học từ PPCT và nhập số câu vào Bảng ma trận 1.');
       return;
     }
     if(action==='import'){
@@ -3110,22 +3827,6 @@
     const isGloballyLocked = ['locked', 'archived'].includes(ui.editing?.status);
     const isMatrixLocked = isGloballyLocked || Boolean(ui.editing?.matrix_locked);
     const isSpecLocked = isGloballyLocked || Boolean(ui.editing?.spec_locked);
-    if(action==='apply-preset'&&ui.editing){
-      if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
-      const g=Number(ui.editing.grade)||8;
-      const p=STANDARD_PRESETS[String(g)];
-      if(!p){message('Chưa có mẫu cho khối '+g,true);return;}
-      const copy=clone(p);
-      ui.editing.lessons=copy.lessons;
-      ui.editing.requirements=copy.requirements;
-      ui.editing.slots=copy.slots;
-      ui.editing.indicator_catalog=copy.indicator_catalog||[];
-      ui.editing.total_points=copy.total_points||10;
-      if(copy.scoring_policy)ui.editing.scoring_policy=copy.scoring_policy;
-      changed();renderEditor();
-      message('Đã nạp lại mẫu chuẩn Á Châu 10.0 điểm cho Khối ' + g + '!');
-      return;
-    }
     if(action==='load-ppct-lessons'&&ui.editing){
       if(isMatrixLocked){message('Bảng ma trận 2D đã chốt. Hãy bấm "🔓 Mở khóa sửa ma trận" trước khi thay đổi.',true);return;}
       const g=Number(ui.editing.grade)||8;
@@ -3242,96 +3943,35 @@
       message('Đã bật chế độ sửa toàn diện. Bạn có thể thêm/sửa/xóa bài học, YCCĐ và phân bố câu hỏi rồi bấm Lưu bản nháp.');
       return;
     }
-    if(action==='split-all-question-reqs'&&ui.editing){
+    if(action==='random-fill-spec-from-bank'&&ui.editing){
       if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
-      const total=splitQuestionRequirements(ui.editing);
+      const res=autoFillSpecFromBank(ui.editing);
       changed();renderEditor();
-      message(total>0 ? ('Đã tách thành ' + total + ' dòng mục tiêu đánh giá riêng biệt cho từng câu hỏi!') : 'Các câu hỏi trong bảng đặc tả đã được tách riêng theo từng mục tiêu.');
-      return;
-    }
-    if(action==='split-lesson-question-reqs'&&ui.editing){
-      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
-      const code=b.dataset.lessonCode;
-      const total=splitQuestionRequirements(ui.editing,code);
-      changed();renderEditor();
-      message(total>0 ? ('Đã tách riêng ' + total + ' mục tiêu câu hỏi cho bài ' + code + '!') : ('Các câu hỏi của bài ' + code + ' đã ở trạng thái tách riêng từng mục tiêu.'));
-      return;
-    }
-    if(action==='split-level-question-reqs'&&ui.editing){
-      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
-      const code=b.dataset.lessonCode;
-      const level=b.dataset.level;
-      const total=splitQuestionRequirements(ui.editing,code,level);
-      changed();renderEditor();
-      message('Đã tách thành ' + total + ' mục tiêu riêng cho từng câu hỏi mức ' + level + ' của bài ' + code + '!');
-      return;
-    }
-    if(action==='merge-all-question-reqs'&&ui.editing){
-      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
-      const total=mergeQuestionRequirements(ui.editing);
-      changed();renderEditor();
-      message(total>0 ? (`Đã gộp ${total} mục tiêu thừa, gom các câu có chung YCCĐ vào cùng mục tiêu gọn gàng!`) : 'Các câu hỏi có chung YCCĐ đã ở trạng thái gom gọn gàng.');
-      return;
-    }
-    if(action==='merge-lesson-question-reqs'&&ui.editing){
-      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
-      const code=b.dataset.lessonCode;
-      const total=mergeQuestionRequirements(ui.editing,code);
-      changed();renderEditor();
-      message(total>0 ? (`Đã gom các câu cùng YCCĐ của bài ${code} vào mục tiêu chung!`) : (`Các câu hỏi của bài ${code} đã ở trạng thái gom gọn gàng.`));
-      return;
-    }
-    if(action==='merge-level-question-reqs'&&ui.editing){
-      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
-      const code=b.dataset.lessonCode;
-      const level=b.dataset.level;
-      const total=mergeQuestionRequirements(ui.editing,code,level);
-      changed();renderEditor();
-      message(`Đã gom các câu mức ${level} của bài ${code} vào 1 mục tiêu chung!`);
-      return;
-    }
-    if(action==='auto-fill-all-ppct-reqs'&&ui.editing){
-      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
-      let count=0;
-      (ui.editing.lessons||[]).forEach(l=>{
-        fillLessonPpctRequirements(ui.editing,l.lesson_code);
-        count++;
-      });
-      changed();renderEditor();
-      message('Đã tự động điền YCCĐ từ PPCT cho toàn bộ ' + count + ' bài học trong ma trận!');
-      return;
-    }
-    if(action==='fill-lesson-ppct-reqs'&&ui.editing){
-      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
-      const code=b.dataset.lessonCode;
-      fillLessonPpctRequirements(ui.editing,code);
-      changed();renderEditor();
-      message('Đã nạp YCCĐ từ PPCT cho bài ' + code + '!');
-      return;
-    }
-    if(action==='add-spec-req'&&ui.editing){
-      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
-      const code=b.dataset.lessonCode;
-      const level=b.dataset.level||'Biết';
-      const pl=lessons(ui.editing.grade).find(x=>x.lesson_code===code);
-      const defaultText=pl?.outcomes?.[0]||'';
-      const newReq={
-        id:uid('R'),
-        lesson_code:code,
-        level:level,
-        text:defaultText,
-        ppct_outcome_index:0,
-        competency:competencies()[0]||'NLa',
-        choice_group:null
-      };
-      const sameGroupIds=new Set((ui.editing.requirements||[]).filter(r=>r.lesson_code===code&&r.level===level).map(r=>r.id));
-      ui.editing.requirements.push(newReq);
-      const sharedSlots=(ui.editing.slots||[]).filter(s=>sameGroupIds.has(s.parts?.[0]?.requirement_id));
-      if(sharedSlots.length>1){
-        const lastSlot=sharedSlots[sharedSlots.length-1];
-        (lastSlot.parts||[]).forEach(p=>{p.requirement_id=newReq.id;});
+      if(!res.totalSlots){
+        message('Chưa có câu hỏi nào trong Bảng 1 Ma trận để điền Bảng 2.',true);
+      }else if(res.missingBankCells.length){
+        message(`Đã lấy ngẫu nhiên từ Ngân hàng đề cho ${res.fromBankSlots}/${res.totalSlots} câu (tự động gom/tách YCCĐ). Thiếu câu hỏi ngân hàng ở: ${res.missingBankCells.join(', ')}.`);
+      }else{
+        message(`Đã lấy ngẫu nhiên từ Ngân hàng đề cho toàn bộ ${res.fromBankSlots} câu (tự động gom câu chung YCCĐ & NL)!`);
       }
+      return;
+    }
+    if(action==='random-fill-lesson-from-bank'&&ui.editing){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
+      const code=b.dataset.lessonCode;
+      const res=autoFillSpecFromBank(ui.editing,{lessonCode:code});
       changed();renderEditor();
+      if(res.missingBankCells.length){
+        message(`Bài ${code}: đã lấy ngẫu nhiên ${res.fromBankSlots}/${res.totalSlots} câu từ Ngân hàng đề (thiếu câu ở ${res.missingBankCells.join(', ')}).`);
+      }else{
+        message(`Đã chọn ngẫu nhiên YCCĐ & NL từ Ngân hàng đề cho ${res.fromBankSlots} câu của bài ${code}!`);
+      }
+      return;
+    }
+    if(action==='open-spec-bank-picker'&&ui.editing){
+      if(isSpecLocked){message('Bảng đặc tả đã chốt. Hãy bấm "🔓 Mở khóa sửa đặc tả" trước khi thay đổi.',true);return;}
+      const code=b.dataset.lessonCode||null;
+      openSpecBankPickerDialog(ui.editing,{lessonCode:code});
       return;
     }
     if(action==='remove-spec-req'&&ui.editing){
@@ -4600,6 +5240,6 @@ Quy ước:
     openEditorWithDraft(draft);
     return {reused:false,matrix:draft};
   }
-  const api={matrixDocxBytes,htmlToOoxml,syncSpecFromExam,shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,STANDARD_PRESETS,newDraft,openEditorWithDraft,openEditorWithExamSpec,createFromPlan,getAssessmentPlansForMatrix,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,mergeQuestionRequirements,syncSpecFromExam,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
+  const api={matrixDocxBytes,htmlToOoxml,syncSpecFromExam,shortfallHtml,mount,formatRefs,filterRecords,visibleActions,escapeHtml,packageSummary,effectiveKinds,setAllowedKinds,ynTable,setYnCoefficient,requirementLevelOptions,parseMatrixFromMarkdown,downloadMatrixExcelSample,downloadMatrixJsonSample,downloadMatrixMdSample,copyMatrixAiPrompt,computeCv7991Warnings,buildMatrixView,generateMatrixWordHtml,generateMatrixWordStandaloneHtml,downloadMatrixWord,downloadMatrixJson,openCustomMatrixExportDialog,newDraft,openEditorWithDraft,openEditorWithExamSpec,createFromPlan,getAssessmentPlansForMatrix,updateSlotsFromGrid,renumberAllSlots,sortLessonsByPpct,fillLessonPpctRequirements,splitQuestionRequirements,mergeQuestionRequirements,bankOutcomesForLesson,reconcileSpecRequirements,applySpecBankSelections,autoFillSpecFromBank,openSpecBankPickerDialog,syncSpecFromExam,normalizeSlotNumbers,matrixGridHtml,specGridHtml};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.MatrixUI=api;
 })(typeof window!=='undefined'?window:globalThis);

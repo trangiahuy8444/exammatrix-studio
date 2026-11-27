@@ -32,10 +32,11 @@ test('index.html preserves required shell, header, toast, and sidebar IDs', () =
   assert(indexHtml.includes('id="notice" popover="manual"'), '#notice must use popover="manual" for top-layer visibility');
   assert(!indexHtml.includes('class="page-crumb"'), 'Redundant breadcrumb should be removed from topbar');
   assert(indexHtml.includes('id="app-modal-dialog"'), 'Missing #app-modal-dialog in public/index.html');
+  assert(indexHtml.includes('id="spec-bank-picker-dialog"'), 'Missing #spec-bank-picker-dialog in public/index.html');
   assert(indexHtml.includes('./styles.css?v=20261126c'));
   assert(indexHtml.includes('./core.js?v=20261126g'));
-  assert(indexHtml.includes('./matrices.css?v=20261127a'));
-  assert(indexHtml.includes('./matrices.js?v=20261127a'));
+  assert(indexHtml.includes('./matrices.css?v=20261127b'));
+  assert(indexHtml.includes('./matrices.js?v=20261127b'));
   assert(indexHtml.includes('./firebase-bridge.js?v=20261126g'));
   assert(indexHtml.includes('./app.js?v=20261126f'));
   assert(indexHtml.includes('./knowledge-ui.js?v=20261126c'));

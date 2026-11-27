@@ -24,10 +24,10 @@
   <script src="./knowledge-rules.js?v=20261125r" defer></script>
   <script src="./static-api.js?v=20261126f" defer></script>
   <script src="./static-download.js?v=20261124h" defer></script>
-  <link rel="stylesheet" href="./matrices.css?v=20261127a">
+  <link rel="stylesheet" href="./matrices.css?v=20261127b">
   <script src="./assessment-plan-model.js?v=20261124h" defer></script>
   <script src="./table-file-helper.js?v=20261124k" defer></script>
-  <script src="./matrices.js?v=20261127a" defer></script>
+  <script src="./matrices.js?v=20261127b" defer></script>
   <script src="./curricula.js?v=20261124h" defer></script>
   <script src="./firebase-config.js?v=20261124h" defer></script>
   <script src="./google-drive-config.js?v=20261124h" defer></script>
@@ -409,6 +409,19 @@
   <div id="custom-matrix-export-content">
     <!-- Nội dung render động từ matrices.js -->
   </div>
+</dialog>
+
+<!-- Modal Chọn YCCĐ & Năng lực từ Ngân hàng đề cho Bảng 2 Đặc tả -->
+<dialog id="spec-bank-picker-dialog" aria-labelledby="spec-bank-picker-title" style="max-width:980px;width:95vw;border-radius:14px;padding:22px;border:1px solid #dce5ee;box-shadow:0 16px 48px rgba(16,45,74,0.18)">
+  <div class="dialog-heading" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;border-bottom:1px solid #e2e8f0;padding-bottom:10px">
+    <div>
+      <span class="badge" style="background:#0267B1;color:#fff;font-weight:700">NGÂN HÀNG CÂU HỎI &rarr; BẢNG 2 ĐẶC TẢ</span>
+      <h2 id="spec-bank-picker-title" style="margin:4px 0 2px;color:var(--navy,#102d4a);font-size:1.25rem">🎯 Chọn YCCĐ &amp; Năng lực từ Ngân hàng đề</h2>
+      <p class="muted small" style="margin:0">Chọn YCCĐ và Thành phần năng lực của từng câu hỏi từ Ngân hàng đề theo bài học. Câu cùng YCCĐ &amp; NL sẽ tự động gom chung; khác nhau sẽ tự động tách dòng.</p>
+    </div>
+    <button type="button" data-close="spec-bank-picker-dialog" class="quiet" style="font-size:1.3rem;cursor:pointer;color:#64748b">✕</button>
+  </div>
+  <div id="spec-bank-picker-content"></div>
 </dialog>
 
 <!-- Modal Tùy biến Xuất Ngân hàng câu hỏi -->

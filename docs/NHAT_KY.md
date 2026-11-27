@@ -1,3 +1,11 @@
+## 27/11/2026 — Bỏ hoàn toàn bộ mẫu viết sẵn; Bảng 2 lấy YCCĐ & NL trực tiếp từ Ngân hàng đề và tự động gom/tách
+
+- **Loại bỏ hoàn toàn `STANDARD_PRESETS` (`matrices.js`):** xóa bộ đặc tả mẫu cứng khối 6–12 và nút `Điền mẫu tham khảo`; `newDraft(grade)` luôn khởi tạo bản nháp trắng lấy dữ liệu thực từ PPCT và Ngân hàng câu hỏi.
+- **Hai công cụ chuẩn hóa trên Bảng 2 (`matrices.js`, `matrices.css`, `index.html`):**
+  1. `🎲 Tự điền ngẫu nhiên từ Ngân hàng đề` (`autoFillSpecFromBank`): bốc ngẫu nhiên câu hỏi tương ứng từng bài trong Ngân hàng đề (ưu tiên câu `approved`, đúng dạng & mức độ), lấy đúng cặp `(YCCĐ, NL)` và ánh xạ về `ppct_outcome_index` (loại bỏ `outcome_mode: 'any'`).
+  2. `🎯 Chọn YCCĐ từ Ngân hàng đề` (`openSpecBankPickerDialog` / `#spec-bank-picker-dialog`): hộp thoại cho phép giáo viên lọc theo bài học, chọn từng câu hoặc chọn nhanh cả nhóm mức độ từ danh sách YCCĐ + NL có sẵn trong Ngân hàng câu hỏi (có tách riêng nhóm YCCĐ PPCT chưa có câu trong ngân hàng để dễ kiểm tra lỗ hổng).
+- **Tự động gom & tách (`reconcileSpecRequirements`):** xóa các nút Tách/Gom/Tự điền PPCT thủ công trên Bảng 2; hệ thống tự động gom các câu có chung bài, mức độ, YCCĐ và thành phần năng lực vào 1 dòng chung và tự động tách riêng các câu khác nhau.
+
 ## 27/11/2026 — Làm nổi bật ranh giới từng bài và chủ đề ở Bảng 2 (Bảng đặc tả)
 
 - **Phân tách rõ từng bài & chủ đề (`matrices.js`, `matrices.css`):** gắn class `mx-spec-lesson-row` xen kẽ nền trắng / xanh nhạt (`#f3f8fe`), viền phân tách đậm giữa các bài (`2px solid #6b9bc7`), viền tách chủ đề (`3px solid #0267B1`), badge mã bài + tổng số câu ở cột Nội dung (`mx-spec-lesson-cell`) và vạch đứt nhẹ giữa các mức độ trong cùng một bài (`mx-spec-level-block`).

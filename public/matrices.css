@@ -19,4 +19,20 @@
 .matrix-spec-table textarea.mx-spec-req-input{background:#ffffff}
 .matrix-spec-table tfoot td{border:1px solid #8fb4d6}
 .matrix-spec-table tfoot tr:first-child td{border-top:2px solid #0267B1}
+.sbp-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;margin-bottom:12px}
+.sbp-scroll-body{max-height:58vh;overflow:auto;display:flex;flex-direction:column;gap:12px;padding-right:4px}
+.sbp-lesson-card{border:2px solid #93c5fd;border-radius:10px;background:#fff;padding:12px 14px}
+.sbp-lesson-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #dbeafe;font-size:14px;color:#0f2942}
+.sbp-level-box{border:1px solid #dce5ee;border-left:4px solid #0267B1;border-radius:8px;background:#f8fafd;padding:10px 12px;margin-bottom:8px}
+.sbp-level-box:last-child{margin-bottom:0}
+.sbp-level-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.sbp-bulk-select{font-size:12px;padding:4px 8px;border:1px solid #7ab6e2;border-radius:6px;background:#fff;max-width:340px}
+.sbp-slot-list{display:flex;flex-direction:column;gap:6px}
+.sbp-slot-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sbp-slot-label{min-width:110px;font-size:12px;font-weight:700;color:#0267B1;display:flex;flex-direction:column;line-height:1.25}
+.sbp-slot-label small{font-size:10.5px;font-weight:500;color:#64748b}
+.sbp-slot-select{flex:1;min-width:240px;font-size:12.5px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff}
+.sbp-group-preview{margin-top:8px;padding-top:6px;border-top:1px dashed #cbd5e1;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.sbp-preview-chip{display:inline-block;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;border-radius:999px;font-size:11px;padding:2px 8px}
+.sbp-preview-chip.warn{background:#fef3c7;color:#92400e;border-color:#fde68a}
 @media(max-width:1180px){.mx-compare-grid{grid-template-columns:1fr}}@media(max-width:850px){.mx-editor-head,.mx-record-main>.mx-record{flex-direction:column}.mx-record-meta{align-items:flex-start}.matrix-flow{display:none}.mx-editor{padding:16px}.mx-requirement{padding:10px}.mx-editor select{max-width:100%}}

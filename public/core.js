@@ -1483,6 +1483,16 @@ function syncEditedQuestionsFromSheet(sheet,record){
     if(/Android.*;\s*wv\)/.test(a))return 'một ứng dụng khác';
     return null;
   }
-  const api={inAppBrowserName,syncOutcomeIds,normalizeOutcomeIds,questionKeys,questionRelation,RELATION_LABELS,textSimilarity,questionBigrams,VI_STOPWORDS,parsePrerequisite,detectPrerequisiteCycle,requiredRevisionCount,computeRevisionPlan,outcomeIdPrefix,lessonOutcomeIds,assignOutcomeIds,resolveOutcome,suggestOutcomes,kyStepperModel,dossierStatus,permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter,uiConfirm,uiPrompt,uiMultiPrompt};
+  function formatDateTime(value,fallback=''){
+    if(!value)return fallback;
+    const d=new Date(value);
+    if(Number.isNaN(d.getTime()))return String(value);
+    return d.toLocaleString('vi-VN',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});
+  }
+  function createdAtOf(record){
+    if(!record||typeof record!=='object')return null;
+    return record.created_at||record.createdAt||record.audit?.[0]?.at||record.updated_at||null;
+  }
+  const api={formatDateTime,createdAtOf,inAppBrowserName,syncOutcomeIds,normalizeOutcomeIds,questionKeys,questionRelation,RELATION_LABELS,textSimilarity,questionBigrams,VI_STOPWORDS,parsePrerequisite,detectPrerequisiteCycle,requiredRevisionCount,computeRevisionPlan,outcomeIdPrefix,lessonOutcomeIds,assignOutcomeIds,resolveOutcome,suggestOutcomes,kyStepperModel,dossierStatus,permutationAnswerKey,questionQualityWarnings,questionTextBlocks,questionTextHtml,insertQuestionTemplate,levelAfterTypeChange,cognitiveLevels,levelOptions,examDraftKey,cleanExamDraft,saveExamDraft,loadExamDraft,screenGuide,SCREEN_GUIDES,reviewFiltersForCell,nextKttxNumber,convertKttxScoreTo10,examStatusOf,examActions,examEditable,reviewQueue,reviewStatusOf,reviewKeyAction,stepIndex,checklistMissing,reviewProgress,mcExplanations,shortAnswerOf,syncEditedQuestionsFromSheet,scopedUrl,contextGrades,courseLessons,normalize,jsonHeaders,formatStoragePrefix,filterQuestions,blueprintSummary,matrixCellCoverage,cellMatches,distributeCountsByLesson,distributeCounts,sourceTemplateRequired,templateBlocked,revisionIds,escapeHtml,DocFormatter,uiConfirm,uiPrompt,uiMultiPrompt};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else{root.BankCore=api;root.DocFormatter=DocFormatter;root.uiConfirm=uiConfirm;root.uiPrompt=uiPrompt;root.uiMultiPrompt=uiMultiPrompt;}
 })(typeof window!=='undefined'?window:globalThis);

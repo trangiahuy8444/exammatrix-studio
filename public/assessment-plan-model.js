@@ -423,7 +423,9 @@
       coefficient,
       scope_lessons,
       scope_description,
-      notes
+      notes,
+      ...(raw.created_at ? { created_at: String(raw.created_at) } : {}),
+      ...(raw.updated_at ? { updated_at: String(raw.updated_at) } : {})
     };
   }
 

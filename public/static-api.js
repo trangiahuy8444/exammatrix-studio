@@ -30,7 +30,7 @@
    if(!parser)fail('Chưa nạp bộ đọc danh mục. Vui lòng tải lại trang.',503);
    const report=parser.validate(p.catalog);
    if(!report.valid)fail('Danh mục chưa hợp lệ. Hãy sửa các dòng được chỉ rõ.',400,{errors:report.errors});
-   const catalog={...report.catalog,subject_name:subject,revision:(old?.revision||0)+1};
+   const catalog={...report.catalog,subject_name:subject,revision:(old?.revision||0)+1,created_at:old?.created_at||now(),updated_at:now()};
    data.bank.competency_catalogs=[...catalogs.filter(c=>key(c.subject_name)!==key(subject)),catalog];
    return result({catalog},true);
   }
@@ -1432,8 +1432,10 @@
    let revision=p.revision_id?own(find(data.revisions,p.revision_id)):null;
    if(!revision){const plan=engine.proposeRevision(data,{...p,subject_name:subject,counts:p.revision_counts,total:p.revision_total});revision=saveRevision({title:p.title+' — Đề cương',grade:p.grade,question_ids:plan.question_ids});}
    const setId=id('SET'),exams=[];
+   const ts=now();
    for(let n=0;n<count;n++){
     const exam=clone(engine.generateExam(data,{...p,title:p.title+` — Đề ${n+1}`,subject_name:subject,revision_id:revision.id,exam_code:String(101+n),seed:String(p.seed||'')+':'+n}));
+    exam.created_at=exam.created_at||ts;exam.updated_at=ts;
     exam.exam_set={id:setId,index:n+1,count};exams.push(exam);
    }
    stampExamSet(exams,{id:setId,title:String(p.title||'').trim(),revision_id:revision.id});
@@ -1569,14 +1571,14 @@
    const all_passed=candidates.every(e=>e.verification.passed);
    if(path.endsWith('/inspect-import'))return result({filename:p.filename||'Đề JSON',candidates,candidate_count:candidates.length,all_passed});
    if(!all_passed)fail('Đề nhập chưa đạt đối chiếu thực tế với ngân hàng, ma trận và đề cương; không thể xác nhận đạt.',409);
-   candidates.forEach(e=>put(data.exams,e));return result({exams:data.exams,imported:candidates},true);
+   candidates.forEach(e=>{e.created_at=e.created_at||now();e.updated_at=now();put(data.exams,e);});return result({exams:data.exams,imported:candidates},true);
   }
   if(path==='/api/matrices'){data.matrices.forEach(normalizeMatrixSlots);return result({matrices:data.matrices});}
   if(path==='/api/matrices/save'){
    const raw=clone(p.matrix||{}),old=raw.id?data.matrices.find(m=>m.id===raw.id):null;
    if(old){own(old);if(old.status==='locked'||old.status==='archived')fail('Ma trận đã khóa/lưu trữ. Hãy mở khóa hoặc tạo phiên bản mới.',409);
     if(p.expected_revision!==old.revision)fail('Ma trận đã đổi phiên bản; hãy tải lại trước khi lưu.',409);}
-   const matrix={...raw,id:old?.id||id('MX'),family_id:old?.family_id||id('FAM'),subject_name:subject,status:'draft',version:old?.version||1,revision:(old?.revision||0)+1,updated_at:now()};
+   const matrix={...raw,id:old?.id||id('MX'),family_id:old?.family_id||id('FAM'),subject_name:subject,status:'draft',version:old?.version||1,revision:(old?.revision||0)+1,created_at:old?.created_at||raw.created_at||raw.audit?.[0]?.at||now(),updated_at:now()};
    delete matrix.content_sha256;
    normalizeMatrixSlots(matrix);
    const validation=engine.validateMatrix(matrix,ppct);
@@ -1594,7 +1596,7 @@
    matrix.revision=(matrix.revision||0)+1;matrix.updated_at=now();return result({matrix,validation},true);
   }
   if(path==='/api/matrices/duplicate'||path==='/api/matrices/new-version'){
-   const old=checkedMatrix(p.id),matrix=clone(old);matrix.id=id('MX');matrix.status='draft';matrix.revision=0;delete matrix.confirmation;delete matrix.content_sha256;
+   const old=checkedMatrix(p.id),matrix=clone(old),ts=now();matrix.id=id('MX');matrix.status='draft';matrix.revision=0;matrix.created_at=ts;matrix.updated_at=ts;matrix.audit=[{at:ts,action:path.endsWith('/new-version')?'new_version':'duplicate'}];delete matrix.confirmation;delete matrix.content_sha256;
    normalizeMatrixSlots(matrix);
    if(path.endsWith('/new-version')){matrix.previous_id=old.id;matrix.version=(old.version||1)+1;}else{matrix.family_id=id('FAM');matrix.version=1;matrix.title=old.title+' (Bản sao)';}
    put(data.matrices,matrix);return result({matrix,validation:engine.validateMatrix(matrix,ppct)},true);
@@ -1615,7 +1617,7 @@
    if(p.package?.format!=='asian-school-matrix'||p.package.schema_version!==1)fail('Gói ma trận không đúng định dạng hoặc phiên bản hỗ trợ.');
    const raw=p.package?.matrix;if(!raw)fail('Gói nhập chưa có ma trận.');
    if(p.package.content_sha256!==undefined&&p.package.content_sha256!==engine.jsonDigest(raw))fail('Nội dung gói đã thay đổi hoặc dấu kiểm tra không còn khớp.');
-   const matrix={...clone(raw),id:id('MX'),family_id:id('FAM'),subject_name:subject,status:'draft',revision:1,version:1};delete matrix.confirmation;delete matrix.content_sha256;
+   const matrix={...clone(raw),id:id('MX'),family_id:id('FAM'),subject_name:subject,status:'draft',revision:1,version:1,created_at:raw.created_at||now(),updated_at:now()};delete matrix.confirmation;delete matrix.content_sha256;
    normalizeMatrixSlots(matrix);
    const validation=engine.validateMatrix(matrix,ppct);
    if(validation.errors.some(e=>e.code==='catalog'))fail('Danh mục trong gói ma trận chưa hợp lệ.',400,validation);
@@ -1667,6 +1669,10 @@
    const grade=Number(raw.grade||p.grade||8),targetSubj=String(raw.subject_name||p.subject_name||subject||'Tin học').trim();
    const planModel=root.BankAssessmentPlan||(typeof require==='function'?require('./assessment-plan-model.js'):null);
    const normalized=planModel?planModel.normalizePlan(raw,grade,targetSubj):{id:raw.id||id('AP'),grade,subject_name:targetSubj,...raw};
+   const oldPlan=(data.assessment_plans||[]).find(ap=>ap.id===normalized.id);
+   const ts=now();
+   normalized.created_at=oldPlan?.created_at||raw.created_at||ts;
+   normalized.updated_at=ts;
    put(data.assessment_plans,normalized);
    return result({plan:normalized,assessment_plans:data.assessment_plans},true);
   }
@@ -1680,7 +1686,8 @@
    const grade=Number(p.grade||8),targetSubj=String(p.subject_name||subject||'Tin học').trim();
    const planModel=root.BankAssessmentPlan||(typeof require==='function'?require('./assessment-plan-model.js'):null);
    if(!planModel)fail('Chưa nạp bộ định nghĩa KHKTĐG.',503);
-   const defaults=planModel.buildDefaultAssessmentPlans(grade,targetSubj);
+   const ts=now();
+   const defaults=planModel.buildDefaultAssessmentPlans(grade,targetSubj).map(plan=>({...plan,created_at:plan.created_at||ts,updated_at:ts}));
    data.assessment_plans=[...(data.assessment_plans||[]).filter(ap=>Number(ap.grade)!==grade||(ap.subject_name||'Tin học')!==targetSubj),...defaults];
    return result({success:true,assessment_plans:data.assessment_plans,defaults},true);
   }
@@ -1696,7 +1703,8 @@
    if(p.replace_grade===true){
     data.assessment_plans=(data.assessment_plans||[]).filter(ap=>!(Number(ap.grade)===grade&&(ap.subject_name||'Tin học')===targetSubj));
    }
-   imported.forEach(plan=>put(data.assessment_plans,plan));
+   const ts=now();
+   imported.forEach(plan=>{plan.created_at=plan.created_at||ts;plan.updated_at=ts;put(data.assessment_plans,plan);});
    return result({success:true,imported,assessment_plans:data.assessment_plans},true);
   }
   fail('Thao tác này chưa được hỗ trợ trên bản Pages. Không có dữ liệu nào được thay đổi.',501);

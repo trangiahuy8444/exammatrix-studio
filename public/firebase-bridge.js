@@ -874,6 +874,7 @@
           currentWorkspaceData.bank.ppct.cleared_grades = cleared;
           const existing = cleanPpctLessons(currentWorkspaceData.bank.ppct.lessons || [], cleared);
           const otherLessons = existing.filter(l => !(((l.subject_name || 'Tin học') === targetSubject) && Number(l.grade) === grade));
+          const nowIso = new Date().toISOString();
           const newLessons = incoming.map(l => {
             const lessonName = l.lesson_name_source || l.lesson_name || l.name || '';
             const topicSource = l.topic_source || l.topic || 'Chương trình GDPT';
@@ -887,6 +888,7 @@
                 if (!compList.includes(c)) compList.push(c);
               }
             }
+            const prev = existing.find(x => (x.subject_name || 'Tin học') === (l.subject_name || targetSubject) && Number(x.grade) === grade && String(x.lesson_code).trim().toLowerCase() === String(l.lesson_code || '').trim().toLowerCase());
             return {
               ...l,
               grade: grade,
@@ -896,7 +898,9 @@
               orientation,
               occurrences: occs,
               digital_competencies: compList,
-              notes: normalizeNotesValue(l.notes ?? l.note ?? l.notes_raw ?? l.ghi_chu ?? '', occs)
+              notes: normalizeNotesValue(l.notes ?? l.note ?? l.notes_raw ?? l.ghi_chu ?? '', occs),
+              created_at: prev?.created_at || l.created_at || nowIso,
+              updated_at: nowIso
             };
           });
           // Mã YCCĐ cố định khi nhập lại PPCT: so với bài cùng mã đang có.
@@ -943,6 +947,8 @@
           competencies_raw: compList.join('\n'),
           notes_raw: notesStr
         }], section === 'elective_topic' ? '' : 'Tuần 1');
+        const nowIso = new Date().toISOString();
+        const prevLesson = existing.find(x => ((x.subject_name || 'Tin học') === targetSubject) && Number(x.grade) === grade && x.lesson_code === l.lesson_code);
         const lessonObj = {
           grade: grade,
           lesson_code: l.lesson_code,
@@ -955,10 +961,11 @@
           occurrences: occs,
           outcomes: Array.isArray(l.outcomes) ? l.outcomes : [],
           digital_competencies: compList,
-          notes: notesStr
+          notes: notesStr,
+          created_at: prevLesson?.created_at || l.created_at || nowIso,
+          updated_at: nowIso
         };
         // Bài tiền đề (hỗ trợ cả cùng khối 'B1' và liên khối '8:B12'; chặn vòng lặp khi lưu PPCT).
-        const prevLesson = existing.find(x => ((x.subject_name || 'Tin học') === targetSubject) && Number(x.grade) === grade && x.lesson_code === l.lesson_code);
         const prereqSource = l.prerequisites !== undefined ? l.prerequisites : prevLesson?.prerequisites;
         const parsePrereq = window.BankCore?.parsePrerequisite;
         const prereqs = (Array.isArray(prereqSource) ? prereqSource : String(prereqSource || '').split(/[,;\n]/))

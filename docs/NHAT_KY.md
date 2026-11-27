@@ -1,3 +1,9 @@
+## 27/11/2026 — Lưu và hiển thị ngày giờ tạo trên toàn bộ đối tượng và màn hình web
+
+- **Định dạng & trích xuất đồng nhất (`core.js`, `styles.css`):** bổ sung `BankCore.formatDateTime` (hiển thị `HH:mm dd/MM/yyyy` theo giờ Việt Nam) và `BankCore.createdAtOf` (ưu tiên `created_at`, tự dự phòng `audit[0].at` hoặc `updated_at` cho hồ sơ cũ).
+- **Ghi `created_at` ở mọi endpoint (`static-api.js`, `assessment-plan-model.js`, `firebase-bridge.js`):** bổ sung lưu `created_at` khi tạo/nhân bản/nhập Ma trận, Danh mục năng lực, Kế hoạch KTĐG, Bài học PPCT và Bộ đề kiểm tra.
+- **Hiển thị trực quan trên mọi màn hình (`app.js`, `matrices.js`, `competency-catalog-ui.js`):** gắn nhãn `🕒 Tạo lúc` trên danh sách & chi tiết Ngân hàng câu hỏi, Duyệt câu hỏi, PPCT, KHKTĐG, KTTX, Đề cương ôn tập, Ma trận & Đặc tả (danh sách, trình biên tập, xem trước, đối chiếu 2 cột, lịch sử thao tác), Tạo & xem Đề kiểm tra và cảnh báo trên Tổng quan.
+
 ## 27/11/2026 — Bỏ hoàn toàn bộ mẫu viết sẵn; Bảng 2 lấy YCCĐ & NL trực tiếp từ Ngân hàng đề và tự động gom/tách
 
 - **Loại bỏ hoàn toàn `STANDARD_PRESETS` (`matrices.js`):** xóa bộ đặc tả mẫu cứng khối 6–12 và nút `Điền mẫu tham khảo`; `newDraft(grade)` luôn khởi tạo bản nháp trắng lấy dữ liệu thực từ PPCT và Ngân hàng câu hỏi.

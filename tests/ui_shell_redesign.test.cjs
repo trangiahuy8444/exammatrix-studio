@@ -33,12 +33,15 @@ test('index.html preserves required shell, header, toast, and sidebar IDs', () =
   assert(!indexHtml.includes('class="page-crumb"'), 'Redundant breadcrumb should be removed from topbar');
   assert(indexHtml.includes('id="app-modal-dialog"'), 'Missing #app-modal-dialog in public/index.html');
   assert(indexHtml.includes('id="spec-bank-picker-dialog"'), 'Missing #spec-bank-picker-dialog in public/index.html');
-  assert(indexHtml.includes('./styles.css?v=20261126c'));
-  assert(indexHtml.includes('./core.js?v=20261126g'));
+  assert(indexHtml.includes('./styles.css?v=20261127c'));
+  assert(indexHtml.includes('./core.js?v=20261127c'));
+  assert(indexHtml.includes('./competency-catalog-ui.js?v=20261127c'));
+  assert(indexHtml.includes('./static-api.js?v=20261127c'));
   assert(indexHtml.includes('./matrices.css?v=20261127b'));
-  assert(indexHtml.includes('./matrices.js?v=20261127b'));
-  assert(indexHtml.includes('./firebase-bridge.js?v=20261126g'));
-  assert(indexHtml.includes('./app.js?v=20261126f'));
+  assert(indexHtml.includes('./assessment-plan-model.js?v=20261127c'));
+  assert(indexHtml.includes('./matrices.js?v=20261127c'));
+  assert(indexHtml.includes('./firebase-bridge.js?v=20261127c'));
+  assert(indexHtml.includes('./app.js?v=20261127c'));
   assert(indexHtml.includes('./knowledge-ui.js?v=20261126c'));
 });
 
@@ -72,9 +75,13 @@ test('app.js notify uses auto-dismiss top-layer floating toast without scrollInt
   assert(!appJs.includes('store.revisions[0]'), 'renderRevisions must not fall back to cross-grade store.revisions[0]');
   assert(appJs.includes("store.activeRevisionViewId=null;store.revCoverageExamId=null;"), 'setActiveGrade must clear cross-grade activeRevisionViewId');
   assert(appJs.includes('async function createRevisionFromExam(') && appJs.includes('data-create-rev-from-exam'), 'app.js must provide createRevisionFromExam two-way workflow button');
+  assert(appJs.includes('C.formatDateTime') && appJs.includes('C.createdAtOf'), 'app.js must use BankCore formatDateTime and createdAtOf across views');
   assert(stylesCss.includes('.rev-vis-cell') && stylesCss.includes('.rev-vis-compare'));
+  assert(stylesCss.includes('.meta-time'), 'styles.css must define .meta-time');
   const matricesCss = fs.readFileSync(path.join(publicDir, 'matrices.css'), 'utf8');
   assert(matricesCss.includes('.matrix-spec-table tbody td') && matricesCss.includes('.mx-spec-lesson-cell'), 'matrices.css must style Table 2 lesson boundaries and cells');
+  const matricesJs = fs.readFileSync(path.join(publicDir, 'matrices.js'), 'utf8');
+  assert(matricesJs.includes('fmtDateTime(createdAtOf(m))'), 'matrices.js must display createdAtOf(m) across list, editor, and preview');
 });
 
 test('firebase-bridge.js renders streamlined account dropdown, preserves auth/Drive IDs, and delegates toast to window.notify', () => {

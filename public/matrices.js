@@ -765,6 +765,7 @@
 
     let tableRows = '';
     let topicIdx = 0;
+    let lessonIdx = 0;
 
     const codes=m.competency_catalog?.map(c=>c.code)||competencies();
     const datalistHtml = `<datalist id="mx-competency-datalist">${codes.map(c=>`<option value="${E(c)}">${E(m.competency_catalog?.find(x=>x.code===c)?.name||c)}</option>`).join('')}</datalist>`;
@@ -775,6 +776,14 @@
         const vRow = v.rows.find(r => r.lesson_code === lesson.lesson_code) || { cells: {}, counts: {} };
         const lessonReqs = (m.requirements || []).filter(r => r.lesson_code === lesson.lesson_code);
         const compNLa = lessonReqs[0]?.competency || 'NLa';
+        const lessonSlotCount = Object.values(vRow.cells || {}).reduce((acc, c) => acc + (c?.count || 0), 0);
+        const rowClasses = [
+          'mx-spec-lesson-row',
+          lessonIdx % 2 === 0 ? 'mx-spec-lesson-even' : 'mx-spec-lesson-odd',
+          rowInGrp === 0 ? 'mx-spec-topic-start' : '',
+          rowInGrp === grp.length - 1 ? 'mx-spec-topic-end' : ''
+        ].filter(Boolean).join(' ');
+        lessonIdx++;
 
         let reqsHtml = '';
         LEVELS_ORDER.forEach(lvl => {
@@ -793,7 +802,7 @@
           const lvlComp = rs[0]?.competency || m.custom_level_comp?.[lesson.lesson_code + '|' + lvl] || compNLa;
           const canSplitLevel = !(locked || received) && slotCountInLevel > 1 && rs.length < slotCountInLevel;
 
-          reqsHtml += `<div style="margin-bottom:8px;padding-bottom:6px;border-bottom:1px dotted #e2e8f0">
+          reqsHtml += `<div class="mx-spec-level-block">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:6px;flex-wrap:wrap">
               <strong style="color:var(--navy);font-size:12px">${LEVEL_NAMES[lvl]}:</strong>
               <div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -913,22 +922,25 @@
         }).filter(Boolean).join('') || '0';
 
         const isPlanLesson = Boolean(m.assessment_plan?.scope_lessons?.includes(lesson.lesson_code));
-        tableRows += `<tr>`;
+        tableRows += `<tr class="${rowClasses}">`;
         if (rowInGrp === 0) {
-          tableRows += `<td rowspan="${grp.length}" style="text-align:center;font-weight:600;vertical-align:middle">${topicIdx}</td>`;
-          tableRows += `<td rowspan="${grp.length}" style="vertical-align:middle;font-weight:600;color:var(--navy);background:#fbfdff">${E(grp[0].topic)}</td>`;
+          tableRows += `<td rowspan="${grp.length}" class="mx-spec-tt-cell" style="text-align:center;vertical-align:middle">${topicIdx}</td>`;
+          tableRows += `<td rowspan="${grp.length}" class="mx-spec-topic-cell" style="vertical-align:middle;font-weight:600">${E(grp[0].topic)}</td>`;
         }
         tableRows += `
-          <td style="vertical-align:middle;font-weight:600">
-            ${E(lesson.title)}
-            <small style="display:block;color:var(--muted);font-weight:400">${E(lesson.lesson_code)}</small>
-            ${isPlanLesson ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;font-weight:600;font-size:10px;margin-top:3px;display:inline-block">🎯 Trong KHKTĐG</span>` : ''}
+          <td class="mx-spec-lesson-cell">
+            <div class="mx-spec-lesson-header">
+              <span class="mx-spec-lesson-code">${E(lesson.lesson_code)}</span>
+              ${lessonSlotCount > 0 ? `<span class="mx-spec-lesson-count">${lessonSlotCount} câu</span>` : ''}
+            </div>
+            <span class="mx-spec-lesson-title">${E(lesson.title)}</span>
+            ${isPlanLesson ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;font-weight:600;font-size:10px;margin-top:5px;display:inline-block">🎯 Trong KHKTĐG</span>` : ''}
           </td>
-          <td style="vertical-align:top;padding:8px 10px">${reqsHtml}</td>
-          <td style="text-align:center;vertical-align:middle;font-size:12px;line-height:1.4">${cellMC}</td>
-          <td style="text-align:center;vertical-align:middle;font-size:12px">${cellYN}</td>
-          <td style="text-align:center;vertical-align:middle;font-size:12px">${cellShort}</td>
-          <td style="text-align:center;vertical-align:middle;font-size:12px;line-height:1.4">${cellES}</td>
+          <td class="mx-spec-req-col" style="vertical-align:top;padding:10px 12px">${reqsHtml}</td>
+          <td class="mx-spec-count-col" style="text-align:center;vertical-align:middle;font-size:12px;line-height:1.4">${cellMC}</td>
+          <td class="mx-spec-count-col" style="text-align:center;vertical-align:middle;font-size:12px">${cellYN}</td>
+          <td class="mx-spec-count-col" style="text-align:center;vertical-align:middle;font-size:12px">${cellShort}</td>
+          <td class="mx-spec-count-col" style="text-align:center;vertical-align:middle;font-size:12px;line-height:1.4">${cellES}</td>
         </tr>`;
       });
     });

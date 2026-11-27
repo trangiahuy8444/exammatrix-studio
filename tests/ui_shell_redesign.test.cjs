@@ -34,7 +34,8 @@ test('index.html preserves required shell, header, toast, and sidebar IDs', () =
   assert(indexHtml.includes('id="app-modal-dialog"'), 'Missing #app-modal-dialog in public/index.html');
   assert(indexHtml.includes('./styles.css?v=20261126c'));
   assert(indexHtml.includes('./core.js?v=20261126g'));
-  assert(indexHtml.includes('./matrices.js?v=20261126f'));
+  assert(indexHtml.includes('./matrices.css?v=20261127a'));
+  assert(indexHtml.includes('./matrices.js?v=20261127a'));
   assert(indexHtml.includes('./firebase-bridge.js?v=20261126g'));
   assert(indexHtml.includes('./app.js?v=20261126f'));
   assert(indexHtml.includes('./knowledge-ui.js?v=20261126c'));
@@ -71,6 +72,8 @@ test('app.js notify uses auto-dismiss top-layer floating toast without scrollInt
   assert(appJs.includes("store.activeRevisionViewId=null;store.revCoverageExamId=null;"), 'setActiveGrade must clear cross-grade activeRevisionViewId');
   assert(appJs.includes('async function createRevisionFromExam(') && appJs.includes('data-create-rev-from-exam'), 'app.js must provide createRevisionFromExam two-way workflow button');
   assert(stylesCss.includes('.rev-vis-cell') && stylesCss.includes('.rev-vis-compare'));
+  const matricesCss = fs.readFileSync(path.join(publicDir, 'matrices.css'), 'utf8');
+  assert(matricesCss.includes('.matrix-spec-table tbody td') && matricesCss.includes('.mx-spec-lesson-cell'), 'matrices.css must style Table 2 lesson boundaries and cells');
 });
 
 test('firebase-bridge.js renders streamlined account dropdown, preserves auth/Drive IDs, and delegates toast to window.notify', () => {

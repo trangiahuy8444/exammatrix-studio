@@ -1,3 +1,7 @@
+## 27/11/2026 — Làm nổi bật ranh giới từng bài và chủ đề ở Bảng 2 (Bảng đặc tả)
+
+- **Phân tách rõ từng bài & chủ đề (`matrices.js`, `matrices.css`):** gắn class `mx-spec-lesson-row` xen kẽ nền trắng / xanh nhạt (`#f3f8fe`), viền phân tách đậm giữa các bài (`2px solid #6b9bc7`), viền tách chủ đề (`3px solid #0267B1`), badge mã bài + tổng số câu ở cột Nội dung (`mx-spec-lesson-cell`) và vạch đứt nhẹ giữa các mức độ trong cùng một bài (`mx-spec-level-block`).
+
 ## 26/11/2026 — Hướng dẫn đăng nhập khi mở web từ Zalo, Messenger
 
 Giáo viên khác báo bị chặn đăng nhập. Một nguyên nhân khả dĩ: Google chặn đăng nhập trong trình duyệt nhúng của ứng dụng chat. Chưa có ảnh mã lỗi thực tế; các trường hợp khác (email trường bị quản trị chặn, cửa sổ bật lên, tên miền) chưa xử lí trong mã.

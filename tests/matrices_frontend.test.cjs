@@ -248,6 +248,10 @@ Khối: 9
   assert(specHtml.includes('Tự điền toàn bộ YCCĐ từ PPCT'), 'Should render 1-click auto-fill button');
   assert(specHtml.includes('mx-spec-req-input'), 'Should render editable textareas for requirements');
   assert(specHtml.includes('MC (B)'), 'Should format question count with level and competency');
+  assert(specHtml.includes('mx-spec-lesson-row'), 'Should render lesson row highlight classes');
+  assert(specHtml.includes('mx-spec-lesson-code'), 'Should render lesson code badge');
+  assert(specHtml.includes('mx-spec-topic-start'), 'Should render topic boundary marker');
+  assert(specHtml.includes('mx-spec-level-block'), 'Should render level separator block inside lesson');
 
   const g8WordHtml = ui.generateMatrixWordHtml(g8Preset, 'all');
   assert(g8WordHtml.includes('KHUNG MA TRẬN ĐỀ KIỂM TRA ĐỊNH KỲ'), 'Word should include Khung ma trận');
